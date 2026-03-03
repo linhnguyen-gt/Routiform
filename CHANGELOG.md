@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.0] — 2026-03-03
+
+### 🐛 Bug Fixes
+
+- **Empty `tool_use.name` Validation** — Fixed intermittent HTTP 400 errors when using Claude Code through OmniRoute. Assistant messages with empty `tool_use.name` fields (from interrupted tool calls or malformed history) are now validated and filtered at two layers: the `openai-to-claude` request translator and the `prepareClaudeRequest` sanitizer. Fixes #191
+- **Windows Electron Release** — Fixed the "Collect installers" step failing in every Windows build since v1.7.5+. `electron-builder` produces versioned portable exe filenames (e.g., `OmniRoute 1.6.9.exe`), not the hardcoded `OmniRoute.exe` the workflow expected. Now finds the portable exe dynamically by pattern. PR #190 by @benzntech
+
 ## [1.7.14] — 2026-03-02
 
 ### 🐛 Bug Fixes
