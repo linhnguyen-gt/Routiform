@@ -383,6 +383,35 @@ function startNextServer() {
     return;
   }
 
+  // ── Auto-generate required env vars for Electron ──
+  // In packaged Electron, there is no .env file — JWT_SECRET and
+  // STORAGE_ENCRYPTION_KEY must be generated once and persisted.
+  const envFilePath = path.join(app.getPath("userData"), "electron-env.json");
+  let persistedEnv = {};
+  try {
+    if (fs.existsSync(envFilePath)) {
+      persistedEnv = JSON.parse(fs.readFileSync(envFilePath, "utf8"));
+    }
+  } catch {
+    /* ignore read errors */
+  }
+
+  if (!persistedEnv.JWT_SECRET) {
+    persistedEnv.JWT_SECRET = require("crypto").randomBytes(64).toString("hex");
+  }
+  if (!persistedEnv.STORAGE_ENCRYPTION_KEY) {
+    persistedEnv.STORAGE_ENCRYPTION_KEY = require("crypto").randomBytes(32).toString("hex");
+  }
+  if (!persistedEnv.STORAGE_ENCRYPTION_KEY_VERSION) {
+    persistedEnv.STORAGE_ENCRYPTION_KEY_VERSION = "v1";
+  }
+
+  try {
+    fs.writeFileSync(envFilePath, JSON.stringify(persistedEnv, null, 2));
+  } catch {
+    /* ignore write errors */
+  }
+
   console.log("[Electron] Starting Next.js server on port", serverPort);
   sendToRenderer("server-status", { status: "starting", port: serverPort });
 
@@ -391,6 +420,7 @@ function startNextServer() {
     cwd: NEXT_SERVER_PATH,
     env: {
       ...process.env,
+      ...persistedEnv,
       PORT: String(serverPort),
       NODE_ENV: "production",
     },
