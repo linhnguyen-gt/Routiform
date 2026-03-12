@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.3.12] - 2026-03-12
+
+### Fixed
+
+- **KiloCode**: kilocode healthcheck timeout already fixed in v2.3.11
+- **OpenCode**: Add opencode to cliRuntime registry with 15s healthcheck timeout
+- **OpenClaw / Cursor**: Increase healthcheck timeout to 15s for slow-start variants
+- **VPS**: Install droid and openclaw npm packages; activate CLI_EXTRA_PATHS for kiro-cli
+- **cliRuntime**: Add opencode tool registration and increase timeout for continue
+
 ## [2.3.11] - 2026-03-12
 
 ### Fixed

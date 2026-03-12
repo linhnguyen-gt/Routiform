@@ -41,7 +41,7 @@ const CLI_TOOLS: Record<string, any> = {
     envBinKey: "CLI_OPENCLAW_BIN",
     requiresBinary: true,
     // openclaw CLI may take >4s on cold start in containers.
-    healthcheckTimeoutMs: 12000,
+    healthcheckTimeoutMs: 15000,
     paths: {
       settings: ".openclaw/openclaw.json",
     },
@@ -51,7 +51,7 @@ const CLI_TOOLS: Record<string, any> = {
     envBinKey: "CLI_CURSOR_BIN",
     requiresBinary: true,
     // Cursor startup can be slower on first run in containerized host-mount mode.
-    healthcheckTimeoutMs: 12000,
+    healthcheckTimeoutMs: 15000,
     paths: {
       config: ".cursor/cli-config.json",
       auth: ".config/cursor/auth.json",
@@ -85,8 +85,20 @@ const CLI_TOOLS: Record<string, any> = {
     defaultCommand: null,
     envBinKey: "CLI_CONTINUE_BIN",
     requiresBinary: false,
+    // opencode and continue may take up to 15s on first run / cold start on VPS
+    healthcheckTimeoutMs: 15000,
     paths: {
       settings: ".continue/config.json",
+    },
+  },
+  opencode: {
+    defaultCommand: "opencode",
+    envBinKey: "CLI_OPENCODE_BIN",
+    requiresBinary: true,
+    // opencode takes several seconds on cold start environments
+    healthcheckTimeoutMs: 15000,
+    paths: {
+      config: ".config/opencode/config.toml",
     },
   },
 };
