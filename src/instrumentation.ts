@@ -11,17 +11,80 @@
 function ensureSecrets(): void {
   // eslint-disable-next-line no-eval
   const crypto = eval("require")("crypto");
+  // eslint-disable-next-line no-eval
+  const Database = eval("require")("better-sqlite3");
+  // eslint-disable-next-line no-eval
+  const path = eval("require")("path");
+  const os = eval("require")("os"); // eslint-disable-line no-eval
+
+  function getSecretsDb() {
+    const dataDir = process.env.DATA_DIR || path.join(os.homedir(), ".omniroute");
+    const dbPath = path.join(dataDir, "storage.sqlite");
+    try {
+      const db = new Database(dbPath);
+      db.exec(
+        "CREATE TABLE IF NOT EXISTS key_value (namespace TEXT, key TEXT, value TEXT, PRIMARY KEY (namespace, key))"
+      );
+      return db;
+    } catch {
+      return null;
+    }
+  }
+
+  function loadPersistedSecret(key: string): string | null {
+    try {
+      const db = getSecretsDb();
+      if (!db) return null;
+      const row = db
+        .prepare("SELECT value FROM key_value WHERE namespace = 'secrets' AND key = ?")
+        .get(key) as { value: string } | undefined;
+      db.close();
+      return row ? JSON.parse(row.value) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function persistSecret(key: string, value: string): void {
+    try {
+      const db = getSecretsDb();
+      if (!db) return;
+      db.prepare(
+        "INSERT OR IGNORE INTO key_value (namespace, key, value) VALUES ('secrets', ?, ?)"
+      ).run(key, JSON.stringify(value));
+      db.close();
+    } catch {
+      // Non-fatal — secrets can still work in-memory if persist fails
+    }
+  }
 
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.trim() === "") {
-    const generated = crypto.randomBytes(48).toString("base64");
-    process.env.JWT_SECRET = generated;
-    console.log("[STARTUP] JWT_SECRET auto-generated (random 64-char secret)");
+    // Try to load previously generated secret from DB (survives restarts)
+    const persisted = loadPersistedSecret("jwtSecret");
+    if (persisted) {
+      process.env.JWT_SECRET = persisted;
+      console.log("[STARTUP] JWT_SECRET restored from persistent store");
+    } else {
+      // First run — generate and persist
+      const generated = crypto.randomBytes(48).toString("base64");
+      process.env.JWT_SECRET = generated;
+      persistSecret("jwtSecret", generated);
+      console.log("[STARTUP] JWT_SECRET auto-generated and persisted (random 64-char secret)");
+    }
   }
 
   if (!process.env.API_KEY_SECRET || process.env.API_KEY_SECRET.trim() === "") {
-    const generated = crypto.randomBytes(32).toString("hex");
-    process.env.API_KEY_SECRET = generated;
-    console.log("[STARTUP] API_KEY_SECRET auto-generated (random 64-char hex secret)");
+    const persisted = loadPersistedSecret("apiKeySecret");
+    if (persisted) {
+      process.env.API_KEY_SECRET = persisted;
+    } else {
+      const generated = crypto.randomBytes(32).toString("hex");
+      process.env.API_KEY_SECRET = generated;
+      persistSecret("apiKeySecret", generated);
+      console.log(
+        "[STARTUP] API_KEY_SECRET auto-generated and persisted (random 64-char hex secret)"
+      );
+    }
   }
 }
 
@@ -52,7 +115,8 @@ export async function register() {
     try {
       const { getSettings } = await import("@/lib/db/settings");
       const { setCustomAliases } = await import("@omniroute/open-sse/services/modelDeprecation.ts");
-      const { setDefaultFastServiceTierEnabled } = await import("@omniroute/open-sse/executors/codex.ts");
+      const { setDefaultFastServiceTierEnabled } =
+        await import("@omniroute/open-sse/executors/codex.ts");
       const settings = await getSettings();
 
       if (settings.modelAliases) {
@@ -75,7 +139,9 @@ export async function register() {
 
       if (typeof persisted?.enabled === "boolean") {
         setDefaultFastServiceTierEnabled(persisted.enabled);
-        console.log(`[STARTUP] Restored Codex fast service tier: ${persisted.enabled ? "on" : "off"}`);
+        console.log(
+          `[STARTUP] Restored Codex fast service tier: ${persisted.enabled ? "on" : "off"}`
+        );
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
