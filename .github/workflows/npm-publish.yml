@@ -3,6 +3,12 @@ name: Publish to npm
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag to publish (e.g. 2.6.0)"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -25,11 +31,14 @@ jobs:
       - name: Install dependencies (skip scripts to avoid heavy build)
         run: npm install --ignore-scripts --no-audit --no-fund
 
-      - name: Sync version from release tag
+      - name: Sync version from release tag or input
         run: |
-          VERSION="${GITHUB_REF_NAME}"
-          # Remove 'v' prefix if present (v2.1.0 -> 2.1.0)
-          VERSION="${VERSION#v}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME}"
+            VERSION="${VERSION#v}"
+          fi
           npm version "$VERSION" --no-git-tag-version --allow-same-version
           echo "Publishing version: $VERSION"
 
