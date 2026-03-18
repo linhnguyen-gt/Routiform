@@ -92,11 +92,15 @@ export function parseQuotaData(provider, data) {
       case "github":
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]: [string, any]) => {
+            if (quota?.unlimited && (!quota?.total || quota.total <= 0)) {
+              return;
+            }
             normalizedQuotas.push({
               name,
               used: quota.used || 0,
               total: quota.total || 0,
               resetAt: quota.resetAt || null,
+              remainingPercentage: safePercentage(quota.remainingPercentage),
             });
           });
         }
@@ -214,6 +218,14 @@ export function normalizePlanTier(plan) {
 
   const upper = raw.toUpperCase();
 
+  if (
+    upper.includes("PRO+") ||
+    upper.includes("PRO PLUS") ||
+    upper.includes("PROPLUS")
+  ) {
+    return { key: "plus", label: "Pro+", variant: "secondary", rank: 4, raw };
+  }
+
   if (upper.includes("ENTERPRISE") || upper.includes("CORP") || upper.includes("ORG")) {
     return { key: "enterprise", label: "Enterprise", variant: "info", rank: 7, raw };
   }
@@ -225,6 +237,10 @@ export function normalizePlanTier(plan) {
 
   if (upper.includes("BUSINESS") || upper.includes("STANDARD") || upper.includes("BIZ")) {
     return { key: "business", label: "Business", variant: "warning", rank: 5, raw };
+  }
+
+  if (upper.includes("STUDENT")) {
+    return { key: "pro", label: "Student", variant: "primary", rank: 3, raw };
   }
 
   if (upper.includes("ULTRA")) {
@@ -241,7 +257,6 @@ export function normalizePlanTier(plan) {
 
   if (
     upper.includes("FREE") ||
-    upper.includes("INDIVIDUAL") ||
     upper.includes("BASIC") ||
     upper.includes("TRIAL") ||
     upper.includes("LEGACY")

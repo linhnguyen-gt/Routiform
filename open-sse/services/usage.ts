@@ -75,6 +75,30 @@ function getFieldValue(source: unknown, snakeKey: string, camelKey: string): unk
   return obj[snakeKey] ?? obj[camelKey] ?? null;
 }
 
+function clampPercentage(value: number): number {
+  return Math.max(0, Math.min(100, value));
+}
+
+function toDisplayLabel(value: string): string {
+  return value
+    .replace(/^copilot[_\s-]*/i, "")
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => {
+      if (/^pro\+$/i.test(part)) return "Pro+";
+      if (/^[a-z]{2,}$/.test(part)) return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+      return part;
+    })
+    .join(" ")
+    .trim();
+}
+
+function shouldDisplayGitHubQuota(quota: UsageQuota | null): quota is UsageQuota {
+  if (!quota) return false;
+  if (quota.unlimited && quota.total <= 0) return false;
+  return quota.total > 0 || quota.remainingPercentage !== undefined;
+}
+
 /**
  * Get usage data for a provider connection
  * @param {Object} connection - Provider connection with accessToken
@@ -170,48 +194,65 @@ async function getGitHubUsage(accessToken, providerSpecificData) {
     }
 
     const data = await response.json();
+    const dataRecord = toRecord(data);
 
     // Handle different response formats (paid vs free)
-    if (data.quota_snapshots) {
+    if (dataRecord.quota_snapshots) {
       // Paid plan format
-      const snapshots = data.quota_snapshots;
-      const resetAt = parseResetTime(data.quota_reset_date);
+      const snapshots = toRecord(dataRecord.quota_snapshots);
+      const resetAt = parseResetTime(getFieldValue(dataRecord, "quota_reset_date", "quotaResetDate"));
+      const premiumQuota = formatGitHubQuotaSnapshot(snapshots.premium_interactions, resetAt);
+      const chatQuota = formatGitHubQuotaSnapshot(snapshots.chat, resetAt);
+      const completionsQuota = formatGitHubQuotaSnapshot(snapshots.completions, resetAt);
+      const quotas: Record<string, UsageQuota> = {};
+
+      if (shouldDisplayGitHubQuota(premiumQuota)) {
+        quotas.premium_interactions = premiumQuota;
+      }
+      if (shouldDisplayGitHubQuota(chatQuota)) {
+        quotas.chat = chatQuota;
+      }
+      if (shouldDisplayGitHubQuota(completionsQuota)) {
+        quotas.completions = completionsQuota;
+      }
 
       return {
-        plan: data.copilot_plan,
-        resetDate: data.quota_reset_date,
-        quotas: {
-          chat: { ...formatGitHubQuotaSnapshot(snapshots.chat), resetAt },
-          completions: { ...formatGitHubQuotaSnapshot(snapshots.completions), resetAt },
-          premium_interactions: {
-            ...formatGitHubQuotaSnapshot(snapshots.premium_interactions),
-            resetAt,
-          },
-        },
+        plan: inferGitHubPlanName(dataRecord, premiumQuota),
+        resetDate: getFieldValue(dataRecord, "quota_reset_date", "quotaResetDate"),
+        quotas,
       };
-    } else if (data.monthly_quotas || data.limited_user_quotas) {
+    } else if (dataRecord.monthly_quotas || dataRecord.limited_user_quotas) {
       // Free/limited plan format
-      const monthlyQuotas = data.monthly_quotas || {};
-      const usedQuotas = data.limited_user_quotas || {};
-      const resetAt = parseResetTime(data.limited_user_reset_date);
+      const monthlyQuotas = toRecord(dataRecord.monthly_quotas);
+      const usedQuotas = toRecord(dataRecord.limited_user_quotas);
+      const resetDate = getFieldValue(dataRecord, "limited_user_reset_date", "limitedUserResetDate");
+      const resetAt = parseResetTime(resetDate);
+      const quotas: Record<string, UsageQuota> = {};
+
+      const addLimitedQuota = (name: string) => {
+        const total = toNumber(getFieldValue(monthlyQuotas, name, name), 0);
+        const used = Math.max(0, toNumber(getFieldValue(usedQuotas, name, name), 0));
+        if (total <= 0) return null;
+        const clampedUsed = Math.min(used, total);
+        quotas[name] = {
+          used: clampedUsed,
+          total,
+          remaining: Math.max(total - clampedUsed, 0),
+          remainingPercentage: clampPercentage(((total - clampedUsed) / total) * 100),
+          unlimited: false,
+          resetAt,
+        };
+        return quotas[name];
+      };
+
+      const premiumQuota = addLimitedQuota("premium_interactions");
+      addLimitedQuota("chat");
+      addLimitedQuota("completions");
 
       return {
-        plan: data.copilot_plan || data.access_type_sku,
-        resetDate: data.limited_user_reset_date,
-        quotas: {
-          chat: {
-            used: usedQuotas.chat || 0,
-            total: monthlyQuotas.chat || 0,
-            unlimited: false,
-            resetAt,
-          },
-          completions: {
-            used: usedQuotas.completions || 0,
-            total: monthlyQuotas.completions || 0,
-            unlimited: false,
-            resetAt,
-          },
-        },
+        plan: inferGitHubPlanName(dataRecord, premiumQuota),
+        resetDate,
+        quotas,
       };
     }
 
@@ -221,15 +262,101 @@ async function getGitHubUsage(accessToken, providerSpecificData) {
   }
 }
 
-function formatGitHubQuotaSnapshot(quota) {
-  if (!quota) return { used: 0, total: 0, unlimited: true };
+function formatGitHubQuotaSnapshot(quota, resetAt: string | null = null): UsageQuota | null {
+  const source = toRecord(quota);
+  if (Object.keys(source).length === 0) return null;
+
+  const unlimited = source.unlimited === true;
+  const entitlement = toNumber(source.entitlement, Number.NaN);
+  const totalValue = toNumber(source.total, Number.NaN);
+  const remainingValue = toNumber(source.remaining, Number.NaN);
+  const usedValue = toNumber(source.used, Number.NaN);
+  const percentRemainingValue = toNumber(
+    getFieldValue(source, "percent_remaining", "percentRemaining"),
+    Number.NaN
+  );
+
+  let total = Number.isFinite(totalValue)
+    ? Math.max(0, totalValue)
+    : Number.isFinite(entitlement)
+      ? Math.max(0, entitlement)
+      : 0;
+  let remaining = Number.isFinite(remainingValue) ? Math.max(0, remainingValue) : undefined;
+  let used = Number.isFinite(usedValue) ? Math.max(0, usedValue) : undefined;
+  let remainingPercentage = Number.isFinite(percentRemainingValue)
+    ? clampPercentage(percentRemainingValue)
+    : undefined;
+
+  if (used === undefined && total > 0 && remaining !== undefined) {
+    used = Math.max(total - remaining, 0);
+  }
+
+  if (remaining === undefined && total > 0 && used !== undefined) {
+    remaining = Math.max(total - used, 0);
+  }
+
+  if (remainingPercentage === undefined && total > 0 && remaining !== undefined) {
+    remainingPercentage = clampPercentage((remaining / total) * 100);
+  }
+
+  if (total <= 0 && remainingPercentage !== undefined) {
+    total = 100;
+    used = 100 - remainingPercentage;
+    remaining = remainingPercentage;
+  }
 
   return {
-    used: quota.entitlement - quota.remaining,
-    total: quota.entitlement,
-    remaining: quota.remaining,
-    unlimited: quota.unlimited || false,
+    used: Math.max(0, used ?? 0),
+    total,
+    remaining,
+    remainingPercentage,
+    resetAt,
+    unlimited,
   };
+}
+
+function inferGitHubPlanName(data: JsonRecord, premiumQuota: UsageQuota | null): string {
+  const rawPlan = getFieldValue(data, "copilot_plan", "copilotPlan");
+  const rawSku = getFieldValue(data, "access_type_sku", "accessTypeSku");
+  const planText = typeof rawPlan === "string" ? rawPlan.trim() : "";
+  const skuText = typeof rawSku === "string" ? rawSku.trim() : "";
+  const combined = `${skuText} ${planText}`.trim().toUpperCase();
+  const monthlyQuotas = toRecord(getFieldValue(data, "monthly_quotas", "monthlyQuotas"));
+  const premiumTotal =
+    premiumQuota?.total ||
+    toNumber(getFieldValue(monthlyQuotas, "premium_interactions", "premiumInteractions"), 0);
+  const chatTotal = toNumber(getFieldValue(monthlyQuotas, "chat", "chat"), 0);
+
+  if (
+    combined.includes("PRO+") ||
+    combined.includes("PRO_PLUS") ||
+    combined.includes("PROPLUS")
+  ) {
+    return "Copilot Pro+";
+  }
+  if (combined.includes("ENTERPRISE")) return "Copilot Enterprise";
+  if (combined.includes("BUSINESS")) return "Copilot Business";
+  if (combined.includes("STUDENT")) return "Copilot Student";
+  if (combined.includes("FREE")) return "Copilot Free";
+  if (combined.includes("PRO")) return "Copilot Pro";
+
+  if (premiumTotal >= 1400) return "Copilot Pro+";
+  if (premiumTotal >= 900) return "Copilot Enterprise";
+  if (premiumTotal >= 250) {
+    if (combined.includes("INDIVIDUAL")) return "Copilot Pro";
+    return "Copilot Business";
+  }
+  if (premiumTotal > 0 || chatTotal === 50) return "Copilot Free";
+
+  if (skuText) {
+    const label = toDisplayLabel(skuText);
+    return label ? `Copilot ${label}` : "GitHub Copilot";
+  }
+  if (planText) {
+    const label = toDisplayLabel(planText);
+    return label ? `Copilot ${label}` : "GitHub Copilot";
+  }
+  return "GitHub Copilot";
 }
 
 /**
