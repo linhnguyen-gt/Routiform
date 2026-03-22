@@ -44,12 +44,28 @@ export class AntigravityExecutor extends BaseExecutor {
     // stale/wrong client-side values causing 404/403 from Cloud Code endpoints.
     // Opt-in escape hatch: set OMNIROUTE_ALLOW_BODY_PROJECT_OVERRIDE=1.
     const projectId =
-      allowBodyProjectOverride && bodyProjectId ? bodyProjectId : credentialsProjectId || bodyProjectId;
+      allowBodyProjectOverride && bodyProjectId
+        ? bodyProjectId
+        : credentialsProjectId || bodyProjectId;
 
     if (!projectId) {
-      throw new Error(
-        "Missing Google projectId for Antigravity account. Please reconnect OAuth so OmniRoute can fetch your real Cloud Code project (loadCodeAssist)."
-      );
+      // (#489) Return a structured error instead of throwing — gives the client a clear signal
+      // to show a "Reconnect OAuth" prompt rather than an opaque "Internal Server Error".
+      const errorMsg =
+        "Missing Google projectId for Antigravity account. Please reconnect OAuth in Providers → Antigravity so OmniRoute can fetch your Cloud Code project.";
+      const errorBody = {
+        error: {
+          message: errorMsg,
+          type: "oauth_missing_project_id",
+          code: "missing_project_id",
+        },
+      };
+      const resp = new Response(JSON.stringify(errorBody), {
+        status: 422,
+        headers: { "Content-Type": "application/json" },
+      });
+      // Returning a Response object signals the executor to stop and forward it
+      return resp as unknown as never;
     }
 
     // Fix contents for Claude models via Antigravity

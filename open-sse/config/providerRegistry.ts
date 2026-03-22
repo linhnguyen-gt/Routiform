@@ -47,6 +47,8 @@ export interface RegistryEntry {
   executor: string;
   baseUrl?: string;
   baseUrls?: string[];
+  /** Override base URL used only for API key validation (e.g., opencode-go validates on zen/v1) */
+  testKeyBaseUrl?: string;
   responsesBaseUrl?: string;
   urlSuffix?: string;
   urlBuilder?: (base: string, model: string, stream: boolean) => string;
@@ -501,6 +503,8 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     format: "openai",
     executor: "opencode",
     baseUrl: "https://opencode.ai/zen/go/v1",
+    // (#532) Key validation must hit the main zen endpoint (same key works for both tiers)
+    testKeyBaseUrl: "https://opencode.ai/zen/v1",
     authType: "apikey",
     authHeader: "Authorization",
     authPrefix: "Bearer",

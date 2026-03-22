@@ -610,7 +610,12 @@ export async function validateProviderApiKey({ provider, apiKey, providerSpecifi
   }
 
   const modelId = entry.models?.[0]?.id || null;
-  const baseUrl = resolveBaseUrl(entry, providerSpecificData);
+  // (#532) Use testKeyBaseUrl if defined — some providers validate keys on a different endpoint
+  // than where requests are sent (e.g. opencode-go validates on zen/v1, not zen/go/v1)
+  const validationEntry = entry.testKeyBaseUrl
+    ? { ...entry, baseUrl: entry.testKeyBaseUrl }
+    : entry;
+  const baseUrl = resolveBaseUrl(validationEntry, providerSpecificData);
 
   try {
     if (OPENAI_LIKE_FORMATS.has(entry.format)) {

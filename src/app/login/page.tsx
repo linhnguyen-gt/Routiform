@@ -69,6 +69,11 @@ export default function LoginPage() {
         router.refresh();
       } else {
         const data = await res.json();
+        // (#521) If no password is set, redirect to onboarding instead of showing an error
+        if (data.needsSetup) {
+          router.push("/dashboard/onboarding");
+          return;
+        }
         setError(data.error || t("invalidPassword"));
       }
     } catch (err) {

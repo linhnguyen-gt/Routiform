@@ -281,6 +281,7 @@
     "failedUpdatePermissionsRetry": "Failed to update permissions. Please try again.",
     "unknownProvider": "unknown",
     "copyMaskedKey": "Copy masked key",
+    "keyOnlyAvailableAtCreation": "Full key available only at creation time — copy it when you first create the key",
     "modelsCount": "{count, plural, one {# model} other {# models}}",
     "lastUsedOn": "Last: {date}",
     "editPermissions": "Edit permissions",
