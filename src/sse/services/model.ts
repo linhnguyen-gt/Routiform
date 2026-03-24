@@ -1,5 +1,6 @@
 // Re-export from open-sse with localDb integration
 import { getModelAliases, getComboByName, getProviderNodes, getCustomModels } from "@/lib/localDb";
+import { getSettings } from "@/lib/localDb";
 import {
   parseModel,
   resolveModelAliasFromMap,
@@ -76,6 +77,18 @@ export async function getModelInfo(modelStr) {
         extendedContext,
         ...(apiFormat && { apiFormat }),
       };
+    }
+
+    // stripModelPrefix: if enabled, strip provider prefix and re-resolve
+    // the bare model name using existing heuristics (claude-* → anthropic, etc.)
+    try {
+      const settings = await getSettings();
+      if (settings.stripModelPrefix === true) {
+        const strippedResult = await getModelInfoCore(parsed.model, getModelAliases);
+        return { ...strippedResult, extendedContext };
+      }
+    } catch {
+      // If settings read fails, fall through to normal resolution
     }
   }
 
