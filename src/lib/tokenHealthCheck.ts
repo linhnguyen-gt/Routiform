@@ -20,6 +20,8 @@ import {
 // ── Constants ────────────────────────────────────────────────────────────────
 const TICK_MS = 60 * 1000; // sweep interval: every 60 seconds
 const DEFAULT_HEALTH_CHECK_INTERVAL_MIN = 60; // default per-connection interval
+const EXPIRED_RETRY_MAX = 3; // max retry attempts for expired connections before giving up
+const EXPIRED_RETRY_BACKOFF_MIN = 5; // backoff between expired retries (minutes)
 const LOG_PREFIX = "[HealthCheck]";
 const TRUE_ENV_VALUES = new Set(["1", "true", "yes", "on"]);
 
@@ -172,8 +174,19 @@ async function checkConnection(conn) {
   if (!conn.isActive) return;
   if (!conn.refreshToken || typeof conn.refreshToken !== "string") return;
 
-  // Skip connections already marked as expired (need re-auth, not retry)
-  if (conn.testStatus === "expired") return;
+  // Retry expired connections with exponential backoff up to EXPIRED_RETRY_MAX times.
+  if (conn.testStatus === "expired") {
+    const retryCount = conn.expiredRetryCount ?? 0;
+    if (retryCount >= EXPIRED_RETRY_MAX) return;
+
+    const lastRetry = conn.expiredRetryAt ? new Date(conn.expiredRetryAt).getTime() : 0;
+    const backoffMs = EXPIRED_RETRY_BACKOFF_MIN * 60 * 1000 * Math.pow(2, retryCount);
+    if (Date.now() - lastRetry < backoffMs) return;
+
+    log(
+      `${LOG_PREFIX} Retrying expired ${conn.provider}/${conn.name || conn.email || conn.id} (attempt ${retryCount + 1}/${EXPIRED_RETRY_MAX})`
+    );
+  }
 
   if (!supportsTokenRefresh(conn.provider)) {
     const now = new Date().toISOString();
@@ -241,7 +254,6 @@ async function checkConnection(conn) {
   }
 
   if (result && result.accessToken) {
-    // Token refreshed successfully — update DB
     const updateData: any = {
       accessToken: result.accessToken,
       lastHealthCheckAt: now,
@@ -251,6 +263,8 @@ async function checkConnection(conn) {
       lastErrorType: null,
       lastErrorSource: null,
       errorCode: null,
+      expiredRetryCount: null,
+      expiredRetryAt: null,
     };
 
     if (result.refreshToken) {
@@ -264,18 +278,22 @@ async function checkConnection(conn) {
     await updateProviderConnection(conn.id, updateData);
     log(`${LOG_PREFIX} ✓ ${conn.provider}/${conn.name || conn.email || conn.id} refreshed`);
   } else {
-    // Refresh failed — record but don't disable the connection
+    const wasExpired = conn.testStatus === "expired";
+    const retryCount = (conn.expiredRetryCount ?? 0) + (wasExpired ? 1 : 0);
+
     await updateProviderConnection(conn.id, {
       lastHealthCheckAt: now,
-      testStatus: "error",
+      testStatus: wasExpired ? "expired" : "error",
       lastError: "Health check: token refresh failed",
       lastErrorAt: now,
       lastErrorType: "token_refresh_failed",
       lastErrorSource: "oauth",
       errorCode: "refresh_failed",
+      ...(wasExpired ? { expiredRetryCount: retryCount, expiredRetryAt: now } : {}),
     });
     logWarn(
-      `${LOG_PREFIX} ✗ ${conn.provider}/${conn.name || conn.email || conn.id} refresh failed`
+      `${LOG_PREFIX} ✗ ${conn.provider}/${conn.name || conn.email || conn.id} refresh failed` +
+        (wasExpired ? ` (expired retry ${retryCount}/${EXPIRED_RETRY_MAX})` : "")
     );
   }
 }
