@@ -59,6 +59,8 @@ const STATIC_MODEL_PROVIDERS: Record<string, () => Array<{ id: string; name: str
   antigravity: () => [
     { id: "claude-opus-4-6-thinking", name: "Claude Opus 4.6 Thinking" },
     { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
+    { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro Preview" },
+    { id: "gemini-3.1-flash-lite-preview", name: "Gemini 3.1 Flash Lite Preview" },
     { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
     { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
     { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash" },
@@ -141,7 +143,7 @@ const PROVIDER_MODELS_CONFIG: Record<string, ProviderModelsConfigEntry> = {
       })),
   },
   qwen: {
-    url: "https://portal.qwen.ai/v1/models",
+    url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models",
     method: "GET",
     headers: { "Content-Type": "application/json" },
     authHeader: "Authorization",

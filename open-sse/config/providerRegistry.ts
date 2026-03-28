@@ -291,7 +291,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     alias: "qw",
     format: "openai",
     executor: "default",
-    baseUrl: "https://portal.qwen.ai/v1/chat/completions",
+    baseUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
     authType: "oauth",
     authHeader: "bearer",
     headers: {

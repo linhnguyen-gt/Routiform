@@ -10,6 +10,7 @@
 import path from "path";
 import fs from "fs";
 import { getDbInstance } from "../db/core";
+import { getSettings } from "../db/settings";
 import { shouldPersistToDisk, CALL_LOGS_DIR } from "./migrations";
 import { getLoggedInputTokens, getLoggedOutputTokens } from "./tokenAccounting";
 import { isNoLog } from "../compliance";
@@ -48,7 +49,20 @@ function hasTruncatedFlag(value: unknown): boolean {
   return (value as Record<string, unknown>)._truncated === true;
 }
 
-const CALL_LOGS_MAX = parseInt(process.env.CALL_LOGS_MAX || "200", 10);
+const DEFAULT_MAX_CALL_LOGS = 10000;
+
+async function getMaxCallLogs(): Promise<number> {
+  try {
+    const settings = await getSettings();
+    const setting = settings.maxCallLogs;
+    if (setting) {
+      const num = parseInt(String(setting), 10);
+      if (!isNaN(num) && num > 0) return num;
+    }
+  } catch {}
+  return DEFAULT_MAX_CALL_LOGS;
+}
+
 const LOG_RETENTION_DAYS = parseInt(process.env.LOG_RETENTION_DAYS || "7", 10);
 const CALL_LOG_PAYLOAD_MODE = (() => {
   const value = (process.env.CALL_LOG_PAYLOAD_MODE || "full").toLowerCase();
@@ -212,17 +226,18 @@ export async function saveCallLog(entry: any) {
     `
     ).run(logEntry);
 
-    // 2. Trim old entries beyond CALL_LOGS_MAX
+    // 2. Trim old entries beyond max
+    const maxLogs = await getMaxCallLogs();
     const countRow = asRecord(db.prepare("SELECT COUNT(*) as cnt FROM call_logs").get());
     const count = toNumber(countRow.cnt);
-    if (count > CALL_LOGS_MAX) {
+    if (count > maxLogs) {
       db.prepare(
         `
         DELETE FROM call_logs WHERE id IN (
           SELECT id FROM call_logs ORDER BY timestamp ASC LIMIT ?
         )
       `
-      ).run(count - CALL_LOGS_MAX);
+      ).run(count - maxLogs);
     }
 
     // 3. Write full payload to disk file (untruncated)

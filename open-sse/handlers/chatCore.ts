@@ -794,6 +794,26 @@ export async function handleChatCore({
     }
   }
 
+  // Provider-specific max_tokens caps (#711)
+  // Some providers reject requests when max_tokens exceeds their API limit.
+  // Cap before sending to avoid upstream HTTP 400 errors.
+  const PROVIDER_MAX_OUTPUT_TOKENS: Record<string, number> = {
+    groq: 16384,
+    cerebras: 8192,
+  };
+  const providerCap = PROVIDER_MAX_OUTPUT_TOKENS[provider];
+  if (providerCap) {
+    for (const field of ["max_tokens", "max_completion_tokens"] as const) {
+      if (typeof translatedBody[field] === "number" && translatedBody[field] > providerCap) {
+        log?.debug?.(
+          "PARAMS",
+          `Capping ${field} from ${translatedBody[field]} to ${providerCap} for ${provider}`
+        );
+        translatedBody[field] = providerCap;
+      }
+    }
+  }
+
   // Get executor for this provider
   const executor = getExecutor(provider);
   const getExecutionCredentials = () =>
