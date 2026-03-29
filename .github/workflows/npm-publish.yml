@@ -105,3 +105,21 @@ jobs:
           echo "✅ Published omniroute@$VERSION (tag: $TAG)"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to GitHub Packages
+        run: |
+          VERSION="${{ steps.resolve.outputs.version }}"
+          TAG="${{ steps.resolve.outputs.tag }}"
+          
+          echo "Configuring for GitHub Packages..."
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > .npmrc
+          npm pkg set name="@diegosouzapw/omniroute"
+          
+          if [ "$TAG" = "latest" ]; then
+            npm publish --registry=https://npm.pkg.github.com || echo "⚠️ Version ${VERSION} might already be published on GitHub."
+          else
+            npm publish --registry=https://npm.pkg.github.com --tag "$TAG" || echo "⚠️ Version ${VERSION} might already be published on GitHub."
+          fi
+          echo "✅ Action finished for GitHub Packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
