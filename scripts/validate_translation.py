@@ -263,9 +263,11 @@ def find_placeholder_issues(source: Dict, trans: Dict) -> List[Tuple[str, str, s
         
         # Only extract top-level placeholders: {name}, {count}, {day}, NOT {# X} inside ICU
         import re
-        # Match {name} but NOT {# inside ICU plural
-        source_placeholders = set(re.findall(r'\{[a-zA-Z][^}]*\}', source_val))
-        trans_placeholders = set(re.findall(r'\{[a-zA-Z][^}]*\}', trans_val))
+        # Extract variable names from placeholders (e.g., 'name' from '{name}' or 'count' from '{count, plural, ...}')
+        # This avoids false positives on ICU strings where the internal text is translated.
+        placeholder_regex = r'\{\s*([a-zA-Z][a-zA-Z0-9_]*)'
+        source_placeholders = set(re.findall(placeholder_regex, source_val))
+        trans_placeholders = set(re.findall(placeholder_regex, trans_val))
         
         # Check for missing placeholders
         missing = source_placeholders - trans_placeholders

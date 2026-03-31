@@ -209,9 +209,9 @@ async function runAutomatedChecks() {
   let anchorLineRemoved = true;
   let brAppendixRemoved = true;
 
-  // Check RTL languages (ar, ja) for legacy content
-  const rtlLanguages = ["ar", "ja"];
-  for (const code of rtlLanguages) {
+  // Check specific languages (ar, ja) for legacy content
+  const legacyCheckLocales = ["ar", "ja"];
+  for (const code of legacyCheckLocales) {
     const readmePath = path.join(I18N_README_DIR, code, "README.md");
     try {
       const content = await fs.readFile(readmePath, "utf8");
