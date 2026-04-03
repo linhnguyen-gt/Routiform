@@ -10,7 +10,7 @@ const createMemorySchema = z.object({
   type: z.nativeEnum(MemoryType).default(MemoryType.FACTUAL),
   sessionId: z.string().default(""),
   apiKeyId: z.string().default(""),
-  metadata: z.record(z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
   expiresAt: z.coerce.date().nullable().default(null),
 });
 

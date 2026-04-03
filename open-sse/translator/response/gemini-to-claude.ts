@@ -171,6 +171,11 @@ export function geminiToClaudeResponse(chunk, state) {
       stopReason = "tool_use";
     } else if (reason === "max_tokens" || reason === "length") {
       stopReason = "max_tokens";
+    } else if (reason === "safety" || reason === "recitation" || reason === "blocklist") {
+      // Content blocked by Gemini safety. Any text streamed before this finish
+      // reason has already been emitted to the client — this is unavoidable in
+      // SSE streaming. Map to end_turn (Claude has no "content blocked" reason).
+      stopReason = "end_turn";
     } else {
       stopReason = "end_turn";
     }

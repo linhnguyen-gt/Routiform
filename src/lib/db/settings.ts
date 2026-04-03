@@ -248,6 +248,31 @@ export async function resetAllPricing() {
   return {};
 }
 
+// ──────────────── LKGP (Last Known Good Provider) ────────────────
+
+export async function getLKGP(comboName: string, modelId: string): Promise<string | null> {
+  const db = getDbInstance();
+  const key = `${comboName}:${modelId}`;
+  const row = db
+    .prepare("SELECT value FROM key_value WHERE namespace = 'lkgp' AND key = ?")
+    .get(key) as { value?: string } | undefined;
+  if (!row?.value) return null;
+  try {
+    return JSON.parse(row.value);
+  } catch {
+    return row.value;
+  }
+}
+
+export async function setLKGP(comboName: string, modelId: string, providerId: string) {
+  const db = getDbInstance();
+  const key = `${comboName}:${modelId}`;
+  db.prepare("INSERT OR REPLACE INTO key_value (namespace, key, value) VALUES ('lkgp', ?, ?)").run(
+    key,
+    JSON.stringify(providerId)
+  );
+}
+
 // ──────────────── Proxy Config ────────────────
 
 const DEFAULT_PROXY_CONFIG: ProxyConfig = { global: null, providers: {}, combos: {}, keys: {} };

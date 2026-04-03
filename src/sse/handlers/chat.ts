@@ -567,7 +567,9 @@ async function handleSingleModelChat(
     }
 
     // 6. Mark account as quota-exhausted on 429 response
-    if (result.status === 429) {
+    // For per-model quota providers (Gemini), a 429 on one model doesn't mean
+    // the entire account is exhausted — skip connection-wide exhaustion marking.
+    if (result.status === 429 && provider !== "gemini") {
       markAccountExhaustedFrom429(credentials.connectionId, provider);
     }
 

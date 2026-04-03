@@ -8,6 +8,7 @@ const TEST_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "omniroute-cc-compat
 process.env.DATA_DIR = TEST_DATA_DIR;
 
 const core = await import("../../src/lib/db/core.ts");
+const providersDb = await import("../../src/lib/db/providers.ts");
 const { DefaultExecutor } = await import("../../open-sse/executors/default.ts");
 const {
   buildClaudeCodeCompatibleRequest,
@@ -16,10 +17,12 @@ const {
   CLAUDE_CODE_COMPATIBLE_DEFAULT_MODELS_PATH,
   joinClaudeCodeCompatibleUrl,
 } = await import("../../open-sse/services/claudeCodeCompatible.ts");
+const { handleChatCore } = await import("../../open-sse/handlers/chatCore.ts");
 const { validateProviderApiKey } = await import("../../src/lib/providers/validation.ts");
 const providerNodesRoute = await import("../../src/app/api/provider-nodes/route.ts");
 const providerNodesValidateRoute =
   await import("../../src/app/api/provider-nodes/validate/route.ts");
+const providerModelsRoute = await import("../../src/app/api/providers/[id]/models/route.ts");
 
 const originalFetch = globalThis.fetch;
 const originalFlag = process.env.ENABLE_CC_COMPATIBLE_PROVIDER;
@@ -101,11 +104,14 @@ test("buildClaudeCodeCompatibleRequest keeps prior role history while dropping t
       { role: "user", text: "u2" },
     ]
   );
-  assert.deepEqual(payload.messages.at(-1).content.at(-1).cache_control, { type: "ephemeral" });
+  assert.deepEqual(payload.messages[0].content.at(-1).cache_control, { type: "ephemeral" });
+  assert.deepEqual(payload.messages[1].content.at(-1).cache_control, { type: "ephemeral" });
+  assert.equal(payload.messages[2].content.at(-1).cache_control, undefined);
   assert.equal(payload.system.length, 4);
   assert.equal(payload.system.at(-1).text, "sys");
   assert.equal(payload.tools.length, 1);
-  assert.deepEqual(payload.tools[0], {
+  const { cache_control, ...toolWithoutCacheControl } = payload.tools[0];
+  assert.deepEqual(toolWithoutCacheControl, {
     name: "lookup_weather",
     description: "Fetch weather",
     input_schema: {
@@ -116,9 +122,68 @@ test("buildClaudeCodeCompatibleRequest keeps prior role history while dropping t
       required: ["city"],
     },
   });
+  assert.deepEqual(payload.tools[0].cache_control, { type: "ephemeral", ttl: "1h" });
   assert.deepEqual(payload.tool_choice, { type: "any" });
   assert.equal(payload.context_management.edits[0].type, "clear_thinking_20251015");
   assert.equal(JSON.parse(payload.metadata.user_id).session_id, "session-1");
+});
+
+test("buildClaudeCodeCompatibleRequest preserves Claude cache markers when requested", () => {
+  const payload = buildClaudeCodeCompatibleRequest({
+    sourceBody: {
+      max_tokens: 64,
+    },
+    normalizedBody: {
+      max_tokens: 64,
+      messages: [{ role: "user", content: "fallback" }],
+    },
+    claudeBody: {
+      system: [{ type: "text", text: "sys", cache_control: { type: "ephemeral", ttl: "5m" } }],
+      messages: [
+        {
+          role: "user",
+          content: [{ type: "text", text: "u1", cache_control: { type: "ephemeral" } }],
+        },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "text",
+              text: "a1",
+              cache_control: { type: "ephemeral", ttl: "10m" },
+            },
+          ],
+        },
+        { role: "user", content: [{ type: "text", text: "u2" }] },
+      ],
+      tools: [
+        {
+          name: "lookup_weather",
+          description: "Fetch weather",
+          input_schema: {
+            type: "object",
+            properties: {
+              city: { type: "string" },
+            },
+            required: ["city"],
+          },
+          cache_control: { type: "ephemeral", ttl: "30m" },
+        },
+      ],
+    },
+    model: "claude-sonnet-4-6",
+    sessionId: "session-preserve",
+    preserveCacheControl: true,
+  });
+
+  assert.deepEqual(payload.system.at(-1).cache_control, { type: "ephemeral", ttl: "5m" });
+  assert.deepEqual(payload.messages[0].content[0].cache_control, { type: "ephemeral" });
+  assert.deepEqual(payload.messages[1].content[0].cache_control, {
+    type: "ephemeral",
+    ttl: "10m",
+  });
+  assert.equal(payload.messages[2].content[0].cache_control, undefined);
+  assert.deepEqual(payload.tools[0].cache_control, { type: "ephemeral", ttl: "30m" });
 });
 
 test("buildClaudeCodeCompatibleRequest falls back to a user turn when the source only has assistant/model text", () => {
@@ -178,6 +243,7 @@ test("buildClaudeCodeCompatibleRequest omits auto tool_choice while preserving t
   });
 
   assert.equal(payload.tools.length, 1);
+  assert.deepEqual(payload.tools[0].cache_control, { type: "ephemeral", ttl: "1h" });
   assert.equal(payload.tool_choice, undefined);
 });
 
@@ -263,7 +329,214 @@ test("validateProviderApiKey uses CC skeleton request after /models fallback", a
   );
   assert.equal(calls[1].body.model, "claude-sonnet-4-6");
   assert.equal(calls[1].body.messages[0].role, "user");
+  assert.equal(calls[1].body.stream, true);
   assert.equal(calls[1].headers["x-api-key"], "sk-test");
+  assert.equal(calls[1].headers.Accept, "text/event-stream");
+});
+
+test("handleChatCore forces upstream streaming for CC compatible while returning JSON to non-stream clients", async () => {
+  const calls = [];
+  globalThis.fetch = async (url, init = {}) => {
+    calls.push({
+      url: String(url),
+      method: init.method || "GET",
+      headers: init.headers,
+      body: init.body ? JSON.parse(String(init.body)) : null,
+    });
+
+    return new Response(
+      [
+        "event: message_start",
+        'data: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","model":"claude-sonnet-4-6","usage":{"input_tokens":7,"output_tokens":0}}}',
+        "",
+        "event: content_block_start",
+        'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}',
+        "",
+        "event: content_block_delta",
+        'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello from CC"}}',
+        "",
+        "event: message_delta",
+        'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":5}}',
+        "",
+        "event: message_stop",
+        'data: {"type":"message_stop"}',
+        "",
+      ].join("\n"),
+      {
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream",
+        },
+      }
+    );
+  };
+
+  const result = await handleChatCore({
+    body: {
+      model: "claude-sonnet-4-6",
+      messages: [{ role: "user", content: "Ping" }],
+      stream: false,
+    },
+    modelInfo: {
+      provider: "anthropic-compatible-cc-test",
+      model: "claude-sonnet-4-6",
+      extendedContext: false,
+    },
+    credentials: {
+      apiKey: "sk-test",
+      providerSpecificData: {
+        baseUrl: "https://proxy.example.com",
+        chatPath: CLAUDE_CODE_COMPATIBLE_DEFAULT_CHAT_PATH,
+      },
+    },
+    clientRawRequest: {
+      endpoint: "/v1/chat/completions",
+      body: {
+        model: "claude-sonnet-4-6",
+        messages: [{ role: "user", content: "Ping" }],
+        stream: false,
+      },
+      headers: new Headers({ accept: "application/json" }),
+    },
+    userAgent: "unit-test",
+    log: {
+      debug() {},
+      info() {},
+      warn() {},
+      error() {},
+    },
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].headers.Accept, "text/event-stream");
+  assert.equal(calls[0].body.stream, true);
+
+  const payload = await result.response.json();
+  assert.equal(payload.choices[0].message.content, "Hello from CC");
+  assert.equal(payload.choices[0].finish_reason, "stop");
+  assert.equal(payload.usage.prompt_tokens, 2007);
+  assert.equal(payload.usage.completion_tokens, 5);
+});
+
+test("handleChatCore preserves Claude cache_control when CC-compatible requests originate from Claude", async () => {
+  const calls = [];
+  globalThis.fetch = async (url, init = {}) => {
+    calls.push({
+      url: String(url),
+      method: init.method || "GET",
+      headers: init.headers,
+      body: init.body ? JSON.parse(String(init.body)) : null,
+    });
+
+    return new Response(
+      [
+        "event: message_start",
+        'data: {"type":"message_start","message":{"id":"msg_2","type":"message","role":"assistant","model":"claude-sonnet-4-6","usage":{"input_tokens":12,"output_tokens":0}}}',
+        "",
+        "event: content_block_start",
+        'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}',
+        "",
+        "event: content_block_delta",
+        'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Preserved"}}',
+        "",
+        "event: message_delta",
+        'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":3}}',
+        "",
+        "event: message_stop",
+        'data: {"type":"message_stop"}',
+        "",
+      ].join("\n"),
+      {
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream",
+        },
+      }
+    );
+  };
+
+  const claudeBody = {
+    model: "claude-sonnet-4-6",
+    max_tokens: 64,
+    system: [{ type: "text", text: "system", cache_control: { type: "ephemeral", ttl: "5m" } }],
+    messages: [
+      {
+        role: "user",
+        content: [{ type: "text", text: "u1", cache_control: { type: "ephemeral" } }],
+      },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "text",
+            text: "a1",
+            cache_control: { type: "ephemeral", ttl: "10m" },
+          },
+        ],
+      },
+      { role: "user", content: [{ type: "text", text: "u2" }] },
+    ],
+    tools: [
+      {
+        name: "lookup_weather",
+        description: "Fetch weather",
+        input_schema: {
+          type: "object",
+          properties: {
+            city: { type: "string" },
+          },
+        },
+        cache_control: { type: "ephemeral", ttl: "30m" },
+      },
+    ],
+  };
+
+  const result = await handleChatCore({
+    body: claudeBody,
+    modelInfo: {
+      provider: "anthropic-compatible-cc-test",
+      model: "claude-sonnet-4-6",
+      extendedContext: false,
+    },
+    credentials: {
+      apiKey: "sk-test",
+      providerSpecificData: {
+        baseUrl: "https://proxy.example.com",
+        chatPath: CLAUDE_CODE_COMPATIBLE_DEFAULT_CHAT_PATH,
+      },
+    },
+    clientRawRequest: {
+      endpoint: "/v1/messages",
+      body: claudeBody,
+      headers: new Headers({ accept: "application/json" }),
+    },
+    userAgent: "Claude-Code/1.0.0",
+    log: {
+      debug() {},
+      info() {},
+      warn() {},
+      error() {},
+    },
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].body.system.at(-1).cache_control, {
+    type: "ephemeral",
+    ttl: "5m",
+  });
+  assert.deepEqual(calls[0].body.messages[0].content[0].cache_control, {
+    type: "ephemeral",
+  });
+  assert.deepEqual(calls[0].body.messages[1].content[0].cache_control, {
+    type: "ephemeral",
+    ttl: "10m",
+  });
+  assert.deepEqual(calls[0].body.tools[0].cache_control, {
+    type: "ephemeral",
+    ttl: "30m",
+  });
 });
 
 test("provider-nodes create route rejects CC mode when feature flag is disabled", async () => {
@@ -310,7 +583,7 @@ test("provider-nodes create route creates CC node with dedicated prefix when ena
   assert.match(data.node.id, /^anthropic-compatible-cc-/);
   assert.equal(data.node.baseUrl, "https://proxy.example.com");
   assert.equal(data.node.chatPath, CLAUDE_CODE_COMPATIBLE_DEFAULT_CHAT_PATH);
-  assert.equal(data.node.modelsPath, CLAUDE_CODE_COMPATIBLE_DEFAULT_MODELS_PATH);
+  assert.equal(data.node.modelsPath, null);
 });
 
 test("provider-nodes validate route rejects CC mode when feature flag is disabled", async () => {
@@ -340,4 +613,29 @@ test("provider-nodes list route exposes CC flag state from server env", async ()
 
   const data = await response.json();
   assert.equal(data.ccCompatibleProviderEnabled, true);
+});
+
+test("provider models route reports CC compatible providers do not support models listing", async () => {
+  process.env.ENABLE_CC_COMPATIBLE_PROVIDER = "true";
+
+  const connection = await providersDb.createProviderConnection({
+    provider: "anthropic-compatible-cc-test",
+    authType: "apikey",
+    name: "cc-live",
+    apiKey: "sk-test",
+    providerSpecificData: {
+      baseUrl: "https://proxy.example.com",
+      chatPath: CLAUDE_CODE_COMPATIBLE_DEFAULT_CHAT_PATH,
+    },
+  });
+
+  const response = await providerModelsRoute.GET(
+    new Request(`http://localhost/api/providers/${connection.id}/models`),
+    { params: { id: connection.id } }
+  );
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), {
+    error: "Provider anthropic-compatible-cc-test does not support models listing",
+  });
 });

@@ -15,7 +15,7 @@ const { getCliRuntimeStatus, CLI_TOOL_IDS } =
 // ─── Helpers ──────────────────────────────────────────────────
 
 function createTempDir() {
-  const testRoot = path.join(os.homedir(), ".omniroute-test-tmp");
+  const testRoot = path.join(os.tmpdir(), "omniroute-test-tmp");
   if (!fs.existsSync(testRoot)) {
     fs.mkdirSync(testRoot, { recursive: true });
   }
@@ -46,6 +46,7 @@ describe("CLI_TOOL_IDS", () => {
       "kilo",
       "continue",
       "opencode",
+      "qoder",
     ];
     for (const id of expected) {
       assert.ok(CLI_TOOL_IDS.includes(id), `Missing tool: ${id}`);
@@ -146,6 +147,26 @@ describe("Healthcheck — checkRunnable", () => {
     } finally {
       if (prev !== undefined) process.env.CLI_CLINE_BIN = prev;
       else delete process.env.CLI_CLINE_BIN;
+    }
+  });
+
+  it("should detect qodercli via env override and mark it runnable", async () => {
+    const prev = process.env.CLI_QODER_BIN;
+    const script =
+      process.platform === "win32"
+        ? createFile(tmpDir, "qoder.cmd", "@echo off\necho qodercli 0.1.37\n")
+        : createFile(tmpDir, "qodercli", "#!/bin/sh\necho qodercli 0.1.37\n");
+
+    process.env.CLI_QODER_BIN = script;
+    try {
+      const result = await getCliRuntimeStatus("qoder");
+      assert.equal(result.installed, true);
+      assert.equal(result.runnable, true);
+      assert.equal(result.commandPath, script);
+      assert.equal(result.reason, null);
+    } finally {
+      if (prev !== undefined) process.env.CLI_QODER_BIN = prev;
+      else delete process.env.CLI_QODER_BIN;
     }
   });
 });

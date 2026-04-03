@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const { REGISTRY } = await import("../../open-sse/config/providerRegistry.ts");
+const { getStaticModelsForProvider } = await import("../../src/app/api/providers/[id]/models/route.ts");
 const { resolveModelAlias: resolveDeprecatedAlias } =
   await import("../../open-sse/services/modelDeprecation.ts");
 const { normalizeThinkingLevel } = await import("../../open-sse/services/thinkingBudget.ts");
@@ -14,10 +15,12 @@ const {
   capThinkingBudget,
 } = await import("../../src/shared/constants/modelSpecs.ts");
 
-test("T31: registry exposes Gemini 3.1 Pro High/Low model IDs", () => {
-  const geminiIds = REGISTRY.gemini.models.map((m) => m.id);
-  assert.ok(geminiIds.includes("gemini-3.1-pro-high"));
-  assert.ok(geminiIds.includes("gemini-3.1-pro-low"));
+test("T31: antigravity static catalog exposes Gemini 3.1 Pro High/Low model IDs", () => {
+  // gemini-3.1-pro-high/low are Antigravity (Cloud Code sandbox) models,
+  // not Gemini AI Studio models. They live in the static catalog, not the registry.
+  const staticIds = (getStaticModelsForProvider("antigravity") || []).map((m) => m.id);
+  assert.ok(staticIds.includes("gemini-3.1-pro-high"));
+  assert.ok(staticIds.includes("gemini-3.1-pro-low"));
 });
 
 test("T31: legacy Gemini aliases resolve to Gemini 3.1 IDs", () => {

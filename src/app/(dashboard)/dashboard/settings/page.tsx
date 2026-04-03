@@ -21,6 +21,7 @@ import CacheStatsCard from "./components/CacheStatsCard";
 import CacheSettingsTab from "./components/CacheSettingsTab";
 import MemorySkillsTab from "./components/MemorySkillsTab";
 import ResilienceTab from "./components/ResilienceTab";
+import CliproxyapiSettingsTab from "./components/CliproxyapiSettingsTab";
 
 const tabs = [
   { id: "general", labelKey: "general", icon: "settings" },
@@ -113,7 +114,12 @@ export default function SettingsPage() {
 
           {activeTab === "resilience" && <ResilienceTab />}
 
-          {activeTab === "advanced" && <ProxyTab />}
+          {activeTab === "advanced" && (
+            <div className="flex flex-col gap-6">
+              <ProxyTab />
+              <CliproxyapiSettingsTab />
+            </div>
+          )}
         </div>
 
         {/* App Info */}

@@ -16,6 +16,7 @@ export interface RoutingContext {
   requestHasTools?: boolean;
   requestHasVision?: boolean;
   estimatedInputTokens?: number;
+  lastKnownGoodProvider?: string;
 }
 
 export interface RoutingDecision {
@@ -116,6 +117,34 @@ class LatencyStrategyImpl implements RouterStrategy {
   }
 }
 
+// ── LKGPStrategy: tries last known good provider first ───────────────────────
+
+class LKGPStrategyImpl implements RouterStrategy {
+  readonly name = "lkgp";
+  readonly description = "Tries last known good provider first, then falls back to rules";
+
+  select(pool: ProviderCandidate[], context: RoutingContext): RoutingDecision {
+    if (context.lastKnownGoodProvider) {
+      const best = pool.find(
+        (c) => c.provider === context.lastKnownGoodProvider && c.circuitBreakerState !== "OPEN"
+      );
+      if (best) {
+        return {
+          provider: best.provider,
+          model: best.model,
+          strategy: this.name,
+          reason: `LKGP: using last known good provider ${best.provider}`,
+          candidatesConsidered: 1,
+          finalScore: 1.0,
+        };
+      }
+    }
+
+    // Fallback to rules strategy
+    return getStrategy("rules").select(pool, context);
+  }
+}
+
 // ── Registry ──────────────────────────────────────────────────────────────────
 
 const strategyRegistry = new Map<string, RouterStrategy>();
@@ -123,12 +152,14 @@ const strategyRegistry = new Map<string, RouterStrategy>();
 const rulesStrategy = new RulesStrategyImpl();
 const costStrategy = new CostStrategyImpl();
 const latencyStrategy = new LatencyStrategyImpl();
+const lkgpStrategy = new LKGPStrategyImpl();
 
 strategyRegistry.set("rules", rulesStrategy);
 strategyRegistry.set("cost", costStrategy);
 strategyRegistry.set("eco", costStrategy); // alias
 strategyRegistry.set("latency", latencyStrategy);
 strategyRegistry.set("fast", latencyStrategy); // alias
+strategyRegistry.set("lkgp", lkgpStrategy);
 
 export function getStrategy(name: string): RouterStrategy {
   const strategy = strategyRegistry.get(name);

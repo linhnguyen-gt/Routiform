@@ -213,8 +213,8 @@ server {
         # SSE (Server-Sent Events) — streaming AI responses
         proxy_buffering off;
         proxy_cache off;
-        proxy_read_timeout 300s;
-        proxy_send_timeout 300s;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
     }
 }
 
@@ -227,6 +227,10 @@ server {
 }
 NGINX
 ```
+
+Keep reverse-proxy stream timeouts aligned with your OmniRoute timeout env vars. If you raise
+`FETCH_TIMEOUT_MS` / `STREAM_IDLE_TIMEOUT_MS`, raise `proxy_read_timeout` / `proxy_send_timeout`
+above the same threshold.
 
 ### 3.3 Enable and Test
 

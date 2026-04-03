@@ -15,6 +15,7 @@ import { getConsistentMachineId } from "@/shared/utils/machineId";
 import { syncToCloud } from "@/lib/cloudSync";
 import { createProviderSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { normalizeQoderPatProviderData } from "@omniroute/open-sse/services/qoderCli.ts";
 
 // GET /api/providers - List all connections
 export async function GET() {
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
     // Business validation
     const isValidProvider =
       APIKEY_PROVIDERS[provider] ||
+      provider === "qoder" ||
       isOpenAICompatibleProvider(provider) ||
       isAnthropicCompatibleProvider(provider);
 
@@ -71,6 +73,10 @@ export async function POST(request: Request) {
     let providerSpecificData = incomingPsd || null;
     const allowMultipleCompatibleConnections =
       process.env.ALLOW_MULTI_CONNECTIONS_PER_COMPAT_NODE === "true";
+
+    if (provider === "qoder") {
+      providerSpecificData = normalizeQoderPatProviderData(providerSpecificData || {});
+    }
 
     if (isOpenAICompatibleProvider(provider)) {
       const node: any = await getProviderNodeById(provider);
@@ -138,6 +144,8 @@ export async function POST(request: Request) {
       isActive: true,
       testStatus: testStatus || "unknown",
     });
+
+    // Note: Gemini model sync is now triggered client-side with progress dialog
 
     // Hide sensitive fields
     const result: Record<string, any> = { ...newConnection };

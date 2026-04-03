@@ -192,22 +192,9 @@ export const REGISTRY: Record<string, RegistryEntry> = {
       clientSecretEnv: "GEMINI_OAUTH_CLIENT_SECRET",
       clientSecretDefault: "",
     },
-    models: [
-      { id: "gemini-3.1-pro-high", name: "Gemini 3.1 Pro High" },
-      { id: "gemini-3.1-pro-low", name: "Gemini 3.1 Pro Low" },
-      { id: "gemini-3.1-pro", name: "Gemini 3.1 Pro" },
-      { id: "gemini-3-1-pro", name: "Gemini 3.1 Pro (Alt ID)" },
-      { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro Preview" },
-      { id: "gemini-3.1-flash-lite-preview", name: "Gemini 3.1 Flash Lite Preview" },
-      { id: "gemini-3-flash-preview", name: "Gemini 3 Flash Preview" },
-      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
-      { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
-      { id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash Lite" },
-      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash" },
-      { id: "gemini-2.0-flash-exp", name: "Gemini 2.0 Flash Exp" },
-      { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro" },
-      { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash" },
-    ],
+    models: [],
+    // Models are populated from Google's API via sync-models (per API key).
+    // No hardcoded fallback — show nothing until a key is added.
   },
 
   "gemini-cli": {
@@ -325,19 +312,17 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     alias: "if",
     format: "openai",
     executor: "qoder",
-    baseUrl: "https://apis.qoder.cn/v1/chat/completions",
-    authType: "oauth",
+    baseUrl: "https://api.qoder.com/v1/chat/completions",
+    authType: "apikey",
     authHeader: "bearer",
     headers: {
       "User-Agent": "Qoder-Cli",
     },
     oauth: {
       clientIdEnv: "QODER_OAUTH_CLIENT_ID",
-      clientIdDefault: "10009311001",
       clientSecretEnv: "QODER_OAUTH_CLIENT_SECRET",
-      clientSecretDefault: "",
-      tokenUrl: "https://qoder.cn/oauth/token",
-      authUrl: "https://qoder.cn/oauth",
+      tokenUrl: process.env.QODER_OAUTH_TOKEN_URL || "",
+      authUrl: process.env.QODER_OAUTH_AUTHORIZE_URL || "",
     },
     models: [
       { id: "qoder-rome-30ba3b", name: "Qoder ROME" },
@@ -439,6 +424,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
       { id: "claude-opus-4-5-20251101", name: "Claude Opus 4.5 (Full ID)" },
       { id: "claude-sonnet-4", name: "Claude Sonnet 4" },
       { id: "claude-sonnet-4.5", name: "Claude Sonnet 4.5" },
+      { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro Preview" },
       { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
       { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
       { id: "grok-code-fast-1", name: "Grok Code Fast 1" },
@@ -1556,7 +1542,9 @@ const _passthroughProviderIds: Set<string> | null = (() => {
       if (entry.passthroughModels) ids.add(entry.id);
     }
     return ids;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 })();
 
 export function getPassthroughProviders(): Set<string> {

@@ -1,113 +1,295 @@
 import crypto from "crypto";
-import { BaseExecutor } from "./base.ts";
+import { spawn } from "child_process";
+import {
+  BaseExecutor,
+  mergeUpstreamExtraHeaders,
+  type ExecuteInput,
+  type ProviderCredentials,
+} from "./base.ts";
 import { PROVIDERS } from "../config/constants.ts";
+import {
+  buildQoderChunk,
+  buildQoderCompletionPayload,
+  buildQoderPrompt,
+  createQoderErrorResponse,
+  extractTextFromQoderEnvelope,
+  getQoderCliCommand,
+  getQoderCliWorkspace,
+  mapQoderModelToLevel,
+  parseQoderCliFailure,
+  runQoderCliCommand,
+} from "../services/qoderCli.ts";
 
-type QoderCredentials = {
-  apiKey?: string;
-  accessToken?: string;
-};
+function getPat(credentials: ProviderCredentials): string {
+  if (typeof credentials.apiKey === "string" && credentials.apiKey.trim()) {
+    return credentials.apiKey.trim();
+  }
+  return "";
+}
 
-/**
- * QoderExecutor - Executor for Qoder API with HMAC-SHA256 signature.
- *
- * Qoder requires custom headers including a session ID, timestamp,
- * and an HMAC-SHA256 signature for request authentication.
- * Without these headers, the API returns a 406 error.
- *
- * Fixes: https://github.com/diegosouzapw/OmniRoute/issues/114
- */
 export class QoderExecutor extends BaseExecutor {
   constructor() {
     super("qoder", PROVIDERS.qoder);
   }
 
-  /**
-   * Create Qoder signature using HMAC-SHA256
-   * @param userAgent - User agent string
-   * @param sessionID - Session ID
-   * @param timestamp - Unix timestamp in milliseconds
-   * @param apiKey - API key for signing
-   * @returns Hex-encoded signature
-   */
-  createQoderSignature(
-    userAgent: string,
-    sessionID: string,
-    timestamp: number,
-    apiKey: string
-  ): string {
-    if (!apiKey) return "";
-    const payload = `${userAgent}:${sessionID}:${timestamp}`;
-    const hmac = crypto.createHmac("sha256", apiKey);
-    hmac.update(payload);
-    return hmac.digest("hex");
-  }
-
-  /**
-   * Build headers with Qoder-specific HMAC-SHA256 signature.
-   * Includes session-id, x-qoder-timestamp, and x-qoder-signature.
-   */
-  buildHeaders(credentials: QoderCredentials, stream = true) {
-    // Generate session ID and timestamp
-    const sessionID = `session-${crypto.randomUUID()}`;
-    const timestamp = Date.now();
-
-    // Get user agent from config
-    const userAgent = this.config.headers?.["User-Agent"] || "Qoder-Cli";
-
-    // Get API key (prefer apiKey, fallback to accessToken)
-    const apiKey = credentials.apiKey || credentials.accessToken || "";
-
-    // Create HMAC-SHA256 signature
-    const signature = this.createQoderSignature(userAgent, sessionID, timestamp, apiKey);
-
-    // Build headers
-    const headers: Record<string, string> = {
+  buildHeaders(_credentials: ProviderCredentials, stream = true): Record<string, string> {
+    return {
       "Content-Type": "application/json",
-      ...this.config.headers,
-      "session-id": sessionID,
-      "x-qoder-timestamp": timestamp.toString(),
-      "x-qoder-signature": signature,
+      ...(stream ? { Accept: "text/event-stream" } : {}),
     };
-
-    // Add authorization
-    if (credentials.apiKey) {
-      headers["Authorization"] = `Bearer ${credentials.apiKey}`;
-    } else if (credentials.accessToken) {
-      headers["Authorization"] = `Bearer ${credentials.accessToken}`;
-    }
-
-    // Add streaming header
-    if (stream) {
-      headers["Accept"] = "text/event-stream";
-    }
-
-    return headers;
   }
 
-  /**
-   * Build URL for Qoder API — uses baseUrl directly.
-   */
-  buildUrl(
-    model: string,
-    stream: boolean,
-    urlIndex = 0,
-    credentials: QoderCredentials | null = null
-  ) {
-    void model;
-    void stream;
-    void urlIndex;
-    void credentials;
-    return this.config.baseUrl;
-  }
+  async execute({
+    model,
+    body,
+    stream,
+    credentials,
+    signal,
+    upstreamExtraHeaders,
+  }: ExecuteInput) {
+    const headers = this.buildHeaders(credentials, stream);
+    mergeUpstreamExtraHeaders(headers, upstreamExtraHeaders);
 
-  /**
-   * Transform request body (passthrough for Qoder).
-   */
-  transformRequest(model: string, body: unknown, stream: boolean, credentials: QoderCredentials) {
-    void model;
-    void stream;
-    void credentials;
-    return body;
+    const pat = getPat(credentials);
+    if (!pat) {
+      return {
+        response: createQoderErrorResponse({
+          status: 400,
+          message:
+            "Qoder Personal Access Token is required. Connect Qoder with a PAT via qodercli transport.",
+          code: "pat_required",
+        }),
+        url: "qodercli://local",
+        headers,
+        transformedBody: body,
+      };
+    }
+
+    const prompt = buildQoderPrompt(body);
+    const workspace = getQoderCliWorkspace();
+    const command = getQoderCliCommand();
+
+    if (!stream) {
+      const result = await runQoderCliCommand({
+        token: pat,
+        prompt,
+        stream: false,
+        model,
+        workspace,
+        command,
+        signal,
+      });
+
+      if (!result.ok) {
+        const failure = parseQoderCliFailure(result.stderr || result.error || "", result.stdout);
+        return {
+          response: createQoderErrorResponse(failure),
+          url: "qodercli://local",
+          headers,
+          transformedBody: body,
+        };
+      }
+
+      let assistantText = result.stdout.trim();
+      try {
+        const parsed = JSON.parse(assistantText);
+        assistantText = extractTextFromQoderEnvelope(parsed) || assistantText;
+      } catch {
+        // Fall back to raw stdout if the CLI printed plain text.
+      }
+
+      const payload = buildQoderCompletionPayload({
+        model,
+        text: assistantText,
+      });
+
+      return {
+        response: new Response(JSON.stringify(payload), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }),
+        url: "qodercli://local",
+        headers,
+        transformedBody: body,
+      };
+    }
+
+    const qoderStream = new ReadableStream({
+      start: async (controller) => {
+        const encoder = new TextEncoder();
+        const created = Math.floor(Date.now() / 1000);
+        const responseId = `chatcmpl-${crypto.randomUUID()}`;
+        const responseModel = model || "qoder-rome-30ba3b";
+        const cliCommand = command;
+        const args = [
+          "-q",
+          "-p",
+          prompt,
+          "--max-turns",
+          "1",
+          "--workspace",
+          workspace,
+          "--output-format",
+          "stream-json",
+        ];
+        const level = mapQoderModelToLevel(responseModel);
+        if (level) {
+          args.push("--model", level);
+        }
+
+        const child = spawn(cliCommand, args, {
+          env: {
+            ...process.env,
+            QODER_PERSONAL_ACCESS_TOKEN: pat,
+          },
+          stdio: ["ignore", "pipe", "pipe"],
+          ...(process.platform === "win32" ? { shell: true } : {}),
+        });
+
+        let stdoutBuffer = "";
+        let stderrBuffer = "";
+        let emittedText = "";
+        let roleSent = false;
+        let finished = false;
+
+        const emitSse = (payload: unknown) => {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+        };
+
+        const finish = () => {
+          if (finished) return;
+          finished = true;
+          emitSse(
+            buildQoderChunk({
+              id: responseId,
+              model: responseModel,
+              created,
+              delta: {},
+              finishReason: "stop",
+            })
+          );
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        };
+
+        const abortChild = () => {
+          try {
+            child.kill("SIGTERM");
+          } catch {}
+        };
+
+        if (signal?.aborted) {
+          abortChild();
+          controller.error(new Error("aborted"));
+          return;
+        }
+
+        signal?.addEventListener?.(
+          "abort",
+          () => {
+            abortChild();
+            controller.error(new Error("aborted"));
+          },
+          { once: true }
+        );
+
+        const emitDelta = (deltaText: string) => {
+          if (!deltaText) return;
+          const delta = roleSent
+            ? { content: deltaText }
+            : { role: "assistant", content: deltaText };
+          roleSent = true;
+          emitSse(
+            buildQoderChunk({
+              id: responseId,
+              model: responseModel,
+              created,
+              delta,
+            })
+          );
+        };
+
+        const drainStdout = () => {
+          let newlineIndex = stdoutBuffer.indexOf("\n");
+          while (newlineIndex >= 0) {
+            const rawLine = stdoutBuffer.slice(0, newlineIndex).trim();
+            stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1);
+            newlineIndex = stdoutBuffer.indexOf("\n");
+
+            if (!rawLine) continue;
+
+            let parsed: unknown;
+            try {
+              parsed = JSON.parse(rawLine);
+            } catch {
+              continue;
+            }
+
+            const nextText = extractTextFromQoderEnvelope(parsed);
+            if (nextText) {
+              const delta = nextText.startsWith(emittedText)
+                ? nextText.slice(emittedText.length)
+                : nextText;
+              emittedText += delta;
+              emitDelta(delta);
+            }
+
+            const parsedRecord =
+              parsed && typeof parsed === "object" && !Array.isArray(parsed)
+                ? (parsed as Record<string, unknown>)
+                : {};
+            if (parsedRecord.type === "result" && parsedRecord.done === true) {
+              finish();
+              return;
+            }
+          }
+        };
+
+        child.stdout.setEncoding("utf8");
+        child.stderr.setEncoding("utf8");
+
+        child.stdout.on("data", (chunk) => {
+          stdoutBuffer += chunk;
+          drainStdout();
+        });
+
+        child.stderr.on("data", (chunk) => {
+          stderrBuffer += chunk;
+        });
+
+        child.on("error", (error) => {
+          if (finished) return;
+          controller.error(error);
+        });
+
+        child.on("close", (code) => {
+          if (finished) return;
+          drainStdout();
+          if (code !== 0) {
+            const failure = parseQoderCliFailure(stderrBuffer, stdoutBuffer);
+            controller.error(new Error(failure.message));
+            return;
+          }
+          finish();
+        });
+      },
+    });
+
+    return {
+      response: new Response(qoderStream, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+        },
+      }),
+      url: "qodercli://local",
+      headers,
+      transformedBody: body,
+    };
   }
 }
 

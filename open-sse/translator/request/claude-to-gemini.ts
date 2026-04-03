@@ -147,6 +147,23 @@ export function claudeToGeminiRequest(model, body, stream) {
       if (parts.length > 0) {
         // Map Claude roles to Gemini roles
         const geminiRole = msg.role === "assistant" ? "model" : "user";
+
+        // Gemini 3+ requires thoughtSignature as a sibling part in model content
+        // that contains functionCall parts. Inject if not already present from
+        // a thinking block. (#927)
+        if (geminiRole === "model") {
+          const hasFunctionCall = parts.some((p) => p.functionCall);
+          const hasSignature = parts.some((p) => p.thoughtSignature);
+          if (hasFunctionCall && !hasSignature) {
+            // Insert before the first functionCall part
+            const fcIndex = parts.findIndex((p) => p.functionCall);
+            parts.splice(fcIndex, 0, {
+              thoughtSignature: DEFAULT_THINKING_GEMINI_SIGNATURE,
+              text: "",
+            });
+          }
+        }
+
         result.contents.push({ role: geminiRole, parts });
       }
     }
@@ -175,7 +192,7 @@ export function claudeToGeminiRequest(model, body, stream) {
   if (body.thinking?.type === "enabled" && body.thinking.budget_tokens) {
     result.generationConfig.thinkingConfig = {
       thinkingBudget: body.thinking.budget_tokens,
-      include_thoughts: true,
+      includeThoughts: true,
     };
   }
 

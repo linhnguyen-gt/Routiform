@@ -65,12 +65,25 @@ export const QWEN_CONFIG = {
 };
 
 // Qoder OAuth Configuration (Authorization Code)
+const QODER_OAUTH_AUTHORIZE_URL = process.env.QODER_OAUTH_AUTHORIZE_URL || "";
+const QODER_OAUTH_TOKEN_URL = process.env.QODER_OAUTH_TOKEN_URL || "";
+const QODER_OAUTH_USERINFO_URL = process.env.QODER_OAUTH_USERINFO_URL || "";
+const QODER_OAUTH_CLIENT_ID = process.env.QODER_OAUTH_CLIENT_ID || "";
+const QODER_OAUTH_CLIENT_SECRET = process.env.QODER_OAUTH_CLIENT_SECRET || "";
+const QODER_OAUTH_ENABLED =
+  !!QODER_OAUTH_AUTHORIZE_URL &&
+  !!QODER_OAUTH_TOKEN_URL &&
+  !!QODER_OAUTH_USERINFO_URL &&
+  !!QODER_OAUTH_CLIENT_ID &&
+  !!QODER_OAUTH_CLIENT_SECRET;
+
 export const QODER_CONFIG = {
-  clientId: process.env.QODER_OAUTH_CLIENT_ID || "10009311001",
-  clientSecret: process.env.QODER_OAUTH_CLIENT_SECRET || "4Z3YjXycVsQvyGF1etiNlIBB4RsqSDtW",
-  authorizeUrl: "https://qoder.cn/oauth",
-  tokenUrl: "https://qoder.cn/oauth/token",
-  userInfoUrl: "https://qoder.cn/api/oauth/getUserInfo",
+  enabled: QODER_OAUTH_ENABLED,
+  clientId: QODER_OAUTH_CLIENT_ID,
+  clientSecret: QODER_OAUTH_CLIENT_SECRET,
+  authorizeUrl: QODER_OAUTH_AUTHORIZE_URL,
+  tokenUrl: QODER_OAUTH_TOKEN_URL,
+  userInfoUrl: QODER_OAUTH_USERINFO_URL,
   extraParams: {
     loginMethod: "phone",
     type: "phone",

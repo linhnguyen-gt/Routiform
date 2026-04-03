@@ -30,8 +30,13 @@ import {
   isOpenAICompatibleProvider,
   isAnthropicCompatibleProvider,
   isClaudeCodeCompatibleProvider,
+  supportsApiKeyOnFreeProvider,
 } from "@/shared/constants/providers";
 import { getModelsByProviderId } from "@/shared/constants/models";
+import {
+  compatibleProviderSupportsModelImport,
+  getCompatibleFallbackModels,
+} from "@/lib/providers/managedAvailableModels";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import {
   MODEL_COMPAT_PROTOCOL_KEYS,
@@ -334,6 +339,7 @@ interface CompatibleModelsSectionProps {
   providerDisplayAlias: string;
   modelAliases: Record<string, string>;
   fallbackModels?: CompatModelRow[];
+  allowImport: boolean;
   description: string;
   inputLabel: string;
   inputPlaceholder: string;
@@ -471,7 +477,6 @@ interface EditCompatibleNodeModalProps {
 const CC_COMPATIBLE_LABEL = "CC Compatible";
 const CC_COMPATIBLE_DETAILS_TITLE = "CC Compatible Details";
 const CC_COMPATIBLE_DEFAULT_CHAT_PATH = "/v1/messages?beta=true";
-const CC_COMPATIBLE_DEFAULT_MODELS_PATH = "/models";
 
 function normalizeCodexLimitPolicy(policy: unknown): { use5h: boolean; useWeekly: boolean } {
   const record =
@@ -835,6 +840,7 @@ export default function ProviderDetailPage() {
     customModels: CompatModelRow[];
     modelCompatOverrides: Array<CompatModelRow & { id: string }>;
   }>({ customModels: [], modelCompatOverrides: [] });
+  const [syncedAvailableModels, setSyncedAvailableModels] = useState<any[]>([]);
   const [compatSavingModelId, setCompatSavingModelId] = useState<string | null>(null);
   const [applyingCodexAuthId, setApplyingCodexAuthId] = useState<string | null>(null);
   const [exportingCodexAuthId, setExportingCodexAuthId] = useState<string | null>(null);
@@ -872,11 +878,19 @@ export default function ProviderDetailPage() {
     : (FREE_PROVIDERS as any)[providerId] ||
       (OAUTH_PROVIDERS as any)[providerId] ||
       (APIKEY_PROVIDERS as any)[providerId];
-  const isOAuth = !!(FREE_PROVIDERS as any)[providerId] || !!(OAUTH_PROVIDERS as any)[providerId];
-  const models = getModelsByProviderId(providerId);
+  const providerSupportsOAuth =
+    !!(FREE_PROVIDERS as any)[providerId] || !!(OAUTH_PROVIDERS as any)[providerId];
+  const providerSupportsPat = supportsApiKeyOnFreeProvider(providerId);
+  const isOAuth = providerSupportsOAuth && !providerSupportsPat;
+  const registryModels = getModelsByProviderId(providerId);
+  // For Gemini: always use synced API models (empty if no keys added yet)
+  const models = providerId === "gemini"
+    ? syncedAvailableModels
+    : registryModels;
   const providerAlias = getProviderAlias(providerId);
   const isManagedAvailableModelsProvider = isCompatible || providerId === "openrouter";
   const isSearchProvider = providerId.endsWith("-search");
+  const compatibleSupportsModelImport = compatibleProviderSupportsModelImport(providerId);
 
   const providerStorageAlias = isCompatible ? providerId : providerAlias;
   const providerDisplayAlias = isCompatible ? providerNode?.prefix || providerId : providerAlias;
@@ -906,6 +920,20 @@ export default function ProviderDetailPage() {
         customModels: data.models || [],
         modelCompatOverrides: data.modelCompatOverrides || [],
       });
+      // Fetch synced available models for Gemini
+      if (providerId === "gemini") {
+        try {
+          const syncRes = await fetch("/api/synced-available-models?provider=gemini", {
+            cache: "no-store",
+          });
+          if (syncRes.ok) {
+            const syncData = await syncRes.json();
+            setSyncedAvailableModels(syncData.models || []);
+          }
+        } catch {
+          // Non-critical
+        }
+      }
     } catch (e) {
       console.error("fetchProviderModelMeta", e);
     }
@@ -1051,6 +1079,10 @@ export default function ProviderDetailPage() {
       const res = await fetch(`/api/providers/${id}`, { method: "DELETE" });
       if (res.ok) {
         setConnections(connections.filter((c) => c.id !== id));
+        // Refresh model list after connection deletion (synced models may change)
+        if (providerId === "gemini") {
+          await fetchProviderModelMeta();
+        }
       }
     } catch (error) {
       console.log("Error deleting connection:", error);
@@ -1062,6 +1094,14 @@ export default function ProviderDetailPage() {
     setShowOAuthModal(false);
   }, [fetchConnections]);
 
+  const openPrimaryAddFlow = useCallback(() => {
+    if (isOAuth) {
+      setShowOAuthModal(true);
+      return;
+    }
+    setShowAddApiKeyModal(true);
+  }, [isOAuth]);
+
   const handleSaveApiKey = async (formData) => {
     try {
       const res = await fetch("/api/providers", {
@@ -1070,8 +1110,72 @@ export default function ProviderDetailPage() {
         body: JSON.stringify({ provider: providerId, ...formData }),
       });
       if (res.ok) {
+        const connectionData = await res.json();
+        const newConnection = connectionData?.connection;
         await fetchConnections();
         setShowAddApiKeyModal(false);
+
+        // For Gemini: show progress dialog and sync models from endpoint
+        if (providerId === "gemini" && newConnection?.id) {
+          setShowImportModal(true);
+          setImportProgress({
+            current: 0,
+            total: 0,
+            phase: "fetching",
+            status: t("fetchingModels"),
+            logs: [],
+            error: "",
+            importedCount: 0,
+          });
+
+          try {
+            const syncRes = await fetch(`/api/providers/${newConnection.id}/sync-models`, {
+              method: "POST",
+              signal: AbortSignal.timeout(30_000), // 30s timeout — model sync shouldn't hang
+            });
+            const syncData = await syncRes.json();
+
+            if (!syncRes.ok || syncData.error) {
+              setImportProgress((prev) => ({
+                ...prev,
+                phase: "error",
+                status: t("failedFetchModels"),
+                error: syncData.error?.message || syncData.error || t("failedImportModels"),
+              }));
+              return null;
+            }
+
+            const syncedCount = syncData.syncedModels || 0;
+            const syncedModelList: Array<{ id: string; name?: string }> = syncData.models || [];
+            const logs: string[] = [];
+            if (syncedModelList.length > 0) {
+              logs.push(`✓ ${syncedCount} models available`);
+              logs.push("");
+              for (const m of syncedModelList) {
+                logs.push(`  ${m.name || m.id}`);
+              }
+            }
+
+            setImportProgress((prev) => ({
+              ...prev,
+              phase: "done",
+              status: t("modelsImported", { count: syncedCount }),
+              total: syncedCount,
+              current: syncedCount,
+              importedCount: syncedCount,
+              logs,
+            }));
+
+            await fetchProviderModelMeta();
+          } catch (syncError) {
+            setImportProgress((prev) => ({
+              ...prev,
+              phase: "error",
+              status: t("failedFetchModels"),
+              error: String(syncError),
+            }));
+          }
+        }
         return null;
       }
       const data = await res.json().catch(() => ({}));
@@ -1736,6 +1840,10 @@ export default function ProviderDetailPage() {
     () => buildCompatMap(modelMeta.modelCompatOverrides),
     [modelMeta.modelCompatOverrides]
   );
+  const compatibleFallbackModels = useMemo(
+    () => getCompatibleFallbackModels(providerId, modelMeta.customModels),
+    [providerId, modelMeta.customModels]
+  );
 
   const effectiveModelNormalize = (modelId: string, protocol = MODEL_COMPAT_PROTOCOL_KEYS[0]) =>
     effectiveNormalizeForProtocol(modelId, protocol, customMap, overrideMap);
@@ -1822,7 +1930,7 @@ export default function ProviderDetailPage() {
   };
 
   const renderModelsSection = () => {
-    const autoSyncToggle = canImportModels && (
+    const autoSyncToggle = compatibleSupportsModelImport && canImportModels && (
       <button
         onClick={handleToggleAutoSync}
         disabled={togglingAutoSync}
@@ -1857,7 +1965,7 @@ export default function ProviderDetailPage() {
         providerId === "openrouter"
           ? t("openRouterAnyModelHint")
           : isCcCompatible
-            ? "CC Compatible provider models are routed through the Claude Code-compatible bridge."
+            ? "CC Compatible available models mirror the OAuth Claude Code provider list."
             : t("compatibleModelsDescription", {
                 type: isAnthropicCompatible ? t("anthropic") : t("openai"),
               });
@@ -1881,7 +1989,7 @@ export default function ProviderDetailPage() {
             providerStorageAlias={providerStorageAlias}
             providerDisplayAlias={providerDisplayAlias}
             modelAliases={modelAliases}
-            fallbackModels={providerId === "openrouter" ? modelMeta.customModels : undefined}
+            fallbackModels={compatibleFallbackModels}
             description={description}
             inputLabel={inputLabel}
             inputPlaceholder={inputPlaceholder}
@@ -1899,6 +2007,7 @@ export default function ProviderDetailPage() {
             saveModelCompatFlags={saveModelCompatFlags}
             compatSavingModelId={compatSavingModelId}
             onModelsChanged={fetchProviderModelMeta}
+            allowImport={compatibleSupportsModelImport}
           />
         </div>
       );
@@ -1941,7 +2050,7 @@ export default function ProviderDetailPage() {
       );
     }
 
-    const importButton = (
+    const importButton = providerId === "gemini" ? null : (
       <div className="flex items-center gap-2 mb-4">
         <Button
           size="sm"
@@ -2216,13 +2325,16 @@ export default function ProviderDetailPage() {
             </button>
           )}
           {!isCompatible ? (
-            <Button
-              size="sm"
-              icon="add"
-              onClick={() => (isOAuth ? setShowOAuthModal(true) : setShowAddApiKeyModal(true))}
-            >
-              {t("add")}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" icon="add" onClick={openPrimaryAddFlow}>
+                {providerSupportsPat ? "Add PAT" : t("add")}
+              </Button>
+              {providerId === "qoder" && (
+                <Button size="sm" variant="secondary" onClick={() => setShowOAuthModal(true)}>
+                  Experimental OAuth
+                </Button>
+              )}
+            </div>
           ) : (
             connections.length === 0 && (
               <Button size="sm" icon="add" onClick={() => setShowAddApiKeyModal(true)}>
@@ -2242,12 +2354,16 @@ export default function ProviderDetailPage() {
             <p className="text-text-main font-medium mb-1">{t("noConnectionsYet")}</p>
             <p className="text-sm text-text-muted mb-4">{t("addFirstConnectionHint")}</p>
             {!isCompatible && (
-              <Button
-                icon="add"
-                onClick={() => (isOAuth ? setShowOAuthModal(true) : setShowAddApiKeyModal(true))}
-              >
-                {t("addConnection")}
-              </Button>
+              <div className="flex items-center justify-center gap-2">
+                <Button icon="add" onClick={openPrimaryAddFlow}>
+                  {providerSupportsPat ? "Add PAT" : t("addConnection")}
+                </Button>
+                {providerId === "qoder" && (
+                  <Button variant="secondary" onClick={() => setShowOAuthModal(true)}>
+                    Experimental OAuth
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         ) : (
@@ -2264,7 +2380,7 @@ export default function ProviderDetailPage() {
                     <ConnectionRow
                       key={conn.id}
                       connection={conn}
-                      isOAuth={isOAuth}
+                      isOAuth={conn.authType === "oauth"}
                       isFirst={index === 0}
                       isLast={index === sorted.length - 1}
                       onMoveUp={() => handleSwapPriority(conn, sorted[index - 1])}
@@ -2285,8 +2401,10 @@ export default function ProviderDetailPage() {
                         setShowEditModal(true);
                       }}
                       onDelete={() => handleDelete(conn.id)}
-                      onReauth={isOAuth ? () => setShowOAuthModal(true) : undefined}
-                      onRefreshToken={isOAuth ? () => handleRefreshToken(conn.id) : undefined}
+                      onReauth={conn.authType === "oauth" ? () => setShowOAuthModal(true) : undefined}
+                      onRefreshToken={
+                        conn.authType === "oauth" ? () => handleRefreshToken(conn.id) : undefined
+                      }
                       isRefreshing={refreshingId === conn.id}
                       onApplyCodexAuthLocal={
                         providerId === "codex"
@@ -2361,7 +2479,7 @@ export default function ProviderDetailPage() {
                           <ConnectionRow
                             key={conn.id}
                             connection={conn}
-                            isOAuth={isOAuth}
+                            isOAuth={conn.authType === "oauth"}
                             isFirst={gi === 0 && index === 0}
                             isLast={gi === groupKeys.length - 1 && index === groupConns.length - 1}
                             onMoveUp={() =>
@@ -2388,8 +2506,14 @@ export default function ProviderDetailPage() {
                               setShowEditModal(true);
                             }}
                             onDelete={() => handleDelete(conn.id)}
-                            onReauth={isOAuth ? () => setShowOAuthModal(true) : undefined}
-                            onRefreshToken={isOAuth ? () => handleRefreshToken(conn.id) : undefined}
+                            onReauth={
+                              conn.authType === "oauth" ? () => setShowOAuthModal(true) : undefined
+                            }
+                            onRefreshToken={
+                              conn.authType === "oauth"
+                                ? () => handleRefreshToken(conn.id)
+                                : undefined
+                            }
                             isRefreshing={refreshingId === conn.id}
                             onApplyCodexAuthLocal={
                               providerId === "codex"
@@ -2432,7 +2556,7 @@ export default function ProviderDetailPage() {
           {renderModelsSection()}
 
           {/* Custom Models — available for providers without managed available-model metadata */}
-          {!isManagedAvailableModelsProvider && (
+          {!isManagedAvailableModelsProvider && providerId !== "gemini" && (
             <CustomModelsSection
               providerId={providerId}
               providerAlias={providerDisplayAlias}
@@ -2721,11 +2845,16 @@ export default function ProviderDetailPage() {
             </div>
           )}
 
-          {/* Auto-reload notice */}
-          {importProgress.phase === "done" && importProgress.importedCount > 0 && (
-            <p className="text-xs text-text-muted text-center animate-pulse">
-              {t("pageAutoRefresh")}
-            </p>
+          {/* Close button */}
+          {importProgress.phase === "done" && (
+            <div className="flex justify-center">
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:opacity-90 transition-opacity"
+              >
+                {t("close") || "Close"}
+              </button>
+            </div>
           )}
         </div>
       </Modal>
@@ -3494,6 +3623,7 @@ function CompatibleModelsSection({
   saveModelCompatFlags,
   compatSavingModelId,
   onModelsChanged,
+  allowImport,
 }: CompatibleModelsSectionProps) {
   const [newModel, setNewModel] = useState("");
   const [adding, setAdding] = useState(false);
@@ -3582,7 +3712,7 @@ function CompatibleModelsSection({
   };
 
   const handleImport = async () => {
-    if (importing) return;
+    if (!allowImport || importing) return;
     const activeConnection = connections.find((conn) => conn.isActive !== false);
     if (!activeConnection) return;
 
@@ -3685,18 +3815,22 @@ function CompatibleModelsSection({
         <Button size="sm" icon="add" onClick={handleAdd} disabled={!newModel.trim() || adding}>
           {adding ? t("adding") : t("add")}
         </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          icon="download"
-          onClick={handleImport}
-          disabled={!canImport || importing}
-        >
-          {importing ? t("importingModels") : t("importFromModels")}
-        </Button>
+        {allowImport && (
+          <Button
+            size="sm"
+            variant="secondary"
+            icon="download"
+            onClick={handleImport}
+            disabled={!canImport || importing}
+          >
+            {importing ? t("importingModels") : t("importFromModels")}
+          </Button>
+        )}
       </div>
 
-      {!canImport && <p className="text-xs text-text-muted">{t("addConnectionToImport")}</p>}
+      {allowImport && !canImport && (
+        <p className="text-xs text-text-muted">{t("addConnectionToImport")}</p>
+      )}
 
       {allModels.length > 0 && (
         <div className="flex flex-col gap-3">
@@ -3750,6 +3884,7 @@ CompatibleModelsSection.propTypes = {
   saveModelCompatFlags: PropTypes.func.isRequired,
   compatSavingModelId: PropTypes.string,
   onModelsChanged: PropTypes.func,
+  allowImport: PropTypes.bool.isRequired,
 };
 
 function CooldownTimer({ until }: CooldownTimerProps) {
@@ -4376,6 +4511,7 @@ function AddApiKeyModal({
   const isVertex = provider === "vertex";
   const defaultRegion = "us-central1";
   const isGlm = provider === "glm";
+  const isQoder = provider === "qoder";
 
   const [formData, setFormData] = useState({
     name: "",
@@ -4501,16 +4637,27 @@ function AddApiKeyModal({
           label={t("nameLabel")}
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder={t("productionKey")}
+          placeholder={isQoder ? "Qoder PAT" : t("productionKey")}
         />
         <div className="flex gap-2">
           <Input
-            label={t("apiKeyLabel")}
+            label={isQoder ? "Personal Access Token" : t("apiKeyLabel")}
             type="password"
             value={formData.apiKey}
             onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
             className="flex-1"
-            placeholder={isVertex ? "Cole o Service Account JSON aqui" : undefined}
+            placeholder={
+              isVertex
+                ? "Cole o Service Account JSON aqui"
+                : isQoder
+                  ? "Paste your Qoder Personal Access Token"
+                  : undefined
+            }
+            hint={
+              isQoder
+                ? "Supported path: PAT via qodercli. Browser OAuth remains experimental."
+                : undefined
+            }
           />
           <div className="pt-6">
             <Button
@@ -5110,13 +5257,13 @@ function EditCompatibleNodeModal({
               ? "https://api.anthropic.com/v1"
               : "https://api.openai.com/v1"),
         chatPath: node.chatPath || (isCcCompatible ? CC_COMPATIBLE_DEFAULT_CHAT_PATH : ""),
-        modelsPath: node.modelsPath || (isCcCompatible ? CC_COMPATIBLE_DEFAULT_MODELS_PATH : ""),
+        modelsPath: isCcCompatible ? "" : node.modelsPath || "",
       });
       setShowAdvanced(
         !!(
           node.chatPath ||
-          node.modelsPath ||
-          (isCcCompatible && !node.chatPath && !node.modelsPath)
+          (!isCcCompatible && node.modelsPath) ||
+          (isCcCompatible && !node.chatPath)
         )
       );
     }
@@ -5136,8 +5283,7 @@ function EditCompatibleNodeModal({
         prefix: formData.prefix,
         baseUrl: formData.baseUrl,
         chatPath: formData.chatPath || (isCcCompatible ? CC_COMPATIBLE_DEFAULT_CHAT_PATH : ""),
-        modelsPath:
-          formData.modelsPath || (isCcCompatible ? CC_COMPATIBLE_DEFAULT_MODELS_PATH : ""),
+        modelsPath: isCcCompatible ? "" : formData.modelsPath,
       };
       if (!isAnthropic) {
         payload.apiType = formData.apiType;
@@ -5160,8 +5306,7 @@ function EditCompatibleNodeModal({
           type: isAnthropic ? "anthropic-compatible" : "openai-compatible",
           compatMode: isCcCompatible ? "cc" : undefined,
           chatPath: formData.chatPath || (isCcCompatible ? CC_COMPATIBLE_DEFAULT_CHAT_PATH : ""),
-          modelsPath:
-            formData.modelsPath || (isCcCompatible ? CC_COMPATIBLE_DEFAULT_MODELS_PATH : ""),
+          modelsPath: isCcCompatible ? "" : formData.modelsPath,
         }),
       });
       const data = await res.json();
@@ -5273,15 +5418,15 @@ function EditCompatibleNodeModal({
                   : t("chatPathHint")
               }
             />
-            <Input
-              label={isCcCompatible ? "Models Path" : t("modelsPathLabel")}
-              value={formData.modelsPath}
-              onChange={(e) => setFormData({ ...formData, modelsPath: e.target.value })}
-              placeholder={
-                isCcCompatible ? CC_COMPATIBLE_DEFAULT_MODELS_PATH : t("modelsPathPlaceholder")
-              }
-              hint={isCcCompatible ? "Defaults to /models" : t("modelsPathHint")}
-            />
+            {!isCcCompatible && (
+              <Input
+                label={t("modelsPathLabel")}
+                value={formData.modelsPath}
+                onChange={(e) => setFormData({ ...formData, modelsPath: e.target.value })}
+                placeholder={t("modelsPathPlaceholder")}
+                hint={t("modelsPathHint")}
+              />
+            )}
           </div>
         )}
         <div className="flex gap-2">

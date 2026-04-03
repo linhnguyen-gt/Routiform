@@ -1,24 +1,11 @@
 import http from "http";
 import type { IncomingMessage, ServerResponse } from "http";
 import { getRuntimePorts } from "@/lib/runtime/ports";
+import { getApiBridgeTimeoutConfig } from "@/shared/utils/runtimeTimeouts";
 
-const DEFAULT_PROXY_TIMEOUT_MS = 30_000;
-
-function parseProxyTimeoutMs(raw: string | undefined): number {
-  if (raw == null || raw.trim() === "") return DEFAULT_PROXY_TIMEOUT_MS;
-  const parsed = Number(raw);
-
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    console.warn(
-      `[API Bridge] Invalid API_BRIDGE_PROXY_TIMEOUT_MS=\"${raw}\". Using default ${DEFAULT_PROXY_TIMEOUT_MS}ms.`
-    );
-    return DEFAULT_PROXY_TIMEOUT_MS;
-  }
-
-  return Math.floor(parsed);
-}
-
-const PROXY_TIMEOUT_MS = parseProxyTimeoutMs(process.env.API_BRIDGE_PROXY_TIMEOUT_MS);
+const API_BRIDGE_TIMEOUTS = getApiBridgeTimeoutConfig(process.env, (message) => {
+  console.warn(`[API Bridge] ${message}`);
+});
 
 const OPENAI_COMPAT_PATHS = [
   /^\/v1(?:\/|$)/,
@@ -45,7 +32,7 @@ function proxyRequest(req: IncomingMessage, res: ServerResponse, dashboardPort: 
         ...req.headers,
         host: `127.0.0.1:${dashboardPort}`,
       },
-      timeout: PROXY_TIMEOUT_MS,
+      timeout: API_BRIDGE_TIMEOUTS.proxyTimeoutMs,
     },
     (targetRes) => {
       res.writeHead(targetRes.statusCode || 502, targetRes.headers);
@@ -60,7 +47,7 @@ function proxyRequest(req: IncomingMessage, res: ServerResponse, dashboardPort: 
     res.end(
       JSON.stringify({
         error: "api_bridge_timeout",
-        detail: `Proxy request timed out after ${PROXY_TIMEOUT_MS}ms`,
+        detail: `Proxy request timed out after ${API_BRIDGE_TIMEOUTS.proxyTimeoutMs}ms`,
       })
     );
   });
@@ -112,6 +99,10 @@ export function initApiBridgeServer(): void {
 
     proxyRequest(req, res, dashboardPort);
   });
+  server.requestTimeout = API_BRIDGE_TIMEOUTS.serverRequestTimeoutMs;
+  server.headersTimeout = API_BRIDGE_TIMEOUTS.serverHeadersTimeoutMs;
+  server.keepAliveTimeout = API_BRIDGE_TIMEOUTS.serverKeepAliveTimeoutMs;
+  server.setTimeout(API_BRIDGE_TIMEOUTS.serverSocketTimeoutMs);
 
   server.on("error", (error: NodeJS.ErrnoException) => {
     if (error?.code === "EADDRINUSE") {

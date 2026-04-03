@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import {
   createProxyDispatcher,
+  getDefaultDispatcher,
   normalizeProxyUrl,
   proxyConfigToUrl,
   proxyUrlForLogs,
@@ -196,7 +197,10 @@ async function patchedFetch(input: RequestInfo | URL, options: FetchWithDispatch
         if (store) store.used = false;
       }
     }
-    return originalFetchWithDispatcher(input, options);
+    return originalFetchWithDispatcher(input, {
+      ...options,
+      dispatcher: getDefaultDispatcher(),
+    });
   }
 
   try {

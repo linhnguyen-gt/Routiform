@@ -169,9 +169,25 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   try {
     const { id } = await params;
 
+    // Fetch connection before deleting to check provider type
+    const connection = await getProviderConnectionById(id);
+    if (!connection) {
+      return NextResponse.json({ error: "Connection not found" }, { status: 404 });
+    }
+
     const deleted = await deleteProviderConnection(id);
     if (!deleted) {
       return NextResponse.json({ error: "Connection not found" }, { status: 404 });
+    }
+
+    // Clean up synced available models for this connection
+    if (connection.provider === "gemini") {
+      try {
+        const { deleteSyncedAvailableModelsForConnection } = await import("@/lib/db/models");
+        await deleteSyncedAvailableModelsForConnection("gemini", id);
+      } catch (e) {
+        console.error("Failed to clean up synced models for deleted gemini connection:", e);
+      }
     }
 
     // Auto sync to Cloud if enabled

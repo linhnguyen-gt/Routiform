@@ -6,7 +6,7 @@ if (!process.env.API_KEY_SECRET) {
 }
 
 function getApiKeySecret(): string {
-  const secret = process.env.API_KEY_SECRET;
+  const secret = process.env.API_KEY_SECRET || "omniroute-default-insecure-api-key-secret";
   if (!secret || secret.trim() === "") {
     throw new Error("API_KEY_SECRET is required for API key CRC operations");
   }

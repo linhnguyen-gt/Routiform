@@ -108,32 +108,32 @@ export default function MemoryPage() {
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Memory Management</h1>
+        <h1 className="text-2xl font-bold">{t("title")}</h1>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleExport}>
-            Export
+            {t("export")}
           </Button>
-          <Button variant="outline">Import</Button>
-          <Button>Add Memory</Button>
+          <Button variant="outline">{t("import")}</Button>
+          <Button>{t("addMemory")}</Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <div className="p-4">
-            <div className="text-sm text-gray-500">Total Entries</div>
+            <div className="text-sm text-gray-500">{t("totalEntries")}</div>
             <div className="text-2xl font-bold">{stats.totalEntries}</div>
           </div>
         </Card>
         <Card>
           <div className="p-4">
-            <div className="text-sm text-gray-500">Tokens Used</div>
+            <div className="text-sm text-gray-500">{t("tokensUsed")}</div>
             <div className="text-2xl font-bold">{stats.tokensUsed.toLocaleString()}</div>
           </div>
         </Card>
         <Card>
           <div className="p-4">
-            <div className="text-sm text-gray-500">Hit Rate</div>
+            <div className="text-sm text-gray-500">{t("hitRate")}</div>
             <div className="text-2xl font-bold">{(stats.hitRate * 100).toFixed(1)}%</div>
           </div>
         </Card>
@@ -142,20 +142,20 @@ export default function MemoryPage() {
       <Card>
         <div className="p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Memories</h2>
+            <h2 className="text-lg font-semibold">{t("memories")}</h2>
             <div className="flex gap-2">
               <Input
-                placeholder="Search memories..."
+                placeholder={t("search")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-64"
               />
               <Select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-                <option value="all">All Types</option>
-                <option value="factual">Factual</option>
-                <option value="episodic">Episodic</option>
-                <option value="procedural">Procedural</option>
-                <option value="semantic">Semantic</option>
+                <option value="all">{t("allTypes")}</option>
+                <option value="factual">{t("factual")}</option>
+                <option value="episodic">{t("episodic")}</option>
+                <option value="procedural">{t("procedural")}</option>
+                <option value="semantic">{t("semantic")}</option>
               </Select>
             </div>
           </div>
@@ -164,11 +164,11 @@ export default function MemoryPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left py-2 px-4">Type</th>
-                  <th className="text-left py-2 px-4">Key</th>
-                  <th className="text-left py-2 px-4">Content</th>
-                  <th className="text-left py-2 px-4">Created</th>
-                  <th className="text-left py-2 px-4">Actions</th>
+                  <th className="text-left py-2 px-4">{t("type")}</th>
+                  <th className="text-left py-2 px-4">{t("key")}</th>
+                  <th className="text-left py-2 px-4">{t("content")}</th>
+                  <th className="text-left py-2 px-4">{t("created")}</th>
+                  <th className="text-left py-2 px-4">{t("actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -182,7 +182,7 @@ export default function MemoryPage() {
                     <td className="py-2 px-4">{new Date(memory.createdAt).toLocaleDateString()}</td>
                     <td className="py-2 px-4">
                       <Button variant="ghost" size="sm" onClick={() => handleDelete(memory.id)}>
-                        Delete
+                        {t("delete")}
                       </Button>
                     </td>
                   </tr>

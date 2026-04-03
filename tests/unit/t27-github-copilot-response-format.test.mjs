@@ -82,3 +82,30 @@ test("T27: SSE [DONE] guard applies only in streaming mode", async () => {
     BaseExecutor.prototype.execute = originalExecute;
   }
 });
+
+test("T27: streaming error responses keep their original body readable", async () => {
+  const executor = new GithubExecutor();
+  const originalExecute = BaseExecutor.prototype.execute;
+
+  BaseExecutor.prototype.execute = async () => ({
+    response: new Response("IDE token expired: unauthorized: token expired\n", {
+      status: 401,
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    }),
+    url: "https://api.githubcopilot.com/chat/completions",
+  });
+
+  try {
+    const result = await executor.execute({
+      model: "claude-sonnet-4.5",
+      body: { messages: [] },
+      stream: true,
+      credentials: { accessToken: "token" },
+    });
+
+    assert.equal(result.response.status, 401);
+    assert.equal(await result.response.text(), "IDE token expired: unauthorized: token expired\n");
+  } finally {
+    BaseExecutor.prototype.execute = originalExecute;
+  }
+});

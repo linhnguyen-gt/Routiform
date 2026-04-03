@@ -200,6 +200,11 @@ function getLimiterKey(provider, connectionId, model = null) {
   if (provider === "codex" && model) {
     return `${provider}:${getCodexRateLimitKey(connectionId, model)}`;
   }
+  // Gemini AI Studio has per-model quotas — use model-scoped limiter keys
+  // so a 429 on one model doesn't pause requests for other models.
+  if (provider === "gemini" && model) {
+    return `${provider}:${connectionId}:${model}`;
+  }
   return `${provider}:${connectionId}`;
 }
 
@@ -570,7 +575,7 @@ export function updateFromResponseBody(provider, connectionId, responseBody, sta
   const { retryAfterMs, reason } = parseRetryAfterFromBody(responseBody);
 
   if (retryAfterMs && retryAfterMs > 0) {
-    const limiter = getLimiter(provider, connectionId, null);
+    const limiter = getLimiter(provider, connectionId, model);
     console.log(
       `🚫 [RATE-LIMIT] ${provider}:${connectionId.slice(0, 8)} — body-parsed retry: ${Math.ceil(retryAfterMs / 1000)}s (${reason})`
     );

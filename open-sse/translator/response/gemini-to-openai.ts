@@ -225,6 +225,11 @@ export function geminiToOpenAIResponse(chunk, state) {
     if (finishReason === "stop" && state.toolCalls.size > 0) {
       finishReason = "tool_calls";
     }
+    // Content blocked by Gemini safety filters — pass through as "content_filter"
+    // so downstream clients can distinguish from normal completion.
+    if (finishReason === "safety" || finishReason === "recitation" || finishReason === "blocklist") {
+      finishReason = "content_filter";
+    }
 
     const finalChunk: Record<string, unknown> = {
       id: `chatcmpl-${state.messageId}`,

@@ -141,6 +141,8 @@ export async function checkAndRefreshToken(provider: string, credentials: any) {
           copilotToken: copilotToken.token,
           copilotTokenExpiresAt: copilotToken.expiresAt,
         };
+        // Sync to top-level so buildHeaders() picks up the fresh token
+        updatedCredentials.copilotToken = copilotToken.token;
       }
     }
   }

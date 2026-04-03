@@ -1,12 +1,15 @@
-import { ProxyAgent, type Dispatcher } from "undici";
+import { Agent, ProxyAgent, type Dispatcher } from "undici";
 import { socksDispatcher } from "fetch-socks";
+import { getUpstreamTimeoutConfig } from "@/shared/utils/runtimeTimeouts";
 
 const DISPATCHER_CACHE_KEY = Symbol.for("omniroute.proxyDispatcher.cache");
+const DEFAULT_DISPATCHER_KEY = Symbol.for("omniroute.proxyDispatcher.default");
 const SUPPORTED_PROTOCOLS = new Set(["http:", "https:", "socks5:"]);
 
 type DispatcherCache = Map<string, Dispatcher>;
 type GlobalWithDispatcherCache = typeof globalThis & {
   [DISPATCHER_CACHE_KEY]?: DispatcherCache;
+  [DEFAULT_DISPATCHER_KEY]?: Dispatcher;
 };
 type SocksDispatcherOptions = {
   type: number;
@@ -38,6 +41,30 @@ function getDispatcherCache(): DispatcherCache {
 export function clearDispatcherCache() {
   const cache = getDispatcherCache();
   cache.clear();
+
+  const globalWithCache = globalThis as GlobalWithDispatcherCache;
+  delete globalWithCache[DEFAULT_DISPATCHER_KEY];
+}
+
+function getDispatcherOptions() {
+  const timeouts = getUpstreamTimeoutConfig(process.env, (message) => {
+    console.warn(`[ProxyDispatcher] ${message}`);
+  });
+
+  return {
+    headersTimeout: timeouts.fetchHeadersTimeoutMs,
+    bodyTimeout: timeouts.fetchBodyTimeoutMs,
+    connectTimeout: timeouts.fetchConnectTimeoutMs,
+    keepAliveTimeout: timeouts.fetchKeepAliveTimeoutMs,
+  };
+}
+
+export function getDefaultDispatcher(): Dispatcher {
+  const globalWithCache = globalThis as GlobalWithDispatcherCache;
+  if (!globalWithCache[DEFAULT_DISPATCHER_KEY]) {
+    globalWithCache[DEFAULT_DISPATCHER_KEY] = new Agent(getDispatcherOptions());
+  }
+  return globalWithCache[DEFAULT_DISPATCHER_KEY];
 }
 
 /**
@@ -180,6 +207,7 @@ export function proxyConfigToUrl(
 export function createProxyDispatcher(proxyUrl: string): Dispatcher {
   const normalizedUrl = normalizeProxyUrl(proxyUrl, "proxy dispatcher");
   const dispatcherCache = getDispatcherCache();
+  const dispatcherOptions = getDispatcherOptions();
 
   let dispatcher = dispatcherCache.get(normalizedUrl);
   if (dispatcher) return dispatcher;
@@ -197,10 +225,14 @@ export function createProxyDispatcher(proxyUrl: string): Dispatcher {
     if (parsed.username) socksOptions.userId = decodeURIComponent(parsed.username);
     if (parsed.password) socksOptions.password = decodeURIComponent(parsed.password);
     dispatcher = socksDispatcher(
-      socksOptions as Parameters<typeof socksDispatcher>[0]
+      socksOptions as Parameters<typeof socksDispatcher>[0],
+      dispatcherOptions
     ) as Dispatcher;
   } else {
-    dispatcher = new ProxyAgent(normalizedUrl);
+    dispatcher = new ProxyAgent({
+      uri: normalizedUrl,
+      ...dispatcherOptions,
+    });
   }
 
   dispatcherCache.set(normalizedUrl, dispatcher);

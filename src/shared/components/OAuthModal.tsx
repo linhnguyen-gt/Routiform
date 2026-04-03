@@ -313,6 +313,13 @@ export default function OAuthModal({
         throw new Error(errMsg);
       }
 
+      if (!data.authUrl) {
+        throw new Error(
+          data.error ||
+            "Browser OAuth is unavailable for this provider in the current environment. Use the supported auth method instead."
+        );
+      }
+
       setAuthData({ ...data, redirectUri });
 
       // For non-true-localhost (LAN IPs, remote) or manual fallback: use manual input mode (user pastes callback URL)

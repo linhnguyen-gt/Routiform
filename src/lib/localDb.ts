@@ -58,9 +58,15 @@ export {
   getModelPreserveOpenAIDeveloperRole,
   getModelUpstreamExtraHeaders,
   getModelIsHidden,
+
+  // Synced Available Models
+  getSyncedAvailableModels,
+  getAllSyncedAvailableModels,
+  replaceSyncedAvailableModelsForConnection,
+  deleteSyncedAvailableModelsForConnection,
 } from "./db/models";
 
-export type { ModelCompatPerProtocol, ModelCompatPatch } from "./db/models";
+export type { ModelCompatPerProtocol, ModelCompatPatch, SyncedAvailableModel } from "./db/models";
 
 export {
   // Combos
@@ -91,6 +97,10 @@ export {
   getSettings,
   updateSettings,
   isCloudEnabled,
+
+  // LKGP (Last Known Good Provider) (#919)
+  getLKGP,
+  setLKGP,
 
   // Pricing
   getPricing,
@@ -209,6 +219,28 @@ export {
 } from "./db/quotaSnapshots";
 
 export type { QuotaSnapshotRow, ProviderUtilizationPoint } from "@/shared/types/utilization";
+
+export {
+  getVersionManagerStatus,
+  getVersionManagerTool,
+  upsertVersionManagerTool,
+  updateVersionManagerTool,
+  deleteVersionManagerTool,
+  updateToolHealth,
+  updateToolVersion,
+  setToolStatus,
+} from "./db/versionManager";
+
+export {
+  getUpstreamProxyConfigs,
+  getUpstreamProxyConfig,
+  upsertUpstreamProxyConfig,
+  updateUpstreamProxyConfig,
+  deleteUpstreamProxyConfig,
+  getProvidersByMode,
+  getFallbackChainForProvider,
+  validateProxyUrl,
+} from "./db/upstreamProxy";
 
 export {
   getProviderLimitsCache,

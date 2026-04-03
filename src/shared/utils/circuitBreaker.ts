@@ -197,13 +197,21 @@ export class CircuitBreaker {
   // ─── Internal Methods ────────────────────────
 
   _onSuccess() {
-    if (this.state === STATE.HALF_OPEN) {
+    if (this.state === STATE.OPEN) {
+      // Direct call from combo path: timeout elapsed and request succeeded
+      // without going through execute(), so transition OPEN → CLOSED directly
+      this._transition(STATE.CLOSED);
+      this.failureCount = 0;
+      this.successCount = 0;
+      this.lastFailureTime = null;
+    } else if (this.state === STATE.HALF_OPEN) {
       this.successCount++;
       this._transition(STATE.CLOSED);
       this.failureCount = 0;
+    } else {
+      // In CLOSED state, just reset failure count
+      this.failureCount = 0;
     }
-    // In CLOSED state, just reset failure count
-    this.failureCount = 0;
     this._persistToDb();
   }
 
@@ -211,7 +219,9 @@ export class CircuitBreaker {
     this.failureCount++;
     this.lastFailureTime = Date.now();
 
-    if (this.state === STATE.HALF_OPEN) {
+    if (this.state === STATE.OPEN) {
+      // Already OPEN — just update persistence (re-tripped by combo path)
+    } else if (this.state === STATE.HALF_OPEN) {
       this._transition(STATE.OPEN);
     } else if (this.failureCount >= this.failureThreshold) {
       this._transition(STATE.OPEN);

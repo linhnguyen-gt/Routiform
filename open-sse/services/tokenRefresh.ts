@@ -542,6 +542,14 @@ export async function refreshKiroToken(refreshToken, providerSpecificData, log) 
  * Specialized refresh for Qoder OAuth tokens
  */
 export async function refreshIflowToken(refreshToken, log) {
+  if (!OAUTH_ENDPOINTS.qoder.token || !PROVIDERS.qoder.clientId || !PROVIDERS.qoder.clientSecret) {
+    log?.warn?.(
+      "TOKEN_REFRESH",
+      "Qoder OAuth refresh skipped: browser OAuth is not configured in this environment"
+    );
+    return null;
+  }
+
   const basicAuth = btoa(`${PROVIDERS.qoder.clientId}:${PROVIDERS.qoder.clientSecret}`);
 
   const response = await fetch(OAUTH_ENDPOINTS.qoder.token, {

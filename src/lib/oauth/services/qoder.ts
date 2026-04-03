@@ -20,6 +20,12 @@ export class QoderService {
    * Build Qoder authorization URL
    */
   buildAuthUrl(redirectUri: string, state: string) {
+    if (!this.config?.enabled || !this.config?.authorizeUrl) {
+      throw new Error(
+        "Qoder browser OAuth is experimental and disabled by default. Configure QODER_OAUTH_* environment variables or use a Personal Access Token."
+      );
+    }
+
     const params = new URLSearchParams({
       loginMethod: this.config.extraParams.loginMethod,
       type: this.config.extraParams.type,
@@ -35,6 +41,12 @@ export class QoderService {
    * Exchange authorization code for tokens
    */
   async exchangeCode(code: string, redirectUri: string) {
+    if (!this.config?.enabled || !this.config?.tokenUrl) {
+      throw new Error(
+        "Qoder browser OAuth is experimental and disabled by default. Configure QODER_OAUTH_* environment variables or use a Personal Access Token."
+      );
+    }
+
     // Create Basic Auth header
     const basicAuth = Buffer.from(`${this.config.clientId}:${this.config.clientSecret}`).toString(
       "base64"
@@ -68,6 +80,12 @@ export class QoderService {
    * Get user info from Qoder
    */
   async getUserInfo(accessToken: string) {
+    if (!this.config?.enabled || !this.config?.userInfoUrl) {
+      throw new Error(
+        "Qoder browser OAuth is experimental and disabled by default. Configure QODER_OAUTH_* environment variables or use a Personal Access Token."
+      );
+    }
+
     const response = await fetch(
       `${this.config.userInfoUrl}?accessToken=${encodeURIComponent(accessToken)}`,
       {

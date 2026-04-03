@@ -30,7 +30,6 @@ import { useTranslations } from "next-intl";
 const CC_COMPATIBLE_LABEL = "CC Compatible";
 const ADD_CC_COMPATIBLE_LABEL = "Add CC Compatible";
 const CC_COMPATIBLE_DEFAULT_CHAT_PATH = "/v1/messages?beta=true";
-const CC_COMPATIBLE_DEFAULT_MODELS_PATH = "/models";
 
 // Shared helper function to avoid code duplication between ProviderCard and ApiKeyProviderCard
 function getStatusDisplay(connected, error, errorCode, t) {
@@ -168,9 +167,11 @@ export default function ProvidersPage() {
   };
 
   const getProviderStats = (providerId, authType) => {
-    const providerConnections = connections.filter(
-      (c) => c.provider === providerId && c.authType === authType
-    );
+    const providerConnections = connections.filter((c) => {
+      if (c.provider !== providerId) return false;
+      if (authType === "free") return true;
+      return c.authType === authType;
+    });
 
     // Helper: check if connection is effectively active (cooldown expired)
     const getEffectiveStatus = (conn) => {
@@ -217,13 +218,17 @@ export default function ProvidersPage() {
 
   // Toggle all connections for a provider on/off
   const handleToggleProvider = async (providerId: string, authType: string, newActive: boolean) => {
-    const providerConns = connections.filter(
-      (c) => c.provider === providerId && c.authType === authType
-    );
+    const providerConns = connections.filter((c) => {
+      if (c.provider !== providerId) return false;
+      if (authType === "free") return true;
+      return c.authType === authType;
+    });
     // Optimistically update UI
     setConnections((prev) =>
       prev.map((c) =>
-        c.provider === providerId && c.authType === authType ? { ...c, isActive: newActive } : c
+        c.provider === providerId && (authType === "free" || c.authType === authType)
+          ? { ...c, isActive: newActive }
+          : c
       )
     );
     // Fire API calls in parallel
@@ -444,9 +449,9 @@ export default function ProvidersPage() {
               key={key}
               providerId={key}
               provider={info}
-              stats={getProviderStats(key, "oauth")}
+              stats={getProviderStats(key, "free")}
               authType="free"
-              onToggle={(active) => handleToggleProvider(key, "oauth", active)}
+              onToggle={(active) => handleToggleProvider(key, "free", active)}
             />
           ))}
         </div>
@@ -518,25 +523,14 @@ export default function ProvidersPage() {
               </button>
             )}
             {ccCompatibleProviderEnabled && (
-              <Button
-                size="sm"
-                variant="secondary"
-                icon="add"
-                onClick={() => setShowAddCcCompatibleModal(true)}
-              >
+              <Button size="sm" icon="add" onClick={() => setShowAddCcCompatibleModal(true)}>
                 {ADD_CC_COMPATIBLE_LABEL}
               </Button>
             )}
             <Button size="sm" icon="add" onClick={() => setShowAddAnthropicCompatibleModal(true)}>
               {t("addAnthropicCompatible")}
             </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              icon="add"
-              onClick={() => setShowAddCompatibleModal(true)}
-              className="!bg-white !text-black hover:!bg-gray-100"
-            >
+            <Button size="sm" icon="add" onClick={() => setShowAddCompatibleModal(true)}>
               {t("addOpenAICompatible")}
             </Button>
           </div>
@@ -1292,12 +1286,12 @@ AddAnthropicCompatibleModal.propTypes = {
 };
 
 function AddCcCompatibleModal({ isOpen, onClose, onCreated }) {
+  const t = useTranslations("providers");
   const [formData, setFormData] = useState({
     name: "",
     prefix: "",
     baseUrl: "https://api.anthropic.com",
     chatPath: CC_COMPATIBLE_DEFAULT_CHAT_PATH,
-    modelsPath: CC_COMPATIBLE_DEFAULT_MODELS_PATH,
   });
   const [submitting, setSubmitting] = useState(false);
   const [checkKey, setCheckKey] = useState("");
@@ -1326,7 +1320,6 @@ function AddCcCompatibleModal({ isOpen, onClose, onCreated }) {
           type: "anthropic-compatible",
           compatMode: "cc",
           chatPath: formData.chatPath || CC_COMPATIBLE_DEFAULT_CHAT_PATH,
-          modelsPath: formData.modelsPath || CC_COMPATIBLE_DEFAULT_MODELS_PATH,
         }),
       });
       const data = await res.json();
@@ -1337,7 +1330,6 @@ function AddCcCompatibleModal({ isOpen, onClose, onCreated }) {
           prefix: "",
           baseUrl: "https://api.anthropic.com",
           chatPath: CC_COMPATIBLE_DEFAULT_CHAT_PATH,
-          modelsPath: CC_COMPATIBLE_DEFAULT_MODELS_PATH,
         });
         setCheckKey("");
         setValidationResult(null);
@@ -1362,7 +1354,6 @@ function AddCcCompatibleModal({ isOpen, onClose, onCreated }) {
           type: "anthropic-compatible",
           compatMode: "cc",
           chatPath: formData.chatPath || CC_COMPATIBLE_DEFAULT_CHAT_PATH,
-          modelsPath: formData.modelsPath || CC_COMPATIBLE_DEFAULT_MODELS_PATH,
         }),
       });
       const data = await res.json();
@@ -1378,25 +1369,25 @@ function AddCcCompatibleModal({ isOpen, onClose, onCreated }) {
     <Modal isOpen={isOpen} title={ADD_CC_COMPATIBLE_LABEL} onClose={onClose}>
       <div className="flex flex-col gap-4">
         <Input
-          label="Name"
+          label={t("nameLabel")}
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="CC Compatible Production"
-          hint="Display name for this Claude Code-compatible provider"
+          placeholder={t("compatibleProdPlaceholder", { type: CC_COMPATIBLE_LABEL })}
+          hint={t("nameHint")}
         />
         <Input
-          label="Prefix"
+          label={t("prefixLabel")}
           value={formData.prefix}
           onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
-          placeholder="cc"
-          hint="Used for model aliases such as prefix/model-id"
+          placeholder="cc-prod"
+          hint={t("prefixHint")}
         />
         <Input
-          label="Base URL"
+          label={t("baseUrlLabel")}
           value={formData.baseUrl}
           onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
-          placeholder="https://example.com/v1"
-          hint="Base URL for the CC-compatible site. Do not include /messages."
+          placeholder="https://api.anthropic.com"
+          hint={t("compatibleBaseUrlHint", { type: CC_COMPATIBLE_LABEL })}
         />
         <button
           type="button"
@@ -1411,7 +1402,7 @@ function AddCcCompatibleModal({ isOpen, onClose, onCreated }) {
           >
             ▶
           </span>
-          Advanced settings
+          {t("advancedSettings")}
         </button>
         {showAdvanced && (
           <div
@@ -1419,24 +1410,17 @@ function AddCcCompatibleModal({ isOpen, onClose, onCreated }) {
             className="flex flex-col gap-3 pl-2 border-l-2 border-border"
           >
             <Input
-              label="Chat Path"
+              label={t("chatPathLabel")}
               value={formData.chatPath}
               onChange={(e) => setFormData({ ...formData, chatPath: e.target.value })}
               placeholder={CC_COMPATIBLE_DEFAULT_CHAT_PATH}
-              hint="Defaults to the strict Claude Code-compatible messages path"
-            />
-            <Input
-              label="Models Path"
-              value={formData.modelsPath}
-              onChange={(e) => setFormData({ ...formData, modelsPath: e.target.value })}
-              placeholder={CC_COMPATIBLE_DEFAULT_MODELS_PATH}
-              hint="Defaults to /models"
+              hint={t("chatPathHint")}
             />
           </div>
         )}
         <div className="flex gap-2">
           <Input
-            label="API Key for Check"
+            label={t("apiKeyForCheck")}
             type="password"
             value={checkKey}
             onChange={(e) => setCheckKey(e.target.value)}
@@ -1448,13 +1432,13 @@ function AddCcCompatibleModal({ isOpen, onClose, onCreated }) {
               disabled={!checkKey || validating || !formData.baseUrl.trim()}
               variant="secondary"
             >
-              {validating ? "Checking..." : "Check"}
+              {validating ? t("checking") : t("check")}
             </Button>
           </div>
         </div>
         {validationResult && (
           <Badge variant={validationResult === "success" ? "success" : "error"}>
-            {validationResult === "success" ? "Valid" : "Invalid"}
+            {validationResult === "success" ? t("valid") : t("invalid")}
           </Badge>
         )}
         <div className="flex gap-2">
@@ -1468,10 +1452,10 @@ function AddCcCompatibleModal({ isOpen, onClose, onCreated }) {
               submitting
             }
           >
-            {submitting ? "Creating..." : "Add"}
+            {submitting ? t("creating") : t("add")}
           </Button>
           <Button onClick={onClose} variant="ghost" fullWidth>
-            Cancel
+            {t("cancel")}
           </Button>
         </div>
       </div>

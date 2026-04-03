@@ -57,6 +57,7 @@ type BinaryResolution = {
 type PersistedTunnelState = {
   binaryPath?: string | null;
   installSource?: CloudflaredInstallSource | null;
+  ownerPid?: number | null;
   pid?: number | null;
   publicUrl?: string | null;
   apiUrl?: string | null;
@@ -128,6 +129,9 @@ let tunnelProcess: ReturnType<typeof spawn> | null = null;
 let tunnelPid: number | null = null;
 let installPromise: Promise<string> | null = null;
 let startPromise: Promise<CloudflaredTunnelStatus> | null = null;
+const NON_ACTIONABLE_CLOUDFLARED_WARNING_PATTERNS = [
+  /failed to sufficiently increase receive buffer size/i,
+] as const;
 
 function getTunnelDir() {
   return path.join(resolveDataDir(), "cloudflared");
@@ -264,6 +268,9 @@ export function extractCloudflaredErrorMessage(text: string) {
     .filter(Boolean);
 
   for (let i = lines.length - 1; i >= 0; i--) {
+    if (NON_ACTIONABLE_CLOUDFLARED_WARNING_PATTERNS.some((pattern) => pattern.test(lines[i]))) {
+      continue;
+    }
     if (/(?:\berror\b|\bfailed\b|\btls:\b|\bx509\b|\bcertificate\b)/i.test(lines[i])) {
       return lines[i];
     }
@@ -327,11 +334,58 @@ export function buildCloudflaredChildEnv(
     childEnv.SSL_CERT_DIR = defaultCertEnv.SSL_CERT_DIR;
   }
 
+  const requestedProtocol = String(
+    sourceEnv.CLOUDFLARED_PROTOCOL || sourceEnv.TUNNEL_TRANSPORT_PROTOCOL || "http2"
+  )
+    .trim()
+    .toLowerCase();
+  const protocol =
+    requestedProtocol === "quic" || requestedProtocol === "auto" ? requestedProtocol : "http2";
+
+  if (protocol !== "auto") {
+    childEnv.TUNNEL_TRANSPORT_PROTOCOL = protocol;
+  }
+
   return childEnv;
 }
 
 export function getCloudflaredStartArgs(targetUrl: string) {
   return ["tunnel", "--url", targetUrl, "--no-autoupdate"];
+}
+
+function isStateOwnedByCurrentProcess(state: PersistedTunnelState) {
+  return !!state.ownerPid && state.ownerPid === process.pid;
+}
+
+function hasTransientRuntimeState(state: PersistedTunnelState) {
+  return !!(
+    state.ownerPid ||
+    state.pid ||
+    state.publicUrl ||
+    state.apiUrl ||
+    state.startedAt ||
+    state.status === "running" ||
+    state.status === "starting" ||
+    state.status === "error"
+  );
+}
+
+function buildStoppedState(
+  state: PersistedTunnelState,
+  binaryResolved: boolean,
+  targetUrl = getLocalTargetUrl()
+): PersistedTunnelState {
+  return {
+    ...state,
+    ownerPid: null,
+    pid: null,
+    publicUrl: null,
+    apiUrl: null,
+    targetUrl,
+    status: binaryResolved ? "stopped" : "not_installed",
+    lastError: null,
+    startedAt: null,
+  };
 }
 
 export function getCloudflaredAssetSpec(
@@ -549,6 +603,12 @@ async function stopExistingTunnel() {
     return;
   }
 
+  const state = await readStateFile();
+  if (!isStateOwnedByCurrentProcess(state)) {
+    await clearPidFile();
+    return;
+  }
+
   const pid = await readPidFile();
   if (pid && isProcessAlive(pid)) {
     await killPid(pid);
@@ -558,9 +618,20 @@ async function stopExistingTunnel() {
 export async function getCloudflaredTunnelStatus(): Promise<CloudflaredTunnelStatus> {
   const state = await readStateFile();
   const resolved = await resolveBinary();
-  const pidFromState = tunnelPid || state.pid || (await readPidFile());
+  const pidFromState =
+    tunnelPid || (isStateOwnedByCurrentProcess(state) ? state.pid || (await readPidFile()) : null);
   const running = isProcessAlive(pidFromState);
-  const publicUrl = running ? state.publicUrl || null : null;
+  const needsColdStartReset =
+    !running && !isStateOwnedByCurrentProcess(state) && hasTransientRuntimeState(state);
+  const effectiveState = needsColdStartReset
+    ? buildStoppedState(state, !!resolved.binaryPath)
+    : state;
+
+  if (needsColdStartReset) {
+    await writeStateFile(effectiveState);
+  }
+
+  const publicUrl = running ? effectiveState.publicUrl || null : null;
   const phase =
     !getCloudflaredAssetSpec() && !resolved.binaryPath
       ? "unsupported"
@@ -569,7 +640,7 @@ export async function getCloudflaredTunnelStatus(): Promise<CloudflaredTunnelSta
           ? "running"
           : "starting"
         : resolved.binaryPath
-          ? state.lastError
+          ? effectiveState.lastError
             ? "error"
             : "stopped"
           : "not_installed";
@@ -588,9 +659,9 @@ export async function getCloudflaredTunnelStatus(): Promise<CloudflaredTunnelSta
     pid: running ? pidFromState : null,
     publicUrl,
     apiUrl: publicUrl ? getTunnelApiUrl(publicUrl) : null,
-    targetUrl: state.targetUrl || getLocalTargetUrl(),
+    targetUrl: effectiveState.targetUrl || getLocalTargetUrl(),
     phase,
-    lastError: running ? null : state.lastError || null,
+    lastError: running ? null : effectiveState.lastError || null,
     logPath: getLogFilePath(),
   };
 }
@@ -619,6 +690,7 @@ export async function startCloudflaredTunnel(): Promise<CloudflaredTunnelStatus>
     await writeStateFile({
       binaryPath: binary.binaryPath,
       installSource: binary.source,
+      ownerPid: process.pid,
       pid: null,
       publicUrl: null,
       apiUrl: null,
@@ -662,6 +734,7 @@ export async function startCloudflaredTunnel(): Promise<CloudflaredTunnelStatus>
         const errorMessage = source === "stderr" ? extractCloudflaredErrorMessage(text) : null;
         if (errorMessage) {
           await updateStateFile({
+            ownerPid: process.pid,
             pid: child.pid,
             status: "error",
             lastError: errorMessage,
@@ -672,6 +745,7 @@ export async function startCloudflaredTunnel(): Promise<CloudflaredTunnelStatus>
 
         const apiUrl = getTunnelApiUrl(url);
         await updateStateFile({
+          ownerPid: process.pid,
           pid: child.pid,
           publicUrl: url,
           apiUrl,
@@ -721,6 +795,7 @@ export async function startCloudflaredTunnel(): Promise<CloudflaredTunnelStatus>
         : "Failed to start cloudflared tunnel";
 
     await updateStateFile({
+      ownerPid: process.pid,
       status: "error",
       lastError: message,
     });
@@ -734,12 +809,8 @@ export async function stopCloudflaredTunnel() {
   await stopExistingTunnel();
   const current = await readStateFile();
   await writeStateFile({
-    ...current,
-    pid: null,
-    publicUrl: null,
-    apiUrl: null,
-    status: "stopped",
-    lastError: null,
+    ...buildStoppedState(current, !!(await resolveBinary()).binaryPath),
+    ownerPid: null,
   });
   tunnelProcess = null;
   tunnelPid = null;

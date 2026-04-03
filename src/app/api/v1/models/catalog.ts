@@ -18,6 +18,8 @@ import { getAllModerationModels } from "@omniroute/open-sse/config/moderationReg
 import { getAllVideoModels } from "@omniroute/open-sse/config/videoRegistry.ts";
 import { getAllMusicModels } from "@omniroute/open-sse/config/musicRegistry.ts";
 import { REGISTRY } from "@omniroute/open-sse/config/providerRegistry.ts";
+import { getSyncedAvailableModels } from "@/lib/db/models";
+import { getCompatibleFallbackModels } from "@/lib/providers/managedAvailableModels";
 
 const FALLBACK_ALIAS_TO_PROVIDER = {
   ag: "antigravity",
@@ -179,7 +181,7 @@ export async function getUnifiedModelsResponse(
       connections = connections.filter((c) => c.isActive !== false);
     } catch (e) {
       // If database not available, show no provider models (safe default)
-      console.log("Could not fetch providers, showing only combos/custom models");
+      console.log("[catalog] Could not fetch providers:", e);
     }
 
     // Get provider nodes (for compatible providers with custom prefixes)
@@ -296,6 +298,61 @@ export async function getUnifiedModelsResponse(
       }
     }
 
+    // Gemini: synced API models exclusively (outside PROVIDER_MODELS loop since registry is empty)
+    if (activeAliases.has("gemini") && !blockedProviders.has("gemini")) {
+      try {
+        const syncedModels = await getSyncedAvailableModels("gemini");
+        for (const sm of syncedModels) {
+          const aliasId = `gemini/${sm.id}`;
+          if (getModelIsHidden("gemini", sm.id)) continue;
+
+          // Convert supportedEndpoints to type/subtype for endpoint categorization
+          const endpoints = Array.isArray(sm.supportedEndpoints) ? sm.supportedEndpoints : ["chat"];
+          let modelType: string | undefined;
+          if (endpoints.includes("embeddings")) modelType = "embedding";
+          else if (endpoints.includes("images")) modelType = "image";
+          else if (endpoints.includes("audio")) modelType = "audio";
+
+          models.push({
+            id: aliasId,
+            object: "model",
+            created: timestamp,
+            owned_by: "gemini",
+            permission: [],
+            root: sm.id,
+            parent: null,
+            ...(modelType ? { type: modelType } : {}),
+            ...(modelType === "audio" ? { subtype: "transcription" } : {}),
+            ...(sm.inputTokenLimit ? { context_length: sm.inputTokenLimit } : {}),
+            ...(endpoints.length > 1 || !endpoints.includes("chat")
+              ? { supported_endpoints: endpoints }
+              : {}),
+          });
+
+          // For audio models, also add a speech variant so they appear in both sections
+          if (modelType === "audio") {
+            models.push({
+              id: aliasId,
+              object: "model",
+              created: timestamp,
+              owned_by: "gemini",
+              permission: [],
+              root: sm.id,
+              parent: null,
+              type: "audio",
+              subtype: "speech",
+              ...(sm.inputTokenLimit ? { context_length: sm.inputTokenLimit } : {}),
+              ...(endpoints.length > 1 || !endpoints.includes("chat")
+                ? { supported_endpoints: endpoints }
+                : {}),
+            });
+          }
+        }
+      } catch (err) {
+        console.error("[catalog] Error fetching synced Gemini models:", err);
+      }
+    }
+
     // Helper: check if a provider is active (by provider id or alias)
     const isProviderActive = (provider: string) => {
       if (activeAliases.size === 0) return false; // No active connections = show nothing
@@ -394,6 +451,8 @@ export async function getUnifiedModelsResponse(
     try {
       const customModelsMap = (await getAllCustomModels()) as Record<string, unknown>;
       for (const [providerId, rawProviderCustomModels] of Object.entries(customModelsMap)) {
+        // Skip Gemini — handled by syncedAvailableModels above
+        if (providerId === "gemini") continue;
         const providerCustomModels = Array.isArray(rawProviderCustomModels)
           ? rawProviderCustomModels.filter(
               (model): model is Record<string, unknown> =>
@@ -454,6 +513,9 @@ export async function getUnifiedModelsResponse(
             ...(endpoints.length > 1 || !endpoints.includes("chat")
               ? { supported_endpoints: endpoints }
               : {}),
+            ...(typeof (model as any).inputTokenLimit === "number"
+              ? { context_length: (model as any).inputTokenLimit }
+              : {}),
             ...(visionFields || {}),
           });
 
@@ -476,6 +538,9 @@ export async function getUnifiedModelsResponse(
               parent: aliasId,
               custom: true,
               ...(modelType ? { type: modelType } : {}),
+              ...(typeof (model as any).inputTokenLimit === "number"
+                ? { context_length: (model as any).inputTokenLimit }
+                : {}),
               ...(providerVisionFields || {}),
             });
           }
@@ -483,6 +548,47 @@ export async function getUnifiedModelsResponse(
       }
     } catch (e) {
       console.log("Could not fetch custom models");
+    }
+
+    // Add managed fallback models for compatible providers that don't import a model list.
+    for (const conn of connections) {
+      const providerId = typeof conn.provider === "string" ? conn.provider : null;
+      if (!providerId) continue;
+      if (blockedProviders.has(providerId)) continue;
+
+      const fallbackModels = getCompatibleFallbackModels(providerId);
+      if (!Array.isArray(fallbackModels) || fallbackModels.length === 0) continue;
+
+      const prefix = providerIdToPrefix[providerId];
+      const alias = prefix || providerIdToAlias[providerId] || providerId;
+
+      for (const model of fallbackModels) {
+        const modelId = typeof model.id === "string" ? model.id : null;
+        if (!modelId) continue;
+        if (getModelIsHidden(providerId, modelId)) continue;
+
+        const aliasId = `${alias}/${modelId}`;
+        if (models.some((m) => m.id === aliasId)) continue;
+
+        const visionFields =
+          getVisionCapabilityFields(aliasId) || getVisionCapabilityFields(modelId);
+        const contextLength =
+          typeof (model as any).contextLength === "number"
+            ? (model as any).contextLength
+            : undefined;
+
+        models.push({
+          id: aliasId,
+          object: "model",
+          created: timestamp,
+          owned_by: providerId,
+          permission: [],
+          root: modelId,
+          parent: null,
+          ...(contextLength ? { context_length: contextLength } : {}),
+          ...(visionFields || {}),
+        });
+      }
     }
 
     // Filter by API key permissions if requested

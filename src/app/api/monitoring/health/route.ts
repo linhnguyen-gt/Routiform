@@ -67,6 +67,13 @@ export async function GET() {
       dedup: {
         inflightRequests: getInflightCount(),
       },
+      cryptography: {
+        status:
+          process.env.STORAGE_ENCRYPTION_KEY && process.env.STORAGE_ENCRYPTION_KEY.length >= 32
+            ? "healthy"
+            : "missing_or_invalid",
+        provider: "aes-256-gcm",
+      },
       setupComplete: settings?.setupComplete || false,
     });
   } catch (error) {

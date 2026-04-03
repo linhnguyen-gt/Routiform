@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { getProviderConnectionById } from "@/models";
 import {
+  isClaudeCodeCompatibleProvider,
   isOpenAICompatibleProvider,
   isAnthropicCompatibleProvider,
 } from "@/shared/constants/providers";
 import { PROVIDER_MODELS } from "@/shared/constants/models";
 import { getModelIsHidden } from "@/lib/localDb";
+import { getStaticQoderModels } from "@omniroute/open-sse/services/qoderCli.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -99,6 +101,7 @@ const STATIC_MODEL_PROVIDERS: Record<string, () => Array<{ id: string; name: str
     { id: "glm-4.7", name: "GLM 4.7" },
     { id: "kimi-k2.5", name: "Kimi K2.5" },
   ],
+  qoder: () => getStaticQoderModels(),
 };
 
 /**
@@ -127,16 +130,56 @@ const PROVIDER_MODELS_CONFIG: Record<string, ProviderModelsConfigEntry> = {
     parseResponse: (data) => data.data || [],
   },
   gemini: {
-    url: "https://generativelanguage.googleapis.com/v1beta/models",
+    url: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000",
     method: "GET",
     headers: { "Content-Type": "application/json" },
     authQuery: "key", // Use query param for API key
-    parseResponse: (data) =>
-      (data.models || []).map((m) => ({
-        ...m,
-        id: (m.name || m.id || "").replace(/^models\//, ""),
-        name: m.displayName || (m.name || "").replace(/^models\//, ""),
-      })),
+    parseResponse: (data) => {
+      const METHOD_TO_ENDPOINT: Record<string, string> = {
+        generateContent: "chat",
+        embedContent: "embeddings",
+        predict: "images",
+        predictLongRunning: "images",
+        bidiGenerateContent: "audio",
+        generateAnswer: "chat",
+      };
+      const IGNORED_METHODS = new Set([
+        "countTokens",
+        "countTextTokens",
+        "createCachedContent",
+        "batchGenerateContent",
+        "asyncBatchEmbedContent",
+      ]);
+
+      return (data.models || []).map((m: Record<string, unknown>) => {
+        const methods: string[] = Array.isArray(m.supportedGenerationMethods)
+          ? m.supportedGenerationMethods
+          : [];
+        const endpoints = [
+          ...new Set(
+            methods
+              .filter((method) => !IGNORED_METHODS.has(method))
+              .map((method) => METHOD_TO_ENDPOINT[method] || "chat")
+          ),
+        ];
+        if (endpoints.length === 0) endpoints.push("chat");
+
+        return {
+          ...m,
+          id: ((m.name as string) || (m.id as string) || "").replace(/^models\//, ""),
+          name: (m.displayName as string) || ((m.name as string) || "").replace(/^models\//, ""),
+          supportedEndpoints: endpoints,
+          ...(typeof m.inputTokenLimit === "number"
+            ? { inputTokenLimit: m.inputTokenLimit }
+            : {}),
+          ...(typeof m.outputTokenLimit === "number"
+            ? { outputTokenLimit: m.outputTokenLimit }
+            : {}),
+          ...(typeof m.description === "string" ? { description: m.description } : {}),
+          ...(m.thinking === true ? { supportsThinking: true } : {}),
+        };
+      });
+    },
   },
   // gemini-cli handled via retrieveUserQuota (see GET handler)
   qwen: {
@@ -555,6 +598,13 @@ export async function GET(
     }
 
     if (isAnthropicCompatibleProvider(provider)) {
+      if (isClaudeCodeCompatibleProvider(provider)) {
+        return NextResponse.json(
+          { error: `Provider ${provider} does not support models listing` },
+          { status: 400 }
+        );
+      }
+
       let baseUrl = getProviderBaseUrl(connection.providerSpecificData);
       if (!baseUrl) {
         return NextResponse.json(
@@ -638,7 +688,7 @@ export async function GET(
     // Build request URL
     let url = config.url;
     if (config.authQuery) {
-      url += `?${config.authQuery}=${token}`;
+      url += `${url.includes("?") ? "&" : "?"}${config.authQuery}=${token}`;
     }
 
     // Build headers
@@ -647,7 +697,7 @@ export async function GET(
       headers[config.authHeader] = (config.authPrefix || "") + token;
     }
 
-    // Make request
+    // Make request (with pagination for providers that use nextPageToken, e.g. Gemini)
     const fetchOptions: any = {
       method: config.method,
       headers,
@@ -657,24 +707,53 @@ export async function GET(
       fetchOptions.body = JSON.stringify(config.body);
     }
 
-    const response = await fetch(url, fetchOptions);
+    let allModels: any[] = [];
+    let pageUrl = url;
+    let pageCount = 0;
+    const MAX_PAGES = 20; // Safety limit
+    const seenTokens = new Set<string>();
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.log(`Error fetching models from ${provider}:`, errorText);
-      return NextResponse.json(
-        { error: `Failed to fetch models: ${response.status}` },
-        { status: response.status }
-      );
+    while (pageUrl && pageCount < MAX_PAGES) {
+      pageCount++;
+      const response = await fetch(pageUrl, {
+        ...fetchOptions,
+        signal: AbortSignal.timeout(15_000),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log(`Error fetching models from ${provider}:`, errorText);
+        return NextResponse.json(
+          { error: `Failed to fetch models: ${response.status}` },
+          { status: response.status }
+        );
+      }
+
+      const data = await response.json();
+      const pageModels = config.parseResponse(data);
+      allModels = allModels.concat(pageModels);
+
+      const nextPageToken = data.nextPageToken;
+      if (!nextPageToken) break;
+      if (seenTokens.has(nextPageToken)) {
+        console.warn(`[models] ${provider}: duplicate nextPageToken detected, stopping pagination`);
+        break;
+      }
+      seenTokens.add(nextPageToken);
+      pageUrl = `${config.url}${config.url.includes("?") ? "&" : "?"}pageToken=${encodeURIComponent(nextPageToken)}`;
+      if (config.authQuery) {
+        pageUrl += `&${config.authQuery}=${token}`;
+      }
     }
 
-    const data = await response.json();
-    const models = config.parseResponse(data);
+    if (pageCount > 1) {
+      console.log(`[models] ${provider}: fetched ${allModels.length} models across ${pageCount} pages`);
+    }
 
     return buildResponse({
       provider,
       connectionId,
-      models,
+      models: allModels,
     });
   } catch (error) {
     console.log("Error fetching provider models:", error);

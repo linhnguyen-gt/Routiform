@@ -92,6 +92,7 @@ const OAUTH_TEST_CONFIG = {
 const CLI_RUNTIME_PROVIDER_MAP = {
   cline: "cline",
   kilocode: "kilo",
+  qoder: "qoder",
 };
 
 /** POST body is optional; when present, only known fields are validated. */
@@ -206,8 +207,12 @@ function classifyFailure({
   );
 }
 
-async function getProviderRuntimeStatus(provider: string) {
-  const toolId = CLI_RUNTIME_PROVIDER_MAP[provider];
+async function getProviderRuntimeStatus(connection: any) {
+  const provider = typeof connection?.provider === "string" ? connection.provider : "";
+  let toolId = CLI_RUNTIME_PROVIDER_MAP[provider];
+  if (provider === "qoder" && connection?.authType !== "apikey") {
+    toolId = null;
+  }
   if (!toolId) return null;
 
   try {
@@ -566,7 +571,7 @@ export async function testSingleConnection(connectionId: string, validationModel
 
   let result;
   const startTime = Date.now();
-  const runtime = await getProviderRuntimeStatus(provider);
+  const runtime = await getProviderRuntimeStatus(connection);
 
   if ((runtime as any)?.diagnosis) {
     result = {

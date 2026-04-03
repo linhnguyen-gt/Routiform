@@ -68,49 +68,78 @@ For each issue, determine its type:
 
 Focus ONLY on **Bugs** for resolution. Feature requests and questions should be skipped with a note in the final report.
 
-### 5. Analyze Each Bug — For each bug issue:
+### 5. Deep-Read Each Bug Issue (One-by-One Analysis)
 
-#### 5a. Check Information Sufficiency
+**IMPORTANT**: Read each bug issue thoroughly, one at a time, before moving to the next. This is NOT a batch process — each issue needs focused attention.
 
-Verify the issue contains enough information to reproduce and fix:
+#### 5a. Understand the Problem
+
+For each bug issue, perform the full analysis:
+
+1. **Read the entire body** — including Description, Steps to Reproduce, Expected/Actual Behavior, Error Logs, and Screenshots
+2. **Read ALL comments** — including bot triage comments (Kilo, etc.) and owner/community responses. Pay attention to:
+   - Whether someone already responded with a fix
+   - Whether a community member confirmed the issue is resolved
+   - Whether the issue was marked as duplicate by a bot
+3. **Identify the claimed error** — extract the exact error message, status code, and provider/model involved
+
+#### 5b. Check Information Sufficiency
+
+Verify the issue contains enough to act on:
 
 - [ ] Clear description of the problem
-- [ ] Steps to reproduce
-- [ ] Error messages or logs
+- [ ] Steps to reproduce OR error logs
+- [ ] Provider/model/version information
 - [ ] Expected vs actual behavior
 
-#### 5b. If Information Is INSUFFICIENT
+#### 5c. Determine Issue Disposition
 
-Call the `/issue-triage` workflow (located at `~/.gemini/antigravity/global_workflows/issue-triage.md`):
-// turbo
+For each bug, classify into one of 5 actions:
 
-- Post a comment asking for more details using `gh issue comment`
-- Add `needs-info` label using `gh issue edit`
-- Mark this issue as **DEFERRED** and move to the next one
+| Disposition                  | When to Apply                                                                               | Action                                              |
+| ---------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| **✅ CLOSE — Already Fixed** | Owner responded with fix + no user follow-up, OR community confirmed fix                    | Close with comment citing which version fixed it    |
+| **✅ CLOSE — Duplicate**     | Bot flagged >85% similarity + user provides no new info                                     | Close referencing the original issue                |
+| **📝 RESPOND — Needs Info**  | Issue is real but missing critical reproduction details                                     | Comment asking for specifics per `/issue-triage`    |
+| **📝 RESPOND — User Config** | Error is caused by unsupported env (Node version, wrong model path, missing API enablement) | Comment explaining the user-side fix                |
+| **🔧 FIX — Code Change**     | Root cause is confirmed in the codebase                                                     | Research, implement, test, commit on release branch |
 
-#### 5c. If Information Is SUFFICIENT
+#### 5d. For "FIX — Code Change" Issues
 
-Proceed with resolution **on the release branch**:
+Before coding, perform deep source analysis:
 
-1. **Research** — Search the codebase for files related to the issue
-2. **Root Cause** — Identify the root cause by reading the relevant source files
-3. **Implement Fix** — Apply the fix following existing code patterns and conventions
-4. **Test** — Build the project and run tests to verify the fix
-5. **Commit** — Commit with message format: `fix: <description> (#<issue_number>)`
+1. **Search the codebase** — `grep_search` for error strings, relevant function names, affected files
+2. **Search the web** — for upstream API changes, SDK updates, or breaking changes that explain the bug
+3. **Read the full source file** — don't rely on grep snippets; understand the surrounding logic
+4. **Verify the root cause** — confirm the bug is reproducible based on the code, not just a user misconfiguration
+5. **Implement the fix** — follow existing code patterns and conventions
+6. **Run tests** — `node --import tsx/esm --test tests/unit/*.test.mjs` (must pass 100%)
+7. **Commit** — `fix: <description> (#<issue_number>)`
 
-> **⚠️ Do NOT create a separate branch.** All commits go directly on the release branch.
+#### 5e. For "RESPOND" Issues
+
+Post a substantive comment that:
+
+- Acknowledges the specific error they reported
+- Explains the likely root cause
+- Provides concrete steps to resolve (version upgrade, env var fix, model path correction)
+- Asks for follow-up info if needed
+
+**Do NOT post generic template responses.** Every comment should reference the user's specific error messages and environment.
 
 ### 6. Generate Report & Wait for Validation
 
 Present a summary report to the user via `notify_user` with `BlockedOnUser: true`:
 
-| Issue | Title | Status        | Action                        |
-| ----- | ----- | ------------- | ----------------------------- |
-| #N    | Title | ✅ Ready      | Files changed (not committed) |
-| #N    | Title | ❓ Needs Info | Triage comment posted         |
-| #N    | Title | ⏭️ Skipped    | Feature request / not a bug   |
+| Issue | Title | Status        | Action                      |
+| ----- | ----- | ------------- | --------------------------- |
+| #N    | Title | ✅ Closed     | Already fixed / duplicate   |
+| #N    | Title | 🔧 Fixed      | Code fix applied            |
+| #N    | Title | 📝 Responded  | Guidance comment posted     |
+| #N    | Title | ❓ Needs Info | Triage comment posted       |
+| #N    | Title | ⏭️ Skipped    | Feature request / not a bug |
 
-> **⚠️ IMPORTANT**: Do NOT commit, close issues, or generate releases at this step.
+> **⚠️ IMPORTANT**: Do NOT merge or generate releases at this step.
 > Wait for the user to review the changes and respond with **OK** before proceeding.
 
 - If the user says **OK** or approves → Proceed to step 7

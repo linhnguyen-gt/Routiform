@@ -212,6 +212,12 @@ async function handleGetHealth() {
               hitRate: toNumber(cacheStatsRaw.hitRate, 0),
             }
           : undefined,
+      cryptography: health.cryptography
+        ? {
+            status: toString(toRecord(health.cryptography).status, "missing_or_invalid"),
+            provider: toString(toRecord(health.cryptography).provider, "unknown"),
+          }
+        : undefined,
     };
 
     await logToolCall("omniroute_get_health", {}, result, Date.now() - start, true);

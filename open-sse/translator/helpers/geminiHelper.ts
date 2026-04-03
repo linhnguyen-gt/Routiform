@@ -84,7 +84,7 @@ export function convertOpenAIContentToParts(content) {
           const mimeType = mimePart.split(";")[0];
 
           parts.push({
-            inlineData: { mime_type: mimeType, data: data },
+            inlineData: { mimeType, data },
           });
         }
       }

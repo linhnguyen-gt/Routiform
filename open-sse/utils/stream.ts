@@ -585,9 +585,9 @@ export function createSSEStream(options: StreamOptions = {}) {
               // Content for call log is accumulated only from parsed (above) to avoid double-counting;
               // do not add again from item here.
 
-              // #723, #727: Sanitize intermediate stream chunks if target is OpenAI format loop
+              // #723, #727: Sanitize intermediate stream chunks if source (client) is OpenAI format
               let itemSanitized: Record<string, unknown> = item;
-              if (targetFormat === FORMATS.OPENAI || targetFormat === FORMATS.OPENAI_RESPONSES) {
+              if (sourceFormat === FORMATS.OPENAI || sourceFormat === FORMATS.OPENAI_RESPONSES) {
                 itemSanitized = sanitizeStreamingChunk(itemSanitized) as Record<string, unknown>;
 
                 // Extract reasoning tags from content if translation generated them

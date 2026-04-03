@@ -2,6 +2,75 @@
  * Convert OpenAI-style SSE chunks into a single non-streaming JSON response.
  * Used as a fallback when upstream returns text/event-stream for stream=false.
  */
+function readSSEEvents(rawSSE) {
+  const lines = String(rawSSE || "").split("\n");
+  const events = [];
+  let currentEvent = "";
+  let currentData = [];
+
+  const flush = () => {
+    if (currentData.length === 0) {
+      currentEvent = "";
+      return;
+    }
+
+    const payload = currentData.join("\n").trim();
+    currentData = [];
+    if (!payload || payload === "[DONE]") {
+      currentEvent = "";
+      return;
+    }
+
+    try {
+      events.push({
+        event: currentEvent || undefined,
+        data: JSON.parse(payload),
+      });
+    } catch {
+      // Ignore malformed SSE events and continue best-effort parsing.
+    }
+
+    currentEvent = "";
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\r$/, "");
+    if (line.trim() === "") {
+      flush();
+      continue;
+    }
+
+    if (line.startsWith("event:")) {
+      currentEvent = line.slice(6).trim();
+      continue;
+    }
+
+    if (line.startsWith("data:")) {
+      currentData.push(line.slice(5).trimStart());
+    }
+  }
+
+  flush();
+  return events;
+}
+
+function toRecord(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function toString(value, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
+function toNumber(value, fallback = 0) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+}
+
 export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
   const lines = String(rawSSE || "").split("\n");
   const chunks = [];
@@ -141,6 +210,189 @@ export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
   }
 
   return result;
+}
+
+/**
+ * Convert Claude-style SSE events into a single non-streaming message object.
+ * Used when Claude-compatible upstreams stream even for stream=false.
+ */
+export function parseSSEToClaudeResponse(rawSSE, fallbackModel) {
+  const payloads = readSSEEvents(rawSSE)
+    .map((event) => toRecord(event.data))
+    .filter((payload) => Object.keys(payload).length > 0);
+
+  if (payloads.length === 0) return null;
+
+  const blocks = new Map();
+  const usage = {};
+  let messageId = "";
+  let model = fallbackModel || "claude";
+  let role = "assistant";
+  let stopReason = "end_turn";
+  let stopSequence = null;
+
+  const mergeUsage = (incoming) => {
+    const usageRecord = toRecord(incoming);
+    for (const [key, value] of Object.entries(usageRecord)) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        usage[key] = value;
+      } else if (value && typeof value === "object" && !Array.isArray(value)) {
+        usage[key] = { ...toRecord(usage[key]), ...toRecord(value) };
+      } else if (typeof value === "string" && value.trim().length > 0) {
+        usage[key] = value;
+      }
+    }
+  };
+
+  const tryParseJson = (raw) => {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
+  };
+
+  for (const payload of payloads) {
+    const eventType = toString(payload.type);
+    if (eventType === "message_start") {
+      const message = toRecord(payload.message);
+      messageId = toString(message.id, messageId || `msg_${Date.now()}`);
+      model = toString(message.model, model);
+      role = toString(message.role, role);
+      mergeUsage(message.usage);
+      continue;
+    }
+
+    if (eventType === "content_block_start") {
+      const index = toNumber(payload.index, blocks.size);
+      const contentBlock = toRecord(payload.content_block);
+      const blockType = toString(contentBlock.type);
+
+      if (blockType === "thinking") {
+        blocks.set(index, {
+          type: "thinking",
+          index,
+          thinking: toString(contentBlock.thinking),
+          signature:
+            typeof contentBlock.signature === "string" ? contentBlock.signature : undefined,
+        });
+      } else if (blockType === "tool_use") {
+        blocks.set(index, {
+          type: "tool_use",
+          index,
+          id: toString(contentBlock.id, `toolu_${Date.now()}_${index}`),
+          name: toString(contentBlock.name),
+          input: contentBlock.input ?? {},
+          inputJson: "",
+        });
+      } else {
+        blocks.set(index, {
+          type: "text",
+          index,
+          text: toString(contentBlock.text),
+        });
+      }
+      continue;
+    }
+
+    if (eventType === "content_block_delta") {
+      const index = toNumber(payload.index, 0);
+      const delta = toRecord(payload.delta);
+      const deltaType = toString(delta.type);
+      const existing = blocks.get(index);
+
+      if (deltaType === "input_json_delta") {
+        const toolUse =
+          existing && existing.type === "tool_use"
+            ? existing
+            : {
+                type: "tool_use",
+                index,
+                id: `toolu_${Date.now()}_${index}`,
+                name: "",
+                input: {},
+                inputJson: "",
+              };
+        toolUse.inputJson += toString(delta.partial_json);
+        blocks.set(index, toolUse);
+        continue;
+      }
+
+      if (deltaType === "thinking_delta" || typeof delta.thinking === "string") {
+        const thinking =
+          existing && existing.type === "thinking"
+            ? existing
+            : { type: "thinking", index, thinking: "", signature: undefined };
+        thinking.thinking += toString(delta.thinking);
+        blocks.set(index, thinking);
+        continue;
+      }
+
+      const textBlock =
+        existing && existing.type === "text"
+          ? existing
+          : {
+              type: "text",
+              index,
+              text: "",
+            };
+      textBlock.text += toString(delta.text);
+      blocks.set(index, textBlock);
+      continue;
+    }
+
+    if (eventType === "message_delta") {
+      const delta = toRecord(payload.delta);
+      stopReason = toString(delta.stop_reason, stopReason);
+      stopSequence =
+        typeof delta.stop_sequence === "string" ? String(delta.stop_sequence) : stopSequence;
+      mergeUsage(payload.usage);
+      continue;
+    }
+
+    mergeUsage(payload.usage);
+  }
+
+  const content = [...blocks.values()]
+    .sort((a, b) => a.index - b.index)
+    .flatMap((block) => {
+      if (block.type === "text") {
+        return block.text ? [{ type: "text", text: block.text }] : [];
+      }
+      if (block.type === "thinking") {
+        return block.thinking
+          ? [
+              {
+                type: "thinking",
+                thinking: block.thinking,
+                ...(block.signature ? { signature: block.signature } : {}),
+              },
+            ]
+          : [];
+      }
+
+      const parsedInput =
+        block.inputJson.trim().length > 0 ? tryParseJson(block.inputJson) : block.input;
+      return [
+        {
+          type: "tool_use",
+          id: block.id,
+          name: block.name,
+          input: parsedInput,
+        },
+      ];
+    });
+
+  return {
+    id: messageId || `msg_${Date.now()}`,
+    type: "message",
+    role,
+    model,
+    content,
+    stop_reason: stopReason,
+    ...(stopSequence ? { stop_sequence: stopSequence } : {}),
+    ...(Object.keys(usage).length > 0 ? { usage } : {}),
+  };
 }
 
 /**

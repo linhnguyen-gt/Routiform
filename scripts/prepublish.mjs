@@ -254,6 +254,25 @@ if (existsSync(mitmSrc)) {
   }
 }
 
+// ── Step 8.5: Bundle MCP server ────────────────────────────
+const mcpSrcFile = join(ROOT, "open-sse", "mcp-server", "server.ts");
+const mcpDestDir = join(APP_DIR, "open-sse", "mcp-server");
+const mcpDestFile = join(mcpDestDir, "server.js");
+
+if (existsSync(mcpSrcFile)) {
+  console.log("  🔨 Bundling MCP Server (TypeScript → JavaScript)...");
+  mkdirSync(mcpDestDir, { recursive: true });
+  try {
+    execSync(
+      `npx esbuild ${JSON.stringify(mcpSrcFile)} --bundle --platform=node --packages=external --format=esm --outfile=${JSON.stringify(mcpDestFile)}`,
+      { cwd: ROOT, stdio: "inherit" }
+    );
+    console.log("  ✅ MCP Server bundled to app/open-sse/mcp-server/server.js");
+  } catch (err) {
+    console.warn("  ⚠️  MCP Server bundle error:", err.message);
+  }
+}
+
 // ── Step 9: Copy shared utilities needed at runtime ────────
 const sharedApiKey = join(ROOT, "src", "shared", "utils", "apiKey.js");
 const sharedApiKeyDest = join(APP_DIR, "src", "shared", "utils");

@@ -1,150 +1,258 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
-// ═══════════════════════════════════════════════════════════════
-//  QoderExecutor Unit Tests
-//  Tests for HMAC-SHA256 signature, headers, URL building
-//  Fixes: https://github.com/diegosouzapw/OmniRoute/issues/114
-// ═══════════════════════════════════════════════════════════════
+import { QoderExecutor } from "../../open-sse/executors/qoder.ts";
+import {
+  buildQoderPrompt,
+  getStaticQoderModels,
+  mapQoderModelToLevel,
+  normalizeQoderPatProviderData,
+  parseQoderCliFailure,
+  validateQoderCliPat,
+} from "../../open-sse/services/qoderCli.ts";
 
-const { QoderExecutor } = await import("../../open-sse/executors/qoder.ts");
+function createTempDir() {
+  const testRoot = path.join(os.tmpdir(), "omniroute-test-tmp");
+  fs.mkdirSync(testRoot, { recursive: true });
+  return fs.mkdtempSync(path.join(testRoot, "qoder-"));
+}
 
-// ─── Constructor ──────────────────────────────────────────────
+function writeExecutable(dir, name, body) {
+  const filePath = path.join(dir, name);
+  fs.writeFileSync(filePath, body, "utf8");
+  if (process.platform !== "win32") {
+    fs.chmodSync(filePath, 0o755);
+  }
+  return filePath;
+}
 
-test("QoderExecutor: constructor sets provider to 'qoder'", () => {
+function createQoderCliScript(dir, name, mode) {
+  if (process.platform === "win32") {
+    const successJson = '{"message":{"content":"OK"}}';
+    const successStream = [
+      '{"message":{"content":"O"}}',
+      '{"message":{"content":"OK"}}',
+      '{"type":"result","done":true}',
+    ].join("\\n");
+    const body =
+      mode === "invalid"
+        ? `@echo off\r\nif "%1"=="--version" echo qodercli 0.1.37 & exit /b 0\r\necho Invalid API key 1>&2\r\nexit /b 1\r\n`
+        : `@echo off\r\nif "%1"=="--version" echo qodercli 0.1.37 & exit /b 0\r\nset MODE=json\r\n:loop\r\nif "%1"=="" goto done\r\nif "%1"=="--output-format" (\r\n  set MODE=%2\r\n)\r\nshift\r\ngoto loop\r\n:done\r\nif "%MODE%"=="stream-json" (\r\n  echo ${successStream}\r\n) else (\r\n  echo ${successJson}\r\n)\r\nexit /b 0\r\n`;
+    return writeExecutable(dir, `${name}.cmd`, body);
+  }
+
+  const successJson = `{"message":{"content":"OK"}}`;
+  const successStream = `{"message":{"content":"O"}}\n{"message":{"content":"OK"}}\n{"type":"result","done":true}`;
+  const body =
+    mode === "invalid"
+      ? `#!/bin/sh
+if [ "$1" = "--version" ] || [ "$1" = "-v" ]; then
+  echo "qodercli 0.1.37"
+  exit 0
+fi
+echo "Invalid API key" >&2
+exit 1
+`
+      : `#!/bin/sh
+if [ "$1" = "--version" ] || [ "$1" = "-v" ]; then
+  echo "qodercli 0.1.37"
+  exit 0
+fi
+MODE=json
+PREV=""
+for ARG in "$@"; do
+  if [ "$PREV" = "--output-format" ]; then
+    MODE="$ARG"
+  fi
+  PREV="$ARG"
+done
+if [ "$MODE" = "stream-json" ]; then
+  printf '%s\n' '${successStream}'
+else
+  printf '%s\n' '${successJson}'
+fi
+exit 0
+`;
+
+  return writeExecutable(dir, name, body);
+}
+
+test("QoderExecutor: constructor sets provider to qoder", () => {
   const executor = new QoderExecutor();
   assert.equal(executor.getProvider(), "qoder");
 });
 
-// ─── createQoderSignature ─────────────────────────────────────
-
-test("QoderExecutor: createQoderSignature returns valid HMAC-SHA256 hex", () => {
+test("QoderExecutor: buildHeaders only keeps generic JSON and stream headers", () => {
   const executor = new QoderExecutor();
-  const userAgent = "Qoder-Cli";
-  const sessionID = "session-test-123";
-  const timestamp = 1700000000000;
-  const apiKey = "test-api-key-secret";
-
-  const signature = executor.createQoderSignature(userAgent, sessionID, timestamp, apiKey);
-
-  // Verify it's a valid hex string (64 chars for SHA256)
-  assert.match(signature, /^[0-9a-f]{64}$/);
-
-  // Verify reproducibility — same inputs produce same signature
-  const signature2 = executor.createQoderSignature(userAgent, sessionID, timestamp, apiKey);
-  assert.equal(signature, signature2);
-
-  // Verify against manual HMAC computation
-  const payload = `${userAgent}:${sessionID}:${timestamp}`;
-  const expected = crypto.createHmac("sha256", apiKey).update(payload).digest("hex");
-  assert.equal(signature, expected);
+  assert.deepEqual(executor.buildHeaders({ apiKey: "pat" }, true), {
+    "Content-Type": "application/json",
+    Accept: "text/event-stream",
+  });
+  assert.deepEqual(executor.buildHeaders({ apiKey: "pat" }, false), {
+    "Content-Type": "application/json",
+  });
 });
 
-test("QoderExecutor: createQoderSignature returns empty string when apiKey is empty", () => {
+test("QoderExecutor: buildUrl uses the live qoder.com API base", () => {
   const executor = new QoderExecutor();
-  const result = executor.createQoderSignature("agent", "session", 123, "");
-  assert.equal(result, "");
+  assert.equal(executor.buildUrl("qoder-rome-30ba3b", false), "https://api.qoder.com/v1/chat/completions");
 });
 
-test("QoderExecutor: createQoderSignature returns empty string when apiKey is null", () => {
-  const executor = new QoderExecutor();
-  const result = executor.createQoderSignature("agent", "session", 123, null);
-  assert.equal(result, "");
+test("normalizeQoderPatProviderData forces PAT + qodercli transport", () => {
+  assert.deepEqual(normalizeQoderPatProviderData({ region: "sa-east-1" }), {
+    region: "sa-east-1",
+    authMode: "pat",
+    transport: "qodercli",
+  });
 });
 
-// ─── buildHeaders ─────────────────────────────────────────────
-
-test("QoderExecutor: buildHeaders includes qoder-specific headers", () => {
-  const executor = new QoderExecutor();
-  const credentials = { apiKey: "test-key-123" };
-
-  const headers = executor.buildHeaders(credentials, true);
-
-  // Must include required qoder headers
-  assert.ok(headers["session-id"], "Missing session-id header");
-  assert.ok(headers["x-qoder-timestamp"], "Missing x-qoder-timestamp header");
-  assert.ok(headers["x-qoder-signature"], "Missing x-qoder-signature header");
-
-  // session-id format
-  assert.ok(
-    headers["session-id"].startsWith("session-"),
-    "session-id should start with 'session-'"
-  );
-
-  // timestamp is a number string
-  assert.match(headers["x-qoder-timestamp"], /^\d+$/);
-
-  // signature is hex
-  assert.match(headers["x-qoder-signature"], /^[0-9a-f]{64}$/);
-
-  // Authorization
-  assert.equal(headers["Authorization"], "Bearer test-key-123");
-
-  // Content-Type
-  assert.equal(headers["Content-Type"], "application/json");
-
-  // Streaming Accept
-  assert.equal(headers["Accept"], "text/event-stream");
+test("mapQoderModelToLevel maps static models to qodercli levels", () => {
+  assert.equal(mapQoderModelToLevel("qoder-rome-30ba3b"), "qmodel");
+  assert.equal(mapQoderModelToLevel("deepseek-r1"), "ultimate");
+  assert.equal(mapQoderModelToLevel("qwen3-max"), "performance");
+  assert.equal(mapQoderModelToLevel(""), null);
 });
 
-test("QoderExecutor: buildHeaders omits Accept header when stream is false", () => {
-  const executor = new QoderExecutor();
-  const credentials = { apiKey: "test-key" };
-
-  const headers = executor.buildHeaders(credentials, false);
-
-  assert.equal(headers["Accept"], undefined);
+test("getStaticQoderModels exposes the static if/* catalog seed", () => {
+  const models = getStaticQoderModels();
+  assert.ok(models.some((model) => model.id === "qoder-rome-30ba3b"));
+  assert.ok(models.some((model) => model.id === "deepseek-r1"));
 });
 
-test("QoderExecutor: buildHeaders uses accessToken when apiKey is missing", () => {
-  const executor = new QoderExecutor();
-  const credentials = { accessToken: "oauth-token-123" };
+test("buildQoderPrompt flattens transcript and warns against local tools", () => {
+  const prompt = buildQoderPrompt({
+    messages: [
+      { role: "system", content: "Follow the user request." },
+      {
+        role: "user",
+        content: [{ type: "text", text: "Reply with OK." }],
+      },
+      {
+        role: "assistant",
+        tool_calls: [
+          {
+            type: "function",
+            function: { name: "pwd", arguments: "{}" },
+          },
+        ],
+        content: "",
+      },
+    ],
+    tools: [{ type: "function", function: { name: "pwd" } }],
+  });
 
-  const headers = executor.buildHeaders(credentials);
-
-  assert.equal(headers["Authorization"], "Bearer oauth-token-123");
-  // Signature should still be generated using the accessToken
-  assert.ok(headers["x-qoder-signature"].length > 0);
+  assert.match(prompt, /Conversation transcript:/);
+  assert.match(prompt, /USER:\nReply with OK\./);
+  assert.match(prompt, /TOOL_CALL pwd: \{\}/);
+  assert.match(prompt, /Do not call those tools yourself\./);
 });
 
-test("QoderExecutor: buildHeaders generates unique session IDs per call", () => {
-  const executor = new QoderExecutor();
-  const credentials = { apiKey: "key" };
-
-  const headers1 = executor.buildHeaders(credentials);
-  const headers2 = executor.buildHeaders(credentials);
-
-  assert.notEqual(headers1["session-id"], headers2["session-id"]);
+test("parseQoderCliFailure classifies auth, runtime and timeout failures", () => {
+  assert.deepEqual(parseQoderCliFailure("Invalid API key"), {
+    status: 401,
+    message: "Invalid API key",
+    code: "upstream_auth_error",
+  });
+  assert.deepEqual(parseQoderCliFailure("command not found: qodercli"), {
+    status: 503,
+    message: "command not found: qodercli",
+    code: "runtime_error",
+  });
+  assert.deepEqual(parseQoderCliFailure("request timed out"), {
+    status: 504,
+    message: "request timed out",
+    code: "timeout",
+  });
 });
 
-// ─── buildUrl ─────────────────────────────────────────────────
+test("validateQoderCliPat succeeds when qodercli returns a JSON response", async () => {
+  const prev = process.env.CLI_QODER_BIN;
+  const tmpDir = createTempDir();
+  const script = createQoderCliScript(tmpDir, "qodercli-ok", "success");
+  process.env.CLI_QODER_BIN = script;
 
-test("QoderExecutor: buildUrl returns config baseUrl", () => {
-  const executor = new QoderExecutor();
-  const url = executor.buildUrl("qwen3-coder-plus", true);
-
-  assert.equal(url, "https://apis.qoder.cn/v1/chat/completions");
+  try {
+    const result = await validateQoderCliPat({ apiKey: "pat_test" });
+    assert.deepEqual(result, { valid: true, error: null, unsupported: false });
+  } finally {
+    if (prev === undefined) delete process.env.CLI_QODER_BIN;
+    else process.env.CLI_QODER_BIN = prev;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
-// ─── transformRequest ─────────────────────────────────────────
+test("validateQoderCliPat returns invalid api key for auth failures", async () => {
+  const prev = process.env.CLI_QODER_BIN;
+  const tmpDir = createTempDir();
+  const script = createQoderCliScript(tmpDir, "qodercli-bad", "invalid");
+  process.env.CLI_QODER_BIN = script;
 
-test("QoderExecutor: transformRequest passes body through unchanged", () => {
-  const executor = new QoderExecutor();
-  const body = {
-    model: "deepseek-r1",
-    messages: [{ role: "user", content: "Hello" }],
-    stream: true,
-  };
-
-  const result = executor.transformRequest("deepseek-r1", body, true, {});
-  assert.deepEqual(result, body);
+  try {
+    const result = await validateQoderCliPat({ apiKey: "pat_bad" });
+    assert.deepEqual(result, { valid: false, error: "Invalid API key", unsupported: false });
+  } finally {
+    if (prev === undefined) delete process.env.CLI_QODER_BIN;
+    else process.env.CLI_QODER_BIN = prev;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
-// ─── Integration: executor registry ───────────────────────────
+test("QoderExecutor: non-stream calls return an OpenAI-compatible completion payload", async () => {
+  const prev = process.env.CLI_QODER_BIN;
+  const tmpDir = createTempDir();
+  const script = createQoderCliScript(tmpDir, "qodercli-exec", "success");
+  process.env.CLI_QODER_BIN = script;
 
-test("QoderExecutor: getExecutor('qoder') returns QoderExecutor instance", async () => {
-  const { getExecutor } = await import("../../open-sse/executors/index.ts");
-  const executor = getExecutor("qoder");
-  assert.ok(executor instanceof QoderExecutor, "Should return QoderExecutor instance");
+  try {
+    const executor = new QoderExecutor();
+    const { response, url } = await executor.execute({
+      model: "qoder-rome-30ba3b",
+      body: { messages: [{ role: "user", content: "Reply with OK only." }] },
+      stream: false,
+      credentials: { apiKey: "pat_test" },
+    });
+
+    assert.equal(url, "qodercli://local");
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.object, "chat.completion");
+    assert.equal(payload.choices[0].message.role, "assistant");
+    assert.equal(payload.choices[0].message.content, "OK");
+  } finally {
+    if (prev === undefined) delete process.env.CLI_QODER_BIN;
+    else process.env.CLI_QODER_BIN = prev;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("QoderExecutor: stream calls emit OpenAI-compatible SSE chunks", async () => {
+  const prev = process.env.CLI_QODER_BIN;
+  const tmpDir = createTempDir();
+  const script = createQoderCliScript(tmpDir, "qodercli-stream", "success");
+  process.env.CLI_QODER_BIN = script;
+
+  try {
+    const executor = new QoderExecutor();
+    const { response } = await executor.execute({
+      model: "qoder-rome-30ba3b",
+      body: { messages: [{ role: "user", content: "Reply with OK only." }] },
+      stream: true,
+      credentials: { apiKey: "pat_test" },
+    });
+
+    assert.equal(response.status, 200);
+    const body = await response.text();
+    assert.match(body, /chat\.completion\.chunk/);
+    assert.match(body, /"role":"assistant"/);
+    assert.match(body, /"content":"O"/);
+    assert.match(body, /"content":"K"/);
+    assert.match(body, /\[DONE\]/);
+  } finally {
+    if (prev === undefined) delete process.env.CLI_QODER_BIN;
+    else process.env.CLI_QODER_BIN = prev;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });

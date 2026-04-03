@@ -92,11 +92,13 @@ function convertGeminiContent(content) {
       parts.push({ type: "text", text: part.text });
     }
 
-    if (part.inlineData) {
+    if (part.inlineData || part.inline_data) {
+      const data = part.inlineData || part.inline_data;
+      const mimeType = data.mimeType || data.mime_type || "image/png";
       parts.push({
         type: "image_url",
         image_url: {
-          url: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`,
+          url: `data:${mimeType};base64,${data.data}`,
         },
       });
     }

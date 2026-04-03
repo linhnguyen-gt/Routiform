@@ -435,9 +435,6 @@ export default function CachePage() {
                 </Card>
               )}
 
-              {/* Prompt Cache Metrics (cumulative with reset) */}
-              <CacheStatsCard />
-
               {/* Cache Trend (24h) */}
               {trend.length > 0 && (
                 <Card>

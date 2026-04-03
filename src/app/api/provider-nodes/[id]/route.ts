@@ -83,7 +83,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       prefix: prefix.trim(),
       baseUrl: sanitizedBaseUrl,
       chatPath: chatPath || null,
-      modelsPath: modelsPath || null,
+      modelsPath: isClaudeCodeCompatibleProvider(id) ? null : modelsPath || null,
     };
 
     if (node.type === "openai-compatible") {
@@ -105,8 +105,12 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
           baseUrl: sanitizedBaseUrl,
           nodeName: updated.name,
           chatPath: updated.chatPath || undefined,
-          modelsPath: updated.modelsPath || undefined,
         } as JsonRecord;
+        if (updated.modelsPath) {
+          providerSpecificData.modelsPath = updated.modelsPath;
+        } else {
+          delete providerSpecificData.modelsPath;
+        }
         if (node.type === "openai-compatible") {
           providerSpecificData.apiType = apiType;
         }

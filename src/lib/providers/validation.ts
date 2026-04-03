@@ -14,6 +14,7 @@ import {
   isAnthropicCompatibleProvider,
   isOpenAICompatibleProvider,
 } from "@/shared/constants/providers";
+import { validateQoderCliPat } from "@omniroute/open-sse/services/qoderCli.ts";
 
 const OPENAI_LIKE_FORMATS = new Set(["openai", "openai-responses"]);
 const GEMINI_LIKE_FORMATS = new Set(["gemini", "gemini-cli"]);
@@ -616,7 +617,7 @@ export async function validateClaudeCodeCompatibleProvider({
   try {
     const messagesRes = await fetch(joinClaudeCodeCompatibleUrl(baseUrl, chatPath), {
       method: "POST",
-      headers: buildClaudeCodeCompatibleHeaders(apiKey, false, sessionId),
+      headers: buildClaudeCodeCompatibleHeaders(apiKey, true, sessionId),
       body: JSON.stringify(payload),
     });
 
@@ -747,6 +748,8 @@ export async function validateProviderApiKey({ provider, apiKey, providerSpecifi
 
   // ── Specialty provider validation ──
   const SPECIALTY_VALIDATORS = {
+    qoder: ({ apiKey, providerSpecificData }: any) =>
+      validateQoderCliPat({ apiKey, providerSpecificData }),
     deepgram: validateDeepgramProvider,
     assemblyai: validateAssemblyAIProvider,
     nanobanana: validateNanoBananaProvider,

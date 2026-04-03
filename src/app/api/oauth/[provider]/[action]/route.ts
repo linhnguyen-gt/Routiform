@@ -60,6 +60,14 @@ export async function GET(
     if (action === "authorize") {
       const redirectUri = searchParams.get("redirect_uri") || "http://localhost:8080/callback";
       const authData = generateAuthData(provider, redirectUri);
+      if (provider === "qoder" && !authData.authUrl) {
+        return NextResponse.json({
+          ...authData,
+          supported: false,
+          error:
+            "Qoder browser OAuth is experimental and disabled by default. Configure QODER_OAUTH_* environment variables or use a Personal Access Token.",
+        });
+      }
       return NextResponse.json(authData);
     }
 

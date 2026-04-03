@@ -282,6 +282,13 @@ async function checkConnection(conn) {
       updateData.tokenExpiresAt = new Date(Date.now() + result.expiresIn * 1000).toISOString();
     }
 
+    if (result.providerSpecificData) {
+      updateData.providerSpecificData = {
+        ...(conn.providerSpecificData || {}),
+        ...result.providerSpecificData,
+      };
+    }
+
     await updateProviderConnection(conn.id, updateData);
     log(`${LOG_PREFIX} ✓ ${conn.provider}/${conn.name || conn.email || conn.id} refreshed`);
   } else {

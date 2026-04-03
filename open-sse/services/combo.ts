@@ -99,7 +99,10 @@ async function validateResponseQuality(
     if (json?.output || json?.result || json?.data || json?.response) return { valid: true };
     if (json?.error) {
       const err = json.error as Record<string, unknown>;
-      return { valid: false, reason: `upstream error in 200 body: ${err?.message || JSON.stringify(json.error).substring(0, 200)}` };
+      return {
+        valid: false,
+        reason: `upstream error in 200 body: ${err?.message || JSON.stringify(json.error).substring(0, 200)}`,
+      };
     }
     return { valid: true };
   }
@@ -809,6 +812,16 @@ export async function handleComboChat({
     const modePack =
       typeof autoConfigSource.modePack === "string" ? autoConfigSource.modePack : undefined;
 
+    // Retrieve last known good provider (LKGP) for this combo/model (#919)
+    let lastKnownGoodProvider: string | undefined;
+    try {
+      const { getLKGP } = await import("../../src/lib/localDb");
+      const lkgp = await getLKGP(combo.name, combo.id || combo.name);
+      if (lkgp) lastKnownGoodProvider = lkgp;
+    } catch {
+      /* ignore db errors */
+    }
+
     const candidates = await buildAutoCandidates(eligibleModels, combo.name);
     if (candidates.length > 0) {
       let selectedProvider = null;
@@ -819,7 +832,7 @@ export async function handleComboChat({
         try {
           const decision = selectWithStrategy(
             candidates,
-            { taskType, requestHasTools },
+            { taskType, requestHasTools, lastKnownGoodProvider },
             routingStrategy
           );
           selectedProvider = decision.provider;
@@ -980,6 +993,14 @@ export async function handleComboChat({
           fallbackCount,
           strategy,
         });
+
+        // Record last known good provider (LKGP) for this combo/model (#919)
+        if (provider) {
+          import("../../src/lib/localDb")
+            .then(({ setLKGP }) => setLKGP(combo.name, combo.id || combo.name, provider))
+            .catch(() => {});
+        }
+
         return result;
       }
 

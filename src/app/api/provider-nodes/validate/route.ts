@@ -57,7 +57,6 @@ export async function POST(request) {
           providerSpecificData: {
             baseUrl: sanitizeClaudeCodeCompatibleBaseUrl(baseUrl),
             chatPath: chatPath || undefined,
-            modelsPath: modelsPath || undefined,
           },
         });
 

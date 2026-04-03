@@ -383,6 +383,10 @@ export async function replaceCustomModels(
     source?: string;
     apiFormat?: string;
     supportedEndpoints?: string[];
+    inputTokenLimit?: number;
+    outputTokenLimit?: number;
+    description?: string;
+    supportsThinking?: boolean;
   }>,
   { allowEmpty = false }: { allowEmpty?: boolean } = {}
 ) {
@@ -412,6 +416,27 @@ export async function replaceCustomModels(
       source: m.source || "auto-sync",
       apiFormat: m.apiFormat || (prev as any)?.apiFormat || "chat-completions",
       supportedEndpoints: m.supportedEndpoints || (prev as any)?.supportedEndpoints || ["chat"],
+      // Preserve metadata from provider API (or previous sync)
+      ...(m.inputTokenLimit != null
+        ? { inputTokenLimit: m.inputTokenLimit }
+        : (prev as any)?.inputTokenLimit != null
+        ? { inputTokenLimit: (prev as any).inputTokenLimit }
+        : {}),
+      ...(m.outputTokenLimit != null
+        ? { outputTokenLimit: m.outputTokenLimit }
+        : (prev as any)?.outputTokenLimit != null
+        ? { outputTokenLimit: (prev as any).outputTokenLimit }
+        : {}),
+      ...(m.description != null
+        ? { description: m.description }
+        : (prev as any)?.description != null
+        ? { description: (prev as any).description }
+        : {}),
+      ...(m.supportsThinking != null
+        ? { supportsThinking: m.supportsThinking }
+        : (prev as any)?.supportsThinking != null
+        ? { supportsThinking: (prev as any).supportsThinking }
+        : {}),
       // Preserve existing compat flags
       ...(prev && (prev as any).normalizeToolCallId !== undefined
         ? { normalizeToolCallId: (prev as any).normalizeToolCallId }
@@ -479,6 +504,108 @@ export async function removeCustomModel(providerId: string, modelId: string) {
   removeModelCompatOverride(providerId, modelId);
   backupDbFile("pre-write");
   return true;
+}
+
+// ──────────────── Synced Available Models ────────────────
+// Storage: namespace = 'syncedAvailableModels', key = '<providerId>:<connectionId>'
+// Each connection stores its own model list. Reads union across all connections
+// for a provider. Deleting a connection removes only its models.
+
+export interface SyncedAvailableModel {
+  id: string;
+  name: string;
+  source: "api-sync";
+  supportedEndpoints?: string[];
+  inputTokenLimit?: number;
+  outputTokenLimit?: number;
+  description?: string;
+  supportsThinking?: boolean;
+}
+
+/**
+ * Get all synced available models for a provider, unioned across all connections.
+ */
+export async function getSyncedAvailableModels(providerId: string): Promise<SyncedAvailableModel[]> {
+  const db = getDbInstance();
+  const rows = db
+    .prepare("SELECT key, value FROM key_value WHERE namespace = 'syncedAvailableModels' AND key LIKE ?")
+    .all(`${providerId}:%`);
+  const map = new Map<string, SyncedAvailableModel>();
+  for (const row of rows) {
+    const { key, value } = getKeyValue(row);
+    if (!key || value === null) continue;
+    const models: SyncedAvailableModel[] = JSON.parse(value);
+    for (const m of models) {
+      if (m.id) map.set(m.id, m);
+    }
+  }
+  return Array.from(map.values());
+}
+
+/**
+ * Get all synced available models across all providers.
+ */
+export async function getAllSyncedAvailableModels(): Promise<Record<string, SyncedAvailableModel[]>> {
+  const db = getDbInstance();
+  const rows = db
+    .prepare("SELECT key, value FROM key_value WHERE namespace = 'syncedAvailableModels'")
+    .all();
+  // Group by providerId (before the colon)
+  const byProvider = new Map<string, Map<string, SyncedAvailableModel>>();
+  for (const row of rows) {
+    const { key, value } = getKeyValue(row);
+    if (!key || value === null) continue;
+    const providerId = key.split(":")[0];
+    if (!byProvider.has(providerId)) byProvider.set(providerId, new Map());
+    const models: SyncedAvailableModel[] = JSON.parse(value);
+    const map = byProvider.get(providerId)!;
+    for (const m of models) {
+      if (m.id) map.set(m.id, m);
+    }
+  }
+  const result: Record<string, SyncedAvailableModel[]> = {};
+  for (const [providerId, map] of byProvider) {
+    result[providerId] = Array.from(map.values());
+  }
+  return result;
+}
+
+/**
+ * Replace the model list for a specific connection.
+ * Key format: '<providerId>:<connectionId>'
+ */
+export async function replaceSyncedAvailableModelsForConnection(
+  providerId: string,
+  connectionId: string,
+  models: SyncedAvailableModel[]
+): Promise<SyncedAvailableModel[]> {
+  const db = getDbInstance();
+  const key = `${providerId}:${connectionId}`;
+  if (models.length === 0) {
+    db.prepare("DELETE FROM key_value WHERE namespace = 'syncedAvailableModels' AND key = ?").run(key);
+  } else {
+    db.prepare(
+      "INSERT OR REPLACE INTO key_value (namespace, key, value) VALUES ('syncedAvailableModels', ?, ?)"
+    ).run(key, JSON.stringify(models));
+  }
+  backupDbFile("pre-write");
+  // Return the full unioned list for the provider
+  return getSyncedAvailableModels(providerId);
+}
+
+/**
+ * Delete all synced models for a specific connection.
+ * Returns the remaining unioned list for the provider.
+ */
+export async function deleteSyncedAvailableModelsForConnection(
+  providerId: string,
+  connectionId: string
+): Promise<SyncedAvailableModel[]> {
+  const db = getDbInstance();
+  const key = `${providerId}:${connectionId}`;
+  db.prepare("DELETE FROM key_value WHERE namespace = 'syncedAvailableModels' AND key = ?").run(key);
+  backupDbFile("pre-write");
+  return getSyncedAvailableModels(providerId);
 }
 
 export async function updateCustomModel(

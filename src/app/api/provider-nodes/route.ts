@@ -109,7 +109,7 @@ export async function POST(request) {
         baseUrl: sanitizedBaseUrl,
         name: name.trim(),
         chatPath: chatPath || null,
-        modelsPath: modelsPath || null,
+        modelsPath: compatMode === "cc" ? null : modelsPath || null,
       });
       return NextResponse.json({ node }, { status: 201 });
     }

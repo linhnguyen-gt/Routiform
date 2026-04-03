@@ -109,6 +109,16 @@ const CLI_TOOLS: Record<string, any> = {
       config: ".config/opencode/opencode.json",
     },
   },
+  qoder: {
+    defaultCommand: "qodercli",
+    envBinKey: "CLI_QODER_BIN",
+    requiresBinary: true,
+    healthcheckTimeoutMs: 12000,
+    paths: {
+      config: ".qoder/settings.json",
+      auth: ".qoder/auth.json",
+    },
+  },
 };
 
 const isWindows = () => process.platform === "win32";
@@ -390,6 +400,7 @@ const getKnownToolPaths = (toolId: string): string[] => {
     cline: [["cline.cmd", "cline"]],
     kilo: [["kilocode.cmd", "kilocode"]],
     opencode: [["opencode.cmd", "opencode"]],
+    qoder: [["qodercli.exe", "qodercli"]],
   };
 
   const bins = toolBins[toolId] || [];
@@ -649,7 +660,13 @@ const checkRunnable = async (
   const minimalEnv: Record<string, string | undefined> = {
     PATH: env.PATH,
     HOME: env.HOME || env.USERPROFILE,
+    USERPROFILE: env.USERPROFILE, // Windows needs this for os.homedir()
+    APPDATA: env.APPDATA, // Many npm CLI tools rely on APPDATA
+    LOCALAPPDATA: env.LOCALAPPDATA,
+    TEMP: env.TEMP,
+    TMP: env.TMP,
     SystemRoot: env.SystemRoot, // Windows needs this
+    ComSpec: env.ComSpec, // Windows shell
     PATHEXT: env.PATHEXT, // Windows cmd.exe needs this to resolve .cmd/.bat/.exe extensions
   };
 

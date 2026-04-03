@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import PropTypes from "prop-types";
 import Modal from "./Modal";
 import { getModelsByProviderId, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
+import { getCompatibleFallbackModels } from "@/lib/providers/managedAvailableModels";
 import {
   OAUTH_PROVIDERS,
   FREE_PROVIDERS,
@@ -160,9 +161,24 @@ export default function ModelSelectModal({
             value: `${nodePrefix}/${fullModel.replace(`${providerId}/`, "")}`,
           }));
 
+        const fallbackEntries = (
+          getCompatibleFallbackModels(providerId, providerCustomModels) || []
+        )
+          .filter((fm) => !nodeModels.some((nm) => nm.id === fm.id))
+          .map((fm) => ({
+            id: fm.id,
+            name: fm.name || fm.id,
+            value: `${nodePrefix}/${fm.id}`,
+            isFallback: true,
+          }));
+
         // Merge custom models for custom providers
         const customEntries = providerCustomModels
-          .filter((cm) => !nodeModels.some((nm) => nm.id === cm.id))
+          .filter(
+            (cm) =>
+              !nodeModels.some((nm) => nm.id === cm.id) &&
+              !fallbackEntries.some((fm) => fm.id === cm.id)
+          )
           .map((cm) => ({
             id: cm.id,
             name: cm.name || cm.id,
@@ -170,7 +186,7 @@ export default function ModelSelectModal({
             isCustom: true,
           }));
 
-        const allModels = [...nodeModels, ...customEntries];
+        const allModels = [...nodeModels, ...fallbackEntries, ...customEntries];
 
         if (allModels.length > 0) {
           groups[providerId] = {

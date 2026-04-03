@@ -69,6 +69,12 @@ export const getHealthOutput = z.object({
       hitRate: z.number(),
     })
     .optional(),
+  cryptography: z
+    .object({
+      status: z.enum(["healthy", "missing_or_invalid"]),
+      provider: z.string(),
+    })
+    .optional(),
 });
 
 export const getHealthTool: McpToolDefinition<typeof getHealthInput, typeof getHealthOutput> = {
