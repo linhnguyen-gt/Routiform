@@ -1,3 +1,4 @@
 npx lint-staged
 node scripts/check-docs-sync.mjs
+npm run check:any-budget:t11
 npm run test:unit

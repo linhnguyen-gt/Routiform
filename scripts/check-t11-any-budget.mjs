@@ -110,7 +110,10 @@ for (const item of budget) {
   }
 
   const content = fs.readFileSync(absolutePath, "utf8");
-  const matches = content.match(anyRegex);
+  // Remove block and line comments to avoid false positives with the word "any" in comments
+  let cleanContent = content.replace(/\/\*[\s\S]*?\*\//g, "");
+  cleanContent = cleanContent.replace(/\/\/.*$/gm, "");
+  const matches = cleanContent.match(anyRegex);
   const count = matches ? matches.length : 0;
   const status = count <= item.maxAny ? "OK" : "FAIL";
 
