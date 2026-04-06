@@ -70,7 +70,7 @@ jobs:
           echo "Publishing ${{ env.IMAGE_NAME }}:$VERSION / :latest (base) and :${VERSION}-cli / :cli (runner-cli)"
 
       - name: Build and push base image (runner-base)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: runner-base
@@ -89,7 +89,7 @@ jobs:
           DOCKER_BUILDKIT_INLINE_CACHE: 1
 
       - name: Build and push CLI image (runner-cli)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: runner-cli
