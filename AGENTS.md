@@ -1,4 +1,6 @@
-# omniroute — Agent Guidelines
+# Routiform — Agent Guidelines
+
+*(Fork lineage: evolved from the OmniRoute codebase; default data dir may still be `~/.omniroute/`.)*
 
 ## Project
 

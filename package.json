@@ -1,11 +1,13 @@
 {
-  "name": "omniroute",
+  "name": "routiform",
   "version": "3.5.2",
-  "description": "Smart AI Router with auto fallback — route to FREE & cheap models, zero downtime. Works with Cursor, Cline, Claude Desktop, Codex, and any OpenAI-compatible tool.",
+  "description": "Routiform — Smart AI Router with auto fallback — route to FREE & cheap models, zero downtime. Works with Cursor, Cline, Claude Desktop, Codex, and any OpenAI-compatible tool.",
   "type": "module",
   "bin": {
+    "routiform": "bin/omniroute.mjs",
     "omniroute": "bin/omniroute.mjs",
-    "omniroute-reset-password": "bin/reset-password.mjs"
+    "omniroute-reset-password": "bin/reset-password.mjs",
+    "routiform-reset-password": "bin/reset-password.mjs"
   },
   "files": [
     "bin/",
@@ -24,6 +26,8 @@
     "node": ">=18.0.0 <24.0.0"
   },
   "keywords": [
+    "routiform",
+    "omniroute",
     "ai",
     "router",
     "proxy",
@@ -42,9 +46,9 @@
   "author": "diegosouzapw",
   "repository": {
     "type": "git",
-    "url": "https://github.com/diegosouzapw/OmniRoute"
+    "url": "https://github.com/linhnguyen-gt/Routiform"
   },
-  "homepage": "https://omniroute.online",
+  "homepage": "https://github.com/linhnguyen-gt/Routiform",
   "scripts": {
     "dev": "node scripts/run-next.mjs dev",
     "dev:unlock": "node scripts/clear-next-dev-lock.mjs",
@@ -167,7 +171,7 @@
       "@swc/core",
       "better-sqlite3",
       "esbuild",
-      "omniroute",
+      "routiform",
       "sharp"
     ]
   },
