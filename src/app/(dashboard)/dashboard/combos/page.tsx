@@ -293,8 +293,20 @@ function getStrategyBadgeClass(strategy) {
   return "bg-blue-500/15 text-blue-600 dark:text-blue-400";
 }
 
-function getI18nOrFallback(t, key, fallback) {
-  if (typeof t.has === "function" && t.has(key)) return t(key);
+function getI18nOrFallback(t, key, fallback, values) {
+  if (typeof t.has === "function" && t.has(key)) {
+    if (values != null && typeof values === "object") {
+      return t(key, values);
+    }
+    return t(key);
+  }
+  if (values != null && typeof values === "object") {
+    let text = String(fallback);
+    for (const [k, v] of Object.entries(values)) {
+      text = text.replaceAll(`{${k}}`, String(v));
+    }
+    return text;
+  }
   return fallback;
 }
 
@@ -824,8 +836,11 @@ function StrategyRecommendationsPanel({ strategy, onApply, showNudge }) {
           {getI18nOrFallback(
             t,
             "recommendationsUpdated",
-            "Recommendations updated for {strategy}."
-          ).replace("{strategy}", strategyLabel)}
+            "Recommendations updated for {strategy}.",
+            {
+              strategy: strategyLabel,
+            }
+          )}
         </div>
       )}
     </div>

@@ -31,6 +31,7 @@ export default function DefaultToolCard({
   const [copiedField, setCopiedField] = useState(null);
   const [showModelModal, setShowModelModal] = useState(false);
   const [modelValue, setModelValue] = useState("");
+  const [modelAliases, setModelAliases] = useState({});
   const [runtimeStatus, setRuntimeStatus] = useState(null);
   const [message, setMessage] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -80,6 +81,22 @@ export default function DefaultToolCard({
       .then((data) => setRuntimeStatus(data))
       .catch((error) => setRuntimeStatus({ error: error?.message || t("runtimeCheckFailed") }));
   }, [isExpanded, runtimeStatus, toolId]);
+
+  useEffect(() => {
+    if (!isExpanded) return;
+    let cancelled = false;
+    fetch("/api/models/alias")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled && data?.aliases && typeof data.aliases === "object") {
+          setModelAliases(data.aliases);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isExpanded]);
 
   const replaceVars = (text) => {
     const keyToUse =
@@ -570,6 +587,7 @@ export default function DefaultToolCard({
         onSelect={handleSelectModel}
         selectedModel={modelValue}
         activeProviders={activeProviders}
+        modelAliases={modelAliases}
         title={t("selectModel")}
       />
     </Card>

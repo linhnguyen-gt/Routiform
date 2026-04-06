@@ -19,6 +19,7 @@ const QUOTA_LABEL_MAP: Record<string, string> = {
   code_review: "Code Review",
   agentic_request: "Agentic",
   agentic_request_freetrial: "Agentic (Trial)",
+  credits: "Credits",
 };
 
 function toRecord(value: unknown): Record<string, unknown> {
@@ -172,6 +173,7 @@ function normalizeQuotaEntry(name: string, quota: any = {}, extras: any = {}) {
     resetAt,
     staleAfterReset,
     ...(remainingPercentage !== undefined ? { remainingPercentage } : {}),
+    ...(quota?.unlimited === true ? { unlimited: true } : {}),
     ...extras,
   };
 }
@@ -203,9 +205,7 @@ export function parseQuotaData(provider, data) {
       case "antigravity":
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([modelKey, quota]: [string, any]) => {
-            if (quota?.unlimited && (!quota?.total || quota.total <= 0)) {
-              return;
-            }
+            // Unlike GitHub, Antigravity marks tab-completion / no-reset models as unlimited with total 0 — still show them.
             normalizedQuotas.push(
               normalizeQuotaEntry(modelKey, quota, {
                 modelKey: modelKey,

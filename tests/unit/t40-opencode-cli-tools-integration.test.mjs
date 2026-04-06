@@ -64,6 +64,8 @@ test("T40: OpenCode config generator includes endpoint and selected API key", ()
   assert.ok(mergedConfig.provider.custom);
   assert.equal(mergedConfig.provider.omniroute.options.baseURL, "http://localhost:20128/v1");
   assert.equal(mergedConfig.provider.omniroute.options.apiKey, "sk_test_opencode");
+  assert.equal(mergedConfig.model, "omniroute/claude-sonnet-4-5-thinking");
+  assert.ok(mergedConfig.$schema);
 });
 
 test("T40: Windsurf card documents current official limitations honestly", () => {

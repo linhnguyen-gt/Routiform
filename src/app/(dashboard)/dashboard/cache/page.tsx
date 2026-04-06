@@ -632,9 +632,9 @@ export default function CachePage() {
                     <InfoRow icon="info">{t("behaviorDeterministic")}</InfoRow>
                     <InfoRow icon="info">
                       {t.rich("behaviorBypass", {
-                        header: () => (
+                        header: (chunks) => (
                           <code className="bg-surface px-1 py-0.5 rounded text-xs font-mono">
-                            X-OmniRoute-No-Cache: true
+                            {chunks}
                           </code>
                         ),
                       })}
@@ -642,9 +642,9 @@ export default function CachePage() {
                     <InfoRow icon="info">{t("behaviorTwoTier")}</InfoRow>
                     <InfoRow icon="info">
                       {t.rich("behaviorTtl", {
-                        envVar: () => (
+                        envVar: (chunks) => (
                           <code className="bg-surface px-1 py-0.5 rounded text-xs font-mono">
-                            SEMANTIC_CACHE_TTL_MS
+                            {chunks}
                           </code>
                         ),
                       })}

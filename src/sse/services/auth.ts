@@ -1010,11 +1010,17 @@ export async function clearRecoveredProviderState(
 
 /**
  * Extract API key from request headers
+ * (OpenAI-style Bearer, then x-api-key — aligned with 9router)
  */
 export function extractApiKey(request: Request) {
   const authHeader = request.headers.get("Authorization");
   if (authHeader?.startsWith("Bearer ")) {
-    return authHeader.slice(7);
+    const token = authHeader.slice(7).trim();
+    if (token.length > 0) return token;
+  }
+  const xApiKey = request.headers.get("x-api-key");
+  if (xApiKey && xApiKey.trim().length > 0) {
+    return xApiKey.trim();
   }
   return null;
 }

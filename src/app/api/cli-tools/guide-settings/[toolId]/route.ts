@@ -42,8 +42,7 @@ export async function POST(request, { params }) {
       case "continue":
         return await saveContinueConfig({ baseUrl, apiKey, model });
       case "opencode":
-        // (#524) OpenCode config was never saved because only 'continue' was handled here.
-        // opencode reads ~/.config/opencode/config.toml — write the OmniRoute settings there.
+        // OpenCode reads opencode.json (see getOpenCodeConfigPath); merge provider.omniroute + top-level model.
         return await saveOpenCodeConfig({ baseUrl, apiKey, model });
       default:
         return NextResponse.json(

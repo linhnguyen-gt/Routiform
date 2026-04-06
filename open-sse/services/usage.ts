@@ -15,6 +15,7 @@ const GITHUB_CONFIG = {
 const ANTIGRAVITY_CONFIG = {
   quotaApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
   loadProjectApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
+  retrieveUserQuotaUrl: "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota",
   tokenUrl: "https://oauth2.googleapis.com/token",
   get clientId() {
     return PROVIDERS.antigravity.clientId;
@@ -24,6 +25,141 @@ const ANTIGRAVITY_CONFIG = {
   },
   userAgent: "antigravity/1.11.3 Darwin/arm64",
 };
+
+/** Models excluded from Antigravity quota display (internal / non-chat). Keep in sync with executor routing. */
+const ANTIGRAVITY_EXCLUDED_MODELS = new Set([
+  "chat_20706",
+  "chat_23310",
+  "tab_flash_lite_preview",
+  "tab_jump_flash_lite_preview",
+  "gemini-2.5-flash-thinking",
+  "gemini-2.5-pro", // browser subagent model — not user-callable
+  "gemini-2.5-flash", // internal — quota often exhausted on free tier
+  "gemini-2.5-flash-lite", // internal — quota often exhausted on free tier
+  "gemini-2.5-flash-preview-image-generation", // image-gen only, not usable for chat
+  "gemini-3.1-flash-image-preview", // image-gen preview, not usable for chat
+  "gemini-3.1-flash-image", // image model — omit from Antigravity quota bars
+  "gemini-3-flash-agent", // internal agent model — not user-callable
+  "gemini-3.1-flash-lite", // not usable for chat
+  "gemini-3-pro-low", // distinct from gemini-3.1-pro-low in registry
+  "gemini-3-pro-high",
+]);
+
+function getAntigravityApiUserAgent(): string {
+  const h = PROVIDERS.antigravity?.headers as Record<string, string> | undefined;
+  const ua = h?.["User-Agent"];
+  return typeof ua === "string" && ua.length > 0 ? ua : ANTIGRAVITY_CONFIG.userAgent;
+}
+
+/**
+ * Remaining fraction 0..1 from quotaInfo; supports camelCase + snake_case, 0–100 scale,
+ * usedFraction, and percentage fields some API revisions send.
+ */
+function resolveAntigravityRemainingFraction(quotaInfo: JsonRecord): number {
+  let raw = toNumber(getFieldValue(quotaInfo, "remaining_fraction", "remainingFraction"), -1);
+  if (raw >= 0 && raw <= 1) return raw;
+  if (raw > 1 && raw <= 100) return raw / 100;
+
+  const usedFrac = toNumber(getFieldValue(quotaInfo, "used_fraction", "usedFraction"), -1);
+  if (usedFrac >= 0 && usedFrac <= 1) return 1 - usedFrac;
+
+  const remPct = toNumber(
+    getFieldValue(quotaInfo, "remaining_percentage", "remainingPercentage"),
+    -1
+  );
+  if (remPct >= 0 && remPct <= 100) return remPct / 100;
+
+  const usedPct = toNumber(getFieldValue(quotaInfo, "used_percentage", "usedPercentage"), -1);
+  if (usedPct >= 0 && usedPct <= 100) return (100 - usedPct) / 100;
+
+  return -1;
+}
+
+function pushAntigravityModelQuota(
+  modelKey: string,
+  quotaInfo: JsonRecord,
+  quotas: Record<string, UsageQuota>
+): void {
+  const rawFraction = resolveAntigravityRemainingFraction(quotaInfo);
+  const resetRaw = getFieldValue(quotaInfo, "reset_time", "resetTime");
+  const resetAt = parseResetTime(resetRaw);
+  const explicitUnlimited =
+    quotaInfo.unlimited === true ||
+    quotaInfo.unlimited === "true" ||
+    getFieldValue(quotaInfo, "is_unlimited", "isUnlimited") === true;
+
+  let remainingFraction: number;
+  if (rawFraction >= 0) {
+    remainingFraction = Math.min(1, Math.max(0, rawFraction));
+  } else if (explicitUnlimited) {
+    remainingFraction = 1;
+  } else {
+    // Unknown fraction: do NOT default to 100% — that masks exhausted quota when field names differ.
+    remainingFraction = 0;
+  }
+
+  const isUnlimited = explicitUnlimited || (!resetAt && rawFraction >= 0 && remainingFraction >= 1);
+  const remainingPercentage = remainingFraction * 100;
+  const QUOTA_NORMALIZED_BASE = 1000;
+  const total = QUOTA_NORMALIZED_BASE;
+  const remaining = Math.round(total * remainingFraction);
+  const used = isUnlimited ? 0 : Math.max(0, total - remaining);
+
+  quotas[modelKey] = {
+    used,
+    total: isUnlimited ? 0 : total,
+    resetAt,
+    remainingPercentage: isUnlimited ? 100 : remainingPercentage,
+    unlimited: isUnlimited,
+  };
+}
+
+/**
+ * Merge Gemini quota buckets from retrieveUserQuota (authoritative for Gemini models)
+ * over fetchAvailableModels entries when projectId is known.
+ */
+async function mergeAntigravityRetrieveUserQuota(
+  accessToken: string,
+  projectId: string,
+  quotas: Record<string, UsageQuota>
+): Promise<void> {
+  const fb = await fetch(ANTIGRAVITY_CONFIG.retrieveUserQuotaUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "User-Agent": getAntigravityApiUserAgent(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ project: projectId }),
+    signal: AbortSignal.timeout(10000),
+  });
+
+  if (!fb.ok) return;
+
+  const fbJson = await fb.json();
+  const fbRec = toRecord(fbJson);
+  const buckets = Array.isArray(fbRec.buckets) ? fbRec.buckets : [];
+
+  for (const bucket of buckets) {
+    const b = toRecord(bucket);
+    const idRaw = getFieldValue(b, "model_id", "modelId");
+    const modelKey = typeof idRaw === "string" ? idRaw : "";
+    if (!modelKey || ANTIGRAVITY_EXCLUDED_MODELS.has(modelKey)) continue;
+
+    let remFrac = toNumber(getFieldValue(b, "remaining_fraction", "remainingFraction"), -1);
+    if (remFrac < 0) {
+      const usedFrac = toNumber(getFieldValue(b, "used_fraction", "usedFraction"), -1);
+      if (usedFrac >= 0 && usedFrac <= 1) remFrac = 1 - usedFrac;
+    }
+    if (remFrac < 0) continue;
+
+    const quotaInfo: JsonRecord = {
+      remainingFraction: remFrac,
+      resetTime: getFieldValue(b, "reset_time", "resetTime"),
+    };
+    pushAntigravityModelQuota(modelKey, quotaInfo, quotas);
+  }
+}
 
 // Codex (OpenAI) API config
 const CODEX_CONFIG = {
@@ -107,7 +243,8 @@ const GLM_QUOTA_URLS: Record<string, string> = {
 };
 
 async function getGlmUsage(apiKey: string, providerSpecificData?: Record<string, unknown>) {
-  const region = providerSpecificData?.apiRegion || "international";
+  const rawRegion = providerSpecificData?.apiRegion;
+  const region = typeof rawRegion === "string" ? rawRegion : "international";
   const quotaUrl = GLM_QUOTA_URLS[region] || GLM_QUOTA_URLS.international;
 
   const res = await fetch(quotaUrl, {
@@ -173,7 +310,7 @@ export async function getUsageForProvider(connection) {
     case "codex":
       return await getCodexUsage(accessToken, providerSpecificData);
     case "kiro":
-      return await getKiroUsage(accessToken, providerSpecificData);
+      return await getKiroUsage(connection);
     case "kimi-coding":
       return await getKimiUsage(accessToken);
     case "qwen":
@@ -671,7 +808,7 @@ async function getAntigravityUsage(accessToken, providerSpecificData) {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        "User-Agent": ANTIGRAVITY_CONFIG.userAgent,
+        "User-Agent": getAntigravityApiUserAgent(),
         "Content-Type": "application/json",
       },
       body: JSON.stringify(projectId ? { project: projectId } : {}),
@@ -691,26 +828,6 @@ async function getAntigravityUsage(accessToken, providerSpecificData) {
     const modelEntries = toRecord(dataObj.models);
     const quotas: Record<string, UsageQuota> = {};
 
-    // Models excluded from quota display — internal/special-purpose models that
-    // the Antigravity API returns quota for but are not user-callable via
-    // generateContent.  Matches CLIProxyAPI's hardcoded exclusion list.
-    const ANTIGRAVITY_EXCLUDED_MODELS = new Set([
-      "chat_20706",
-      "chat_23310",
-      "tab_flash_lite_preview",
-      "tab_jump_flash_lite_preview",
-      "gemini-2.5-flash-thinking",
-      "gemini-2.5-pro", // browser subagent model — not user-callable
-      "gemini-2.5-flash", // internal — quota always exhausted on free tier
-      "gemini-2.5-flash-lite", // internal — quota always exhausted on free tier
-      "gemini-2.5-flash-preview-image-generation", // image-gen only, not usable for chat
-      "gemini-3.1-flash-image-preview", // image-gen preview, not usable for chat
-      "gemini-3-flash-agent", // internal agent model — not user-callable
-      "gemini-3.1-flash-lite", // not usable for chat
-      "gemini-3-pro-low", // not usable for chat
-      "gemini-3-pro-high", // not usable for chat
-    ]);
-
     // Parse per-model quota info from fetchAvailableModels response.
     for (const [modelKey, infoValue] of Object.entries(modelEntries)) {
       const info = toRecord(infoValue);
@@ -725,25 +842,18 @@ async function getAntigravityUsage(accessToken, providerSpecificData) {
         continue;
       }
 
-      const rawFraction = toNumber(quotaInfo.remainingFraction, -1);
-      const resetAt = parseResetTime(quotaInfo.resetTime);
-      // Default to 100% when the API doesn't report a fraction
-      const remainingFraction = rawFraction < 0 ? 1 : rawFraction;
-      // Models with no resetTime and full remaining are unlimited (e.g. tab-completion models)
-      const isUnlimited = !resetAt && remainingFraction >= 1;
-      const remainingPercentage = remainingFraction * 100;
-      const QUOTA_NORMALIZED_BASE = 1000;
-      const total = QUOTA_NORMALIZED_BASE;
-      const remaining = Math.round(total * remainingFraction);
-      const used = isUnlimited ? 0 : Math.max(0, total - remaining);
+      pushAntigravityModelQuota(modelKey, quotaInfo, quotas);
+    }
 
-      quotas[modelKey] = {
-        used,
-        total: isUnlimited ? 0 : total,
-        resetAt,
-        remainingPercentage: isUnlimited ? 100 : remainingPercentage,
-        unlimited: isUnlimited,
-      };
+    // retrieveUserQuota is the same source as Gemini CLI /stats — always merge when we have
+    // a project so Gemini-family buckets override fetchAvailableModels (often more accurate).
+    // Claude-only quotas still come from fetchAvailableModels above.
+    if (projectId) {
+      try {
+        await mergeAntigravityRetrieveUserQuota(accessToken, projectId, quotas);
+      } catch {
+        /* ignore */
+      }
     }
 
     return {
@@ -1066,82 +1176,319 @@ async function getCodexUsage(accessToken, providerSpecificData: Record<string, u
   }
 }
 
+const KIRO_CODEWHISPERER_API = "https://codewhisperer.us-east-1.amazonaws.com";
+/** Amazon Q uses the same JSON-RPC pattern on q.* for some operations (fallback). */
+const KIRO_Q_API_BASE = "https://q.us-east-1.amazonaws.com";
+
 /**
- * Kiro (AWS CodeWhisperer) Usage
+ * Last-resort profile ARN when JWT / ListAvailableProfiles / DB all miss (9router-compatible).
+ * Prefer storing real `profileArn` on the connection — this only unblocks GetUsageLimits shape.
  */
-async function getKiroUsage(accessToken, providerSpecificData) {
+const KIRO_DEFAULT_PROFILE_ARN_FALLBACK =
+  "arn:aws:codewhisperer:us-east-1:638616132270:profile/AAAACCCCXXXX";
+
+/**
+ * Some Kiro/Cognito access tokens embed the CodeWhisperer profile ARN in JWT claims.
+ */
+function tryExtractKiroProfileArnFromAccessToken(accessToken: string): string | null {
   try {
-    const profileArn = providerSpecificData?.profileArn;
-    if (!profileArn) {
-      return { message: "Kiro connected. Profile ARN not available for quota tracking." };
+    const parts = accessToken.split(".");
+    if (parts.length < 2) return null;
+    let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4) b64 += "=";
+    const raw =
+      typeof Buffer !== "undefined"
+        ? Buffer.from(b64, "base64").toString("utf8")
+        : typeof atob !== "undefined"
+          ? atob(b64)
+          : "";
+    const payload = JSON.parse(raw) as Record<string, unknown>;
+    for (const k of ["profileArn", "ProfileArn", "aws_profile_arn"]) {
+      const v = payload[k];
+      if (typeof v === "string" && v.startsWith("arn:aws:codewhisperer:")) return v.trim();
     }
+    const stack: unknown[] = [payload];
+    while (stack.length) {
+      const cur = stack.pop();
+      if (!cur || typeof cur !== "object") continue;
+      for (const v of Object.values(cur as Record<string, unknown>)) {
+        if (typeof v === "string" && v.startsWith("arn:aws:codewhisperer:")) return v.trim();
+        if (v && typeof v === "object") stack.push(v);
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
 
-    // Kiro uses AWS CodeWhisperer GetUsageLimits API
-    const payload = {
-      origin: "AI_EDITOR",
-      profileArn: profileArn,
-      resourceType: "AGENTIC_REQUEST",
-    };
+function parseKiroListProfilesResponse(body: string): { arn: string | null } {
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(body) as Record<string, unknown>;
+  } catch {
+    return { arn: null };
+  }
+  const profiles = (data.profiles ?? data.Profiles) as unknown;
+  const list = Array.isArray(profiles) ? profiles : [];
+  const first = list[0] as Record<string, unknown> | undefined;
+  const arn = first?.arn ?? first?.Arn;
+  if (typeof arn === "string" && arn.trim()) return { arn: arn.trim() };
+  return { arn: null };
+}
 
-    const response = await fetch("https://codewhisperer.us-east-1.amazonaws.com", {
+/**
+ * Resolve profile ARN when not stored (e.g. AWS Builder ID device flow).
+ * AWS exposes ListAvailableProfiles as JSON-RPC POST (x-amz-target), not GET /ListAvailableProfiles on q.*.
+ */
+async function listKiroFirstProfileArn(
+  accessToken: string,
+  idToken?: string | null
+): Promise<{
+  arn: string | null;
+  error?: string;
+}> {
+  const fromJwt =
+    tryExtractKiroProfileArnFromAccessToken(accessToken) ||
+    (idToken ? tryExtractKiroProfileArnFromAccessToken(idToken) : null);
+  if (fromJwt) return { arn: fromJwt };
+
+  const rpcAttempts: Array<{ url: string; target: string }> = [
+    {
+      url: KIRO_CODEWHISPERER_API,
+      target: "AmazonCodeWhispererService.ListAvailableProfiles",
+    },
+    {
+      url: KIRO_Q_API_BASE,
+      target: "AmazonQDeveloperService.ListAvailableProfiles",
+    },
+  ];
+
+  let lastDetail = "";
+  let saw401 = false;
+  for (const { url, target } of rpcAttempts) {
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/x-amz-json-1.0",
-        "x-amz-target": "AmazonCodeWhispererService.GetUsageLimits",
+        "x-amz-target": target,
         Accept: "application/json",
+        "x-amzn-codewhisperer-optout": "true",
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ maxResults: 10 }),
     });
 
+    const text = await response.text();
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Kiro API error (${response.status}): ${errorText}`);
+      if (response.status === 401) saw401 = true;
+      lastDetail = `${target} → HTTP ${response.status}: ${text.slice(0, 220)}`;
+      continue;
     }
 
-    const data = await response.json();
+    const { arn } = parseKiroListProfilesResponse(text);
+    if (arn) return { arn };
+    lastDetail = `${target} → 200 but no profile ARN in response`;
+  }
 
-    // Parse usage data from usageBreakdownList
-    const usageList = data.usageBreakdownList || [];
-    const quotaInfo = {};
+  if (saw401) {
+    return {
+      arn: null,
+      error:
+        "Kiro access token was rejected (401). Refresh the connection in Dashboard → Providers → Kiro, or sign in again.",
+    };
+  }
 
-    // Parse reset time - supports multiple formats (nextDateReset, resetDate, etc.)
-    const resetAt = parseResetTime(data.nextDateReset || data.resetDate);
+  return {
+    arn: null,
+    error:
+      lastDetail ||
+      "Could not resolve Kiro profile ARN (JWT + ListAvailableProfiles). Builder ID accounts may not expose profiles here — use Social/Import login or add profile ARN to the connection.",
+  };
+}
 
-    usageList.forEach((breakdown) => {
-      const resourceType = breakdown.resourceType?.toLowerCase() || "unknown";
-      const used = breakdown.currentUsageWithPrecision || 0;
-      const total = breakdown.usageLimitWithPrecision || 0;
+/**
+ * Parse GetUsageLimits JSON (codewhisperer or q.* GET) into dashboard shape.
+ * Mirrors 9router open-sse/services/usage.js getKiroUsage.
+ */
+function parseKiroGetUsageLimitsPayload(data: Record<string, unknown>) {
+  const usageList =
+    data.usageBreakdownList || data.UsageBreakdownList || data.usage_breakdown_list || [];
+  const list = Array.isArray(usageList) ? usageList : [];
+  const quotaInfo: Record<string, unknown> = {};
 
-      quotaInfo[resourceType] = {
-        used,
-        total,
-        remaining: total - used,
-        resetAt,
+  const resetAt = parseResetTime(
+    data.nextDateReset || data.NextDateReset || data.resetDate || data.ResetDate
+  );
+
+  list.forEach((raw: Record<string, unknown>) => {
+    const breakdown = raw;
+    const resourceType = (breakdown.resourceType || breakdown.ResourceType || "unknown")
+      .toString()
+      .toLowerCase();
+    const used = breakdown.currentUsageWithPrecision ?? breakdown.CurrentUsageWithPrecision ?? 0;
+    const total = breakdown.usageLimitWithPrecision ?? breakdown.UsageLimitWithPrecision ?? 0;
+
+    quotaInfo[resourceType] = {
+      used,
+      total,
+      remaining: Number(total) - Number(used),
+      resetAt,
+      unlimited: false,
+    };
+
+    const freeTrial = (breakdown.freeTrialInfo || breakdown.FreeTrialInfo) as Record<
+      string,
+      unknown
+    > | null;
+    if (freeTrial && typeof freeTrial === "object") {
+      const freeUsed =
+        freeTrial.currentUsageWithPrecision ?? freeTrial.CurrentUsageWithPrecision ?? 0;
+      const freeTotal = freeTrial.usageLimitWithPrecision ?? freeTrial.UsageLimitWithPrecision ?? 0;
+      const ftReset =
+        freeTrial.freeTrialExpiry ?? freeTrial.FreeTrialExpiry ?? freeTrial.resetAt ?? resetAt;
+
+      quotaInfo[`${resourceType}_freetrial`] = {
+        used: freeUsed,
+        total: freeTotal,
+        remaining: Number(freeTotal) - Number(freeUsed),
+        resetAt: parseResetTime(ftReset) ?? resetAt,
         unlimited: false,
       };
+    }
+  });
 
-      // Add free trial if available
-      if (breakdown.freeTrialInfo) {
-        const freeUsed = breakdown.freeTrialInfo.currentUsageWithPrecision || 0;
-        const freeTotal = breakdown.freeTrialInfo.usageLimitWithPrecision || 0;
+  const plan =
+    (data.subscriptionInfo as Record<string, unknown> | undefined)?.subscriptionTitle ||
+    (data.SubscriptionInfo as Record<string, unknown> | undefined)?.SubscriptionTitle ||
+    "Kiro";
 
-        quotaInfo[`${resourceType}_freetrial`] = {
-          used: freeUsed,
-          total: freeTotal,
-          remaining: freeTotal - freeUsed,
-          resetAt,
-          unlimited: false,
-        };
-      }
+  if (Object.keys(quotaInfo).length === 0) {
+    return {
+      plan,
+      quotas: {},
+      message:
+        "No usage breakdown in this response. If limits stay empty, reconnect Kiro or set profile ARN on the connection.",
+    };
+  }
+
+  return {
+    plan,
+    quotas: quotaInfo,
+  };
+}
+
+/**
+ * Primary: POST codewhisperer JSON-RPC. Fallback: GET q.us-east-1…/getUsageLimits (9router).
+ * On 401/403 from primary, return soft message — chat may still work.
+ */
+async function getKiroUsageLimitsFromAws(accessToken: string, profileArn: string) {
+  const payload = {
+    origin: "AI_EDITOR",
+    profileArn: profileArn,
+    resourceType: "AGENTIC_REQUEST",
+  };
+
+  const postResponse = await fetch(KIRO_CODEWHISPERER_API, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/x-amz-json-1.0",
+      "x-amz-target": "AmazonCodeWhispererService.GetUsageLimits",
+      Accept: "application/json",
+      "x-amzn-codewhisperer-optout": "true",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (postResponse.status === 401 || postResponse.status === 403) {
+    return {
+      plan: "Kiro",
+      message: "Kiro quota API authentication expired. Chat may still work.",
+      quotas: {},
+    };
+  }
+
+  if (postResponse.ok) {
+    const data = (await postResponse.json()) as Record<string, unknown>;
+    return parseKiroGetUsageLimitsPayload(data);
+  }
+
+  const errPrimary = await postResponse.text();
+
+  try {
+    const params = new URLSearchParams({
+      origin: "AI_EDITOR",
+      profileArn: String(profileArn),
+      resourceType: "AGENTIC_REQUEST",
+    });
+    const getUrl = `${KIRO_Q_API_BASE}/getUsageLimits?${params.toString()}`;
+    const getResponse = await fetch(getUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
     });
 
-    return {
-      plan: data.subscriptionInfo?.subscriptionTitle || "Kiro",
-      quotas: quotaInfo,
-    };
+    if (getResponse.ok) {
+      const data = (await getResponse.json()) as Record<string, unknown>;
+      return parseKiroGetUsageLimitsPayload(data);
+    }
+
+    const errGet = await getResponse.text();
+    throw new Error(
+      `Kiro API error (${postResponse.status}): ${errPrimary.slice(0, 400)} | q GET (${getResponse.status}): ${errGet.slice(0, 400)}`
+    );
+  } catch (fallbackErr) {
+    if (fallbackErr instanceof Error && fallbackErr.message.startsWith("Kiro API error")) {
+      throw fallbackErr;
+    }
+    throw new Error(
+      `Kiro API error (${postResponse.status}): ${errPrimary.slice(0, 500)} | Fallback: ${(fallbackErr as Error).message}`
+    );
+  }
+}
+
+type KiroConnectionInput = {
+  accessToken?: string | null;
+  providerSpecificData?: Record<string, unknown> | null;
+  idToken?: string | null;
+};
+
+/**
+ * Kiro (AWS CodeWhisperer) Usage — GetUsageLimits needs profileArn.
+ * When missing (Builder ID device flow), discover via ListAvailableProfiles (JSON-RPC POST).
+ */
+export async function getKiroUsage(
+  accessTokenOrConnection: string | KiroConnectionInput,
+  providerSpecificData?: Record<string, unknown> | null
+) {
+  try {
+    let accessToken: string;
+    let psd: Record<string, unknown> | undefined;
+    let idToken: string | undefined;
+
+    if (typeof accessTokenOrConnection === "object" && accessTokenOrConnection !== null) {
+      const c = accessTokenOrConnection as KiroConnectionInput;
+      accessToken = String(c.accessToken ?? "");
+      psd = c.providerSpecificData ?? undefined;
+      idToken = typeof c.idToken === "string" && c.idToken ? c.idToken : undefined;
+    } else {
+      accessToken = accessTokenOrConnection as string;
+      psd = providerSpecificData ?? undefined;
+    }
+
+    let profileArn = typeof psd?.profileArn === "string" ? psd.profileArn.trim() : "";
+    if (!profileArn) {
+      const { arn } = await listKiroFirstProfileArn(accessToken, idToken);
+      // 9router: use default profile ARN when nothing else resolves (GetUsageLimits still needs an ARN).
+      profileArn = arn || KIRO_DEFAULT_PROFILE_ARN_FALLBACK;
+    }
+
+    return await getKiroUsageLimitsFromAws(accessToken, profileArn);
   } catch (error) {
-    throw new Error(`Failed to fetch Kiro usage: ${error.message}`);
+    throw new Error(`Failed to fetch Kiro usage: ${(error as Error).message}`);
   }
 }
 

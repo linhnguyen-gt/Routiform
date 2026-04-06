@@ -135,16 +135,15 @@ export async function handleChat(request: any, clientRawRequest: any = null) {
     `${url.pathname} | ${modelStr} | ${msgCount} msgs${toolCount ? ` | ${toolCount} tools` : ""}${effort ? ` | effort=${effort}` : ""}`
   );
 
-  // Log API key (masked)
-  const authHeader = request.headers.get("Authorization");
+  // Log API key (masked) — Bearer or x-api-key via extractApiKey
   const apiKey = extractApiKey(request);
-  if (authHeader && apiKey) {
+  if (apiKey) {
     log.debug("AUTH", `API Key: ${log.maskKey(apiKey)}`);
   } else {
     log.debug("AUTH", "No API key provided (local mode)");
   }
 
-  // Optional strict API key mode for /v1 endpoints (require key on every request).
+  // Strict API key mode: only when REQUIRE_API_KEY=true (aligned with 9router default).
   const isComboLiveTest = request.headers?.get?.("x-internal-test") === "combo-health-check";
   if (process.env.REQUIRE_API_KEY === "true" && !isComboLiveTest) {
     if (!apiKey) {
@@ -154,13 +153,6 @@ export async function handleChat(request: any, clientRawRequest: any = null) {
     const valid = await isValidApiKey(apiKey);
     if (!valid) {
       log.warn("AUTH", "Invalid API key while REQUIRE_API_KEY=true");
-      return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
-    }
-  } else if (apiKey && !isComboLiveTest) {
-    // Client sent a Bearer key — it must exist in DB (otherwise reject to avoid "key ignored" confusion).
-    const valid = await isValidApiKey(apiKey);
-    if (!valid) {
-      log.warn("AUTH", "API key not found or invalid (must be created in API Manager)");
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
     }
   }

@@ -104,6 +104,8 @@ export default function ProviderLimits() {
 
   const lastFetchTimeRef = useRef({});
   const staleProbeRef = useRef({});
+  /** Ensures we pull live /api/usage once per connection after load (cache alone is often empty on cold refresh). */
+  const initialLiveQuotaRequestedFor = useRef(new Set<string>());
 
   const fetchConnections = useCallback(async () => {
     try {
@@ -292,6 +294,15 @@ export default function ProviderLimits() {
       (a, b) => (priority[a.provider] || 9) - (priority[b.provider] || 9)
     );
   }, [filteredConnections]);
+
+  useEffect(() => {
+    if (initialLoading) return;
+    for (const conn of sortedConnections) {
+      if (initialLiveQuotaRequestedFor.current.has(conn.id)) continue;
+      initialLiveQuotaRequestedFor.current.add(conn.id);
+      void fetchQuota(conn.id, conn.provider);
+    }
+  }, [initialLoading, sortedConnections, fetchQuota]);
 
   const resolvedPlanByConnection = useMemo(() => {
     const out = {};

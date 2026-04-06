@@ -890,6 +890,16 @@
         "when": "Use when you want perfectly even spread — each model used once before repeating.",
         "avoid": "Avoid when models have different quality or latency and order matters.",
         "example": "Example: Multiple accounts of the same model to distribute usage evenly."
+      },
+      "fill-first": {
+        "when": "You want to drain one provider's quota fully before moving to the next.",
+        "avoid": "You need request-level load balancing across providers.",
+        "example": "Use free-tier credits on provider A before falling back to provider B."
+      },
+      "p2c": {
+        "when": "You want low-latency selection using Power-of-Two-Choices across many endpoints.",
+        "avoid": "Combos with only two models — little benefit over round-robin.",
+        "example": "High-throughput inference across four or more equivalent model endpoints."
       }
     },
     "advancedHelp": {
@@ -990,10 +1000,30 @@
         "tip1": "Use at least 2 models for meaningful distribution.",
         "tip2": "Works best with equivalent-performance models.",
         "tip3": "Ideal for load balancing across multiple API accounts."
+      },
+      "fill-first": {
+        "title": "Quota drain strategy",
+        "description": "Exhausts one provider's quota before moving to the next in chain.",
+        "tip1": "Order models by free quota — largest first.",
+        "tip2": "Enable health checks to skip drained providers.",
+        "tip3": "Ideal for stacking free tiers across providers."
+      },
+      "p2c": {
+        "title": "Power-of-Two-Choices",
+        "description": "Picks the less-loaded of two random candidates per request — low latency at scale.",
+        "tip1": "Use with four or more models for best effect.",
+        "tip2": "Requires latency telemetry when available.",
+        "tip3": "Strong alternative to round-robin under high throughput."
       }
     },
     "templateFreeStack": "免费栈（$0）",
-    "templateFreeStackDesc": "在所有免费提供商之间进行轮询：Kiro（Claude）、Qoder（5 个模型）、Qwen（4 个模型）、Gemini CLI。零成本，编码不中断。"
+    "templateFreeStackDesc": "在所有免费提供商之间进行轮询：Kiro（Claude）、Qoder（5 个模型）、Qwen（4 个模型）、Gemini CLI。零成本，编码不中断。",
+    "fillFirst": "优先填满",
+    "fillFirstDesc": "按顺序用尽各模型/账户额度后再使用下一个。",
+    "p2c": "P2C",
+    "p2cDesc": "每次请求从两个随机候选中选负载较低者（二次幂选择）。",
+    "contextOpt": "上下文优化",
+    "contextOptimizedDesc": "启用时按上下文规模与模型适配度进行路由。"
   },
   "costs": {
     "title": "成本",
@@ -1131,7 +1161,9 @@
     "a2aQuickStartStep2": "向 `POST /a2a` 发送 `message/send` 或 `message/stream` JSON-RPC 请求。",
     "a2aQuickStartStep3": "使用 `tasks/get` 与 `tasks/cancel` 跟踪和控制任务。",
     "completionsLegacy": "Completions（旧版）",
-    "completionsLegacyDesc": "旧版 OpenAI 文本补全接口，同时接受 `prompt` 字符串和 `messages` 数组格式"
+    "completionsLegacyDesc": "旧版 OpenAI 文本补全接口，同时接受 `prompt` 字符串和 `messages` 数组格式",
+    "musicGeneration": "音乐生成",
+    "musicDesc": "通过支持的提供方根据文本提示生成音乐"
   },
   "endpoints": {
     "tabProxy": "端点代理",
@@ -3031,9 +3063,9 @@
     "total": "总计",
     "behavior": "缓存行为",
     "behaviorDeterministic": "仅缓存 temperature=0 的非流式请求。",
-    "behaviorBypass": "通过请求头 {header} 绕过缓存。",
+    "behaviorBypass": "通过请求头 <header>X-OmniRoute-No-Cache: true</header> 绕过缓存。",
     "behaviorTwoTier": "双层存储：内存 LRU（快速）+ SQLite（重启后持久化）。",
-    "behaviorTtl": "默认 TTL：30 分钟。可通过 {envVar} 配置。",
+    "behaviorTtl": "默认 TTL：30 分钟。可通过 <envVar>SEMANTIC_CACHE_TTL_MS</envVar> 配置。",
     "idempotency": "幂等层",
     "activeDedupKeys": "活跃去重键",
     "dedupWindow": "去重窗口",

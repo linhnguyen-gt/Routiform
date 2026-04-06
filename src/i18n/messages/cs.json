@@ -890,6 +890,16 @@
         "when": "Použijte, když chcete rovnoměrné rozložení — každý model se použije jednou před opakováním.",
         "avoid": "Nepoužívejte, když mají modely různou kvalitu nebo latenci a záleží na pořadí.",
         "example": "Příklad: Více účtů stejného modelu pro rovnoměrné rozložení využití."
+      },
+      "fill-first": {
+        "when": "You want to drain one provider's quota fully before moving to the next.",
+        "avoid": "You need request-level load balancing across providers.",
+        "example": "Use free-tier credits on provider A before falling back to provider B."
+      },
+      "p2c": {
+        "when": "You want low-latency selection using Power-of-Two-Choices across many endpoints.",
+        "avoid": "Combos with only two models — little benefit over round-robin.",
+        "example": "High-throughput inference across four or more equivalent model endpoints."
       }
     },
     "advancedHelp": {
@@ -990,10 +1000,30 @@
         "tip1": "Pro smysluplné rozložení použijte alespoň 2 modely.",
         "tip2": "Nejlépe funguje s modely podobného výkonu.",
         "tip3": "Ideální pro vyvažování zátěže mezi více API účty."
+      },
+      "fill-first": {
+        "title": "Quota drain strategy",
+        "description": "Exhausts one provider's quota before moving to the next in chain.",
+        "tip1": "Order models by free quota — largest first.",
+        "tip2": "Enable health checks to skip drained providers.",
+        "tip3": "Ideal for stacking free tiers across providers."
+      },
+      "p2c": {
+        "title": "Power-of-Two-Choices",
+        "description": "Picks the less-loaded of two random candidates per request — low latency at scale.",
+        "tip1": "Use with four or more models for best effect.",
+        "tip2": "Requires latency telemetry when available.",
+        "tip3": "Strong alternative to round-robin under high throughput."
       }
     },
     "templateFreeStack": "Volný zásobník (0 $)",
-    "templateFreeStackDesc": "Round-robin mezi všemi bezplatnými poskytovateli: Kiro (Claude), Qoder (5 modelů), Qwen (4 modely), Gemini CLI. Bez nákladů, nikdy nepřestaňte kódovat."
+    "templateFreeStackDesc": "Round-robin mezi všemi bezplatnými poskytovateli: Kiro (Claude), Qoder (5 modelů), Qwen (4 modely), Gemini CLI. Bez nákladů, nikdy nepřestaňte kódovat.",
+    "fillFirst": "Fill First",
+    "fillFirstDesc": "Uses models in order until quota is exhausted, then moves to the next.",
+    "p2c": "P2C",
+    "p2cDesc": "Chooses the less-loaded of two random models per request (power-of-two choices).",
+    "contextOpt": "Context-Opt",
+    "contextOptimizedDesc": "Routes using context-size and model-fit heuristics when enabled."
   },
   "costs": {
     "title": "Náklady",
@@ -1131,7 +1161,9 @@
     "a2aQuickStartStep2": "Odešlete požadavky JSON-RPC na `POST /a2a` pomocí `message/send` nebo `message/stream`.",
     "a2aQuickStartStep3": "Sledujte a ovládejte úkoly pomocí příkazů `tasks/get` a `tasks/cancel`.",
     "completionsLegacy": "Completions (Zastaralé)",
-    "completionsLegacyDesc": "Zastaralé OpenAI text completion – akceptuje oba formáty, prompt string i messages array."
+    "completionsLegacyDesc": "Zastaralé OpenAI text completion – akceptuje oba formáty, prompt string i messages array.",
+    "musicGeneration": "Music Generation",
+    "musicDesc": "Generate music from text prompts via supported providers"
   },
   "endpoints": {
     "tabProxy": "Koncová Proxy",
@@ -3019,9 +3051,9 @@
     "total": "Celkem",
     "behavior": "Chování mezipaměti",
     "behaviorDeterministic": "Ukládají se pouze požadavky bez streamování s temperature=0.",
-    "behaviorBypass": "Obcházení pomocí hlavičky {header}.",
+    "behaviorBypass": "Obcházení pomocí hlavičky <header>X-OmniRoute-No-Cache: true</header>.",
     "behaviorTwoTier": "Two-tier storage: in-memory LRU (fast) + SQLite (persistent across restarts).",
-    "behaviorTtl": "Výchozí TTL: 30 minut. Nastavte pomocí {envVar}.",
+    "behaviorTtl": "Výchozí TTL: 30 minut. Nastavte pomocí <envVar>SEMANTIC_CACHE_TTL_MS</envVar>.",
     "idempotency": "Vrstva idempotence",
     "activeDedupKeys": "Aktivní deduplikační klíče",
     "dedupWindow": "Deduplikační okno",

@@ -11,6 +11,7 @@ import {
   APIKEY_PROVIDERS,
   isOpenAICompatibleProvider,
   isAnthropicCompatibleProvider,
+  resolveProviderId,
 } from "@/shared/constants/providers";
 
 // Provider order: OAuth first, then Free, then API Key (matches dashboard/providers)
@@ -19,6 +20,21 @@ const PROVIDER_ORDER = [
   ...Object.keys(FREE_PROVIDERS),
   ...Object.keys(APIKEY_PROVIDERS),
 ];
+
+/** Merged static + fallback + custom lists can repeat the same model id; keep first occurrence only. */
+function dedupeModelsById(models: any[]) {
+  const seen = new Set<string>();
+  const out: any[] = [];
+  for (const m of models) {
+    const id = m?.id != null ? String(m.id) : "";
+    if (id) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+    }
+    out.push(m);
+  }
+  return out;
+}
 
 export default function ModelSelectModal({
   isOpen,
@@ -107,14 +123,15 @@ export default function ModelSelectModal({
       return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
     });
 
-    sortedProviderIds.forEach((providerId) => {
+    sortedProviderIds.forEach((rawProviderId) => {
+      const providerId = resolveProviderId(rawProviderId) || rawProviderId;
       const alias = PROVIDER_ID_TO_ALIAS[providerId] || providerId;
       const providerInfo = allProviders[providerId] || { name: providerId, color: "#666" };
       const isCustomProvider =
         isOpenAICompatibleProvider(providerId) || isAnthropicCompatibleProvider(providerId);
 
       // Get user-added custom models for this provider (if any)
-      const providerCustomModels = customModels[providerId] || [];
+      const providerCustomModels = customModels[providerId] || customModels[rawProviderId] || [];
 
       if (providerInfo.passthroughModels) {
         const aliasModels = Object.entries(modelAliases as Record<string, string>)
@@ -135,7 +152,7 @@ export default function ModelSelectModal({
             isCustom: true,
           }));
 
-        const allModels = [...aliasModels, ...customEntries];
+        const allModels = dedupeModelsById([...aliasModels, ...customEntries]);
 
         if (allModels.length > 0) {
           const matchedNode = providerNodes.find((node) => node.id === providerId);
@@ -186,7 +203,7 @@ export default function ModelSelectModal({
             isCustom: true,
           }));
 
-        const allModels = [...nodeModels, ...fallbackEntries, ...customEntries];
+        const allModels = dedupeModelsById([...nodeModels, ...fallbackEntries, ...customEntries]);
 
         if (allModels.length > 0) {
           groups[providerId] = {
@@ -217,7 +234,7 @@ export default function ModelSelectModal({
             isCustom: true,
           }));
 
-        const allModels = [...systemEntries, ...customEntries];
+        const allModels = dedupeModelsById([...systemEntries, ...customEntries]);
 
         if (allModels.length > 0) {
           groups[providerId] = {
@@ -254,10 +271,16 @@ export default function ModelSelectModal({
 
       const providerNameMatches = group.name.toLowerCase().includes(query);
 
-      if (matchedModels.length > 0 || providerNameMatches) {
+      if (matchedModels.length > 0) {
         filtered[providerId] = {
           ...group,
           models: matchedModels,
+        };
+      } else if (providerNameMatches) {
+        // Search matched provider label but not model ids/names — show full list (e.g. "kiro" vs "Claude Sonnet")
+        filtered[providerId] = {
+          ...group,
+          models: group.models,
         };
       }
     });
@@ -345,12 +368,12 @@ export default function ModelSelectModal({
             </div>
 
             <div className="flex flex-wrap gap-1.5">
-              {group.models.map((model) => {
+              {group.models.map((model, modelIndex) => {
                 const isSelected = selectedModel === model.value;
                 const isAdded = addedModelValues.includes(model.value);
                 return (
                   <button
-                    key={model.id}
+                    key={`${providerId}-${String(model.id)}-${modelIndex}`}
                     onClick={() => handleSelect(model)}
                     className={`
                       px-2 py-1 rounded-xl text-xs font-medium transition-all border hover:cursor-pointer

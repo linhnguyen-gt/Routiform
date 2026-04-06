@@ -892,6 +892,16 @@
         "when": "Você quer distribuição perfeitamente uniforme — cada modelo é usado uma vez antes de repetir.",
         "avoid": "Os modelos têm qualidade ou latência muito diferentes e a ordem importa.",
         "example": "Múltiplas contas do mesmo modelo para distribuir uso de forma equilibrada."
+      },
+      "fill-first": {
+        "when": "You want to drain one provider's quota fully before moving to the next.",
+        "avoid": "You need request-level load balancing across providers.",
+        "example": "Use free-tier credits on provider A before falling back to provider B."
+      },
+      "p2c": {
+        "when": "You want low-latency selection using Power-of-Two-Choices across many endpoints.",
+        "avoid": "Combos with only two models — little benefit over round-robin.",
+        "example": "High-throughput inference across four or more equivalent model endpoints."
       }
     },
     "advancedHelp": {
@@ -992,6 +1002,20 @@
         "tip1": "Ideal para múltiplas contas do mesmo modelo.",
         "tip2": "Garante que nenhuma conta é repetida antes de todas serem usadas.",
         "tip3": "Combine com health checks para pular contas indisponíveis sem quebrar o ciclo."
+      },
+      "fill-first": {
+        "title": "Quota drain strategy",
+        "description": "Exhausts one provider's quota before moving to the next in chain.",
+        "tip1": "Order models by free quota — largest first.",
+        "tip2": "Enable health checks to skip drained providers.",
+        "tip3": "Ideal for stacking free tiers across providers."
+      },
+      "p2c": {
+        "title": "Power-of-Two-Choices",
+        "description": "Picks the less-loaded of two random candidates per request — low latency at scale.",
+        "tip1": "Use with four or more models for best effect.",
+        "tip2": "Requires latency telemetry when available.",
+        "tip3": "Strong alternative to round-robin under high throughput."
       }
     },
     "templateFreeStack": "Free Stack ($0)",
@@ -999,7 +1023,13 @@
     "auto": "Auto Combo",
     "autoDesc": "Pool de roteamento inteligente (Otimizado)",
     "lkgp": "Modo LKGP",
-    "lkgpDesc": "Último Provedor Bom Conhecido (Resiliência previsível)"
+    "lkgpDesc": "Último Provedor Bom Conhecido (Resiliência previsível)",
+    "fillFirst": "Fill First",
+    "fillFirstDesc": "Uses models in order until quota is exhausted, then moves to the next.",
+    "p2c": "P2C",
+    "p2cDesc": "Chooses the less-loaded of two random models per request (power-of-two choices).",
+    "contextOpt": "Context-Opt",
+    "contextOptimizedDesc": "Routes using context-size and model-fit heuristics when enabled."
   },
   "costs": {
     "title": "Custos",
@@ -1137,7 +1167,9 @@
     "a2aQuickStartStep2": "Envie requisições JSON-RPC para `POST /a2a` usando `message/send` ou `message/stream`.",
     "a2aQuickStartStep3": "Acompanhe e controle tarefas com `tasks/get` e `tasks/cancel`.",
     "completionsLegacy": "Completions (Legacy)",
-    "completionsLegacyDesc": "Legacy OpenAI text completions — accepts both prompt string and messages array format"
+    "completionsLegacyDesc": "Legacy OpenAI text completions — accepts both prompt string and messages array format",
+    "musicGeneration": "Music Generation",
+    "musicDesc": "Generate music from text prompts via supported providers"
   },
   "endpoints": {
     "tabProxy": "Endpoint Proxy",
@@ -3085,9 +3117,9 @@
     "total": "Total",
     "behavior": "Cache Behavior",
     "behaviorDeterministic": "Only non-streaming requests with temperature=0 are cached.",
-    "behaviorBypass": "Bypass with header {header}.",
+    "behaviorBypass": "Bypass with header <header>X-OmniRoute-No-Cache: true</header>.",
     "behaviorTwoTier": "Two-tier storage: in-memory LRU (fast) + SQLite (persistent across restarts).",
-    "behaviorTtl": "Default TTL: 30 minutes. Configure via {envVar}.",
+    "behaviorTtl": "Default TTL: 30 minutes. Configure via <envVar>SEMANTIC_CACHE_TTL_MS</envVar>.",
     "idempotency": "Idempotency Layer",
     "activeDedupKeys": "Active Dedup Keys",
     "dedupWindow": "Dedup Window",

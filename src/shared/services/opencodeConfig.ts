@@ -16,6 +16,19 @@ const normalizeValue = (value: unknown) =>
     .trim()
     .replace(/^\/+/, "");
 
+const OPENCODE_PROVIDER_KEY = "omniroute";
+
+/**
+ * OpenCode expects `model` at the root of opencode.json, e.g. `omniroute/alias/model-id`
+ * (same prefix as the `provider` entry key). See OpenCode + @ai-sdk/openai-compatible docs.
+ */
+export function toOpenCodeModelRef(model: string | undefined | null): string | undefined {
+  const v = normalizeValue(model);
+  if (!v) return undefined;
+  if (v.startsWith(`${OPENCODE_PROVIDER_KEY}/`)) return v;
+  return `${OPENCODE_PROVIDER_KEY}/${v}`;
+}
+
 export const buildOpenCodeProviderConfig = ({
   baseUrl,
   apiKey,
@@ -55,11 +68,24 @@ export const mergeOpenCodeConfig = (
       ? existingConfig
       : {};
 
-  return {
+  const modelRef = toOpenCodeModelRef(input.model);
+  const providerEntry = buildOpenCodeProviderConfig(input);
+
+  const next: Record<string, any> = {
     ...safeConfig,
     provider: {
       ...((safeConfig as any).provider || {}),
-      omniroute: buildOpenCodeProviderConfig(input),
+      [OPENCODE_PROVIDER_KEY]: providerEntry,
     },
   };
+
+  if (modelRef) {
+    next.model = modelRef;
+  }
+
+  if (next.$schema == null) {
+    next.$schema = "https://opencode.ai/config.json";
+  }
+
+  return next;
 };
