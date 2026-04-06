@@ -13,16 +13,21 @@ export default function SystemStorageTab() {
   const [confirmRestoreId, setConfirmRestoreId] = useState(null);
   const [manualBackupLoading, setManualBackupLoading] = useState(false);
   const [manualBackupStatus, setManualBackupStatus] = useState({ type: "", message: "" });
-  const [exportLoading, setExportLoading] = useState(false);
+  const [exportDbLoading, setExportDbLoading] = useState(false);
+  const [exportAllLoading, setExportAllLoading] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
+  const [importAllLoading, setImportAllLoading] = useState(false);
   const [importStatus, setImportStatus] = useState({ type: "", message: "" });
   const [confirmImport, setConfirmImport] = useState(false);
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
+  const [confirmImportAll, setConfirmImportAll] = useState(false);
+  const [pendingImportAllFile, setPendingImportAllFile] = useState<File | null>(null);
   const [clearCacheLoading, setClearCacheLoading] = useState(false);
   const [clearCacheStatus, setClearCacheStatus] = useState({ type: "", message: "" });
   const [purgeLogsLoading, setPurgeLogsLoading] = useState(false);
   const [purgeLogsStatus, setPurgeLogsStatus] = useState({ type: "", message: "" });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importAllInputRef = useRef<HTMLInputElement>(null);
   const locale = useLocale();
   const t = useTranslations("settings");
   const tc = useTranslations("common");
@@ -129,7 +134,7 @@ export default function SystemStorageTab() {
   }, []);
 
   const handleExport = async () => {
-    setExportLoading(true);
+    setExportDbLoading(true);
     try {
       const res = await fetch("/api/db-backups/export");
       if (!res.ok) {
@@ -157,12 +162,20 @@ export default function SystemStorageTab() {
         message: t("exportFailedWithError", { error: (err as Error).message }),
       });
     } finally {
-      setExportLoading(false);
+      setExportDbLoading(false);
     }
   };
 
   const handleImportClick = () => {
+    setConfirmImportAll(false);
+    setPendingImportAllFile(null);
     fileInputRef.current?.click();
+  };
+
+  const handleImportAllClick = () => {
+    setConfirmImport(false);
+    setPendingImportFile(null);
+    importAllInputRef.current?.click();
   };
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -178,6 +191,22 @@ export default function SystemStorageTab() {
     setPendingImportFile(file);
     setConfirmImport(true);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleImportAllFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const lower = file.name.toLowerCase();
+    if (!lower.endsWith(".tar.gz") && !lower.endsWith(".tgz")) {
+      setImportStatus({
+        type: "error",
+        message: t("invalidArchiveType"),
+      });
+      return;
+    }
+    setPendingImportAllFile(file);
+    setConfirmImportAll(true);
+    if (importAllInputRef.current) importAllInputRef.current.value = "";
   };
 
   const handleImportConfirm = async () => {
@@ -222,6 +251,53 @@ export default function SystemStorageTab() {
   const handleImportCancel = () => {
     setConfirmImport(false);
     setPendingImportFile(null);
+  };
+
+  const handleImportAllConfirm = async () => {
+    if (!pendingImportAllFile) return;
+    setImportAllLoading(true);
+    setImportStatus({ type: "", message: "" });
+    setConfirmImportAll(false);
+    try {
+      const arrayBuffer = await pendingImportAllFile.arrayBuffer();
+      const res = await fetch(
+        `/api/db-backups/importAll?filename=${encodeURIComponent(pendingImportAllFile.name)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: arrayBuffer,
+        }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        const base = t("importSuccess", {
+          connections: data.connectionCount,
+          nodes: data.nodeCount,
+          combos: data.comboCount,
+          apiKeys: data.apiKeyCount,
+        });
+        const envNote = data.importedServerEnv ? t("importAllEnvRestored") : t("importAllEnvSkipped");
+        const restartNote = data.importedServerEnv ? ` ${t("importAllRestartHint")}` : "";
+        setImportStatus({
+          type: "success",
+          message: `${base} ${envNote}${restartNote}`,
+        });
+        await loadStorageHealth();
+        if (backupsExpanded) await loadBackups();
+      } else {
+        setImportStatus({ type: "error", message: data.error || t("importFailed") });
+      }
+    } catch {
+      setImportStatus({ type: "error", message: t("errorDuringImport") });
+    } finally {
+      setImportAllLoading(false);
+      setPendingImportAllFile(null);
+    }
+  };
+
+  const handleImportAllCancel = () => {
+    setConfirmImportAll(false);
+    setPendingImportAllFile(null);
   };
 
   const formatBytes = (bytes) => {
@@ -308,7 +384,7 @@ export default function SystemStorageTab() {
 
       {/* Export / Import */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <Button variant="outline" size="sm" onClick={handleExport} loading={exportLoading}>
+        <Button variant="outline" size="sm" onClick={handleExport} loading={exportDbLoading}>
           <span className="material-symbols-outlined text-[14px] mr-1" aria-hidden="true">
             download
           </span>
@@ -318,7 +394,7 @@ export default function SystemStorageTab() {
           variant="outline"
           size="sm"
           onClick={async () => {
-            setExportLoading(true);
+            setExportAllLoading(true);
             try {
               const res = await fetch("/api/db-backups/exportAll");
               if (!res.ok) throw new Error(t("exportFailed"));
@@ -340,10 +416,10 @@ export default function SystemStorageTab() {
                 message: t("fullExportFailedWithError", { error: (err as Error).message }),
               });
             } finally {
-              setExportLoading(false);
+              setExportAllLoading(false);
             }
           }}
-          loading={exportLoading}
+          loading={exportAllLoading}
         >
           <span className="material-symbols-outlined text-[14px] mr-1" aria-hidden="true">
             folder_zip
@@ -356,6 +432,17 @@ export default function SystemStorageTab() {
           </span>
           {t("importDatabase")}
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleImportAllClick}
+          loading={importAllLoading}
+        >
+          <span className="material-symbols-outlined text-[14px] mr-1" aria-hidden="true">
+            unarchive
+          </span>
+          {t("importAll")}
+        </Button>
         <input
           ref={fileInputRef}
           type="file"
@@ -363,7 +450,15 @@ export default function SystemStorageTab() {
           className="hidden"
           onChange={handleFileSelected}
         />
+        <input
+          ref={importAllInputRef}
+          type="file"
+          accept=".tar.gz,.tgz,application/gzip"
+          className="hidden"
+          onChange={handleImportAllFileSelected}
+        />
       </div>
+      <p className="text-xs text-text-muted leading-relaxed mb-4 max-w-3xl">{t("portableBackupHint")}</p>
 
       {/* Import confirmation dialog */}
       {confirmImport && pendingImportFile && (
@@ -390,6 +485,39 @@ export default function SystemStorageTab() {
                   {t("yesImport")}
                 </Button>
                 <Button variant="outline" size="sm" onClick={handleImportCancel}>
+                  {tc("cancel")}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmImportAll && pendingImportAllFile && (
+        <div className="p-4 rounded-lg mb-4 bg-amber-500/10 border border-amber-500/30">
+          <div className="flex items-start gap-3">
+            <span
+              className="material-symbols-outlined text-[20px] text-amber-500 mt-0.5"
+              aria-hidden="true"
+            >
+              warning
+            </span>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-amber-500 mb-1">{t("confirmImportAll")}</p>
+              <p className="text-xs text-text-muted mb-2">
+                <span className="block mb-1 font-mono break-all">{pendingImportAllFile.name}</span>
+                {t("confirmImportAllDesc")}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleImportAllConfirm}
+                  className="!bg-amber-500 hover:!bg-amber-600"
+                >
+                  {t("yesImport")}
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleImportAllCancel}>
                   {tc("cancel")}
                 </Button>
               </div>

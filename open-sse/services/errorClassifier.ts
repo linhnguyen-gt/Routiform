@@ -3,11 +3,40 @@ import {
   isCreditsExhausted,
   isOAuthInvalidToken,
 } from "./accountFallback.ts";
+import { unwrapOpenAIChatCompletionRoot } from "../utils/chatCompletionEnvelope.ts";
+
+/** True when assistant message has extractable user-visible text (string, parts[], or object text/content). */
+function hasRenderableAssistantContent(content: unknown): boolean {
+  if (content === null || content === undefined) return false;
+  if (typeof content === "string") return content.trim().length > 0;
+  if (Array.isArray(content)) {
+    for (const part of content) {
+      if (typeof part === "string" && part.trim()) return true;
+      if (part && typeof part === "object" && !Array.isArray(part)) {
+        const o = part as Record<string, unknown>;
+        const t =
+          (typeof o.text === "string" && o.text.trim()) ||
+          (typeof o.content === "string" && o.content.trim());
+        if (t) return true;
+      }
+    }
+    return false;
+  }
+  if (typeof content === "object") {
+    const o = content as Record<string, unknown>;
+    return Boolean(
+      (typeof o.text === "string" && o.text.trim()) ||
+      (typeof o.content === "string" && o.content.trim())
+    );
+  }
+  return false;
+}
 
 export function isEmptyContentResponse(responseBody: unknown): boolean {
   if (!responseBody || typeof responseBody !== "object") return false;
 
-  const body = responseBody as Record<string, unknown>;
+  let body = responseBody as Record<string, unknown>;
+  body = unwrapOpenAIChatCompletionRoot(body);
 
   if (Array.isArray(body.choices)) {
     const firstChoice = body.choices[0] as Record<string, unknown> | undefined;
@@ -17,11 +46,19 @@ export function isEmptyContentResponse(responseBody: unknown): boolean {
     const delta = firstChoice.delta as Record<string, unknown> | undefined;
 
     const content = message?.content ?? delta?.content;
+    const refusal =
+      typeof message?.refusal === "string"
+        ? message.refusal
+        : typeof delta?.refusal === "string"
+          ? delta.refusal
+          : "";
+    if (refusal.trim()) return false;
+
     const hasToolCalls =
       (Array.isArray(message?.tool_calls) && (message.tool_calls as unknown[]).length > 0) ||
       (Array.isArray(delta?.tool_calls) && (delta.tool_calls as unknown[]).length > 0);
 
-    const hasContent = content !== null && content !== undefined && content !== "";
+    const hasContent = hasRenderableAssistantContent(content);
     return !hasContent && !hasToolCalls;
   }
 

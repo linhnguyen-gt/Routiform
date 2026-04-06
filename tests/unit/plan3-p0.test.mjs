@@ -8,6 +8,7 @@ import { shouldUseNativeCodexPassthrough } from "../../open-sse/handlers/chatCor
 import { translateRequest } from "../../open-sse/translator/index.ts";
 import { GithubExecutor } from "../../open-sse/executors/github.ts";
 import { DefaultExecutor } from "../../open-sse/executors/default.ts";
+import { QwenExecutor } from "../../open-sse/executors/qwen.ts";
 import { CodexExecutor, setDefaultFastServiceTierEnabled } from "../../open-sse/executors/codex.ts";
 import { translateNonStreamingResponse } from "../../open-sse/handlers/responseTranslator.ts";
 import { extractUsageFromResponse } from "../../open-sse/handlers/usageExtractor.ts";
@@ -67,6 +68,35 @@ test("DefaultExecutor uses x-api-key for kimi-coding-apikey", () => {
 
   assert.equal(headers["x-api-key"], "sk-kimi-test");
   assert.equal(headers.Authorization, undefined);
+});
+
+test("QwenExecutor: always portal /v1/chat/completions; QwenCode headers (9router-style)", () => {
+  const executor = new QwenExecutor();
+  const url = executor.buildUrl("coder-model", false, 0, {
+    accessToken: "tok",
+    providerSpecificData: { resourceUrl: "dashscope.aliyuncs.com" },
+  });
+  assert.equal(url, "https://portal.qwen.ai/v1/chat/completions");
+
+  const headers = executor.buildHeaders(
+    { accessToken: "tok", providerSpecificData: { resourceUrl: "dashscope.aliyuncs.com" } },
+    false
+  );
+  assert.equal(headers["X-Dashscope-AuthType"], "qwen-oauth");
+  assert.equal(headers.Accept, "application/json");
+});
+
+test("QwenExecutor: prepends system stub and stream_options when streaming", () => {
+  const executor = new QwenExecutor();
+  const out = executor.transformRequest(
+    "coder-model",
+    { messages: [{ role: "user", content: "hi" }], stream: true },
+    true,
+    {}
+  );
+  assert.equal(out.stream_options?.include_usage, true);
+  assert.equal(out.messages?.length, 2);
+  assert.equal(out.messages?.[0]?.role, "system");
 });
 
 test("DefaultExecutor execute honors connection-level custom User-Agent", async () => {
@@ -562,4 +592,40 @@ test("parseSSEToOpenAIResponse normalizes delta.reasoning alias to reasoning_con
   assert.ok(parsed);
   assert.equal(parsed.choices[0].message.reasoning_content, "Let me think... The answer is 4.");
   assert.equal(parsed.choices[0].message.content, "2+2=4");
+});
+
+test("parseSSEToOpenAIResponse accumulates array delta.content (Gemini/Cline structured parts)", () => {
+  const rawSSE = [
+    `data: ${JSON.stringify({
+      choices: [
+        {
+          index: 0,
+          delta: {
+            content: [
+              { type: "reasoning", text: "think" },
+              { type: "text", text: "OK" },
+            ],
+          },
+        },
+      ],
+    })}`,
+    "data: [DONE]",
+  ].join("\n");
+
+  const parsed = parseSSEToOpenAIResponse(rawSSE, "google/gemini-2.5-flash");
+  assert.ok(parsed);
+  assert.equal(parsed.choices[0].message.reasoning_content, "think");
+  assert.equal(parsed.choices[0].message.content, "OK");
+});
+
+test("parseSSEToOpenAIResponse reads final chunk with message not delta", () => {
+  const rawSSE = [
+    `data: ${JSON.stringify({
+      choices: [{ index: 0, message: { role: "assistant", content: "OK" }, finish_reason: "stop" }],
+    })}`,
+    "data: [DONE]",
+  ].join("\n");
+  const parsed = parseSSEToOpenAIResponse(rawSSE, "cline/deepseek/deepseek-chat");
+  assert.ok(parsed);
+  assert.equal(parsed.choices[0].message.content, "OK");
 });

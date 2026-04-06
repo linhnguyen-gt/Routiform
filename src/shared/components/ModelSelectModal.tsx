@@ -21,6 +21,16 @@ const PROVIDER_ORDER = [
   ...Object.keys(APIKEY_PROVIDERS),
 ];
 
+/** Last resort when API + direct catalog fetch both return empty (offline / blocked). */
+const OPENROUTER_FALLBACK_MODELS: { id: string; name: string }[] = [
+  { id: "openai/gpt-4o-mini", name: "GPT-4o mini" },
+  { id: "openai/gpt-4o", name: "GPT-4o" },
+  { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
+  { id: "google/gemini-2.0-flash-001", name: "Gemini 2.0 Flash" },
+  { id: "deepseek/deepseek-chat", name: "DeepSeek Chat" },
+  { id: "meta-llama/llama-3.3-70b-instruct", name: "Llama 3.3 70B" },
+];
+
 /** Merged static + fallback + custom lists can repeat the same model id; keep first occurrence only. */
 function dedupeModelsById(models: any[]) {
   const seen = new Set<string>();
@@ -50,6 +60,8 @@ export default function ModelSelectModal({
   const [combos, setCombos] = useState<any[]>([]);
   const [providerNodes, setProviderNodes] = useState<any[]>([]);
   const [customModels, setCustomModels] = useState<Record<string, any>>({});
+  /** OpenRouter catalog (public list); merged in standard provider branch when providerId is openrouter. */
+  const [openrouterCatalog, setOpenrouterCatalog] = useState<{ id: string; name?: string }[]>([]);
 
   const fetchCombos = async () => {
     try {
@@ -97,6 +109,69 @@ export default function ModelSelectModal({
 
   useEffect(() => {
     if (isOpen) fetchCustomModels();
+  }, [isOpen]);
+
+  const fetchOpenrouterCatalog = async () => {
+    const normalize = (raw: unknown[]) =>
+      raw
+        .map((m: any) => {
+          if (!m || typeof m !== "object") return null;
+          const id =
+            typeof m.id === "string" && m.id.length > 0
+              ? m.id
+              : typeof m.canonical_slug === "string" && m.canonical_slug.length > 0
+                ? m.canonical_slug
+                : "";
+          if (!id) return null;
+          return { id, name: (typeof m.name === "string" && m.name) || id };
+        })
+        .filter(Boolean) as { id: string; name: string }[];
+
+    const parsePayload = (json: any) => {
+      const raw = json?.data ?? json?.models;
+      return Array.isArray(raw) ? raw : [];
+    };
+
+    try {
+      const res = await fetch("/api/models/openrouter-catalog", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const list = normalize(parsePayload(data));
+        if (list.length > 0) {
+          setOpenrouterCatalog(list);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching OpenRouter catalog (API):", error);
+    }
+
+    // Browser → OpenRouter public API (works when server cache/API is empty; CORS allows this endpoint)
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/models", {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const list = normalize(parsePayload(json));
+        if (list.length > 0) {
+          setOpenrouterCatalog(list);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching OpenRouter catalog (direct):", error);
+    }
+
+    setOpenrouterCatalog([]);
+  };
+
+  useEffect(() => {
+    if (isOpen) fetchOpenrouterCatalog();
   }, [isOpen]);
 
   const allProviders = useMemo(
@@ -217,13 +292,29 @@ export default function ModelSelectModal({
         }
       } else {
         const systemModels = getModelsByProviderId(providerId);
+        const hardcodedIds = new Set(systemModels.map((m) => m.id));
+        const hasHardcoded = systemModels.length > 0;
 
-        // Merge system models with user-added custom models
         const systemEntries = systemModels.map((m) => ({
           id: m.id,
           name: m.name,
           value: `${alias}/${m.id}`,
         }));
+
+        // 9router-style: when no hardcoded catalog (e.g. OpenRouter), list every alias under provider/ prefix.
+        const aliasEntries = Object.entries(modelAliases as Record<string, string>)
+          .filter(([aliasName, fullModel]) => {
+            const modelId = fullModel.replace(`${alias}/`, "");
+            return (
+              fullModel.startsWith(`${alias}/`) &&
+              (hasHardcoded ? aliasName === modelId : true) &&
+              !hardcodedIds.has(modelId)
+            );
+          })
+          .map(([aliasName, fullModel]) => {
+            const modelId = fullModel.replace(`${alias}/`, "");
+            return { id: modelId, name: aliasName, value: fullModel, isCustom: true };
+          });
 
         const customEntries = providerCustomModels
           .filter((cm) => !systemModels.some((sm) => sm.id === cm.id))
@@ -234,7 +325,30 @@ export default function ModelSelectModal({
             isCustom: true,
           }));
 
-        const allModels = dedupeModelsById([...systemEntries, ...customEntries]);
+        let catalogEntries: any[] = [];
+        if (providerId === "openrouter") {
+          const already = new Set([
+            ...systemEntries.map((m) => String(m.id)),
+            ...aliasEntries.map((a) => String(a.id)),
+            ...customEntries.map((c) => String(c.id)),
+          ]);
+          const source =
+            openrouterCatalog.length > 0 ? openrouterCatalog : OPENROUTER_FALLBACK_MODELS;
+          catalogEntries = source
+            .filter((m) => m?.id && !already.has(String(m.id)))
+            .map((m) => ({
+              id: m.id,
+              name: m.name || m.id,
+              value: `${alias}/${m.id}`,
+            }));
+        }
+
+        const allModels = dedupeModelsById([
+          ...systemEntries,
+          ...aliasEntries,
+          ...customEntries,
+          ...catalogEntries,
+        ]);
 
         if (allModels.length > 0) {
           groups[providerId] = {
@@ -248,7 +362,7 @@ export default function ModelSelectModal({
     });
 
     return groups;
-  }, [activeProviders, modelAliases, allProviders, providerNodes, customModels]);
+  }, [activeProviders, modelAliases, allProviders, providerNodes, customModels, openrouterCatalog]);
 
   // Filter combos by search query
   const filteredCombos = useMemo(() => {

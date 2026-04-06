@@ -23,6 +23,20 @@ const PROVIDER_MODEL_ALIASES = {
     "gemini-3-pro-preview": "gemini-3.1-pro-preview",
     "gemini-3-flash": "gemini-3-flash-preview",
     "raptor-mini": "oswe-vscode-prime",
+    // Retired / closing-down Copilot models → see supported-models + retirement tables on GitHub Docs
+    "gpt-5": "gpt-5.2",
+    "gpt-5-codex": "gpt-5.2-codex",
+    "gpt-5.1": "gpt-5.2",
+    "gpt-5.1-codex": "gpt-5.3-codex",
+    "gpt-5.1-codex-mini": "gpt-5.3-codex",
+    "gpt-5.1-codex-max": "gpt-5.3-codex",
+    "claude-opus-4.1": "claude-opus-4.6",
+    // Removed from static catalog (not in supported-models table) → nearest supported ID
+    "gpt-4o": "gpt-4.1",
+    "gpt-4o-mini": "gpt-5-mini",
+    "gpt-4": "gpt-4.1",
+    "gpt-3.5-turbo": "gpt-4.1",
+    "gemini-2.5-flash": "gemini-2.5-pro",
   },
   gemini: {
     "gemini-3.1-pro-preview": "gemini-3.1-pro",
@@ -219,6 +233,12 @@ export async function getModelInfoCore(modelStr, aliasesOrGetter) {
   }
 
   const nonOpenAIProviders = providers.filter((p) => p !== "openai");
+
+  // Prefer Codex for versioned GPT-5 aliases that can appear in multiple catalogs.
+  if (/^gpt-5\.\d+$/i.test(modelId) && nonOpenAIProviders.includes("codex")) {
+    return { provider: "codex", model: modelId, extendedContext };
+  }
+
   if (nonOpenAIProviders.length === 1) {
     const provider = nonOpenAIProviders[0];
     const canonicalModel = resolveProviderModelAlias(provider, modelId);
@@ -250,6 +270,11 @@ export async function getModelInfoCore(modelStr, aliasesOrGetter) {
   if (/^gemini-/i.test(modelId) || /^gemma-/i.test(modelId)) {
     // Gemini/Gemma models → Gemini provider
     return { provider: "gemini", model: modelId, extendedContext };
+  }
+
+  // Versioned GPT-5 family aliases (e.g. gpt-5.4) are codex-native in this routing layer.
+  if (/^gpt-5\.\d+$/i.test(modelId)) {
+    return { provider: "codex", model: modelId, extendedContext };
   }
 
   // Last resort: treat as openai model

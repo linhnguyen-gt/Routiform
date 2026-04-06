@@ -13,6 +13,9 @@ import path from "path";
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/models";
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+/** OpenRouter exposes hundreds of models; a tiny cache file is almost certainly corrupt/partial. */
+const MIN_VALID_MODEL_COUNT = 32;
+
 function getTTL(): number {
   const env = process.env.OPENROUTER_CATALOG_TTL_MS;
   return env ? parseInt(env, 10) : DEFAULT_TTL_MS;
@@ -118,10 +121,11 @@ export async function getOpenRouterCatalog(): Promise<{
   const cache = readCache();
   const now = Date.now();
 
-  // Return cached data if still within TTL
-  if (cache && cache.fetchedAt) {
+  // Return cached data if still within TTL and the snapshot looks complete
+  if (cache && cache.fetchedAt && Array.isArray(cache.data)) {
     const age = now - new Date(cache.fetchedAt).getTime();
-    if (age < ttl) {
+    const plausible = cache.data.length >= MIN_VALID_MODEL_COUNT;
+    if (plausible && age < ttl) {
       return {
         data: cache.data,
         stale: false,
@@ -129,18 +133,28 @@ export async function getOpenRouterCatalog(): Promise<{
         fromCache: true,
       };
     }
+    if (!plausible && age < ttl) {
+      console.warn(
+        `[OpenRouterCatalog] Ignoring undersized cache (${cache.data.length} models); refetching`
+      );
+    }
   }
 
   // Cache expired or missing — attempt fresh fetch
   try {
     const data = await fetchFromAPI();
+    if (data.length < MIN_VALID_MODEL_COUNT) {
+      throw new Error(
+        `OpenRouter model list too short (${data.length}); refusing to cache partial response`
+      );
+    }
     writeCache(data);
     return { data, stale: false, cachedAt: null, fromCache: false };
   } catch (err) {
     console.warn("[OpenRouterCatalog] Fetch failed, using stale cache:", err);
 
-    // Stale-if-error: return old cache if available
-    if (cache) {
+    // Stale-if-error: return old cache only if it looks like a full snapshot
+    if (cache && cache.data.length >= MIN_VALID_MODEL_COUNT) {
       return {
         data: cache.data,
         stale: true,
@@ -149,7 +163,16 @@ export async function getOpenRouterCatalog(): Promise<{
       };
     }
 
-    // No cache at all — return empty with error signal
+    if (cache && cache.data.length < MIN_VALID_MODEL_COUNT) {
+      try {
+        fs.unlinkSync(getCacheFilePath());
+      } catch {
+        /* ignore */
+      }
+      console.warn("[OpenRouterCatalog] Removed undersized cache after failed fetch");
+    }
+
+    // No usable cache — caller / client can fall back to live OpenRouter or UI fallback list
     return { data: [], stale: true, cachedAt: null, fromCache: false };
   }
 }
@@ -165,6 +188,13 @@ export async function refreshOpenRouterCatalog(): Promise<{
 }> {
   try {
     const data = await fetchFromAPI();
+    if (data.length < MIN_VALID_MODEL_COUNT) {
+      return {
+        data: [],
+        ok: false,
+        error: `OpenRouter returned too few models (${data.length})`,
+      };
+    }
     writeCache(data);
     return { data, ok: true };
   } catch (err) {

@@ -825,11 +825,13 @@ export const translatorTranslateSchema = z
     }
   });
 
+/** Cline / Gemini / Antigravity / Qoder use auth code without PKCE; Claude & Codex require code_verifier. */
 export const oauthExchangeSchema = z.object({
   code: z.string().trim().min(1),
   redirectUri: z.string().trim().min(1),
-  codeVerifier: z.string().trim().min(1),
-  state: z.string().optional(),
+  codeVerifier: z.union([z.string(), z.null()]).optional(),
+  /** OAuth callback often omits state; JSON body may contain `null` (not just missing key). */
+  state: z.union([z.string(), z.null()]).optional(),
 });
 
 export const oauthPollSchema = z.object({

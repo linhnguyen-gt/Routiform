@@ -1,119 +1,192 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { buildComboTestRequestBody, extractComboTestResponseText } =
-  await import("../../src/lib/combos/testHealth.ts");
+import {
+  extractComboTestUpstreamError,
+  extractComboTestResponseText,
+  parseComboTestHttpPayload,
+} from "../../src/lib/combos/testHealth.ts";
 
-test("combo test helper builds a realistic smoke payload", () => {
-  const body = buildComboTestRequestBody("openrouter/openai/gpt-5.4");
-
-  assert.equal(body.model, "openrouter/openai/gpt-5.4");
-  assert.equal(body.messages[0].content, "Reply with OK only.");
-  assert.equal(body.max_tokens, 64);
-  assert.equal(body.temperature, 0);
-  assert.equal(body.stream, false);
+test("extractComboTestUpstreamError reads OpenAI-style nested error.message", () => {
+  assert.equal(
+    extractComboTestUpstreamError(
+      { error: { message: "Unauthorized", code: "invalid_auth" } },
+      "fallback"
+    ),
+    "invalid_auth: Unauthorized"
+  );
 });
 
-test("combo test helper extracts text from chat-completions responses", () => {
-  const text = extractComboTestResponseText({
-    choices: [
-      {
-        message: {
-          role: "assistant",
-          content: "OK",
-        },
-      },
-    ],
-  });
+test("extractComboTestUpstreamError handles string error", () => {
+  assert.equal(extractComboTestUpstreamError({ error: "bad" }, "fallback"), "bad");
+});
 
+test("extractComboTestUpstreamError uses fallback when no known shape", () => {
+  assert.equal(extractComboTestUpstreamError({}, "fallback"), "fallback");
+});
+
+test("extractComboTestResponseText unwraps data.choices (Cline-style envelope)", () => {
+  const text = extractComboTestResponseText({
+    data: {
+      object: "chat.completion",
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: [{ type: "text", content: "OK" }],
+          },
+        },
+      ],
+    },
+  });
   assert.equal(text, "OK");
 });
 
-test("combo test helper extracts text from block-based responses", () => {
-  const text = extractComboTestResponseText({
-    choices: [
-      {
-        message: {
-          role: "assistant",
-          content: [
-            { type: "text", text: "OK" },
-            { type: "output_text", text: "Confirmed." },
-          ],
+test("extractComboTestResponseText reads Gemini-style message.parts", () => {
+  assert.equal(
+    extractComboTestResponseText({
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            parts: [{ text: "OK" }],
+          },
         },
-      },
-    ],
-  });
-
-  assert.equal(text, "OK\nConfirmed.");
+      ],
+    }),
+    "OK"
+  );
 });
 
-test("combo test helper extracts reasoning content when visible text is absent", () => {
-  const text = extractComboTestResponseText({
-    choices: [
-      {
-        message: {
-          role: "assistant",
-          content: null,
-          reasoning_content: "Working through the request.\nOK",
+test("extractComboTestResponseText reads message.refusal when content empty", () => {
+  assert.equal(
+    extractComboTestResponseText({
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: null,
+            refusal: "Cannot comply",
+          },
         },
-      },
-    ],
-  });
-
-  assert.equal(text, "Working through the request.\nOK");
+      ],
+    }),
+    "Cannot comply"
+  );
 });
 
-test("combo test helper extracts reasoning_text aliases from GitHub-style responses", () => {
-  const text = extractComboTestResponseText({
-    choices: [
-      {
-        message: {
-          role: "assistant",
-          content: "",
-          reasoning_text: "Reasoning trace",
+test("extractComboTestResponseText reads message.reasoning (Cline reasoning models)", () => {
+  assert.equal(
+    extractComboTestResponseText({
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: "",
+            reasoning: "step by step… OK",
+          },
         },
-      },
-    ],
-  });
-
-  assert.equal(text, "Reasoning trace");
+      ],
+    }),
+    "step by step… OK"
+  );
 });
 
-test("combo test helper treats reasoning-only completions as a healthy signal", () => {
-  const text = extractComboTestResponseText({
-    choices: [
-      {
-        finish_reason: "length",
-        message: {
-          role: "assistant",
-          content: "",
+test("extractComboTestResponseText reads reasoning-only content[] blocks (Gemini-style)", () => {
+  assert.equal(
+    extractComboTestResponseText({
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: [{ type: "reasoning", text: "OK" }],
+          },
         },
+      ],
+    }),
+    "OK"
+  );
+});
+
+test("extractComboTestResponseText reads Google GenAI candidates[0].content.parts", () => {
+  assert.equal(
+    extractComboTestResponseText({
+      candidates: [{ content: { parts: [{ text: "OK" }] } }],
+    }),
+    "OK"
+  );
+});
+
+test("extractComboTestResponseText handles Cline log envelope (data + provider_metadata)", () => {
+  const payload = {
+    data: {
+      id: "gen_01KNH3G9BXGG63VB0F88EYS7VB",
+      object: "chat.completion",
+      model: "google/gemini-2.5-flash",
+      choices: [
+        {
+          index: 0,
+          finish_reason: "stop",
+          message: {
+            role: "assistant",
+            content: "OK",
+            provider_metadata: { gateway: { cost: "0" } },
+          },
+        },
+      ],
+      usage: { prompt_tokens: 6, completion_tokens: 27 },
+    },
+  };
+  assert.equal(extractComboTestResponseText(payload), "OK");
+});
+
+test("parseComboTestHttpPayload falls back from SSE when JSON parse fails", () => {
+  const raw = [
+    `data: ${JSON.stringify({
+      choices: [{ index: 0, delta: { content: "OK" }, finish_reason: "stop" }],
+    })}`,
+    "data: [DONE]",
+  ].join("\n");
+  const parsed = parseComboTestHttpPayload(
+    raw,
+    "cline/google/gemini-2.5-flash",
+    "text/event-stream"
+  );
+  assert.equal(extractComboTestResponseText(parsed), "OK");
+});
+
+test("extractComboTestResponseText unwraps result / response envelopes", () => {
+  assert.equal(
+    extractComboTestResponseText({
+      result: {
+        choices: [{ message: { role: "assistant", content: "OK" } }],
       },
-    ],
-    usage: {
-      prompt_tokens: 6,
-      completion_tokens: 12,
-      total_tokens: 18,
-      completion_tokens_details: {
-        reasoning_tokens: 12,
+    }),
+    "OK"
+  );
+  assert.equal(
+    extractComboTestResponseText({
+      response: {
+        object: "chat.completion",
+        choices: [{ message: { role: "assistant", content: "OK" } }],
       },
+    }),
+    "OK"
+  );
+});
+
+test("parseComboTestHttpPayload parses double-encoded JSON string", () => {
+  const inner = JSON.stringify({
+    data: {
+      object: "chat.completion",
+      choices: [{ message: { role: "assistant", content: "OK" } }],
     },
   });
-
-  assert.equal(text, "[reasoning-only completion]");
-});
-
-test("combo test helper returns empty string when no text content exists", () => {
-  const text = extractComboTestResponseText({
-    choices: [
-      {
-        message: {
-          role: "assistant",
-          content: [{ type: "tool_call", id: "call_1" }],
-        },
-      },
-    ],
-  });
-
-  assert.equal(text, "");
+  const raw = JSON.stringify(inner);
+  const parsed = parseComboTestHttpPayload(
+    raw,
+    "cline/google/gemini-2.5-flash",
+    "application/json"
+  );
+  assert.equal(extractComboTestResponseText(parsed), "OK");
 });

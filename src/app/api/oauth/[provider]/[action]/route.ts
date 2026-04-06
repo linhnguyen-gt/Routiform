@@ -213,6 +213,27 @@ export async function POST(
         return NextResponse.json({ error: validation.error }, { status: 400 });
       }
       body = validation.data;
+
+      const providerHandler = getProvider(provider);
+      if (providerHandler.flowType === "authorization_code_pkce") {
+        const cv = body.codeVerifier;
+        if (typeof cv !== "string" || !cv.trim()) {
+          return NextResponse.json(
+            {
+              error: {
+                message: "Invalid request",
+                details: [
+                  {
+                    field: "codeVerifier",
+                    message: "Code verifier is required for this provider",
+                  },
+                ],
+              },
+            },
+            { status: 400 }
+          );
+        }
+      }
     } else if (action === "poll") {
       const validation = validateBody(oauthPollSchema, rawBody);
       if (isValidationFailure(validation)) {

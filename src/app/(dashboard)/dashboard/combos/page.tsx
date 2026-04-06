@@ -1,23 +1,23 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Card,
   Button,
-  Modal,
-  Input,
-  Toggle,
+  Card,
   CardSkeleton,
+  EmptyState,
+  Input,
+  Modal,
   ModelSelectModal,
   ProxyConfigModal,
-  EmptyState,
+  Toggle,
 } from "@/shared/components";
-import Tooltip from "@/shared/components/Tooltip";
 import ModelRoutingSection from "@/shared/components/ModelRoutingSection";
+import Tooltip from "@/shared/components/Tooltip";
+import { ROUTING_STRATEGIES } from "@/shared/constants/routingStrategies";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useNotificationStore } from "@/store/notificationStore";
-import { ROUTING_STRATEGIES } from "@/shared/constants/routingStrategies";
 import { useTranslations } from "next-intl";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // Validate combo name: letters, numbers, -, _, /, .
 const VALID_NAME_REGEX = /^[a-zA-Z0-9_/.-]+$/;
@@ -293,7 +293,7 @@ function getStrategyBadgeClass(strategy) {
   return "bg-blue-500/15 text-blue-600 dark:text-blue-400";
 }
 
-function getI18nOrFallback(t, key, fallback, values) {
+function getI18nOrFallback(t, key, fallback, values?) {
   if (typeof t.has === "function" && t.has(key)) {
     if (values != null && typeof values === "object") {
       return t(key, values);
@@ -401,10 +401,9 @@ export default function CombosPage() {
 
       if (combosRes.ok) setCombos(combosData.combos || []);
       if (providersRes.ok) {
-        const active = (providersData.connections || []).filter(
-          (c) => c.testStatus === "active" || c.testStatus === "success"
-        );
-        setActiveProviders(active);
+        // Match 9router: show all connections in Add Model — new keys are often testStatus "unknown"
+        // until the user runs Test; filtering to active/success hid OpenRouter and other API-key providers.
+        setActiveProviders(providersData.connections || []);
       }
       if (metricsRes.ok) setMetrics(metricsData.metrics || {});
       setProviderNodes(nodesData.nodes || []);
@@ -1128,6 +1127,8 @@ function ComboCard({
 // Test Results View
 // ─────────────────────────────────────────────
 function TestResultsView({ results }) {
+  const t = useTranslations("combos");
+
   if (results.error) {
     return (
       <div className="flex items-center gap-2 text-red-500 text-sm">
@@ -1136,6 +1137,11 @@ function TestResultsView({ results }) {
       </div>
     );
   }
+
+  const softenFailedRows =
+    Boolean(results.resolvedBy) &&
+    Array.isArray(results.results) &&
+    results.results.some((r) => r.status === "error");
 
   return (
     <div className="flex flex-col gap-2">
@@ -1152,38 +1158,74 @@ function TestResultsView({ results }) {
           </span>
         </div>
       )}
-      {results.results?.map((r, i) => (
-        <div
-          key={i}
-          title={r.error || undefined}
-          className="flex items-center gap-2 text-xs px-2 py-1.5 rounded bg-black/[0.02] dark:bg-white/[0.02]"
-        >
-          <span
-            className={`material-symbols-outlined text-[14px] ${
-              r.status === "ok"
-                ? "text-emerald-500"
-                : r.status === "skipped"
-                  ? "text-text-muted"
-                  : "text-red-500"
-            }`}
+      {softenFailedRows ? (
+        <p className="text-xs text-amber-800 dark:text-amber-200/90 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-1.5 leading-snug">
+          {getI18nOrFallback(
+            t,
+            "comboTestPartialSuccess",
+            "Some models failed this smoke test, but another model resolved the combo — routing still works."
+          )}
+        </p>
+      ) : null}
+      {results.results?.map((r, i) => {
+        const rowFailed = r.status !== "ok" && r.status !== "skipped";
+        const warnRow = softenFailedRows && rowFailed;
+        return (
+          <div
+            key={i}
+            className="flex flex-col gap-0.5 text-xs px-2 py-1.5 rounded bg-black/[0.02] dark:bg-white/[0.02]"
           >
-            {r.status === "ok" ? "check_circle" : r.status === "skipped" ? "skip_next" : "error"}
-          </span>
-          <code className="font-mono flex-1">{r.model}</code>
-          {r.latencyMs !== undefined && <span className="text-text-muted">{r.latencyMs}ms</span>}
-          <span
-            className={`text-[10px] uppercase font-medium ${
-              r.status === "ok"
-                ? "text-emerald-500"
-                : r.status === "skipped"
-                  ? "text-text-muted"
-                  : "text-red-500"
-            }`}
-          >
-            {r.status}
-          </span>
-        </div>
-      ))}
+            <div title={r.error || undefined} className="flex items-center gap-2 min-w-0">
+              <span
+                className={`material-symbols-outlined text-[14px] shrink-0 ${
+                  r.status === "ok"
+                    ? "text-emerald-500"
+                    : r.status === "skipped"
+                      ? "text-text-muted"
+                      : warnRow
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-red-500"
+                }`}
+              >
+                {r.status === "ok"
+                  ? "check_circle"
+                  : r.status === "skipped"
+                    ? "skip_next"
+                    : warnRow
+                      ? "warning"
+                      : "error"}
+              </span>
+              <code className="font-mono flex-1 truncate min-w-0">{r.model}</code>
+              {r.latencyMs !== undefined && (
+                <span className="text-text-muted shrink-0">{r.latencyMs}ms</span>
+              )}
+              <span
+                className={`text-[10px] uppercase font-medium shrink-0 ${
+                  r.status === "ok"
+                    ? "text-emerald-500"
+                    : r.status === "skipped"
+                      ? "text-text-muted"
+                      : warnRow
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-red-500"
+                }`}
+              >
+                {r.status}
+              </span>
+            </div>
+            {r.status !== "ok" && typeof r.error === "string" && r.error.trim() ? (
+              <p
+                className={`text-[10px] pl-6 leading-snug break-words max-h-24 overflow-y-auto ${
+                  warnRow ? "text-amber-800/95 dark:text-amber-200/85" : "text-red-500/90"
+                }`}
+              >
+                {r.statusCode != null ? `[${r.statusCode}] ` : ""}
+                {r.error}
+              </p>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1522,14 +1564,18 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders }) {
     setDragIndex(index);
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", index.toString());
-    // Make drag image slightly transparent
-    if (e.target) {
-      setTimeout(() => ((e.currentTarget as HTMLElement).style.opacity = "0.5"), 0);
+    // Make drag image slightly transparent (capture node — currentTarget is null inside async callback)
+    const el = e.currentTarget as HTMLElement | null;
+    if (el) {
+      setTimeout(() => {
+        if (el.isConnected) el.style.opacity = "0.5";
+      }, 0);
     }
   };
 
   const handleDragEnd = (e) => {
-    if (e.target) (e.currentTarget as HTMLElement).style.opacity = "1";
+    const el = e.currentTarget as HTMLElement | null;
+    if (el) el.style.opacity = "1";
     setDragIndex(null);
     setDragOverIndex(null);
   };

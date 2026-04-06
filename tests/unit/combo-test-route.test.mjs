@@ -36,11 +36,13 @@ function makeRequest(comboName = "strict-live-test") {
 }
 
 test.beforeEach(async () => {
+  process.env.OMNIROUTE_COMBO_TEST_USE_FETCH = "1";
   globalThis.fetch = originalFetch;
   await resetStorage();
 });
 
 test.afterEach(() => {
+  delete process.env.OMNIROUTE_COMBO_TEST_USE_FETCH;
   globalThis.fetch = originalFetch;
 });
 
@@ -80,13 +82,13 @@ test("combo test route marks a model healthy only when it returns assistant text
 
   assert.equal(response.status, 200);
   assert.equal(fetchCalls.length, 1);
-  assert.equal(fetchCalls[0].url, "http://localhost/v1/chat/completions");
+  assert.equal(fetchCalls[0].url, "http://localhost/api/v1/chat/completions");
   assert.equal(fetchCalls[0].init.headers["X-Internal-Test"], "combo-health-check");
   assert.equal(fetchCalls[0].init.headers["X-OmniRoute-No-Cache"], "true");
   assert.match(fetchCalls[0].init.headers["X-Request-Id"], /^combo-test-/);
   assert.equal(forwardedBody.model, "openrouter/openai/gpt-5.4");
   assert.equal(forwardedBody.messages[0].content, "Reply with OK only.");
-  assert.equal(forwardedBody.max_tokens, 64);
+  assert.equal(forwardedBody.max_tokens, 256);
   assert.equal(forwardedBody.temperature, 0);
   assert.equal(body.resolvedBy, "openrouter/openai/gpt-5.4");
   assert.equal(body.results[0].status, "ok");
@@ -121,7 +123,7 @@ test("combo test route treats empty successful responses as failures", async () 
   assert.equal(body.resolvedBy, null);
   assert.equal(body.results[0].status, "error");
   assert.equal(body.results[0].statusCode, 200);
-  assert.match(body.results[0].error, /no text content/i);
+  assert.match(body.results[0].error, /no assistant text|empty or unsupported/i);
 });
 
 test("combo test route accepts reasoning-only completions as healthy smoke-test responses", async () => {

@@ -61,6 +61,10 @@ export function sanitizeUpstreamHeadersMap(
             .trim()
             .slice(0, UPSTREAM_HEADER_VALUE_MAX);
     if (v.includes("\r") || v.includes("\n")) continue;
+    // Do not persist empty auth overrides — they would strip executor Authorization at merge time.
+    if (!v.length && /^(authorization|proxy-authorization|authentication)$/i.test(k)) {
+      continue;
+    }
     out[k] = v;
     if (Object.keys(out).length >= UPSTREAM_HEADERS_MAX) break;
   }

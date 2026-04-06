@@ -71,8 +71,8 @@ export const APIKEY_PROVIDERS = {
     icon: "router",
     color: "#F97316",
     textIcon: "OR",
-    passthroughModels: true,
     website: "https://openrouter.ai",
+    // No passthroughModels — ModelSelectModal uses registry (empty list) + aliases + catalog, aligned with 9router.
   },
   glm: {
     id: "glm",

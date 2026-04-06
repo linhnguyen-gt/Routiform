@@ -26,3 +26,13 @@ test("sanitizeUpstreamHeadersMap: caps count at 16", () => {
   const out = sanitizeUpstreamHeadersMap(raw);
   assert.strictEqual(Object.keys(out).length, 16);
 });
+
+test("sanitizeUpstreamHeadersMap: drops empty Authorization values", () => {
+  const out = sanitizeUpstreamHeadersMap({
+    Authorization: "",
+    "Proxy-Authorization": "   ",
+    Authentication: "",
+    "X-Ok": "1",
+  });
+  assert.deepEqual(out, { "X-Ok": "1" });
+});

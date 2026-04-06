@@ -6,6 +6,10 @@
  *
  * If STORAGE_ENCRYPTION_KEY is not set, operates in passthrough mode
  * (stores plaintext for development convenience).
+ *
+ * Decryption tries multiple key candidates when `STORAGE_ENCRYPTION_KEY` fails
+ * (wrong key after rotation / merged DB): set STORAGE_ENCRYPTION_KEY_LEGACY and/or
+ * STORAGE_ENCRYPTION_KEYS (comma-separated) to previous secrets.
  */
 
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
@@ -13,9 +17,14 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypt
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
 const KEY_LENGTH = 32;
-const PREFIX = "enc:v1:";
+const KDF_SALT = "omniroute-field-encryption-v1";
 
-let _derivedKey: Buffer | null = null;
+/** Prefix for AES-GCM field blobs; exported to detect failed decrypt (wrong key / corrupted row). */
+export const FIELD_ENCRYPTED_VALUE_PREFIX = "enc:v1:" as const;
+const PREFIX = FIELD_ENCRYPTED_VALUE_PREFIX;
+
+/** Per-secret derived keys (scrypt is expensive; secrets are few). */
+const derivedKeyCache = new Map<string, Buffer>();
 
 /** Connection object with potentially encrypted credential fields. */
 export interface ConnectionFields {
@@ -26,25 +35,71 @@ export interface ConnectionFields {
   [key: string]: unknown;
 }
 
+function deriveKey(secret: string): Buffer {
+  const hit = derivedKeyCache.get(secret);
+  if (hit) return hit;
+  const k = scryptSync(secret, KDF_SALT, KEY_LENGTH);
+  derivedKeyCache.set(secret, k);
+  return k;
+}
+
 /**
- * Derive a 256-bit key from the env secret using scrypt.
- * Returns null if no encryption key is configured.
+ * Primary encryption key (STORAGE_ENCRYPTION_KEY). Used for new encrypt() writes.
  */
-function getKey(): Buffer | null {
-  if (_derivedKey !== null) return _derivedKey;
-
+function getPrimaryDerivedKey(): Buffer | null {
   const secret = process.env.STORAGE_ENCRYPTION_KEY;
-  if (!secret) return null;
-
-  // Fixed salt derived from app name — deterministic so same key always produces same derived key
-  const salt = "omniroute-field-encryption-v1";
-  _derivedKey = scryptSync(secret, salt, KEY_LENGTH);
-  return _derivedKey;
+  if (!secret || typeof secret !== "string" || !secret.trim()) return null;
+  return deriveKey(secret.trim());
 }
 
 /** Check if encryption is enabled. */
 export function isEncryptionEnabled(): boolean {
-  return !!process.env.STORAGE_ENCRYPTION_KEY;
+  return !!getPrimaryDerivedKey();
+}
+
+/**
+ * Collect unique secret strings to try when decrypting (order matters).
+ */
+function collectDecryptSecretCandidates(): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+
+  const push = (raw: string | undefined) => {
+    if (!raw || typeof raw !== "string") return;
+    const s = raw.trim();
+    if (!s || seen.has(s)) return;
+    seen.add(s);
+    out.push(s);
+  };
+
+  push(process.env.STORAGE_ENCRYPTION_KEY);
+  push(process.env.STORAGE_ENCRYPTION_KEY_LEGACY);
+
+  const multi = process.env.STORAGE_ENCRYPTION_KEYS;
+  if (multi && typeof multi === "string") {
+    for (const part of multi.split(",")) {
+      push(part);
+    }
+  }
+
+  return out;
+}
+
+function decryptEncV1Body(bodyAfterPrefix: string, key: Buffer): string | null {
+  const parts = bodyAfterPrefix.split(":");
+  if (parts.length !== 3) return null;
+  const [ivHex, encryptedHex, authTagHex] = parts;
+  try {
+    const iv = Buffer.from(ivHex, "hex");
+    const authTag = Buffer.from(authTagHex, "hex");
+    const decipher = createDecipheriv(ALGORITHM, key, iv);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(encryptedHex, "hex", "utf8");
+    decrypted += decipher.final("utf8");
+    return decrypted;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -54,7 +109,7 @@ export function isEncryptionEnabled(): boolean {
 export function encrypt(plaintext: string | null | undefined): string | null | undefined {
   if (!plaintext || typeof plaintext !== "string") return plaintext;
 
-  const key = getKey();
+  const key = getPrimaryDerivedKey();
   if (!key) return plaintext; // passthrough mode
 
   // Already encrypted — don't double-encrypt
@@ -72,6 +127,7 @@ export function encrypt(plaintext: string | null | undefined): string | null | u
 
 /**
  * Decrypt a ciphertext string. If not encrypted (no prefix), returns as-is.
+ * Tries STORAGE_ENCRYPTION_KEY, then STORAGE_ENCRYPTION_KEY_LEGACY, then STORAGE_ENCRYPTION_KEYS.
  */
 export function decrypt(ciphertext: string | null | undefined): string | null | undefined {
   if (!ciphertext || typeof ciphertext !== "string") return ciphertext;
@@ -79,37 +135,33 @@ export function decrypt(ciphertext: string | null | undefined): string | null | 
   // Not encrypted — return as-is (legacy plaintext or passthrough mode)
   if (!ciphertext.startsWith(PREFIX)) return ciphertext;
 
-  const key = getKey();
-  if (!key) {
+  const body = ciphertext.slice(PREFIX.length);
+  const secrets = collectDecryptSecretCandidates();
+
+  if (secrets.length === 0) {
     console.warn(
-      "[Encryption] Found encrypted data but STORAGE_ENCRYPTION_KEY is not set. Cannot decrypt."
+      "[Encryption] Found encrypted data but no STORAGE_ENCRYPTION_KEY (or legacy keys) is set. Cannot decrypt."
     );
     return ciphertext;
   }
 
-  const body = ciphertext.slice(PREFIX.length);
-  const parts = body.split(":");
-  if (parts.length !== 3) {
-    console.error("[Encryption] Malformed encrypted value");
-    return ciphertext;
+  for (let i = 0; i < secrets.length; i++) {
+    const key = deriveKey(secrets[i]);
+    const plain = decryptEncV1Body(body, key);
+    if (plain !== null) {
+      if (i > 0) {
+        console.info(
+          `[Encryption] Decrypted using fallback key #${i + 1}/${secrets.length}. Re-save credentials in Dashboard → Providers to re-encrypt with STORAGE_ENCRYPTION_KEY only.`
+        );
+      }
+      return plain;
+    }
   }
 
-  const [ivHex, encryptedHex, authTagHex] = parts;
-
-  try {
-    const iv = Buffer.from(ivHex, "hex");
-    const authTag = Buffer.from(authTagHex, "hex");
-    const decipher = createDecipheriv(ALGORITHM, key, iv);
-    decipher.setAuthTag(authTag);
-
-    let decrypted = decipher.update(encryptedHex, "hex", "utf8");
-    decrypted += decipher.final("utf8");
-    return decrypted;
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[Encryption] Decryption failed:", message);
-    return ciphertext;
-  }
+  console.error(
+    `[Encryption] Decryption failed: no key matched ciphertext (tried ${secrets.length} candidate secret(s)). Set STORAGE_ENCRYPTION_KEY_LEGACY to a previous secret, or re-save API keys in the dashboard.`
+  );
+  return ciphertext;
 }
 
 /**
@@ -128,16 +180,32 @@ export function encryptConnectionFields<T extends ConnectionFields | null | unde
 
 /**
  * Decrypt sensitive fields in a connection row (returns new object).
+ * Always runs decrypt() so rows written under encryption still decode if STORAGE_ENCRYPTION_KEY
+ * was later cleared. If decryption fails, the field is still `enc:v1:…` — we set null so we
+ * never send ciphertext to providers (OpenRouter 401 "Missing Authentication header").
  */
 export function decryptConnectionFields<T extends ConnectionFields | null | undefined>(row: T): T {
   if (!row) return row;
-  if (!isEncryptionEnabled()) return row;
+
+  const unwrap = (value: string | null | undefined): string | null | undefined => {
+    const v = decrypt(value);
+    if (v == null || typeof v !== "string") return v;
+    if (v.startsWith(FIELD_ENCRYPTED_VALUE_PREFIX)) {
+      console.error(
+        "[Encryption] Credential field failed to decrypt after trying all configured keys. " +
+          "If you moved only storage.sqlite, copy the whole DATA_DIR (at least server.env next to the DB). " +
+          "Or set STORAGE_ENCRYPTION_KEY from the old machine's server.env. See docs/BACKUP_AND_RESTORE.md"
+      );
+      return null;
+    }
+    return v;
+  };
 
   return {
     ...row,
-    apiKey: decrypt(row.apiKey),
-    accessToken: decrypt(row.accessToken),
-    refreshToken: decrypt(row.refreshToken),
-    idToken: decrypt(row.idToken),
+    apiKey: unwrap(row.apiKey),
+    accessToken: unwrap(row.accessToken),
+    refreshToken: unwrap(row.refreshToken),
+    idToken: unwrap(row.idToken),
   };
 }

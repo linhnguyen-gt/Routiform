@@ -24,11 +24,15 @@ const PASSTHROUGH_PROVIDERS = new Set(
     .map(([key]) => key)
 );
 
+// Gateways with empty static catalogs but any model id is valid (registry models: [] — UI uses catalog + aliases).
+const WILDCARD_MODEL_PROVIDERS = new Set(["openrouter"]);
+
 // Wrap isValidModel with passthrough providers
 export function isValidModel(aliasOrId, modelId) {
   if (isOpenAICompatibleProvider(aliasOrId)) return true;
   if (isAnthropicCompatibleProvider(aliasOrId)) return true;
   if (PASSTHROUGH_PROVIDERS.has(aliasOrId)) return true;
+  if (WILDCARD_MODEL_PROVIDERS.has(aliasOrId)) return true;
   const models = MODELS[aliasOrId];
   if (!models) return false;
   return models.some((m) => m.id === modelId);

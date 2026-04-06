@@ -62,7 +62,7 @@ export type ExecuteInput = {
   upstreamExtraHeaders?: Record<string, string> | null;
 };
 
-/** Apply model-level extra upstream headers (e.g. Authentication, X-Custom-Auth). */
+/** Apply model-level extra upstream headers (e.g. X-Custom-Auth). Never wipe executor auth. */
 export function mergeUpstreamExtraHeaders(
   headers: Record<string, string>,
   extra?: Record<string, string> | null
@@ -72,6 +72,17 @@ export function mergeUpstreamExtraHeaders(
     if (typeof k === "string" && k.length > 0 && typeof v === "string") {
       if (k.toLowerCase() === "user-agent") {
         setUserAgentHeader(headers, v);
+        continue;
+      }
+      const lower = k.toLowerCase();
+      // Per-model upstreamHeaders must not replace Bearer auth with "" (OpenRouter returns 401
+      // "Missing Authentication header"; merge order runs after executor buildHeaders).
+      if (
+        (lower === "authorization" ||
+          lower === "proxy-authorization" ||
+          lower === "authentication") &&
+        !v.trim()
+      ) {
         continue;
       }
       headers[k] = v;

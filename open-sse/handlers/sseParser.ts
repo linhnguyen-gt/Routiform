@@ -54,6 +54,33 @@ function readSSEEvents(rawSSE) {
   return events;
 }
 
+/**
+ * Collect OpenAI-style stream JSON objects. Prefer RFC SSE parsing (handles multi-line `data:` payloads);
+ * fall back to one `data:` line = one JSON object (common OpenAI/Cline stream).
+ */
+function collectOpenAIChatCompletionChunks(rawSSE) {
+  const events = readSSEEvents(rawSSE);
+  const fromEvents = events
+    .map((e) => e.data)
+    .filter((d) => d != null && typeof d === "object" && !Array.isArray(d));
+  if (fromEvents.length > 0) return fromEvents;
+
+  const lines = String(rawSSE || "").split("\n");
+  const chunks = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) continue;
+    const payload = trimmed.slice(5).trim();
+    if (!payload || payload === "[DONE]") continue;
+    try {
+      chunks.push(JSON.parse(payload));
+    } catch {
+      // Ignore malformed SSE lines and continue best-effort parsing.
+    }
+  }
+  return chunks;
+}
+
 function toRecord(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -71,21 +98,54 @@ function toNumber(value, fallback = 0) {
   return fallback;
 }
 
-export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
-  const lines = String(rawSSE || "").split("\n");
-  const chunks = [];
+/**
+ * Accumulate OpenAI `delta.content` when it is a string, array of parts (Gemini/Cline), or a single object.
+ * @see https://docs.cline.bot/api/chat-completions — reasoning may appear in `delta.reasoning` or structured content.
+ */
+function appendFromOpenAIDeltaContent(delta, contentParts, reasoningParts) {
+  const d = toRecord(delta);
+  const c = d.content;
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith("data:")) continue;
-    const payload = trimmed.slice(5).trim();
-    if (!payload || payload === "[DONE]") continue;
-    try {
-      chunks.push(JSON.parse(payload));
-    } catch {
-      // Ignore malformed SSE lines and continue best-effort parsing.
-    }
+  if (typeof c === "string" && c.length > 0) {
+    contentParts.push(c);
+    return;
   }
+
+  if (Array.isArray(c)) {
+    for (const part of c) {
+      if (typeof part === "string" && part.length > 0) {
+        contentParts.push(part);
+        continue;
+      }
+      const block = toRecord(part);
+      const bt = typeof block.type === "string" ? block.type.toLowerCase() : "";
+      const chunk =
+        (typeof block.text === "string" ? block.text : "") ||
+        (typeof block.content === "string" ? block.content : "");
+      if (!chunk) continue;
+      if (!bt || bt === "text" || bt === "output_text" || bt === "text_delta") {
+        contentParts.push(chunk);
+      } else if (
+        bt.includes("reason") ||
+        bt.includes("think") ||
+        bt === "model_thought" ||
+        bt === "thought"
+      ) {
+        reasoningParts.push(chunk);
+      }
+    }
+    return;
+  }
+
+  if (c && typeof c === "object" && !Array.isArray(c)) {
+    const o = toRecord(c);
+    if (typeof o.text === "string" && o.text.length > 0) contentParts.push(o.text);
+    else if (typeof o.content === "string" && o.content.length > 0) contentParts.push(o.content);
+  }
+}
+
+export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
+  const chunks = collectOpenAIChatCompletionChunks(rawSSE);
 
   if (chunks.length === 0) return null;
 
@@ -115,9 +175,20 @@ export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
     const choice = chunk?.choices?.[0];
     const delta = choice?.delta || {};
 
-    if (typeof delta.content === "string" && delta.content.length > 0) {
-      contentParts.push(delta.content);
+    // Some gateways send a final chunk with `message` instead of/in addition to `delta`.
+    const fullMessage = choice?.message;
+    if (fullMessage && typeof fullMessage === "object") {
+      const fm = toRecord(fullMessage);
+      if (typeof fm.content === "string" && fm.content.length > 0) {
+        contentParts.push(fm.content);
+      }
+      if (typeof fm.refusal === "string" && fm.refusal.length > 0) {
+        contentParts.push(fm.refusal);
+      }
     }
+
+    appendFromOpenAIDeltaContent(delta, contentParts, reasoningParts);
+
     if (typeof delta.reasoning_content === "string" && delta.reasoning_content.length > 0) {
       reasoningParts.push(delta.reasoning_content);
     }
@@ -128,6 +199,9 @@ export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
       !delta.reasoning_content
     ) {
       reasoningParts.push(delta.reasoning);
+    }
+    if (typeof delta.thinking === "string" && delta.thinking.length > 0) {
+      reasoningParts.push(delta.thinking);
     }
 
     // T18: Accumulate tool calls correctly across streamed chunks

@@ -21,7 +21,8 @@ export class GithubExecutor extends BaseExecutor {
 
   buildUrl(model, stream, urlIndex = 0) {
     const targetFormat = getModelTargetFormat("gh", model);
-    if (targetFormat === "openai-responses") {
+    const isCodexFamily = typeof model === "string" && /(^|-)codex($|-)/i.test(model);
+    if (targetFormat === "openai-responses" || isCodexFamily) {
       return (
         this.config.responsesBaseUrl ||
         this.config.baseUrl?.replace(/\/chat\/completions\/?$/, "/responses") ||

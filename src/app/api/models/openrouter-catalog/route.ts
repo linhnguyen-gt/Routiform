@@ -11,15 +11,15 @@ import { isAuthenticated } from "@/shared/utils/apiAuth";
 import { getOpenRouterCatalog, refreshOpenRouterCatalog } from "@/lib/catalog/openrouterCatalog";
 
 export async function GET(req: NextRequest) {
-  // Require authentication (dashboard/API key)
-  if (!(await isAuthenticated(req))) {
+  const forceRefresh = req.nextUrl.searchParams.get("refresh") === "true";
+
+  // Public model list (same as OpenRouter's own /api/v1/models). Only force-refresh is gated.
+  if (forceRefresh && !(await isAuthenticated(req))) {
     return NextResponse.json(
       { error: { message: "Authentication required", type: "invalid_request_error" } },
       { status: 401 }
     );
   }
-
-  const forceRefresh = req.nextUrl.searchParams.get("refresh") === "true";
 
   if (forceRefresh) {
     const result = await refreshOpenRouterCatalog();

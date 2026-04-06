@@ -1,3 +1,5 @@
+import { unwrapOpenAIChatCompletionRoot } from "../utils/chatCompletionEnvelope.ts";
+
 /**
  * Response Sanitizer — Normalizes LLM responses to strict OpenAI SDK format.
  *
@@ -84,30 +86,32 @@ export function sanitizeOpenAIResponse(body: unknown): unknown {
   const bodyRecord = toRecord(body);
   if (!bodyRecord) return body;
 
+  const root = unwrapOpenAIChatCompletionRoot(bodyRecord);
+
   // Build sanitized response with only allowed top-level fields
   const sanitized: JsonRecord = {};
 
   // Ensure required fields exist
-  sanitized.id = normalizeResponseId(bodyRecord.id);
-  sanitized.object = toString(bodyRecord.object) || "chat.completion";
-  sanitized.created = toNumber(bodyRecord.created) ?? Math.floor(Date.now() / 1000);
-  sanitized.model = toString(bodyRecord.model) || "unknown";
+  sanitized.id = normalizeResponseId(root.id);
+  sanitized.object = toString(root.object) || "chat.completion";
+  sanitized.created = toNumber(root.created) ?? Math.floor(Date.now() / 1000);
+  sanitized.model = toString(root.model) || "unknown";
 
   // Sanitize choices
-  if (Array.isArray(bodyRecord.choices)) {
-    sanitized.choices = bodyRecord.choices.map((choice, idx) => sanitizeChoice(choice, idx));
+  if (Array.isArray(root.choices)) {
+    sanitized.choices = root.choices.map((choice, idx) => sanitizeChoice(choice, idx));
   } else {
     sanitized.choices = [];
   }
 
   // Sanitize usage
-  if (bodyRecord.usage !== undefined) {
-    sanitized.usage = sanitizeUsage(bodyRecord.usage);
+  if (root.usage !== undefined) {
+    sanitized.usage = sanitizeUsage(root.usage);
   }
 
   // Keep system_fingerprint if present (it's a valid OpenAI field)
-  if (bodyRecord.system_fingerprint) {
-    sanitized.system_fingerprint = bodyRecord.system_fingerprint;
+  if (root.system_fingerprint) {
+    sanitized.system_fingerprint = root.system_fingerprint;
   }
 
   return sanitized;

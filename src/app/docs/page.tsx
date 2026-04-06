@@ -261,7 +261,7 @@ export default function DocsPage() {
                 {t("quickStartStep4Prefix")}{" "}
                 <code className="px-1 rounded bg-bg-subtle">https://&lt;host&gt;/v1</code>.{" "}
                 {t("quickStartStep4Suffix")}{" "}
-                <code className="px-1 rounded bg-bg-subtle">gh/gpt-5.1-codex</code>.
+                <code className="px-1 rounded bg-bg-subtle">gh/gpt-5.3-codex</code>.
               </p>
             </li>
           </ol>
@@ -479,7 +479,7 @@ POST /a2a  (JSON-RPC: message/send | message/stream)`}</code>
           <h2 className="text-xl font-semibold">{t("modelPrefixes")}</h2>
           <p className="text-sm text-text-muted mt-2 mb-4">
             {t("modelPrefixesDescriptionStart")}{" "}
-            <code className="px-1 rounded bg-bg">gh/gpt-5.1-codex</code>{" "}
+            <code className="px-1 rounded bg-bg">gh/gpt-5.3-codex</code>{" "}
             {t("modelPrefixesDescriptionEnd")}
           </p>
           <div className="overflow-x-auto">

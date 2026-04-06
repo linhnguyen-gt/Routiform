@@ -1355,17 +1355,22 @@ export async function handleChatCore({
 
   const streamOptionsOnlyFailed = false; // TODO: properly track stream options failure? (placeholder from existing logic)
 
-  // Handle 401/403 (and Qwen explicit expiration) - try token refresh using executor
+  // Handle 401/403 (and Qwen explicit expiration) — OAuth refresh only when a refresh token exists.
+  // API-key-only providers (e.g. openrouter) never refresh here; avoids 3× useless retries + misleading logs.
+  const canOAuthRefresh = credentials?.refreshToken && typeof credentials.refreshToken === "string";
+
   if (
     (providerResponse.status === HTTP_STATUS.UNAUTHORIZED ||
       providerResponse.status === HTTP_STATUS.FORBIDDEN ||
       isQwenExpiredError) &&
-    !streamOptionsOnlyFailed // Keep constraint if stream options failed originally
+    !streamOptionsOnlyFailed && // Keep constraint if stream options failed originally
+    canOAuthRefresh
   ) {
     const newCredentials = (await refreshWithRetry(
       () => executor.refreshCredentials(credentials, log),
       3,
-      log
+      log,
+      provider
     )) as null | {
       accessToken?: string;
       copilotToken?: string;

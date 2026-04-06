@@ -1,14 +1,45 @@
 import { NextResponse } from "next/server";
-import { getDbInstance, SQLITE_FILE } from "@/lib/db/core";
+import { execSync } from "node:child_process";
+import { getDbInstance, SQLITE_FILE, DATA_DIR } from "@/lib/db/core";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { isAuthRequired, isAuthenticated } from "@/shared/utils/apiAuth";
+
+const RESTORE_README = `OmniRoute portable backup
+========================
+
+Files in this archive:
+- storage.sqlite   Full SQLite database (provider keys may be encrypted at rest)
+- server.env       Included when present on the source machine: STORAGE_ENCRYPTION_KEY, JWT_SECRET, API_KEY_SECRET, etc.
+- RESTORE_README.txt This file
+- *.json           Redundant summaries (settings, combos, providers without secrets) for inspection
+
+Moving to another computer (recommended):
+1) Install OmniRoute and note DATA_DIR (Settings shows the database path).
+2) Stop the app.
+3) Extract storage.sqlite and server.env (if included) into DATA_DIR.
+4) Start the app.
+
+Import via Settings (database file only):
+- Place server.env in DATA_DIR first (same encryption key as the source), then use Import Database with storage.sqlite from this archive.
+- If server.env is missing or the key differs, encrypted credentials in the DB cannot be decrypted; re-enter API keys under Providers.
+
+Treat this archive like secrets: store it securely and do not share publicly.
+`;
 
 /**
  * GET /api/db-backups/exportAll
- * Exports the entire database + settings as a ZIP archive
+ * Exports database + JSON summaries + server.env (when present) as tar.gz.
+ *
+ * 🔒 Auth-guarded: requires JWT cookie or Bearer API key (same as /export).
  */
-export async function GET() {
+export async function GET(request: Request) {
+  if (await isAuthRequired()) {
+    if (!(await isAuthenticated(request))) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
   try {
     if (!SQLITE_FILE) {
       return NextResponse.json(
@@ -20,7 +51,8 @@ export async function GET() {
     const db = getDbInstance();
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const tempDir = path.join(os.tmpdir(), `omniroute-export-${timestamp}`);
-    const zipPath = path.join(os.tmpdir(), `omniroute-full-backup-${timestamp}.zip`);
+    const tarBasename = `omniroute-full-backup-${timestamp}.tar.gz`;
+    const tarPath = path.join(os.tmpdir(), tarBasename);
 
     try {
       // Create temp directory
@@ -28,7 +60,7 @@ export async function GET() {
 
       // 1. Export database using native backup API
       const dbBackupPath = path.join(tempDir, "storage.sqlite");
-      db.backup(dbBackupPath);
+      await db.backup(dbBackupPath);
 
       // 2. Export settings as JSON
       const settings: Record<string, string> = {};
@@ -83,25 +115,34 @@ export async function GET() {
       }
       fs.writeFileSync(path.join(tempDir, "api-keys.json"), JSON.stringify(apiKeys, null, 2));
 
-      // 6. Export metadata
+      // 6. Persisted secrets beside the DB (required to decrypt enc:v1: fields on another machine)
+      const serverEnvSrc = path.join(DATA_DIR, "server.env");
+      let includedServerEnv = false;
+      if (fs.existsSync(serverEnvSrc)) {
+        fs.copyFileSync(serverEnvSrc, path.join(tempDir, "server.env"));
+        includedServerEnv = true;
+      }
+
+      fs.writeFileSync(path.join(tempDir, "RESTORE_README.txt"), RESTORE_README, "utf8");
+
+      // 7. Export metadata
       const metadata = {
         exportedAt: new Date().toISOString(),
         version: process.env.npm_package_version || "unknown",
-        format: "omniroute-full-backup-v1",
+        format: "omniroute-full-backup-v2",
+        includedServerEnv,
         contents: [
           "storage.sqlite - Full database",
+          includedServerEnv ? "server.env - Persisted secrets (STORAGE_ENCRYPTION_KEY, etc.)" : null,
+          "RESTORE_README.txt - How to restore on another machine",
           "settings.json - Key-value settings",
           "combos.json - Combo configurations",
           "providers.json - Provider connections (no credentials)",
           "api-keys.json - API key metadata (masked)",
-        ],
+        ].filter(Boolean) as string[],
       };
       fs.writeFileSync(path.join(tempDir, "metadata.json"), JSON.stringify(metadata, null, 2));
 
-      // Create ZIP using tar (available on all Linux/macOS, and the archiver npm package is not installed)
-      // We'll use Node.js built-in zlib to create a simple tar.gz instead
-      const { execSync } = require("node:child_process");
-      const tarPath = zipPath.replace(".zip", ".tar.gz");
       execSync(`tar -czf "${tarPath}" -C "${path.dirname(tempDir)}" "${path.basename(tempDir)}"`, {
         timeout: 30000,
       });
@@ -125,7 +166,7 @@ export async function GET() {
       // Cleanup on error
       try {
         if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
-        if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+        if (fs.existsSync(tarPath)) fs.unlinkSync(tarPath);
       } catch {
         /* ignore cleanup errors */
       }

@@ -23,7 +23,7 @@ test("getTokenLimit: detects claude", () => {
 });
 
 test("getTokenLimit: detects gemini", () => {
-  assert.equal(getTokenLimit("gemini", "gemini-2.5-pro"), 1048576);
+  assert.equal(getTokenLimit("gemini", "gemini-2.5-pro"), 1000000);
 });
 
 test("getTokenLimit: default fallback", () => {

@@ -3935,7 +3935,7 @@ CooldownTimer.propTypes = {
 const ERROR_TYPE_LABELS = {
   runtime_error: { labelKey: "errorTypeRuntime", variant: "warning" },
   upstream_auth_error: { labelKey: "errorTypeUpstreamAuth", variant: "error" },
-  account_deactivated: { labelKey: "Account Deactivated", variant: "error" },
+  account_deactivated: { labelKey: "errorTypeAccountDeactivated", variant: "error" },
   auth_missing: { labelKey: "errorTypeMissingCredential", variant: "warning" },
   token_refresh_failed: { labelKey: "errorTypeRefreshFailed", variant: "warning" },
   token_expired: { labelKey: "errorTypeTokenExpired", variant: "warning" },
@@ -3944,8 +3944,8 @@ const ERROR_TYPE_LABELS = {
   network_error: { labelKey: "errorTypeNetworkError", variant: "warning" },
   unsupported: { labelKey: "errorTypeTestUnsupported", variant: "default" },
   upstream_error: { labelKey: "errorTypeUpstreamError", variant: "error" },
-  banned: { labelKey: "403 Banned", variant: "error" },
-  credits_exhausted: { labelKey: "No Credits", variant: "warning" },
+  banned: { labelKey: "errorTypeBanned", variant: "error" },
+  credits_exhausted: { labelKey: "errorTypeCreditsExhausted", variant: "warning" },
 };
 
 function inferErrorType(connection, isCooldown) {

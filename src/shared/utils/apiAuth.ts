@@ -32,6 +32,9 @@ const PUBLIC_API_ROUTES = [
   // Health monitoring — probes must work without auth
   "/api/monitoring/health",
 
+  // Public model catalog (mirrors OpenRouter GET /api/v1/models — no secrets)
+  "/api/models/openrouter-catalog",
+
   // LLM proxy routes — use their own API key auth in the SSE layer
   "/api/v1/",
 

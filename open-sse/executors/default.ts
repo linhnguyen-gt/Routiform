@@ -8,6 +8,7 @@ import {
   joinClaudeCodeCompatibleUrl,
 } from "../services/claudeCodeCompatible.ts";
 import { isClaudeCodeCompatible } from "../services/provider.ts";
+import { buildClineHeaders } from "../services/clineAuth.ts";
 
 export class DefaultExecutor extends BaseExecutor {
   constructor(provider) {
@@ -49,10 +50,6 @@ export class DefaultExecutor extends BaseExecutor {
         return `${this.config.baseUrl}?beta=true`;
       case "gemini":
         return `${this.config.baseUrl}/${model}:${stream ? "streamGenerateContent?alt=sse" : "generateContent"}`;
-      case "qwen": {
-        const resourceUrl = credentials?.providerSpecificData?.resourceUrl;
-        return `https://${resourceUrl || "portal.qwen.ai"}/v1/chat/completions`;
-      }
       default:
         return this.config.baseUrl;
     }
@@ -88,6 +85,10 @@ export class DefaultExecutor extends BaseExecutor {
       case "minimax-cn":
         headers["x-api-key"] = effectiveKey || credentials.accessToken;
         break;
+      case "cline": {
+        const token = effectiveKey || credentials.accessToken || "";
+        return buildClineHeaders(token, stream);
+      }
       default:
         if (isClaudeCodeCompatible(this.provider)) {
           return buildClaudeCodeCompatibleHeaders(
@@ -111,16 +112,6 @@ export class DefaultExecutor extends BaseExecutor {
     }
 
     if (stream) headers["Accept"] = "text/event-stream";
-
-    // Qwen header cleanup: Remove X-Dashscope-* headers since Qwen uses an OpenAI-compatible endpoint
-    // (e.g. portal.qwen.ai) via its DefaultExecutor buildUrl override, which rejects native DashScope headers.
-    if (this.provider === "qwen") {
-      for (const key of Object.keys(headers)) {
-        if (key.toLowerCase().startsWith("x-dashscope-")) {
-          delete headers[key];
-        }
-      }
-    }
 
     return headers;
   }

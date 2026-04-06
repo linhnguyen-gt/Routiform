@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Card, Button, ModelSelectModal } from "@/shared/components";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
@@ -19,15 +19,16 @@ export default function DefaultToolCard({
 }) {
   const t = useTranslations("cliTools");
   const translateOrFallback = useCallback(
-    (key, fallback, values = undefined) => {
+    (key, fallback, values?: Record<string, string>) => {
       try {
-        return t(key, values);
+        return values !== undefined ? t(key, values) : t(key);
       } catch {
         return fallback;
       }
     },
     [t]
   );
+
   const [copiedField, setCopiedField] = useState(null);
   const [showModelModal, setShowModelModal] = useState(false);
   const [modelValue, setModelValue] = useState("");
@@ -41,6 +42,25 @@ export default function DefaultToolCard({
   const [selectedApiKey, setSelectedApiKey] = useState(() =>
     apiKeys?.length > 0 ? apiKeys[0].key : ""
   );
+
+  /** Values for ICU placeholders ({baseUrl}, etc.) and legacy {{baseUrl}} replaceVars */
+  const substitutionVars = useMemo(() => {
+    const keyToUse =
+      selectedApiKey && selectedApiKey.trim()
+        ? selectedApiKey
+        : !cloudEnabled
+          ? "sk_omniroute"
+          : t("yourApiKeyPlaceholder");
+    const normalizedBaseUrl = baseUrl || "http://localhost:20128";
+    const baseUrlWithV1 = normalizedBaseUrl.endsWith("/v1")
+      ? normalizedBaseUrl
+      : `${normalizedBaseUrl}/v1`;
+    return {
+      baseUrl: baseUrlWithV1,
+      apiKey: keyToUse,
+      model: modelValue || t("modelPlaceholder"),
+    };
+  }, [selectedApiKey, cloudEnabled, baseUrl, modelValue, t]);
 
   // Persist and restore model selection per tool via localStorage
   useEffect(() => {
@@ -98,24 +118,17 @@ export default function DefaultToolCard({
     };
   }, [isExpanded]);
 
-  const replaceVars = (text) => {
-    const keyToUse =
-      selectedApiKey && selectedApiKey.trim()
-        ? selectedApiKey
-        : !cloudEnabled
-          ? "sk_omniroute"
-          : t("yourApiKeyPlaceholder");
-
-    const normalizedBaseUrl = baseUrl || "http://localhost:20128";
-    const baseUrlWithV1 = normalizedBaseUrl.endsWith("/v1")
-      ? normalizedBaseUrl
-      : `${normalizedBaseUrl}/v1`;
-
-    return text
-      .replace(/\{\{baseUrl\}\}/g, baseUrlWithV1)
-      .replace(/\{\{apiKey\}\}/g, keyToUse)
-      .replace(/\{\{model\}\}/g, modelValue || t("modelPlaceholder"));
-  };
+  const replaceVars = useCallback(
+    (text) => {
+      if (text == null || text === "") return text;
+      const { baseUrl, apiKey, model } = substitutionVars;
+      return String(text)
+        .replace(/\{\{baseUrl\}\}/g, baseUrl)
+        .replace(/\{\{apiKey\}\}/g, apiKey)
+        .replace(/\{\{model\}\}/g, model);
+    },
+    [substitutionVars]
+  );
 
   const handleCopy = async (text, field) => {
     await copyToClipboard(replaceVars(text));
@@ -373,7 +386,13 @@ export default function DefaultToolCard({
                 </p>
                 {item.desc && (
                   <p className="text-sm text-text-muted mt-0.5">
-                    {translateOrFallback(`guides.${toolId}.steps.${item.step}.desc`, item.desc)}
+                    {replaceVars(
+                      translateOrFallback(
+                        `guides.${toolId}.steps.${item.step}.desc`,
+                        item.desc,
+                        substitutionVars
+                      )
+                    )}
                   </p>
                 )}
                 {item.type === "apiKeySelector" && renderApiKeySelector()}

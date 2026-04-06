@@ -12,6 +12,7 @@ import { OpencodeExecutor } from "./opencode.ts";
 import { PuterExecutor } from "./puter.ts";
 import { VertexExecutor } from "./vertex.ts";
 import { CliproxyapiExecutor } from "./cliproxyapi.ts";
+import { QwenExecutor } from "./qwen.ts";
 
 const executors = {
   antigravity: new AntigravityExecutor(),
@@ -33,6 +34,7 @@ const executors = {
   vertex: new VertexExecutor(),
   cliproxyapi: new CliproxyapiExecutor(),
   cpa: new CliproxyapiExecutor(), // Alias
+  qwen: new QwenExecutor(),
 };
 
 const defaultCache = new Map();
@@ -62,3 +64,4 @@ export { OpencodeExecutor } from "./opencode.ts";
 export { PuterExecutor } from "./puter.ts";
 export { CliproxyapiExecutor } from "./cliproxyapi.ts";
 export { VertexExecutor } from "./vertex.ts";
+export { QwenExecutor } from "./qwen.ts";
