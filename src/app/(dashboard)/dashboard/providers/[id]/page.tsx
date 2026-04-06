@@ -22,6 +22,7 @@ import {
   Select,
   ProxyConfigModal,
 } from "@/shared/components";
+import ProviderIcon from "@/shared/components/ProviderIcon";
 import {
   FREE_PROVIDERS,
   OAUTH_PROVIDERS,
@@ -841,6 +842,10 @@ export default function ProviderDetailPage() {
   const [batchTestResults, setBatchTestResults] = useState<any>(null);
   const [modelAliases, setModelAliases] = useState({});
   const [headerImgError, setHeaderImgError] = useState(false);
+
+  useEffect(() => {
+    setHeaderImgError(false);
+  }, [providerId]);
   const { copied, copy } = useCopyToClipboard();
   const t = useTranslations("providers");
   const notify = useNotificationStore();
@@ -2350,18 +2355,11 @@ export default function ProviderDetailPage() {
     );
   }
 
-  // Determine icon path: OpenAI Compatible providers use specialized icons
-  const getHeaderIconPath = () => {
-    if (isOpenAICompatible && providerInfo.apiType) {
-      return providerInfo.apiType === "responses"
-        ? "/providers/oai-r.png"
-        : "/providers/oai-cc.png";
-    }
-    if (isAnthropicProtocolCompatible) {
-      return "/providers/anthropic-m.png";
-    }
-    return `/providers/${providerInfo.id}.png`;
-  };
+  const headerIconTextFallback = (
+    <span className="text-lg font-bold dark:!text-foreground" style={{ color: providerInfo.color }}>
+      {providerInfo.textIcon || providerInfo.id.slice(0, 2).toUpperCase()}
+    </span>
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 pb-8">
@@ -2389,19 +2387,44 @@ export default function ProviderDetailPage() {
                   className="flex h-[72px] w-[72px] items-center justify-center rounded-2xl ring-2 ring-black/[0.04] dark:ring-white/[0.08]"
                   style={{ backgroundColor: `${providerInfo.color}18` }}
                 >
-                  {headerImgError ? (
-                    <span className="text-lg font-bold" style={{ color: providerInfo.color }}>
-                      {providerInfo.textIcon || providerInfo.id.slice(0, 2).toUpperCase()}
-                    </span>
+                  {isOpenAICompatible && providerInfo.apiType ? (
+                    headerImgError ? (
+                      headerIconTextFallback
+                    ) : (
+                      <Image
+                        src={
+                          providerInfo.apiType === "responses"
+                            ? "/providers/oai-r.png"
+                            : "/providers/oai-cc.png"
+                        }
+                        alt={providerInfo.name}
+                        width={48}
+                        height={48}
+                        className="max-h-[48px] max-w-[48px] rounded-lg object-contain"
+                        sizes="48px"
+                        onError={() => setHeaderImgError(true)}
+                      />
+                    )
+                  ) : isAnthropicProtocolCompatible ? (
+                    headerImgError ? (
+                      headerIconTextFallback
+                    ) : (
+                      <Image
+                        src="/providers/anthropic-m.png"
+                        alt={providerInfo.name}
+                        width={48}
+                        height={48}
+                        className="max-h-[48px] max-w-[48px] rounded-lg object-contain"
+                        sizes="48px"
+                        onError={() => setHeaderImgError(true)}
+                      />
+                    )
                   ) : (
-                    <Image
-                      src={getHeaderIconPath()}
-                      alt={providerInfo.name}
-                      width={48}
-                      height={48}
-                      className="max-h-[48px] max-w-[48px] rounded-lg object-contain"
-                      sizes="48px"
-                      onError={() => setHeaderImgError(true)}
+                    <ProviderIcon
+                      providerId={providerInfo.id}
+                      size={48}
+                      type="color"
+                      className="text-foreground"
                     />
                   )}
                 </div>
@@ -2413,11 +2436,13 @@ export default function ProviderDetailPage() {
                   href={providerInfo.website}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 text-2xl font-semibold tracking-tight hover:underline sm:justify-start sm:text-3xl"
+                  className="inline-flex items-center justify-center gap-2 text-2xl font-semibold tracking-tight hover:underline sm:justify-start sm:text-3xl dark:!text-foreground"
                   style={{ color: providerInfo.color }}
                 >
                   {providerInfo.name}
-                  <span className="material-symbols-outlined text-xl opacity-60">open_in_new</span>
+                  <span className="material-symbols-outlined text-xl opacity-60 dark:opacity-70">
+                    open_in_new
+                  </span>
                 </a>
               ) : (
                 <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">

@@ -201,7 +201,8 @@ export const APIKEY_PROVIDERS = {
     alias: "bb",
     name: "Blackbox AI",
     icon: "view_in_ar",
-    color: "#1A1A2E",
+    /** Violet accent — #1A1A2E was illegible on dark dashboard surfaces */
+    color: "#9333EA",
     textIcon: "BB",
     website: "https://blackbox.ai",
   },

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import Card from "./Card";
 import { CardSkeleton } from "./Loading";
+import { cn } from "@/shared/utils/cn";
 import { fmtCompact as fmt, fmtFull, fmtCost } from "@/shared/utils/formatting";
 import {
   StatCard,
@@ -18,13 +19,54 @@ import {
   ModelOverTimeChart,
   ProviderTable,
 } from "./analytics";
+import { computeNormalizedEntropyFromByProvider } from "@/shared/utils/providerDiversityFromUsage";
 
-// ============================================================================
-// Main Component
-// ============================================================================
+function DetailMetric({
+  label,
+  value,
+  warning,
+}: {
+  label: string;
+  value: ReactNode;
+  warning?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border px-3 py-2.5",
+        warning ? "border-amber-500/20 bg-amber-500/6" : "border-border/50 bg-surface/35"
+      )}
+    >
+      <div className="text-[11px] font-medium uppercase tracking-wide text-text-muted">{label}</div>
+      <div
+        className={cn(
+          "mt-1 truncate text-sm font-semibold tabular-nums",
+          warning ? "text-amber-600 dark:text-amber-400" : "text-text-main"
+        )}
+        title={typeof value === "string" ? value : undefined}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
 
-export default function UsageAnalytics() {
-  const [range, setRange] = useState("30d");
+export type UsageAnalyticsProps = {
+  /** Controlled range (e.g. shared with Provider Diversity card). If omitted, internal state is used. */
+  range?: string;
+  onRangeChange?: (range: string) => void;
+};
+
+export default function UsageAnalytics({
+  range: rangeProp,
+  onRangeChange,
+}: UsageAnalyticsProps = {}) {
+  const [internalRange, setInternalRange] = useState("30d");
+  const range = rangeProp ?? internalRange;
+  const setRange = (r: string) => {
+    onRangeChange?.(r);
+    if (rangeProp === undefined) setInternalRange(r);
+  };
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,23 +121,8 @@ export default function UsageAnalytics() {
   }, [analytics]);
 
   const providerDiversity = useMemo(() => {
-    const providers = analytics?.byProvider || [];
-    if (providers.length <= 1) return 0;
-
-    let totalCalls = 0;
-    for (const p of providers) {
-      totalCalls += p.totalRequests || p.apiCalls || 0;
-    }
-    if (totalCalls === 0) return 0;
-
-    let h = 0;
-    for (const p of providers) {
-      const p_i = (p.totalRequests || p.apiCalls || 0) / totalCalls;
-      if (p_i > 0) h -= p_i * Math.log2(p_i);
-    }
-
-    const maxH = Math.log2(providers.length);
-    return maxH > 0 ? (h / maxH) * 100 : 0;
+    const { score01 } = computeNormalizedEntropyFromByProvider(analytics?.byProvider);
+    return score01 * 100;
   }, [analytics]);
 
   if (loading && !analytics) return <CardSkeleton />;
@@ -103,29 +130,38 @@ export default function UsageAnalytics() {
 
   const s = analytics?.summary || {};
 
-  // ── Derived insight values ──
   const avgTokensPerReq = s.totalRequests > 0 ? Math.round(s.totalTokens / s.totalRequests) : 0;
   const costPerReq = s.totalRequests > 0 ? s.totalCost / s.totalRequests : 0;
   const ioRatio = s.completionTokens > 0 ? (s.promptTokens / s.completionTokens).toFixed(1) : "—";
+  const fallbackPct = Number(s.fallbackRatePct || 0);
+  const fallbackHigh = fallbackPct >= 25;
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* Header + Time Range */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary text-[22px]">analytics</span>
-          Usage Analytics
-        </h2>
-        <div className="flex items-center gap-1 bg-black/[0.03] dark:bg-white/[0.03] rounded-lg p-1 border border-black/5 dark:border-white/5">
+    <div className="flex flex-col gap-8">
+      {/* Toolbar */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight text-text-main">Usage</h2>
+          <p className="mt-0.5 text-sm text-text-muted">
+            Volume, cost, and activity for the selected range. Charts below update together.
+          </p>
+        </div>
+        <div
+          className="inline-flex shrink-0 flex-wrap items-center gap-1 rounded-xl border border-border/60 bg-black/3 p-1 dark:bg-white/3"
+          role="group"
+          aria-label="Time range"
+        >
           {ranges.map((r) => (
             <button
               key={r.value}
+              type="button"
               onClick={() => setRange(r.value)}
-              className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
                 range === r.value
                   ? "bg-primary text-white shadow-sm"
-                  : "text-text-muted hover:text-text-main hover:bg-black/5 dark:hover:bg-white/5"
-              }`}
+                  : "text-text-muted hover:bg-black/5 hover:text-text-main dark:hover:bg-white/5"
+              )}
             >
               {r.label}
             </button>
@@ -133,112 +169,86 @@ export default function UsageAnalytics() {
         </div>
       </div>
 
-      {/* Summary Cards — Row 1: Core metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-8 gap-3">
+      {/* Primary KPIs — single visual system (no rainbow) */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           icon="generating_tokens"
-          label="Total Tokens"
+          label="Total tokens"
           value={fmt(s.totalTokens)}
           subValue={`${fmtFull(s.totalRequests)} requests`}
         />
-        <StatCard
-          icon="input"
-          label="Input Tokens"
-          value={fmt(s.promptTokens)}
-          color="text-primary"
-        />
-        <StatCard
-          icon="output"
-          label="Output Tokens"
-          value={fmt(s.completionTokens)}
-          color="text-emerald-500"
-        />
-        <StatCard
-          icon="payments"
-          label="Est. Cost"
-          value={fmtCost(s.totalCost)}
-          color="text-amber-500"
-        />
-        <StatCard icon="group" label="Accounts" value={s.uniqueAccounts || 0} />
-        <StatCard icon="vpn_key" label="API Keys" value={s.uniqueApiKeys || 0} />
-        <StatCard icon="model_training" label="Models" value={s.uniqueModels || 0} />
+        <StatCard icon="receipt_long" label="Total requests" value={fmtFull(s.totalRequests)} />
+        <StatCard icon="payments" label="Est. cost" value={fmtCost(s.totalCost)} />
         <StatCard
           icon="swap_horiz"
-          label="Fallback Rate"
-          value={`${Number(s.fallbackRatePct || 0).toFixed(1)}%`}
+          label="Fallback rate"
+          value={`${fallbackPct.toFixed(1)}%`}
           subValue={`${fmtFull(s.fallbackCount || 0)} fallbacks`}
-          color="text-amber-500"
+          tone={fallbackHigh ? "warning" : "default"}
+          color={fallbackHigh ? "text-amber-600 dark:text-amber-400" : "text-text-main"}
         />
       </div>
 
-      {/* Summary Cards — Row 2: Derived insights */}
-      <div className="grid grid-cols-2 md:grid-cols-8 gap-3">
-        <StatCard
-          icon="speed"
-          label="Avg Tokens/Req"
-          value={fmt(avgTokensPerReq)}
-          color="text-cyan-500"
-        />
-        <StatCard
-          icon="request_quote"
-          label="Cost/Request"
-          value={fmtCost(costPerReq)}
-          color="text-orange-500"
-        />
-        <StatCard
-          icon="compare_arrows"
-          label="I/O Ratio"
-          value={`${ioRatio}x`}
-          color="text-violet-500"
-        />
-        <StatCard icon="star" label="Top Model" value={topModel} color="text-pink-500" />
-        <StatCard icon="cloud" label="Top Provider" value={topProvider} color="text-teal-500" />
-        <StatCard icon="today" label="Busiest Day" value={busiestDay} color="text-rose-500" />
-        <StatCard icon="dns" label="Providers" value={providerCount} color="text-indigo-500" />
-        <StatCard
-          icon="network_node"
-          label="Diversity Score"
-          value={`${providerDiversity.toFixed(1)}%`}
-          color="text-sky-500"
-        />
-      </div>
+      {/* Secondary metrics — dense but one surface */}
+      <Card className="p-5 sm:p-6">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+          Token mix & signals
+        </h3>
+        <p className="mt-1 text-xs text-text-muted/90">
+          Derived from the same window — use for tuning models and spend.
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+          <DetailMetric label="Input tokens" value={fmt(s.promptTokens)} />
+          <DetailMetric label="Output tokens" value={fmt(s.completionTokens)} />
+          <DetailMetric label="I/O ratio" value={`${ioRatio}x`} />
+          <DetailMetric label="Avg tokens / request" value={fmt(avgTokensPerReq)} />
+          <DetailMetric label="Cost / request" value={fmtCost(costPerReq)} />
+          <DetailMetric label="Accounts" value={s.uniqueAccounts ?? 0} />
+          <DetailMetric label="API keys" value={s.uniqueApiKeys ?? 0} />
+          <DetailMetric label="Models" value={s.uniqueModels ?? 0} />
+          <DetailMetric label="Providers (usage)" value={providerCount} />
+          <DetailMetric label="Top model" value={topModel} />
+          <DetailMetric label="Top provider" value={topProvider} />
+          <DetailMetric label="Busiest weekday" value={busiestDay} />
+          <DetailMetric
+            label="Diversity (usage-based)"
+            value={`${providerDiversity.toFixed(1)}%`}
+          />
+        </div>
+      </Card>
 
-      {/* Activity Heatmap + Weekly Widgets */}
-      <div
-        style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, alignItems: "stretch" }}
-      >
-        <ActivityHeatmap activityMap={analytics?.activityMap} />
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <MostActiveDay7d activityMap={analytics?.activityMap} />
-          <WeeklySquares7d activityMap={analytics?.activityMap} />
+      {/* Activity row: stretch to one height — heatmap matches combined height of the two right cards */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-stretch">
+        <div className="min-h-0 min-w-0 lg:col-span-2">
+          <ActivityHeatmap activityMap={analytics?.activityMap} />
+        </div>
+        <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 lg:col-span-1">
+          <div className="flex min-h-0 flex-1 basis-0 flex-col">
+            <MostActiveDay7d activityMap={analytics?.activityMap} />
+          </div>
+          <div className="flex min-h-0 flex-1 basis-0 flex-col">
+            <WeeklySquares7d activityMap={analytics?.activityMap} />
+          </div>
         </div>
       </div>
 
-      {/* Token & Cost Trend + Provider Cost Donut */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <DailyTrendChart dailyTrend={analytics?.dailyTrend} />
         <ProviderCostDonut byProvider={analytics?.byProvider} />
       </div>
 
-      {/* Model Usage Over Time (stacked area) */}
       <ModelOverTimeChart
         dailyByModel={analytics?.dailyByModel}
         modelNames={analytics?.modelNames}
       />
 
-      {/* Account Donut + API Key Donut */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <AccountDonut byAccount={analytics?.byAccount} />
         <ApiKeyDonut byApiKey={analytics?.byApiKey} />
       </div>
 
-      {/* Provider Breakdown Table */}
       <ProviderTable byProvider={analytics?.byProvider} />
-
-      {/* API Key Table */}
       <ApiKeyTable byApiKey={analytics?.byApiKey} />
-
-      {/* Model Breakdown Table */}
       <ModelTable byModel={analytics?.byModel} summary={s} />
     </div>
   );

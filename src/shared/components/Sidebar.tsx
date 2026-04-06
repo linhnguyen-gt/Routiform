@@ -202,15 +202,10 @@ export default function Sidebar({
         </a>
         <div
           className={cn(
-            "flex items-center gap-2 pt-5 pb-2",
-            collapsed ? "px-3 justify-center" : "px-6"
+            "flex items-center pt-5 pb-2",
+            collapsed ? "px-3 justify-center" : "px-6 justify-end"
           )}
-          aria-hidden="true"
         >
-          <div className="w-3 h-3 rounded-full bg-[#FF5F56]" />
-          <div className="w-3 h-3 rounded-full bg-[#FFBD2E]" />
-          <div className="w-3 h-3 rounded-full bg-[#27C93F]" />
-          {!collapsed && <div className="flex-1" />}
           {onToggleCollapse && (
             <button
               onClick={onToggleCollapse}
@@ -234,7 +229,7 @@ export default function Sidebar({
             href="/dashboard"
             className={cn("flex items-center", collapsed ? "justify-center" : "gap-3")}
           >
-            <div className="flex items-center justify-center size-9 rounded bg-linear-to-br from-[#E54D5E] to-[#C93D4E] shrink-0">
+            <div className="flex items-center justify-center size-9 rounded-lg bg-linear-to-br from-[#A78BFA] to-[#6366F1] shrink-0">
               {customLogo ? (
                 <img
                   src={customLogo}

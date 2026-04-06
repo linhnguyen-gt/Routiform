@@ -28,7 +28,7 @@ export default function GetStarted() {
 
             <div className="flex flex-col gap-6">
               <div className="flex gap-4 min-w-0">
-                <div className="flex-none w-8 h-8 rounded-full bg-[#E54D5E]/20 text-[#E54D5E] flex items-center justify-center font-bold">
+                <div className="flex-none w-8 h-8 rounded-full bg-[#7C3AED]/20 text-[#A78BFA] flex items-center justify-center font-bold">
                   1
                 </div>
                 <div>
@@ -38,7 +38,7 @@ export default function GetStarted() {
               </div>
 
               <div className="flex gap-4 min-w-0">
-                <div className="flex-none w-8 h-8 rounded-full bg-[#E54D5E]/20 text-[#E54D5E] flex items-center justify-center font-bold">
+                <div className="flex-none w-8 h-8 rounded-full bg-[#7C3AED]/20 text-[#A78BFA] flex items-center justify-center font-bold">
                   2
                 </div>
                 <div>
@@ -48,7 +48,7 @@ export default function GetStarted() {
               </div>
 
               <div className="flex gap-4 min-w-0">
-                <div className="flex-none w-8 h-8 rounded-full bg-[#E54D5E]/20 text-[#E54D5E] flex items-center justify-center font-bold">
+                <div className="flex-none w-8 h-8 rounded-full bg-[#7C3AED]/20 text-[#A78BFA] flex items-center justify-center font-bold">
                   3
                 </div>
                 <div>
@@ -65,11 +65,8 @@ export default function GetStarted() {
           <div className="flex-1 w-full">
             <div className="rounded-xl overflow-hidden bg-[#161B22] border border-[#2D333B] shadow-2xl">
               {/* Terminal header */}
-              <div className="flex items-center gap-2 px-4 py-3 bg-[#111520] border-b border-gray-700">
-                <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                <div className="ml-2 text-xs text-gray-500 font-mono">{t("terminal")}</div>
+              <div className="flex items-center px-4 py-3 bg-[#111520] border-b border-gray-700">
+                <span className="text-xs text-gray-500 font-mono">{t("terminal")}</span>
               </div>
 
               {/* Terminal content */}
@@ -86,12 +83,12 @@ export default function GetStarted() {
                 </div>
 
                 <div className="text-gray-400 mb-6">
-                  <span className="text-[#E54D5E]">&gt;</span> {t("startingRoutiform")}
+                  <span className="text-[#A78BFA]">&gt;</span> {t("startingRoutiform")}
                   <br />
-                  <span className="text-[#E54D5E]">&gt;</span> {t("serverRunningOnLabel")}{" "}
+                  <span className="text-[#A78BFA]">&gt;</span> {t("serverRunningOnLabel")}{" "}
                   <span className="text-blue-400 break-all">{endpoint}</span>
                   <br />
-                  <span className="text-[#E54D5E]">&gt;</span> {t("dashboardLabel")}:{" "}
+                  <span className="text-[#A78BFA]">&gt;</span> {t("dashboardLabel")}:{" "}
                   <span className="text-blue-400 break-all">{dashboardUrl}</span>
                   <br />
                   <span className="text-green-400">&gt;</span> {t("readyToRoute")}

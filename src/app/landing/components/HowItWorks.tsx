@@ -14,7 +14,7 @@ export default function HowItWorks() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
           {/* Connection line */}
-          <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-[2px] bg-linear-to-r from-gray-700 via-[#E54D5E] to-gray-700 -z-10"></div>
+          <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-[2px] bg-linear-to-r from-gray-700 via-[#8B5CF6] to-gray-700 -z-10"></div>
 
           {/* Step 1: CLI & SDKs */}
           <div className="flex flex-col gap-6 relative group">
@@ -31,16 +31,16 @@ export default function HowItWorks() {
 
           {/* Step 2: Routiform Hub */}
           <div className="flex flex-col gap-6 relative group md:items-center md:text-center">
-            <div className="w-24 h-24 rounded-2xl bg-[#0B0E14] border-2 border-[#E54D5E] flex items-center justify-center shadow-[0_0_30px_rgba(229,77,94,0.2)] z-10 mx-auto">
+            <div className="w-24 h-24 rounded-2xl bg-[#0B0E14] border-2 border-[#8B5CF6] flex items-center justify-center shadow-[0_0_30px_rgba(124,58,237,0.22)] z-10 mx-auto">
               <span
-                className="material-symbols-outlined text-4xl text-[#E54D5E] animate-pulse"
+                className="material-symbols-outlined text-4xl text-[#A78BFA] animate-pulse"
                 aria-hidden="true"
               >
                 hub
               </span>
             </div>
             <div>
-              <h3 className="text-xl font-bold mb-2 text-[#E54D5E] break-words">
+              <h3 className="text-xl font-bold mb-2 text-[#A78BFA] break-words">
                 {t("howItWorksStep2Title")}
               </h3>
               <p className="text-sm text-gray-400 break-words">{t("howItWorksStep2Description")}</p>

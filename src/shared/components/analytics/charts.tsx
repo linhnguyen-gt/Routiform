@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, type CSSProperties } from "react";
 import { useLocale } from "next-intl";
 import Card from "../Card";
 import { getModelColor } from "@/shared/constants/colors";
@@ -24,6 +24,7 @@ import {
   Pie,
   AreaChart,
   Area,
+  CartesianGrid,
 } from "recharts";
 
 function createDateFormatter(locale: string, options: Intl.DateTimeFormatOptions) {
@@ -92,20 +93,27 @@ export function StatCard({
   value,
   subValue,
   color = "text-text-main",
+  tone = "default",
 }: {
   icon: any;
   label: any;
   value: any;
   subValue?: any;
   color?: string;
+  /** warning = cost/fallback attention; keeps layout consistent */
+  tone?: "default" | "warning";
 }) {
   return (
-    <Card className="px-4 py-3 flex flex-col gap-1">
-      <div className="flex items-center gap-2 text-text-muted text-xs uppercase font-semibold tracking-wider">
-        <span className="material-symbols-outlined text-[16px]">{icon}</span>
+    <Card
+      className={`flex flex-col gap-1 px-4 py-3 ${
+        tone === "warning" ? "ring-1 ring-amber-500/20 border-amber-500/15" : ""
+      }`}
+    >
+      <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+        <span className="material-symbols-outlined text-[16px] text-primary/80">{icon}</span>
         {label}
       </div>
-      <span className={`text-2xl font-bold ${color}`}>{value}</span>
+      <span className={`text-2xl font-bold tabular-nums tracking-tight ${color}`}>{value}</span>
       {subValue && <span className="text-xs text-text-muted">{subValue}</span>}
     </Card>
   );
@@ -123,7 +131,8 @@ export function ActivityHeatmap({ activityMap }) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      const val = activityMap?.[key] || 0;
+      const raw = activityMap?.[key];
+      const val = typeof raw === "number" ? raw : Number(raw) || 0;
       if (val > maxVal) maxVal = val;
       days.push({ date: key, value: val, dayOfWeek: d.getDay() });
     }
@@ -179,19 +188,27 @@ export function ActivityHeatmap({ activityMap }) {
     return labels;
   }, [weeks]);
 
-  function getCellColor(value) {
-    if (!value || value === 0) return "bg-white/[0.04]";
+  const weekColW = 13;
+
+  /** Inline colors — non-zero cells must read clearly on dark + light dashboards. */
+  function getCellStyle(value: number): CSSProperties {
+    if (!value || value === 0) {
+      return { background: "rgba(113, 113, 122, 0.35)" };
+    }
     const intensity = Math.min(value / (cells.maxVal || 1), 1);
-    if (intensity < 0.25) return "bg-primary/20";
-    if (intensity < 0.5) return "bg-primary/40";
-    if (intensity < 0.75) return "bg-primary/60";
-    return "bg-primary/90";
+    const a = 0.28 + intensity * 0.72;
+    return {
+      background: `rgba(124, 58, 237, ${a.toFixed(3)})`,
+      boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.14)",
+    };
   }
 
+  const gridWidthPx = weeks.length * weekColW;
+
   return (
-    <Card className="p-4 h-full">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider">Activity</h3>
+    <Card className="flex h-full min-w-0 flex-col overflow-hidden p-4">
+      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted">Activity</h3>
         <span className="text-xs text-text-muted">
           {Object.keys(activityMap || {}).length} active days ·{" "}
           {fmt(Object.values(activityMap || {}).reduce((a: number, b: number) => a + b, 0))} tokens
@@ -199,54 +216,76 @@ export function ActivityHeatmap({ activityMap }) {
         </span>
       </div>
 
-      <div className="flex gap-[3px] mb-1 ml-6" style={{ fontSize: "10px" }}>
-        {monthLabels.map((m, i) => (
-          <span
-            key={i}
-            className="text-text-muted"
-            style={{
-              position: "relative",
-              left: `${m.weekIdx * 13}px`,
-              marginLeft: i === 0 ? 0 : "-20px",
-            }}
-          >
-            {m.label}
-          </span>
-        ))}
-      </div>
+      <div className="flex min-h-0 flex-1 flex-col justify-between gap-3">
+        {/* Single horizontal scroll — aligned with week columns */}
+        <div className="min-h-0 w-full overflow-x-auto overflow-y-hidden overscroll-x-contain">
+          <div className="inline-block min-w-0 align-top">
+            <div className="flex gap-[3px]">
+              <div className="w-8 shrink-0" aria-hidden />
+              <div className="relative mb-1 h-4" style={{ width: gridWidthPx }}>
+                {monthLabels.map((m, i) => (
+                  <span
+                    key={`${m.weekIdx}-${m.label}-${i}`}
+                    className="absolute top-0 text-[10px] leading-none text-text-muted"
+                    style={{ left: m.weekIdx * weekColW }}
+                  >
+                    {m.label}
+                  </span>
+                ))}
+              </div>
+            </div>
 
-      <div className="flex gap-[3px] overflow-x-auto">
-        <div className="flex flex-col gap-[3px] shrink-0 text-[10px] text-text-muted pr-1">
-          <span className="h-[10px]"></span>
-          <span className="h-[10px] leading-[10px]">Mon</span>
-          <span className="h-[10px]"></span>
-          <span className="h-[10px] leading-[10px]">Wed</span>
-          <span className="h-[10px]"></span>
-          <span className="h-[10px] leading-[10px]">Fri</span>
-          <span className="h-[10px]"></span>
+            <div className="flex gap-[3px]">
+              <div className="flex w-8 shrink-0 flex-col gap-[3px] pr-1 text-[10px] text-text-muted">
+                <span className="h-[10px]" />
+                <span className="h-[10px] leading-[10px]">Mon</span>
+                <span className="h-[10px]" />
+                <span className="h-[10px] leading-[10px]">Wed</span>
+                <span className="h-[10px]" />
+                <span className="h-[10px] leading-[10px]">Fri</span>
+                <span className="h-[10px]" />
+              </div>
+
+              {weeks.map((week, wi) => (
+                <div key={wi} className="flex flex-col gap-[3px]">
+                  {week.map((day, di) => (
+                    <div
+                      key={day ? day.date : `pad-${wi}-${di}`}
+                      title={day ? `${day.date}: ${fmtFull(day.value)} tokens` : ""}
+                      className="h-[10px] w-[10px] rounded-[2px]"
+                      style={day ? getCellStyle(day.value) : { background: "transparent" }}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {weeks.map((week, wi) => (
-          <div key={wi} className="flex flex-col gap-[3px]">
-            {week.map((day, di) => (
-              <div
-                key={di}
-                title={day ? `${day.date}: ${fmtFull(day.value)} tokens` : ""}
-                className={`w-[10px] h-[10px] rounded-[2px] ${day ? getCellColor(day.value) : "bg-transparent"}`}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-1 mt-2 ml-6 text-[10px] text-text-muted">
-        <span>Less</span>
-        <div className="w-[10px] h-[10px] rounded-[2px] bg-white/[0.04]" />
-        <div className="w-[10px] h-[10px] rounded-[2px] bg-primary/20" />
-        <div className="w-[10px] h-[10px] rounded-[2px] bg-primary/40" />
-        <div className="w-[10px] h-[10px] rounded-[2px] bg-primary/60" />
-        <div className="w-[10px] h-[10px] rounded-[2px] bg-primary/90" />
-        <span>More</span>
+        <div className="flex shrink-0 flex-wrap items-center gap-1 border-t border-border/40 pt-3 pl-8 text-[10px] text-text-muted">
+          <span>Less</span>
+          <div
+            className="h-[10px] w-[10px] rounded-[2px]"
+            style={{ background: "rgba(113, 113, 122, 0.35)" }}
+          />
+          <div
+            className="h-[10px] w-[10px] rounded-[2px]"
+            style={{ background: "rgba(124, 58, 237, 0.35)" }}
+          />
+          <div
+            className="h-[10px] w-[10px] rounded-[2px]"
+            style={{ background: "rgba(124, 58, 237, 0.55)" }}
+          />
+          <div
+            className="h-[10px] w-[10px] rounded-[2px]"
+            style={{ background: "rgba(124, 58, 237, 0.75)" }}
+          />
+          <div
+            className="h-[10px] w-[10px] rounded-[2px]"
+            style={{ background: "rgba(124, 58, 237, 0.95)" }}
+          />
+          <span>More</span>
+        </div>
       </div>
     </Card>
   );
@@ -289,7 +328,7 @@ export function DailyTrendChart({ dailyTrend }) {
         >
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 9, fill: "var(--text-muted)" }}
+            tick={{ fontSize: 9, fill: "var(--color-text-muted)" }}
             axisLine={false}
             tickLine={false}
             interval={Math.max(Math.floor(chartData.length / 6), 0)}
@@ -709,7 +748,7 @@ export function WeeklyPattern({ weeklyPattern }) {
         <BarChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
           <XAxis
             dataKey="day"
-            tick={{ fontSize: 9, fill: "var(--text-muted)" }}
+            tick={{ fontSize: 9, fill: "var(--color-text-muted)" }}
             axisLine={false}
             tickLine={false}
           />
@@ -719,7 +758,7 @@ export function WeeklyPattern({ weeklyPattern }) {
           />
           <Bar
             dataKey="Tokens"
-            fill="var(--text-muted)"
+            fill="var(--color-text-muted)"
             opacity={0.3}
             radius={[3, 3, 0, 0]}
             animationDuration={400}
@@ -752,7 +791,8 @@ export function MostActiveDay7d({ activityMap }) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      const val = activityMap[key] || 0;
+      const raw = activityMap[key];
+      const val = typeof raw === "number" ? raw : Number(raw) || 0;
       if (val > peakVal) {
         peakVal = val;
         peakKey = key;
@@ -769,10 +809,10 @@ export function MostActiveDay7d({ activityMap }) {
   }, [activityMap, dateFormatter, weekdayFormatter]);
 
   return (
-    <Card className="p-4 flex flex-col justify-center" style={{ flex: 1, minHeight: 0 }}>
+    <Card className="relative isolate flex h-full min-h-0 min-w-0 flex-col justify-center overflow-hidden p-4">
       <h3
-        className="text-xs font-semibold uppercase tracking-wider mb-2"
-        style={{ color: "var(--text-muted)" }}
+        className="mb-2 text-xs font-semibold uppercase tracking-wider"
+        style={{ color: "var(--color-text-muted)" }}
       >
         Most Active Day
       </h3>
@@ -781,12 +821,12 @@ export function MostActiveDay7d({ activityMap }) {
           <span className="text-xl font-bold capitalize" style={{ lineHeight: 1.2 }}>
             {data.weekday}
           </span>
-          <span className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+          <span className="mt-1 text-xs" style={{ color: "var(--color-text-muted)" }}>
             {data.label} · {fmt(data.tokens)} tokens
           </span>
         </>
       ) : (
-        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+        <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
           No data in the last 7 days
         </span>
       )}
@@ -809,14 +849,22 @@ export function WeeklySquares7d({ activityMap }) {
   const days = useMemo(() => {
     if (!activityMap) return [];
     const today = new Date();
+    /** Monday 00:00 local of the week that contains `today` — columns are Mon → Sun. */
+    const monday = new Date(today);
+    const dow = monday.getDay();
+    const deltaToMonday = dow === 0 ? -6 : 1 - dow;
+    monday.setDate(monday.getDate() + deltaToMonday);
+    monday.setHours(0, 0, 0, 0);
+
     const result = [];
     let maxVal = 0;
 
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      const val = activityMap[key] || 0;
+      const raw = activityMap[key];
+      const val = typeof raw === "number" ? raw : Number(raw) || 0;
       if (val > maxVal) maxVal = val;
       result.push({
         key,
@@ -831,41 +879,32 @@ export function WeeklySquares7d({ activityMap }) {
   function getSquareStyle(intensity) {
     if (intensity === 0) return { background: "rgba(255,255,255,0.04)" };
     const opacity = 0.15 + intensity * 0.75;
-    return { background: `rgba(229, 77, 94, ${opacity.toFixed(2)})` };
+    return { background: `rgba(124, 58, 237, ${opacity.toFixed(2)})` };
   }
 
   return (
-    <Card className="p-4 flex flex-col justify-center" style={{ flex: 1, minHeight: 0 }}>
+    <Card className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden p-4">
       <h3
-        className="text-xs font-semibold uppercase tracking-wider mb-3"
-        style={{ color: "var(--text-muted)" }}
+        className="mb-3 shrink-0 text-xs font-semibold uppercase tracking-wider"
+        style={{ color: "var(--color-text-muted)" }}
       >
         Weekly
       </h3>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 6, justifyContent: "center" }}>
-        {days.map((d, i) => (
-          <div
-            key={d.key}
-            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}
-          >
+      {/* Fixed one row × 7 columns; flex-1 fills card so height matches Most Active + gap */}
+      <div className="grid w-full min-h-0 flex-1 place-content-center grid-cols-7 gap-1 sm:gap-1.5">
+        {days.map((d) => (
+          <div key={d.key} className="flex min-w-0 flex-col items-center gap-1">
             <div
               title={`${d.dateLabel}: ${fmtFull(d.val)} tokens`}
+              className="aspect-square w-full max-h-10 min-h-[1.75rem] rounded-lg transition-all"
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
                 ...getSquareStyle(d.intensity),
-                transition: "all 0.2s",
                 cursor: "default",
               }}
             />
             <span
-              style={{
-                fontSize: 9,
-                fontWeight: 600,
-                color: "var(--text-muted)",
-                letterSpacing: "0.03em",
-              }}
+              className="w-full truncate text-center text-[8px] font-semibold leading-tight tracking-wide sm:text-[9px]"
+              style={{ color: "var(--color-text-muted)" }}
             >
               {d.label}
             </span>
@@ -1155,52 +1194,63 @@ export function ModelOverTimeChart({ dailyByModel, modelNames }) {
   }
 
   return (
-    <Card className="p-4">
-      <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-3">
-        Model Usage Over Time
-      </h3>
-      <ResponsiveContainer width="100%" height={240}>
-        <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-          <XAxis
-            dataKey="dateLabel"
-            tick={{ fontSize: 10, fill: "var(--text-muted)" }}
-            axisLine={false}
-            tickLine={false}
-            interval="preserveStartEnd"
-          />
-          <YAxis
-            tick={{ fontSize: 10, fill: "var(--text-muted)" }}
-            tickFormatter={(v) => fmt(v)}
-            axisLine={false}
-            tickLine={false}
-            width={50}
-          />
-          <Tooltip content={<DarkTooltip formatter={fmt} />} />
+    <Card className="overflow-hidden p-0">
+      <div className="border-b border-border/50 px-4 py-3">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted">
+          Model Usage Over Time
+        </h3>
+      </div>
+      <div className="px-2 pt-3 sm:px-4">
+        <ResponsiveContainer width="100%" height={260}>
+          <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 4, bottom: 4 }}>
+            <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
+            <XAxis
+              dataKey="dateLabel"
+              tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
+              axisLine={{ stroke: "var(--color-border)" }}
+              tickLine={false}
+              interval="preserveStartEnd"
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
+              tickFormatter={(v) => fmt(v)}
+              axisLine={false}
+              tickLine={false}
+              width={52}
+            />
+            <Tooltip content={<DarkTooltip formatter={fmt} />} />
+            {models.map((m, i) => (
+              <Area
+                key={m}
+                type="monotone"
+                dataKey={m}
+                stackId="1"
+                stroke={getModelColor(i)}
+                fill={getModelColor(i)}
+                fillOpacity={0.42}
+                strokeWidth={1.25}
+                animationDuration={600}
+              />
+            ))}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="max-h-44 overflow-y-auto border-t border-border/50 bg-black/[0.03] px-4 py-3 dark:bg-white/[0.04]">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {models.map((m, i) => (
-            <Area
-              key={m}
-              type="monotone"
-              dataKey={m}
-              stackId="1"
-              stroke={getModelColor(i)}
-              fill={getModelColor(i)}
-              fillOpacity={0.4}
-              strokeWidth={1.5}
-              animationDuration={600}
-            />
-          ))}
-        </AreaChart>
-      </ResponsiveContainer>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[10px] text-text-muted">
-        {models.map((m, i) => (
-          <span key={m} className="flex items-center gap-1">
             <span
-              className="w-2 h-2 rounded-full shrink-0"
-              style={{ backgroundColor: getModelColor(i) }}
-            />
-            {m}
-          </span>
-        ))}
+              key={m}
+              className="flex min-w-0 items-center gap-2 text-[11px] leading-snug text-text-main"
+              title={m}
+            >
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: getModelColor(i) }}
+              />
+              <span className="min-w-0 truncate font-medium">{m}</span>
+            </span>
+          ))}
+        </div>
       </div>
     </Card>
   );

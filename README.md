@@ -50,29 +50,8 @@ _Your universal API proxy — one endpoint, 60+ providers, zero downtime. Now wi
 ## 🖼️ Main Dashboard
 
 <div align="center">
-  <img src="./docs/screenshots/MainRoutiform.png" alt="Routiform Dashboard" width="800"/>
+  <img src="./docs/screenshots/MainRoutiform.png" alt="Routiform — Providers dashboard" width="800"/>
 </div>
-
----
-
-## 📸 Dashboard Preview
-
-<details>
-<summary><b>Click to see dashboard screenshots</b></summary>
-
-| Page           | Screenshot                                        |
-| -------------- | ------------------------------------------------- |
-| **Providers**  | ![Providers](docs/screenshots/01-providers.png)   |
-| **Combos**     | ![Combos](docs/screenshots/02-combos.png)         |
-| **Analytics**  | ![Analytics](docs/screenshots/03-analytics.png)   |
-| **Health**     | ![Health](docs/screenshots/04-health.png)         |
-| **Translator** | ![Translator](docs/screenshots/05-translator.png) |
-| **Settings**   | ![Settings](docs/screenshots/06-settings.png)     |
-| **CLI Tools**  | ![CLI Tools](docs/screenshots/07-cli-tools.png)   |
-| **Usage Logs** | ![Usage](docs/screenshots/08-usage.png)           |
-| **Endpoints**  | ![Endpoints](docs/screenshots/09-endpoint.png)    |
-
-</details>
 
 ---
 

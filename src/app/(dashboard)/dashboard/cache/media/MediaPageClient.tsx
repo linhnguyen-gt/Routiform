@@ -38,7 +38,7 @@ const MODALITY_CONFIG: Record<
     label: "Video Generation",
     placeholder: "A timelapse of a flower blooming...",
     color: "from-blue-500 to-cyan-500",
-    needsCredentials: [],
+    needsCredentials: ["gemini"],
   },
   music: {
     icon: "music_note",
@@ -144,6 +144,18 @@ const PROVIDER_MODELS: Record<
     },
   ],
   video: [
+    {
+      id: "gemini",
+      name: "Gemini (Google AI Studio)",
+      models: [
+        { id: "gemini/veo-2.0-generate-001", name: "Veo 2.0" },
+        { id: "gemini/veo-3.0-generate-001", name: "Veo 3.0" },
+        { id: "gemini/veo-3.0-fast-generate-001", name: "Veo 3.0 Fast" },
+        { id: "gemini/veo-3.1-generate-preview", name: "Veo 3.1 (preview)" },
+        { id: "gemini/veo-3.1-fast-generate-preview", name: "Veo 3.1 Fast (preview)" },
+        { id: "gemini/veo-3.1-lite-generate-preview", name: "Veo 3.1 Lite (preview)" },
+      ],
+    },
     {
       id: "comfyui",
       name: "ComfyUI",
@@ -366,6 +378,43 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
+/** Render video result (OpenAI-style: data[].b64_json, format mp4) */
+function VideoResults({ data }: { data: any }) {
+  const items: Array<{ b64_json?: string; format?: string }> = data?.data || [];
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-text-muted italic">
+        No video data returned. Check provider logs if generation succeeded.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      {items.map((item, i) => {
+        const mime = item.format === "webp" ? "video/webm" : "video/mp4";
+        const src = item.b64_json ? `data:${mime};base64,${item.b64_json}` : null;
+        if (!src) return null;
+        return (
+          <div
+            key={i}
+            className="rounded-lg overflow-hidden border border-black/10 dark:border-white/10"
+          >
+            <video controls className="w-full max-h-[min(520px,70vh)] bg-black/80" src={src} />
+            <a
+              href={src}
+              download={`video-${i + 1}.${item.format === "webp" ? "webm" : "mp4"}`}
+              className="inline-flex items-center gap-2 mt-2 text-sm text-primary hover:underline"
+            >
+              <span className="material-symbols-outlined text-[16px]">download</span>
+              Download clip {i + 1}
+            </a>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Render image result thumbnails */
 function ImageResults({ data }: { data: any }) {
   const images: Array<{ url?: string; b64_json?: string; revised_prompt?: string }> =
@@ -445,20 +494,28 @@ export default function MediaPageClient() {
   const [configuredLocalProviders, setConfiguredLocalProviders] = useState<Set<string>>(
     new Set(LOCAL_PROVIDERS) // Optimistic: show all until we know otherwise
   );
+  /** Provider IDs that have at least one connection with api key / OAuth tokens (from GET /api/providers) */
+  const [providersWithCredentials, setProvidersWithCredentials] = useState<Set<string>>(new Set());
+  const [credentialsLoaded, setCredentialsLoaded] = useState(false);
 
   useEffect(() => {
-    // Fetch configured provider connections to determine which local providers are set up
+    // Fetch provider connections: local Comfy/SDWebUI visibility + which providers have credentials
     fetch("/api/providers")
       .then((r) => r.json())
       .then((data) => {
-        const connections: { provider?: string; testStatus?: string }[] = Array.isArray(data)
-          ? data
-          : (data?.connections ?? data?.providers ?? []);
+        const connections: {
+          provider?: string;
+          credentialsConfigured?: boolean;
+        }[] = Array.isArray(data) ? data : (data?.connections ?? data?.providers ?? []);
         const configured = new Set<string>();
+        const withCreds = new Set<string>();
         for (const conn of connections) {
           const pId = conn?.provider;
           if (pId && LOCAL_PROVIDERS.includes(pId)) {
             configured.add(pId);
+          }
+          if (pId && conn?.credentialsConfigured === true) {
+            withCreds.add(pId);
           }
         }
         // Only update if at least one local provider was found, otherwise keep optimistic
@@ -468,9 +525,12 @@ export default function MediaPageClient() {
           // No local providers configured — hide sdwebui/comfyui
           setConfiguredLocalProviders(new Set());
         }
+        setProvidersWithCredentials(withCreds);
+        setCredentialsLoaded(true);
       })
       .catch(() => {
-        // On error, keep showing all (fail-open)
+        // On error, keep showing all local (fail-open); treat credentials as unknown
+        setCredentialsLoaded(true);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -702,19 +762,22 @@ export default function MediaPageClient() {
           </div>
         </div>
 
-        {/* Credential hint */}
-        {selectedProvider && !["sdwebui", "comfyui", "qwen"].includes(selectedProvider) && (
-          <p className="text-xs text-text-muted flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[14px] text-amber-500">info</span>
-            Requires <strong className="capitalize">{selectedProvider}</strong> API key in{" "}
-            <Link
-              href="/dashboard/providers"
-              className="text-primary underline underline-offset-2 hover:text-primary/80"
-            >
-              Providers
-            </Link>
-          </p>
-        )}
+        {/* Credential hint — only when we know this provider has no stored key/token */}
+        {credentialsLoaded &&
+          selectedProvider &&
+          !["sdwebui", "comfyui", "qwen"].includes(selectedProvider) &&
+          !providersWithCredentials.has(selectedProvider) && (
+            <p className="text-xs text-text-muted flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[14px] text-amber-500">info</span>
+              Requires <strong className="capitalize">{selectedProvider}</strong> API key in{" "}
+              <Link
+                href="/dashboard/providers"
+                className="text-primary underline underline-offset-2 hover:text-primary/80"
+              >
+                Providers
+              </Link>
+            </p>
+          )}
 
         {/* Speech: voice + format */}
         {activeTab === "speech" && (
@@ -904,6 +967,8 @@ export default function MediaPageClient() {
             </div>
           ) : result.type === "image" ? (
             <ImageResults data={result.data} />
+          ) : result.type === "video" ? (
+            <VideoResults data={result.data} />
           ) : result.type === "transcription" ? (
             <div className="space-y-3">
               <div className="bg-surface rounded-lg p-4 text-sm text-text-main leading-relaxed whitespace-pre-wrap">

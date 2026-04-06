@@ -55,11 +55,232 @@ export async function handleVideoGeneration({ body, credentials, log }) {
     return handleSDWebUIVideoGeneration({ model, provider, providerConfig, body, log });
   }
 
+  if (providerConfig.format === "gemini-veo") {
+    return handleGeminiVeoVideoGeneration({
+      model,
+      provider,
+      providerConfig,
+      body,
+      credentials,
+      log,
+    });
+  }
+
   return {
     success: false,
     status: 400,
     error: `Unsupported video format: ${providerConfig.format}`,
   };
+}
+
+const GEMINI_VEO_POLL_MS = 5000;
+const GEMINI_VEO_MAX_POLLS = 120; // ~10 min
+
+function geminiOperationPollUrl(operationName: string): string {
+  if (operationName.startsWith("http")) return operationName;
+  const base = "https://generativelanguage.googleapis.com/v1beta";
+  const clean = operationName.replace(/^\/+/, "");
+  if (clean.startsWith("v1beta/")) {
+    return `https://generativelanguage.googleapis.com/${clean}`;
+  }
+  return `${base}/${clean}`;
+}
+
+/**
+ * Gemini API (Google AI Studio) — Veo text-to-video via predictLongRunning + long-running operation poll.
+ * @see https://ai.google.dev/gemini-api/docs/video
+ */
+async function handleGeminiVeoVideoGeneration({
+  model,
+  provider,
+  providerConfig,
+  body,
+  credentials,
+  log,
+}) {
+  const startTime = Date.now();
+  const apiKey = credentials?.apiKey;
+  const accessToken = credentials?.accessToken;
+  if (!apiKey && !accessToken) {
+    return {
+      success: false,
+      status: 401,
+      error:
+        "Missing Gemini API key or OAuth token. Add a Gemini (Google AI Studio) connection in Providers.",
+    };
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (apiKey) {
+    headers["x-goog-api-key"] = apiKey;
+  } else {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
+  if (!prompt) {
+    return { success: false, status: 400, error: "Missing prompt" };
+  }
+
+  const predictUrl = `${providerConfig.baseUrl}/models/${encodeURIComponent(model)}:predictLongRunning`;
+  const payload: Record<string, unknown> = {
+    instances: [{ prompt }],
+  };
+
+  if (log) {
+    log.info("VIDEO", `${provider}/${model} (gemini-veo) | prompt: "${prompt.slice(0, 60)}..."`);
+  }
+
+  try {
+    const startRes = await fetch(predictUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    const startText = await startRes.text();
+    let startJson: Record<string, unknown>;
+    try {
+      startJson = JSON.parse(startText) as Record<string, unknown>;
+    } catch {
+      return {
+        success: false,
+        status: startRes.status,
+        error: `Gemini Veo error: ${startText.slice(0, 300)}`,
+      };
+    }
+
+    if (!startRes.ok) {
+      return {
+        success: false,
+        status: startRes.status,
+        error:
+          (startJson.error as { message?: string })?.message ||
+          startText.slice(0, 500) ||
+          "Gemini Veo predictLongRunning failed",
+      };
+    }
+
+    const opName = startJson.name as string | undefined;
+    if (!opName) {
+      return {
+        success: false,
+        status: 502,
+        error: "Gemini Veo: missing operation name in response",
+      };
+    }
+
+    const pollUrl = geminiOperationPollUrl(opName);
+
+    for (let i = 0; i < GEMINI_VEO_MAX_POLLS; i++) {
+      const pollRes = await fetch(pollUrl, { headers });
+      const pollText = await pollRes.text();
+      let pollJson: Record<string, unknown>;
+      try {
+        pollJson = JSON.parse(pollText) as Record<string, unknown>;
+      } catch {
+        return {
+          success: false,
+          status: 502,
+          error: `Gemini Veo poll: invalid JSON (${pollRes.status})`,
+        };
+      }
+
+      if (!pollRes.ok) {
+        return {
+          success: false,
+          status: pollRes.status,
+          error: (pollJson.error as { message?: string })?.message || pollText.slice(0, 400),
+        };
+      }
+
+      if (pollJson.error) {
+        const err = pollJson.error as { message?: string; code?: number };
+        return {
+          success: false,
+          status: typeof err.code === "number" ? err.code : 502,
+          error: err.message || "Gemini Veo operation error",
+        };
+      }
+
+      if (pollJson.done === true) {
+        const response = pollJson.response as Record<string, unknown> | undefined;
+        const genVideo = response?.generateVideoResponse as Record<string, unknown> | undefined;
+        const samples = genVideo?.generatedSamples as unknown[] | undefined;
+        const first = samples?.[0] as Record<string, unknown> | undefined;
+        const video = first?.video as Record<string, unknown> | undefined;
+        let videoUri = typeof video?.uri === "string" ? video.uri : null;
+
+        if (!videoUri) {
+          const alt = response?.generatedVideos as unknown[] | undefined;
+          const v0 = alt?.[0] as Record<string, unknown> | undefined;
+          const file = v0?.video as Record<string, unknown> | undefined;
+          if (typeof file?.uri === "string") videoUri = file.uri;
+        }
+
+        if (!videoUri) {
+          return {
+            success: false,
+            status: 502,
+            error: "Gemini Veo: completed but no video URI in response",
+          };
+        }
+
+        const videoRes = await fetch(videoUri, { headers });
+        if (!videoRes.ok) {
+          const errT = await videoRes.text();
+          return {
+            success: false,
+            status: videoRes.status,
+            error: `Failed to download video: ${errT.slice(0, 200)}`,
+          };
+        }
+        const buf = Buffer.from(await videoRes.arrayBuffer());
+        const b64 = buf.toString("base64");
+
+        saveCallLog({
+          method: "POST",
+          path: "/v1/videos/generations",
+          status: 200,
+          model: `${provider}/${model}`,
+          provider,
+          duration: Date.now() - startTime,
+          responseBody: { format: "mp4" },
+        }).catch(() => {});
+
+        return {
+          success: true,
+          data: {
+            created: Math.floor(Date.now() / 1000),
+            data: [{ b64_json: b64, format: "mp4" }],
+          },
+        };
+      }
+
+      await new Promise((r) => setTimeout(r, GEMINI_VEO_POLL_MS));
+    }
+
+    return {
+      success: false,
+      status: 504,
+      error: "Gemini Veo: generation timed out (still processing)",
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (log) log.error("VIDEO", `gemini veo error: ${msg}`);
+    saveCallLog({
+      method: "POST",
+      path: "/v1/videos/generations",
+      status: 502,
+      model: `${provider}/${model}`,
+      provider,
+      duration: Date.now() - startTime,
+      error: msg,
+    }).catch(() => {});
+    return { success: false, status: 502, error: `Video provider error: ${msg}` };
+  }
 }
 
 /**

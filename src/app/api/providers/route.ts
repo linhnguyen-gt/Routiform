@@ -22,13 +22,14 @@ export async function GET() {
   try {
     const connections = await getProviderConnections();
 
-    // Hide sensitive fields
+    // Hide sensitive fields (expose only whether any secret exists — for dashboard hints)
     const safeConnections = connections.map((c) => ({
       ...c,
       apiKey: undefined,
       accessToken: undefined,
       refreshToken: undefined,
       idToken: undefined,
+      credentialsConfigured: Boolean(c.apiKey || c.accessToken || c.refreshToken),
     }));
 
     return NextResponse.json({ connections: safeConnections });

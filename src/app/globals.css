@@ -11,13 +11,13 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* OpenClaw × ClawHub Color Palette */
+/* Routiform brand palette (renewed — violet / indigo, distinct from legacy coral) */
 :root {
-  /* Primary - Coral Red (OpenClaw) */
-  --color-primary: #e54d5e;
-  --color-primary-hover: #c93d4e;
+  /* Primary — Routiform violet */
+  --color-primary: #7c3aed;
+  --color-primary-hover: #6d28d9;
 
-  /* Accent - Indigo/Violet (buttons, links, gradients) */
+  /* Accent — Indigo (links, secondary highlights) */
   --color-accent: #6366f1;
   --color-accent-hover: #8b5cf6;
   --color-accent-light: #a855f7;
@@ -26,11 +26,6 @@
   --color-error: #ef4444;
   --color-success: #22c55e;
   --color-warning: #f59e0b;
-
-  /* Traffic lights */
-  --color-traffic-red: #ff5f56;
-  --color-traffic-yellow: #ffbd2e;
-  --color-traffic-green: #27c93f;
 
   /* Light theme */
   --color-bg: #f9f9fb;
@@ -46,7 +41,7 @@
 
   /* Shadows */
   --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.02), 0 4px 12px rgba(0, 0, 0, 0.015);
-  --shadow-warm: 0 2px 12px -2px rgba(229, 77, 94, 0.12);
+  --shadow-warm: 0 2px 12px -2px rgba(124, 58, 237, 0.12);
   --shadow-elevated: 0 12px 28px -4px rgba(20, 20, 40, 0.06);
 }
 
@@ -65,7 +60,7 @@
 
   /* Dark shadows */
   --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.1);
-  --shadow-warm: 0 2px 12px -2px rgba(229, 77, 94, 0.15);
+  --shadow-warm: 0 2px 12px -2px rgba(124, 58, 237, 0.15);
   --shadow-elevated: 0 12px 28px -4px rgba(0, 0, 0, 0.3);
 }
 
@@ -154,7 +149,7 @@ body {
 
 /* Selection — with fallback for browsers that don't support color-mix() */
 ::selection {
-  background-color: rgba(229, 77, 94, 0.22);
+  background-color: rgba(124, 58, 237, 0.22);
   background-color: color-mix(in srgb, var(--color-primary) 22%, transparent);
   color: var(--color-primary);
 }
@@ -286,15 +281,15 @@ button .material-symbols-outlined,
   0%,
   100% {
     box-shadow:
-      0 0 5px rgba(229, 77, 94, 0.3),
-      0 0 10px rgba(229, 77, 94, 0.2);
-    border-color: rgba(229, 77, 94, 0.5);
+      0 0 5px rgba(124, 58, 237, 0.3),
+      0 0 10px rgba(124, 58, 237, 0.2);
+    border-color: rgba(124, 58, 237, 0.5);
   }
   50% {
     box-shadow:
-      0 0 10px rgba(229, 77, 94, 0.5),
-      0 0 20px rgba(229, 77, 94, 0.3);
-    border-color: rgba(229, 77, 94, 0.8);
+      0 0 10px rgba(124, 58, 237, 0.5),
+      0 0 20px rgba(124, 58, 237, 0.3);
+    border-color: rgba(124, 58, 237, 0.8);
   }
 }
 
@@ -311,30 +306,6 @@ button .material-symbols-outlined,
 
 .dark .bg-vibrancy {
   background: rgba(16, 20, 30, 0.72);
-}
-
-/* macOS Traffic Lights */
-.traffic-lights {
-  display: flex;
-  gap: 8px;
-}
-
-.traffic-light {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
-.traffic-light.red {
-  background: var(--color-traffic-red);
-}
-
-.traffic-light.yellow {
-  background: var(--color-traffic-yellow);
-}
-
-.traffic-light.green {
-  background: var(--color-traffic-green);
 }
 
 /* ── Mobile Layout Fixes (Issue #659) ── */

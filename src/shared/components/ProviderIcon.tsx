@@ -68,9 +68,6 @@ const LOBEHUB_PROVIDER_MAP: Record<string, string> = {
   "github-copilot": "githubcopilot",
   mistralai: "mistral",
   codex: "openai",
-  blackbox: "blackboxai",
-  blackboxai: "blackboxai",
-  pollinations: "pollinations",
 };
 
 interface ProviderIconProps {
@@ -123,7 +120,6 @@ const KNOWN_PNGS = new Set([
   "anthropic",
   "antigravity",
   "bailian-coding-plan",
-  "blackbox",
   "brave-search",
   "brave",
   "cerebras",
@@ -167,7 +163,6 @@ const KNOWN_PNGS = new Set([
   "openrouter",
   "perplexity-search",
   "perplexity",
-  "pollinations",
   "qwen",
   "roo",
   "serper-search",
@@ -182,6 +177,7 @@ const KNOWN_PNGS = new Set([
 const KNOWN_SVGS = new Set([
   "apikey",
   "assemblyai",
+  "blackbox",
   "brave",
   "cartesia",
   "cloudflare-ai",
@@ -198,6 +194,7 @@ const KNOWN_SVGS = new Set([
   "opencode-zen",
   "opencode",
   "playht",
+  "pollinations",
   "puter",
   "scaleway",
   "sdwebui",
