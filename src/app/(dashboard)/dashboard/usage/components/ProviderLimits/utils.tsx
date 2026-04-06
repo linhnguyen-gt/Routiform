@@ -155,7 +155,10 @@ function normalizeQuotaEntry(name: string, quota: any = {}, extras: any = {}) {
   const usedRaw = Number(quota?.used || 0);
   const totalRaw = Number(quota?.total || 0);
   const resetAt = quota?.resetAt || null;
-  const staleAfterReset = isPastResetWindow(resetAt);
+  // Only flag stale when the billing window has rolled but the provider still reports usage
+  // from the old window (T13). If used is already 0, data is consistent — do not show perpetual
+  // "Refreshing…" (e.g. Kiro often sends a past nextDateReset while quotas are already current).
+  const staleAfterReset = isPastResetWindow(resetAt) && usedRaw > 0 && quota?.unlimited !== true;
   const used = staleAfterReset ? 0 : usedRaw;
   const total = Number.isFinite(totalRaw) ? totalRaw : 0;
   const remainingPercentageRaw = safePercentage(quota?.remainingPercentage);

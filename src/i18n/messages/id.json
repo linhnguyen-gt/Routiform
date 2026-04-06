@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "Batas & Kuota",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "Batas Nilai",
     "remaining": "Tersisa",
     "requestsPerMinute": "Permintaan/mnt",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "Segarkan otomatis",
     "refreshAll": "Segarkan Semua",
     "loadingQuotas": "Memuat...",
+    "quotaRefreshing": "Refreshing…",
     "account": "Akun",
     "modelQuotas": "Kuota Model",
     "lastUsed": "Last Refreshed",

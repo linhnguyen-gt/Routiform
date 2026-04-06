@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "الحدود والحصص",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "حد السعر",
     "remaining": "المتبقي",
     "requestsPerMinute": "طلبات/دقيقة",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "التحديث التلقائي",
     "refreshAll": "تحديث الكل",
     "loadingQuotas": "جار التحميل...",
+    "quotaRefreshing": "Refreshing…",
     "account": "الحساب",
     "modelQuotas": "الحصص النموذجية",
     "lastUsed": "Last Refreshed",

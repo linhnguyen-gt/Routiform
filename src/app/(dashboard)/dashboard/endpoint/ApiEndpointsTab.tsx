@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Card } from "@/shared/components";
+import { cn } from "@/shared/utils/cn";
 
 /* ─── Types ──────────────────────────────────────────── */
 interface Endpoint {
@@ -272,24 +273,24 @@ export default function ApiEndpointsTab() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="mx-auto w-full max-w-5xl space-y-4 py-1">
         <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-white/5 rounded-lg w-1/3" />
-          <div className="h-64 bg-white/5 rounded-xl" />
+          <div className="h-9 w-1/3 max-w-xs rounded-lg bg-white/5" />
+          <div className="h-64 rounded-xl bg-white/5" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-5">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       {/* Header with spec info */}
       {catalog && (
-        <Card className="p-5">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center size-10 rounded-xl bg-primary/10">
-                <span className="material-symbols-outlined text-primary text-[20px]">api</span>
+        <Card className="rounded-xl border-border/50 p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/20">
+                <span className="material-symbols-outlined text-[22px] text-primary">api</span>
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -329,20 +330,21 @@ export default function ApiEndpointsTab() {
       )}
 
       {/* Section tabs */}
-      <div className="flex gap-1 p-1 rounded-xl bg-black/5 dark:bg-white/[0.03] w-fit">
+      <div className="flex w-fit max-w-full gap-1 rounded-xl border border-border/50 bg-bg-subtle/50 p-1 shadow-sm">
         {[
           { id: "catalog" as const, label: "API Catalog", icon: "menu_book" },
           { id: "webhooks" as const, label: "Webhooks", icon: "webhook" },
         ].map((tab) => (
           <button
             key={tab.id}
+            type="button"
             onClick={() => setSection(tab.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all
-              ${
-                section === tab.id
-                  ? "bg-white dark:bg-white/10 text-text-main shadow-sm"
-                  : "text-text-muted hover:text-text-main"
-              }`}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all",
+              section === tab.id
+                ? "bg-surface text-text-main shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                : "text-text-muted hover:text-text-main"
+            )}
           >
             <span className="material-symbols-outlined text-[14px]">{tab.icon}</span>
             {tab.label}
@@ -403,8 +405,8 @@ export default function ApiEndpointsTab() {
 
           {/* Endpoint groups */}
           {Object.entries(groupedEndpoints).map(([tag, endpoints]) => (
-            <Card key={tag} className="overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-black/5 dark:border-white/5">
+            <Card key={tag} className="overflow-hidden rounded-xl border-border/50 shadow-sm">
+              <div className="flex items-center gap-2 border-b border-border/50 px-4 py-3">
                 <span className="material-symbols-outlined text-[14px] text-primary">folder</span>
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
                   {tag}

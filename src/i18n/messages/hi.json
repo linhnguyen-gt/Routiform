@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "सीमाएँ और कोटा",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "दर सीमा",
     "remaining": "शेष",
     "requestsPerMinute": "अनुरोध/मिनट",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "स्वतः ताज़ा करें",
     "refreshAll": "सभी को ताज़ा करें",
     "loadingQuotas": "लोड हो रहा है...",
+    "quotaRefreshing": "Refreshing…",
     "account": "खाता",
     "modelQuotas": "मॉडल कोटा",
     "lastUsed": "Last Refreshed",

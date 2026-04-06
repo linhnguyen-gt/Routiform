@@ -14,6 +14,7 @@ import {
 import Card from "@/shared/components/Card";
 import Badge from "@/shared/components/Badge";
 import { CardSkeleton } from "@/shared/components/Loading";
+import { cn } from "@/shared/utils/cn";
 import { USAGE_SUPPORTED_PROVIDERS } from "@/shared/constants/providers";
 
 const LS_GROUP_BY = "routiform:limits:groupBy";
@@ -90,8 +91,7 @@ export default function ProviderLimits() {
   const [tierFilter, setTierFilter] = useState("all");
   const [groupBy, setGroupBy] = useState<"none" | "environment">(() => {
     if (typeof window === "undefined") return "none";
-    const saved =
-      localStorage.getItem(LS_GROUP_BY) || localStorage.getItem(LS_LEGACY_GROUP_BY);
+    const saved = localStorage.getItem(LS_GROUP_BY) || localStorage.getItem(LS_LEGACY_GROUP_BY);
     if (saved === "environment" || saved === "none") return saved;
     return "none";
   });
@@ -99,8 +99,7 @@ export default function ProviderLimits() {
     if (typeof window === "undefined") return new Set();
     try {
       const saved =
-        localStorage.getItem(LS_EXPANDED_GROUPS) ||
-        localStorage.getItem(LS_LEGACY_EXPANDED_GROUPS);
+        localStorage.getItem(LS_EXPANDED_GROUPS) || localStorage.getItem(LS_LEGACY_EXPANDED_GROUPS);
       return saved ? new Set(JSON.parse(saved)) : new Set();
     } catch {
       return new Set();
@@ -162,8 +161,9 @@ export default function ProviderLimits() {
   }, []);
 
   const fetchQuota = useCallback(
-    async (connectionId, provider, options: { force?: boolean } = {}) => {
+    async (connectionId, provider, options: { force?: boolean; silent?: boolean } = {}) => {
       const force = options?.force === true;
+      const silent = options?.silent === true;
       // Debounce: skip if last fetch was < MIN_FETCH_INTERVAL_MS ago
       const now = Date.now();
       const lastFetch = lastFetchTimeRef.current[connectionId] || 0;
@@ -172,7 +172,9 @@ export default function ProviderLimits() {
       }
       lastFetchTimeRef.current[connectionId] = now;
 
-      setLoading((prev) => ({ ...prev, [connectionId]: true }));
+      if (!silent) {
+        setLoading((prev) => ({ ...prev, [connectionId]: true }));
+      }
       setErrors((prev) => ({ ...prev, [connectionId]: null }));
       try {
         const response = await fetch(`/api/usage/${connectionId}`);
@@ -200,7 +202,7 @@ export default function ProviderLimits() {
           if (Date.now() - lastProbeAt >= MIN_FETCH_INTERVAL_MS) {
             staleProbeRef.current[connectionId] = Date.now();
             setTimeout(() => {
-              fetchQuota(connectionId, provider, { force: true }).catch(() => {});
+              fetchQuota(connectionId, provider, { force: true, silent: true }).catch(() => {});
             }, 5000);
           }
         }
@@ -224,7 +226,9 @@ export default function ProviderLimits() {
           [connectionId]: error.message || "Failed to fetch quota",
         }));
       } finally {
-        setLoading((prev) => ({ ...prev, [connectionId]: false }));
+        if (!silent) {
+          setLoading((prev) => ({ ...prev, [connectionId]: false }));
+        }
       }
     },
     []
@@ -412,7 +416,7 @@ export default function ProviderLimits() {
 
   if (initialLoading) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-6">
         <CardSkeleton />
         <CardSkeleton />
       </div>
@@ -421,11 +425,15 @@ export default function ProviderLimits() {
 
   if (sortedConnections.length === 0) {
     return (
-      <Card padding="lg">
-        <div className="text-center py-12">
-          <span className="material-symbols-outlined text-[64px] opacity-15">cloud_off</span>
-          <h3 className="mt-4 text-lg font-semibold text-text-main">{t("noProviders")}</h3>
-          <p className="mt-2 text-sm text-text-muted max-w-[400px] mx-auto">
+      <Card className="rounded-xl border-border/50 shadow-sm" padding="lg">
+        <div className="py-10 text-center">
+          <span className="material-symbols-outlined text-[64px] opacity-15" aria-hidden>
+            cloud_off
+          </span>
+          <h3 className="mt-4 text-lg font-semibold tracking-tight text-text-main">
+            {t("noProviders")}
+          </h3>
+          <p className="mx-auto mt-2 max-w-[400px] text-sm text-text-muted">
             {t("connectProvidersForQuota")}
           </p>
         </div>
@@ -434,11 +442,16 @@ export default function ProviderLimits() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <Card className="overflow-hidden rounded-xl border-border/50 p-0 shadow-sm">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold text-text-main m-0">{t("providerLimits")}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/40 bg-bg-subtle/25 px-4 py-4 sm:px-5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
+          <span className="material-symbols-outlined shrink-0 text-text-muted/80" aria-hidden>
+            speed
+          </span>
+          <h2 className="m-0 text-lg font-semibold tracking-tight text-text-main">
+            {t("providerLimits")}
+          </h2>
           <span className="text-[13px] text-text-muted">
             {t("accountsCount", { count: visibleConnections.length })}
             {visibleConnections.length !== sortedConnections.length &&
@@ -446,40 +459,45 @@ export default function ProviderLimits() {
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Group by toggle */}
-          <div className="flex rounded-lg border border-border overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex overflow-hidden rounded-lg border border-border/60 bg-surface/80">
             <button
+              type="button"
               onClick={() => handleSetGroupBy("none")}
-              className="px-2.5 py-1.5 text-[12px] font-medium cursor-pointer border-none"
-              style={{
-                background: groupBy === "none" ? "var(--color-bg-subtle)" : "transparent",
-                color: groupBy === "none" ? "var(--color-text-main)" : "var(--color-text-muted)",
-              }}
+              className={cn(
+                "border-none px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+                groupBy === "none"
+                  ? "bg-bg-subtle text-text-main"
+                  : "bg-transparent text-text-muted hover:text-text-main"
+              )}
             >
               {t("viewFlat")}
             </button>
             <button
+              type="button"
               onClick={() => handleSetGroupBy("environment")}
-              className="px-2.5 py-1.5 text-[12px] font-medium cursor-pointer border-none"
-              style={{
-                background: groupBy === "environment" ? "var(--color-bg-subtle)" : "transparent",
-                color:
-                  groupBy === "environment" ? "var(--color-text-main)" : "var(--color-text-muted)",
-                borderLeft: "1px solid var(--color-border)",
-              }}
+              className={cn(
+                "border-l border-border/60 px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+                groupBy === "environment"
+                  ? "bg-bg-subtle text-text-main"
+                  : "bg-transparent text-text-muted hover:text-text-main"
+              )}
             >
               {t("viewByEnvironment")}
             </button>
           </div>
 
           <button
+            type="button"
             onClick={refreshAll}
             disabled={refreshingAll}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-bg-subtle border border-border text-text-main text-[13px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border/60 bg-bg-subtle px-3.5 py-1.5 text-[13px] text-text-main transition-colors hover:bg-sidebar disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span
-              className={`material-symbols-outlined text-[16px] ${refreshingAll ? "animate-spin" : ""}`}
+              className={cn(
+                "material-symbols-outlined text-[16px]",
+                refreshingAll && "animate-spin"
+              )}
             >
               refresh
             </span>
@@ -489,22 +507,21 @@ export default function ProviderLimits() {
       </div>
 
       {/* Tier Filters */}
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border/40 px-4 py-3 sm:px-5">
         {TIER_FILTERS.map((tier) => {
           if (tier.key !== "all" && !tierCounts[tier.key]) return null;
           const active = tierFilter === tier.key;
           return (
             <button
+              type="button"
               key={tier.key}
               onClick={() => setTierFilter(tier.key)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer"
-              style={{
-                border: active
-                  ? "1px solid var(--color-primary, #E54D5E)"
-                  : "1px solid var(--color-border)",
-                background: active ? "rgba(229,77,94,0.1)" : "transparent",
-                color: active ? "var(--color-primary, #E54D5E)" : "var(--color-text-muted)",
-              }}
+              className={cn(
+                "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors",
+                active
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-border/60 text-text-muted hover:border-border hover:text-text-main"
+              )}
             >
               <span>{t(tier.labelKey)}</span>
               <span className="opacity-85">{tierCounts[tier.key] || 0}</span>
@@ -513,19 +530,8 @@ export default function ProviderLimits() {
         })}
       </div>
 
-      {/* Account rows */}
-      <div className="rounded-xl border border-border overflow-hidden bg-surface">
-        {/* Table header */}
-        <div
-          className="items-center px-4 py-2.5 border-b border-border text-[11px] font-semibold uppercase tracking-wider text-text-muted"
-          style={{ display: "grid", gridTemplateColumns: "280px 1fr 128px 48px" }}
-        >
-          <div>{t("account")}</div>
-          <div>{t("modelQuotas")}</div>
-          <div className="text-center">{t("lastUsed")}</div>
-          <div className="text-center">{t("actions")}</div>
-        </div>
-
+      {/* Account rows — stacked: account bar + quota grid (avoids empty side columns when many models) */}
+      <div className="overflow-hidden bg-surface">
         {(() => {
           const renderRow = (conn, isLast) => {
             const quota = quotaData[conn.id];
@@ -542,165 +548,181 @@ export default function ProviderLimits() {
             return (
               <div
                 key={conn.id}
-                className="items-center px-4 py-3.5 transition-[background] duration-150 hover:bg-black/[0.03] dark:hover:bg-white/[0.02]"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "280px 1fr 128px 48px",
-                  borderBottom: !isLast ? "1px solid var(--color-border)" : "none",
-                }}
+                className={cn(
+                  "px-4 py-4 transition-colors duration-150 hover:bg-black/[0.03] dark:hover:bg-white/[0.02] sm:px-5",
+                  !isLast && "border-b border-border/40"
+                )}
               >
-                {/* Account Info */}
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
-                    <Image
-                      src={`/providers/${conn.provider}.png`}
-                      alt={conn.provider}
-                      width={32}
-                      height={32}
-                      className="object-contain"
-                      sizes="32px"
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-semibold text-text-main truncate">
-                      {conn.name || conn.displayName || conn.email || config.label}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1 min-h-5">
-                      <span
-                        title={
-                          resolvedPlan
-                            ? t("rawPlanWithValue", { plan: resolvedPlan })
-                            : t("noPlanFromProvider")
-                        }
-                        className="inline-flex items-center shrink-0"
-                      >
-                        <Badge
-                          variant={tierMeta.variant}
-                          size="sm"
-                          dot
-                          className="h-5 leading-none"
-                        >
-                          {tierMeta.label}
-                        </Badge>
-                      </span>
-                      <span className="text-[11px] leading-none text-text-muted">
-                        {config.label}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quota Bars */}
-                <div className="flex flex-wrap gap-x-3 gap-y-1.5 pr-3">
-                  {isLoading ? (
-                    <div className="flex items-center gap-1.5 text-text-muted text-xs">
-                      <span className="material-symbols-outlined animate-spin text-[14px]">
-                        progress_activity
-                      </span>
-                      {t("loadingQuotas")}
-                    </div>
-                  ) : error ? (
-                    <div className="flex items-center gap-1.5 text-xs text-red-500">
-                      <span className="material-symbols-outlined text-[14px]">error</span>
-                      <span className="overflow-hidden text-ellipsis whitespace-nowrap max-w-[300px]">
-                        {error}
-                      </span>
-                    </div>
-                  ) : quota?.message && (!quota.quotas || quota.quotas.length === 0) ? (
-                    <div className="text-xs text-text-muted italic">{quota.message}</div>
-                  ) : quota?.quotas?.length > 0 ? (
-                    quota.quotas.map((q, i) => {
-                      const remainingPercentage = q.unlimited
-                        ? 100
-                        : (q.remainingPercentage ?? calculatePercentage(q.used, q.total));
-                      const colors = getBarColor(remainingPercentage);
-                      const cd = formatCountdown(q.resetAt);
-                      const shortName = formatQuotaLabel(q.name);
-                      const staleAfterReset = q.staleAfterReset === true;
-
-                      return (
-                        <div
-                          key={i}
-                          className={`flex items-center gap-1.5 min-w-[200px] shrink-0 ${
-                            i > 0 ? "border-l border-border/80 pl-3 ml-1" : ""
-                          }`}
-                        >
-                          {/* Model label */}
+                <div className="flex flex-col gap-3">
+                  {/* Top: account + last refresh + action */}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+                        <Image
+                          src={`/providers/${conn.provider}.png`}
+                          alt={conn.provider}
+                          width={32}
+                          height={32}
+                          className="object-contain"
+                          sizes="32px"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate text-[13px] font-semibold text-text-main">
+                          {conn.name || conn.displayName || conn.email || config.label}
+                        </div>
+                        <div className="mt-1 flex min-h-5 flex-wrap items-center gap-1.5">
                           <span
-                            title={q.modelKey || q.name}
-                            className="text-[11px] font-semibold py-0.5 px-2 rounded whitespace-nowrap min-w-[60px] text-center"
-                            style={{ background: colors.bg, color: colors.text }}
+                            title={
+                              resolvedPlan
+                                ? t("rawPlanWithValue", { plan: resolvedPlan })
+                                : t("noPlanFromProvider")
+                            }
+                            className="inline-flex shrink-0 items-center"
                           >
-                            {shortName}
+                            <Badge
+                              variant={tierMeta.variant}
+                              size="sm"
+                              dot
+                              className="h-5 leading-none"
+                            >
+                              {tierMeta.label}
+                            </Badge>
                           </span>
-
-                          {/* Countdown */}
-                          {staleAfterReset ? (
-                            <span className="text-[10px] text-text-muted whitespace-nowrap">
-                              ⟳ Refreshing...
-                            </span>
-                          ) : cd ? (
-                            <span className="text-[10px] text-text-muted whitespace-nowrap">
-                              ⏱ {cd}
-                            </span>
-                          ) : null}
-
-                          {/* Progress bar */}
-                          <div className="flex-1 h-1.5 rounded-sm bg-black/[0.06] dark:bg-white/[0.06] min-w-[60px] overflow-hidden">
-                            <div
-                              className="h-full rounded-sm transition-[width] duration-300 ease-out"
-                              style={{
-                                width: `${Math.min(remainingPercentage, 100)}%`,
-                                background: colors.bar,
-                              }}
-                            />
-                          </div>
-
-                          {/* Percentage */}
-                          <span
-                            className="text-[11px] font-semibold min-w-[32px] text-right"
-                            style={{ color: colors.text }}
-                          >
-                            {remainingPercentage}%
+                          <span className="text-[11px] leading-none text-text-muted">
+                            {config.label}
                           </span>
                         </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-xs text-text-muted italic">{t("noQuotaData")}</div>
-                  )}
-                </div>
+                      </div>
+                    </div>
 
-                {/* Last Refreshed */}
-                <div className="text-center text-[11px] text-text-muted">
-                  {refreshedAt ? (
-                    <span>
-                      {new Date(refreshedAt).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                        hour12: false,
-                      })}
-                    </span>
-                  ) : (
-                    "-"
-                  )}
-                </div>
+                    <div className="flex shrink-0 flex-row items-center justify-between gap-3 sm:justify-end">
+                      <div className="text-left sm:text-right">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                          {t("lastUsed")}
+                        </div>
+                        <div className="tabular-nums text-[12px] text-text-main">
+                          {refreshedAt ? (
+                            new Date(refreshedAt).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              second: "2-digit",
+                              hour12: false,
+                            })
+                          ) : (
+                            <span className="text-text-muted">—</span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => refreshProvider(conn.id, conn.provider)}
+                        disabled={isLoading}
+                        title={t("refreshQuota")}
+                        className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border/50 bg-bg-subtle/40 text-text-muted transition-colors hover:border-border hover:bg-sidebar hover:text-text-main disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <span
+                          className={cn(
+                            "material-symbols-outlined text-[18px]",
+                            isLoading && "animate-spin"
+                          )}
+                        >
+                          refresh
+                        </span>
+                      </button>
+                    </div>
+                  </div>
 
-                {/* Actions */}
-                <div className="flex justify-center gap-0.5">
-                  <button
-                    onClick={() => refreshProvider(conn.id, conn.provider)}
-                    disabled={isLoading}
-                    title={t("refreshQuota")}
-                    className="p-1 rounded-md border-none bg-transparent cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 opacity-60 hover:opacity-100 flex items-center justify-center transition-opacity duration-150"
-                  >
-                    <span
-                      className={`material-symbols-outlined text-[16px] text-text-muted ${isLoading ? "animate-spin" : ""}`}
-                    >
-                      refresh
-                    </span>
-                  </button>
+                  {/* Quotas: responsive card grid */}
+                  <div>
+                    <div className="mb-2 flex items-baseline justify-between gap-2">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                        {t("modelQuotas")}
+                      </span>
+                      {!isLoading && !error && quota?.quotas?.length > 0 && (
+                        <span className="tabular-nums text-[10px] text-text-muted">
+                          {quota.quotas.length}
+                        </span>
+                      )}
+                    </div>
+                    {isLoading ? (
+                      <div className="flex items-center gap-1.5 text-xs text-text-muted">
+                        <span className="material-symbols-outlined animate-spin text-[14px]">
+                          progress_activity
+                        </span>
+                        {t("loadingQuotas")}
+                      </div>
+                    ) : error ? (
+                      <div className="flex items-center gap-1.5 text-xs text-red-500">
+                        <span className="material-symbols-outlined text-[14px]">error</span>
+                        <span className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap">
+                          {error}
+                        </span>
+                      </div>
+                    ) : quota?.message && (!quota.quotas || quota.quotas.length === 0) ? (
+                      <div className="text-xs italic text-text-muted">{quota.message}</div>
+                    ) : quota?.quotas?.length > 0 ? (
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {quota.quotas.map((q, i) => {
+                          const remainingPercentage = q.unlimited
+                            ? 100
+                            : (q.remainingPercentage ?? calculatePercentage(q.used, q.total));
+                          const colors = getBarColor(remainingPercentage);
+                          const cd = formatCountdown(q.resetAt);
+                          const shortName = formatQuotaLabel(q.name);
+                          const staleAfterReset = q.staleAfterReset === true;
+
+                          return (
+                            <div
+                              key={i}
+                              className="flex min-h-[92px] flex-col rounded-lg border border-border/50 bg-bg-subtle/20 p-2.5"
+                            >
+                              <div className="mb-2 flex items-start justify-between gap-2">
+                                <span
+                                  title={q.modelKey || q.name}
+                                  className="min-w-0 max-w-[calc(100%-3rem)] truncate rounded-md px-2 py-0.5 text-[11px] font-semibold leading-tight"
+                                  style={{ background: colors.bg, color: colors.text }}
+                                >
+                                  {shortName}
+                                </span>
+                                <span
+                                  className="shrink-0 tabular-nums text-[11px] font-semibold"
+                                  style={{ color: colors.text }}
+                                >
+                                  {remainingPercentage}%
+                                </span>
+                              </div>
+                              <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/[0.06]">
+                                <div
+                                  className="h-full rounded-full transition-[width] duration-300 ease-out"
+                                  style={{
+                                    width: `${Math.min(remainingPercentage, 100)}%`,
+                                    background: colors.bar,
+                                  }}
+                                />
+                              </div>
+                              <div className="mt-auto text-[10px] leading-tight text-text-muted">
+                                {staleAfterReset ? (
+                                  <span className="inline-flex items-center gap-1">
+                                    <span className="material-symbols-outlined animate-spin text-[12px] opacity-80">
+                                      progress_activity
+                                    </span>
+                                    {t("quotaRefreshing")}
+                                  </span>
+                                ) : cd ? (
+                                  <span>⏱ {cd}</span>
+                                ) : (
+                                  <span className="opacity-50">—</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-xs italic text-text-muted">{t("noQuotaData")}</div>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -709,10 +731,14 @@ export default function ProviderLimits() {
           if (groupedConnections) {
             const entries = [...groupedConnections.entries()];
             return entries.map(([groupName, conns]) => (
-              <div key={groupName} className="border border-border rounded-lg overflow-hidden mb-2">
+              <div
+                key={groupName}
+                className="mb-2 overflow-hidden rounded-xl border border-border/50 last:mb-0"
+              >
                 <button
+                  type="button"
                   onClick={() => toggleGroup(groupName)}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 bg-bg-subtle hover:bg-black/[0.04] dark:hover:bg-white/[0.05] transition-colors text-left border-none cursor-pointer"
+                  className="flex w-full cursor-pointer items-center gap-2 border-none bg-bg-subtle px-4 py-2.5 text-left transition-colors hover:bg-black/[0.04] dark:hover:bg-white/[0.05]"
                 >
                   <span className="material-symbols-outlined text-[16px] text-text-muted">
                     {expandedGroups.has(groupName) ? "expand_less" : "expand_more"}
@@ -740,7 +766,7 @@ export default function ProviderLimits() {
         })()}
 
         {visibleConnections.length === 0 && (
-          <div className="py-6 px-4 text-center text-text-muted text-[13px]">
+          <div className="px-4 py-8 text-center text-[13px] text-text-muted">
             {t("noAccountsForTierFilter")}{" "}
             <strong>
               {t(TIER_FILTERS.find((tier) => tier.key === tierFilter)?.labelKey || "tierUnknown")}
@@ -749,6 +775,6 @@ export default function ProviderLimits() {
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

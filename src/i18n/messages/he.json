@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "מגבלות ומכסות",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "מגבלת שיעור",
     "remaining": "נשאר",
     "requestsPerMinute": "בקשות/דקה",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "רענון אוטומטי",
     "refreshAll": "רענן הכל",
     "loadingQuotas": "טוען...",
+    "quotaRefreshing": "Refreshing…",
     "account": "חשבון",
     "modelQuotas": "מכסות דגם",
     "lastUsed": "Last Refreshed",

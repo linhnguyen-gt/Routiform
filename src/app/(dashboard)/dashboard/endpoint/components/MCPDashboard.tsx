@@ -338,14 +338,14 @@ export default function McpDashboardPage() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="mx-auto w-full max-w-5xl py-2">
         <div className="text-sm text-text-muted">{t("loading")}</div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard label={t("processStatus")} value={status?.online ? t("online") : t("offline")} />
         <StatCard label={t("pid")} value={status?.heartbeat?.pid ?? "—"} />
@@ -359,8 +359,8 @@ export default function McpDashboardPage() {
         />
       </div>
 
-      <Card className="p-5">
-        <h2 className="text-lg font-semibold mb-4">{t("activity24h")}</h2>
+      <Card className="rounded-xl border-border/50 p-5 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold tracking-tight">{t("activity24h")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <StatCard label={t("totalCalls")} value={status?.activity?.totalCalls24h ?? 0} compact />
           <StatCard
@@ -421,7 +421,7 @@ export default function McpDashboardPage() {
         </div>
       </Card>
 
-      <Card className="p-5">
+      <Card className="rounded-xl border-border/50 p-5 shadow-sm">
         <h2 className="text-lg font-semibold mb-4">{t("operationalControls")}</h2>
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
           <div className="rounded-lg border border-border p-3 space-y-3">
@@ -486,7 +486,7 @@ export default function McpDashboardPage() {
         {actionMessage && <p className="text-sm text-text-muted mt-3">{actionMessage}</p>}
       </Card>
 
-      <Card className="p-5">
+      <Card className="rounded-xl border-border/50 p-5 shadow-sm">
         <h2 className="text-lg font-semibold mb-4">{t("toolsAndScopes")}</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -512,7 +512,7 @@ export default function McpDashboardPage() {
         </div>
       </Card>
 
-      <Card className="p-5">
+      <Card className="rounded-xl border-border/50 p-5 shadow-sm">
         <div className="flex flex-wrap gap-2 items-end justify-between mb-4">
           <div>
             <h2 className="text-lg font-semibold">{t("auditLog")}</h2>

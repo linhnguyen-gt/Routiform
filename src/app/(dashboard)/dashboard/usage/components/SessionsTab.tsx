@@ -7,6 +7,7 @@ import { Card } from "@/shared/components";
 
 export default function SessionsTab() {
   const t = useTranslations("usage");
+  const tc = useTranslations("common");
   const [data, setData] = useState({ count: 0, sessions: [] });
   const [loading, setLoading] = useState(true);
 
@@ -32,16 +33,30 @@ export default function SessionsTab() {
     return t("durationHoursShort", { value: Math.floor(ms / 3600000) });
   };
 
+  if (loading) {
+    return (
+      <Card className="rounded-xl border-border/50 shadow-sm">
+        <div className="flex items-center justify-center gap-3 py-10 text-sm text-text-muted">
+          <span
+            className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-cyan-500/25 border-t-cyan-500"
+            aria-hidden
+          />
+          <span>{tc("loading")}</span>
+        </div>
+      </Card>
+    );
+  }
+
   return (
-    <Card>
-      <div className="flex items-center gap-3 mb-5">
-        <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-500">
+    <Card className="rounded-xl border-border/50 shadow-sm">
+      <div className="mb-5 flex items-center gap-3">
+        <div className="rounded-xl bg-cyan-500/10 p-2.5 text-cyan-500 ring-1 ring-cyan-500/20">
           <span className="material-symbols-outlined text-[20px]" aria-hidden="true">
             fingerprint
           </span>
         </div>
-        <div className="flex-1">
-          <h3 className="text-lg font-semibold">{t("activeSessions")}</h3>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-lg font-semibold tracking-tight">{t("activeSessions")}</h3>
           <p className="text-sm text-text-muted">{t("sessionsTrackedHint")}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -53,21 +68,21 @@ export default function SessionsTab() {
       </div>
 
       {data.sessions.length === 0 ? (
-        <div className="text-center py-8 text-text-muted">
+        <div className="rounded-xl border border-dashed border-border/60 bg-bg-subtle/30 py-10 text-center text-text-muted">
           <span
-            className="material-symbols-outlined text-[40px] mb-2 block opacity-40"
+            className="material-symbols-outlined mb-2 block text-[40px] opacity-40"
             aria-hidden="true"
           >
             fingerprint
           </span>
-          <p className="text-sm">{t("noSessions")}</p>
-          <p className="text-xs mt-1">{t("sessionsHint")}</p>
+          <p className="text-sm font-medium text-text-main">{t("noSessions")}</p>
+          <p className="mt-1 text-xs">{t("sessionsHint")}</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-lg border border-border/50">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border/30">
+              <tr className="border-b border-border/40 bg-bg-subtle/30">
                 <th className="text-left py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">
                   {t("session")}
                 </th>

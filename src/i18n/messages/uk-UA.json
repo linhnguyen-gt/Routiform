@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "Ліміти та квоти",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "Обмеження швидкості",
     "remaining": "Залишилося",
     "requestsPerMinute": "Запитів/хв",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "Автооновлення",
     "refreshAll": "Оновити все",
     "loadingQuotas": "Завантаження...",
+    "quotaRefreshing": "Refreshing…",
     "account": "Обліковий запис",
     "modelQuotas": "Модельні квоти",
     "lastUsed": "Last Refreshed",

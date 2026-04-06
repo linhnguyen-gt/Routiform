@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "Giới hạn & hạn ngạch",
+    "pageDescription": "Theo dõi hạn ngạch OAuth nhà cung cấp, phiên yêu cầu đang hoạt động và khóa tạm thời do giới hạn tốc độ.",
     "rateLimit": "Giới hạn tỷ lệ",
     "remaining": "Còn lại",
     "requestsPerMinute": "Yêu cầu/phút",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "Tự động làm mới",
     "refreshAll": "Làm mới tất cả",
     "loadingQuotas": "Đang tải...",
+    "quotaRefreshing": "Đang làm mới…",
     "account": "Tài khoản",
     "modelQuotas": "Hạn ngạch mẫu",
     "lastUsed": "Last Refreshed",

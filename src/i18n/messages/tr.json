@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "Limitler ve Kotalar",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "Hız Limiti",
     "remaining": "Kalan",
     "requestsPerMinute": "İstek/dk",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "Otomatik yenileme",
     "refreshAll": "Tümünü Yenile",
     "loadingQuotas": "Yükleniyor...",
+    "quotaRefreshing": "Refreshing…",
     "account": "Hesap",
     "modelQuotas": "Model Kotaları",
     "lastUsed": "Last Refreshed",

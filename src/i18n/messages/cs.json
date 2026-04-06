@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "Limity a kvóty",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "Limit rychlosti",
     "remaining": "Zbývající",
     "requestsPerMinute": "Žádostí/min",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "Auto obnovení",
     "refreshAll": "Obnovit vše",
     "loadingQuotas": "Načítám...",
+    "quotaRefreshing": "Refreshing…",
     "account": "Účet",
     "modelQuotas": "Kvóty Modelu",
     "lastUsed": "Naposledy aktualizováno",

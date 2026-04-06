@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "Limits und Quoten",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "Ratenbegrenzung",
     "remaining": "Übrig",
     "requestsPerMinute": "Anfragen/Min",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "Automatische Aktualisierung",
     "refreshAll": "Alle aktualisieren",
     "loadingQuotas": "Laden...",
+    "quotaRefreshing": "Refreshing…",
     "account": "Konto",
     "modelQuotas": "Modellkontingente",
     "lastUsed": "Last Refreshed",

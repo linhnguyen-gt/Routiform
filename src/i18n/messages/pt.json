@@ -1432,6 +1432,7 @@
   },
   "limits": {
     "title": "Limites e cotas",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "Limite de taxa",
     "remaining": "Restante",
     "requestsPerMinute": "Solicitações/min",
@@ -2590,6 +2591,7 @@
     "autoRefresh": "Atualização automática",
     "refreshAll": "Atualizar tudo",
     "loadingQuotas": "Carregando...",
+    "quotaRefreshing": "Refreshing…",
     "account": "Conta",
     "modelQuotas": "Cotas de modelo",
     "lastUsed": "Last Refreshed",

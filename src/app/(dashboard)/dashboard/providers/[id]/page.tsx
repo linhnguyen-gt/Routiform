@@ -43,6 +43,7 @@ import {
   type ModelCompatProtocolKey,
 } from "@/shared/constants/modelCompat";
 import { resolveManagedModelAlias } from "@/shared/utils/providerModelAliases";
+import { cn } from "@/shared/utils/cn";
 
 type CompatByProtocolMap = Partial<
   Record<
@@ -342,6 +343,10 @@ interface CustomModelsSectionProps {
   copied?: string;
   onCopy: (text: string, key: string) => void;
   onModelsChanged?: () => void;
+  onTestModel?: (fullModel: string) => Promise<boolean>;
+  modelTestResults?: Record<string, "ok" | "error">;
+  testingModelKey?: string | null;
+  canTestModels?: boolean;
 }
 
 interface CompatibleModelsSectionProps {
@@ -1235,15 +1240,16 @@ export default function ProviderDetailPage() {
   }, [fetchConnections]);
 
   const handleTestModel = useCallback(
-    async (fullModel: string) => {
-      if (modelTestInFlightRef.current) return;
+    async (fullModel: string): Promise<boolean> => {
+      if (modelTestInFlightRef.current) return false;
       if (!connections.length) {
         notify.error(t("addConnectionToImport"));
-        return;
+        return false;
       }
       modelTestInFlightRef.current = true;
       setTestingModelKey(fullModel);
       setModelTestBannerError("");
+      let success = false;
       try {
         const res = await fetch("/api/models/test", {
           method: "POST",
@@ -1256,6 +1262,7 @@ export default function ProviderDetailPage() {
           error?: string;
         };
         const ok = Boolean(data.ok);
+        success = ok;
         setModelTestResults((prev) => ({ ...prev, [fullModel]: ok ? "ok" : "error" }));
         if (ok) {
           const ms = typeof data.latencyMs === "number" ? data.latencyMs : null;
@@ -1271,10 +1278,12 @@ export default function ProviderDetailPage() {
         const netErr = t("errorTypeNetworkError");
         setModelTestBannerError(netErr);
         notify.error(netErr);
+        success = false;
       } finally {
         modelTestInFlightRef.current = false;
         setTestingModelKey(null);
       }
+      return success;
     },
     [connections.length, notify, t]
   );
@@ -2171,7 +2180,7 @@ export default function ProviderDetailPage() {
       return (
         <div>
           {modelTestBanner}
-          <div className="flex items-center gap-2 mb-4">
+          <div className="mb-5 flex flex-wrap items-center gap-2 border-b border-border/40 pb-4">
             {autoSyncToggle}
             {clearAllButton}
           </div>
@@ -2211,7 +2220,7 @@ export default function ProviderDetailPage() {
       return (
         <div>
           {modelTestBanner}
-          <div className="flex items-center gap-2 mb-4">
+          <div className="mb-5 flex flex-wrap items-center gap-2 border-b border-border/40 pb-4">
             <Button
               size="sm"
               variant="secondary"
@@ -2251,7 +2260,7 @@ export default function ProviderDetailPage() {
 
     const importButton =
       providerId === "gemini" ? null : (
-        <div className="flex items-center gap-2 mb-4">
+        <div className="mb-5 flex flex-wrap items-center gap-2 border-b border-border/40 pb-4">
           <Button
             size="sm"
             variant="secondary"
@@ -2281,7 +2290,7 @@ export default function ProviderDetailPage() {
       <div>
         {modelTestBanner}
         {importButton}
-        <div className="flex flex-wrap gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {models.map((model) => {
             const fullModel = `${providerDisplayAlias}/${model.id}`;
             return (
@@ -2311,7 +2320,7 @@ export default function ProviderDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-8">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 pb-8">
         <CardSkeleton />
         <CardSkeleton />
       </div>
@@ -2320,11 +2329,23 @@ export default function ProviderDetailPage() {
 
   if (!providerInfo) {
     return (
-      <div className="text-center py-20">
-        <p className="text-text-muted">{t("providerNotFound")}</p>
-        <Link href="/dashboard/providers" className="text-primary mt-4 inline-block">
-          {t("backToProviders")}
-        </Link>
+      <div className="mx-auto flex w-full max-w-5xl flex-col items-center justify-center py-20">
+        <div className="w-full max-w-md rounded-2xl border border-border/60 bg-surface p-10 text-center shadow-sm">
+          <span
+            className="material-symbols-outlined mb-3 block text-4xl text-text-muted/80"
+            aria-hidden
+          >
+            travel_explore
+          </span>
+          <p className="text-text-muted">{t("providerNotFound")}</p>
+          <Link
+            href="/dashboard/providers"
+            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/15"
+          >
+            <span className="material-symbols-outlined text-lg">arrow_back</span>
+            {t("backToProviders")}
+          </Link>
+        </div>
       </div>
     );
   }
@@ -2343,61 +2364,76 @@ export default function ProviderDetailPage() {
   };
 
   return (
-    <div className="flex flex-col gap-8">
-      {/* Header */}
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 pb-8">
+      {/* Hero */}
       <div>
         <Link
           href="/dashboard/providers"
-          className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary transition-colors mb-4"
+          className="group mb-6 inline-flex items-center gap-2 text-sm font-medium text-text-muted transition-colors duration-200 hover:text-primary"
         >
-          <span className="material-symbols-outlined text-lg">arrow_back</span>
+          <span className="material-symbols-outlined text-lg transition-transform duration-200 group-hover:-translate-x-0.5">
+            arrow_back
+          </span>
           {t("backToProviders")}
         </Link>
-        <div className="flex items-center gap-4">
+        <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-surface via-surface to-bg-subtle/35 p-6 shadow-sm ring-1 ring-black/[0.03] dark:to-white/[0.03] dark:ring-white/[0.06] sm:p-8">
           <div
-            className="rounded-lg flex items-center justify-center"
-            style={{ backgroundColor: `${providerInfo.color}15` }}
-          >
-            {headerImgError ? (
-              <span className="text-sm font-bold" style={{ color: providerInfo.color }}>
-                {providerInfo.textIcon || providerInfo.id.slice(0, 2).toUpperCase()}
-              </span>
-            ) : (
-              <Image
-                src={getHeaderIconPath()}
-                alt={providerInfo.name}
-                width={48}
-                height={48}
-                className="object-contain rounded-lg max-w-[48px] max-h-[48px]"
-                sizes="48px"
-                onError={() => setHeaderImgError(true)}
-              />
-            )}
-          </div>
-          <div>
-            {providerInfo.website ? (
-              <a
-                href={providerInfo.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-3xl font-semibold tracking-tight hover:underline inline-flex items-center gap-2"
-                style={{ color: providerInfo.color }}
-              >
-                {providerInfo.name}
-                <span className="material-symbols-outlined text-lg opacity-60">open_in_new</span>
-              </a>
-            ) : (
-              <h1 className="text-3xl font-semibold tracking-tight">{providerInfo.name}</h1>
-            )}
-            <p className="text-text-muted">
-              {t("connectionCountLabel", { count: connections.length })}
-            </p>
+            className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full opacity-[0.12] blur-3xl"
+            style={{ backgroundColor: providerInfo.color }}
+            aria-hidden
+          />
+          <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-8">
+            <div className="flex shrink-0 justify-center sm:justify-start">
+              <div className="relative">
+                <div
+                  className="flex h-[72px] w-[72px] items-center justify-center rounded-2xl ring-2 ring-black/[0.04] dark:ring-white/[0.08]"
+                  style={{ backgroundColor: `${providerInfo.color}18` }}
+                >
+                  {headerImgError ? (
+                    <span className="text-lg font-bold" style={{ color: providerInfo.color }}>
+                      {providerInfo.textIcon || providerInfo.id.slice(0, 2).toUpperCase()}
+                    </span>
+                  ) : (
+                    <Image
+                      src={getHeaderIconPath()}
+                      alt={providerInfo.name}
+                      width={48}
+                      height={48}
+                      className="max-h-[48px] max-w-[48px] rounded-lg object-contain"
+                      sizes="48px"
+                      onError={() => setHeaderImgError(true)}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="min-w-0 flex-1 text-center sm:text-left">
+              {providerInfo.website ? (
+                <a
+                  href={providerInfo.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 text-2xl font-semibold tracking-tight hover:underline sm:justify-start sm:text-3xl"
+                  style={{ color: providerInfo.color }}
+                >
+                  {providerInfo.name}
+                  <span className="material-symbols-outlined text-xl opacity-60">open_in_new</span>
+                </a>
+              ) : (
+                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                  {providerInfo.name}
+                </h1>
+              )}
+              <p className="mt-1 text-sm text-text-muted">
+                {t("connectionCountLabel", { count: connections.length })}
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
       {isCompatible && providerNode && (
-        <Card>
+        <Card className="rounded-xl border-border/50 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-lg font-semibold">
@@ -2480,10 +2516,16 @@ export default function ProviderDetailPage() {
       )}
 
       {/* Connections */}
-      <Card>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold">{t("connections")}</h2>
+      <Card className="rounded-xl border-border/50 shadow-sm">
+        <div className="mb-6 flex flex-col gap-4 border-b border-border/40 pb-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <span
+              className="material-symbols-outlined hidden text-text-muted/70 sm:inline"
+              aria-hidden
+            >
+              hub
+            </span>
+            <h2 className="text-lg font-semibold tracking-tight">{t("connections")}</h2>
             {/* Provider-level proxy indicator/button */}
             <button
               onClick={() =>
@@ -2493,10 +2535,10 @@ export default function ProviderDetailPage() {
                   label: providerInfo?.name || providerId,
                 })
               }
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all ${
+              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all ${
                 proxyConfig?.providers?.[providerId]
                   ? "bg-amber-500/15 text-amber-500 hover:bg-amber-500/25"
-                  : "bg-black/[0.03] dark:bg-white/[0.03] text-text-muted/50 hover:text-text-muted hover:bg-black/[0.06] dark:hover:bg-white/[0.06]"
+                  : "bg-black/[0.03] text-text-muted/50 hover:bg-black/[0.06] hover:text-text-muted dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
               }`}
               title={
                 proxyConfig?.providers?.[providerId]
@@ -2512,46 +2554,48 @@ export default function ProviderDetailPage() {
                 : t("providerProxy")}
             </button>
           </div>
-          {connections.length > 1 && (
-            <button
-              onClick={handleBatchTestAll}
-              disabled={batchTesting || !!retestingId}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                batchTesting
-                  ? "bg-primary/20 border-primary/40 text-primary animate-pulse"
-                  : "bg-bg-subtle border-border text-text-muted hover:text-text-primary hover:border-primary/40"
-              }`}
-              title={t("testAll")}
-              aria-label={t("testAll")}
-            >
-              <span className="material-symbols-outlined text-[14px]">
-                {batchTesting ? "sync" : "play_arrow"}
-              </span>
-              {batchTesting ? t("testing") : t("testAll")}
-            </button>
-          )}
-          {!isCompatible ? (
-            <div className="flex items-center gap-2">
-              <Button size="sm" icon="add" onClick={openPrimaryAddFlow}>
-                {providerSupportsPat ? "Add PAT" : t("add")}
-              </Button>
-              {providerId === "qoder" && qoderBrowserOAuthEnabled === true && (
-                <Button size="sm" variant="secondary" onClick={() => setShowOAuthModal(true)}>
-                  Browser OAuth
+          <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
+            {connections.length > 1 && (
+              <button
+                onClick={handleBatchTestAll}
+                disabled={batchTesting || !!retestingId}
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  batchTesting
+                    ? "animate-pulse border-primary/40 bg-primary/20 text-primary"
+                    : "border-border bg-bg-subtle text-text-muted hover:border-primary/40 hover:text-text-primary"
+                }`}
+                title={t("testAll")}
+                aria-label={t("testAll")}
+              >
+                <span className="material-symbols-outlined text-[14px]">
+                  {batchTesting ? "sync" : "play_arrow"}
+                </span>
+                {batchTesting ? t("testing") : t("testAll")}
+              </button>
+            )}
+            {!isCompatible ? (
+              <>
+                <Button size="sm" icon="add" onClick={openPrimaryAddFlow}>
+                  {providerSupportsPat ? "Add PAT" : t("add")}
                 </Button>
-              )}
-            </div>
-          ) : (
-            connections.length === 0 && (
-              <Button size="sm" icon="add" onClick={() => setShowAddApiKeyModal(true)}>
-                {t("add")}
-              </Button>
-            )
-          )}
+                {providerId === "qoder" && qoderBrowserOAuthEnabled === true && (
+                  <Button size="sm" variant="secondary" onClick={() => setShowOAuthModal(true)}>
+                    Browser OAuth
+                  </Button>
+                )}
+              </>
+            ) : (
+              connections.length === 0 && (
+                <Button size="sm" icon="add" onClick={() => setShowAddApiKeyModal(true)}>
+                  {t("add")}
+                </Button>
+              )
+            )}
+          </div>
         </div>
 
         {connections.length > 0 && (
-          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2.5 dark:bg-zinc-900/30">
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-border/60 bg-gradient-to-r from-muted/40 to-transparent px-3 py-2.5 dark:from-zinc-900/40">
             <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-text-main">
               <input
                 ref={selectAllConnectionsRef}
@@ -2583,14 +2627,14 @@ export default function ProviderDetailPage() {
         )}
 
         {connections.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary mb-4">
+          <div className="rounded-xl border border-dashed border-border/60 bg-bg-subtle/30 py-14 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/20">
               <span className="material-symbols-outlined text-[32px]">
                 {isOAuth ? "lock" : "key"}
               </span>
             </div>
-            <p className="text-text-main font-medium mb-1">{t("noConnectionsYet")}</p>
-            <p className="text-sm text-text-muted mb-4">{t("addFirstConnectionHint")}</p>
+            <p className="mb-1 font-medium text-text-main">{t("noConnectionsYet")}</p>
+            <p className="mb-4 text-sm text-text-muted">{t("addFirstConnectionHint")}</p>
             {!isCompatible && (
               <div className="flex items-center justify-center gap-2">
                 <Button icon="add" onClick={openPrimaryAddFlow}>
@@ -2613,74 +2657,78 @@ export default function ProviderDetailPage() {
             if (!hasAnyTag) {
               // No tags — render flat list as before
               return (
-                <div className="flex flex-col divide-y divide-black/[0.03] dark:divide-white/[0.03]">
-                  {sorted.map((conn, index) => (
-                    <ConnectionRow
-                      key={conn.id}
-                      connection={conn}
-                      isOAuth={conn.authType === "oauth"}
-                      isFirst={index === 0}
-                      isLast={index === sorted.length - 1}
-                      onMoveUp={() => handleSwapPriority(conn, sorted[index - 1])}
-                      onMoveDown={() => handleSwapPriority(conn, sorted[index + 1])}
-                      onToggleActive={(isActive) => handleUpdateConnectionStatus(conn.id, isActive)}
-                      onToggleRateLimit={(enabled) => handleToggleRateLimit(conn.id, enabled)}
-                      isCodex={providerId === "codex"}
-                      onToggleCodex5h={(enabled) =>
-                        handleToggleCodexLimit(conn.id, "use5h", enabled)
-                      }
-                      onToggleCodexWeekly={(enabled) =>
-                        handleToggleCodexLimit(conn.id, "useWeekly", enabled)
-                      }
-                      onRetest={() => handleRetestConnection(conn.id)}
-                      isRetesting={retestingId === conn.id}
-                      onEdit={() => {
-                        setSelectedConnection(conn);
-                        setShowEditModal(true);
-                      }}
-                      onDelete={() => handleDelete(conn.id)}
-                      showBulkSelect
-                      bulkSelected={
-                        typeof conn.id === "string" && selectedConnectionIds.includes(conn.id)
-                      }
-                      onToggleBulkSelect={
-                        typeof conn.id === "string"
-                          ? () => toggleConnectionBulkSelect(conn.id)
-                          : undefined
-                      }
-                      onReauth={
-                        conn.authType === "oauth" && allowQoderOAuthUi
-                          ? () => setShowOAuthModal(true)
-                          : undefined
-                      }
-                      onRefreshToken={
-                        conn.authType === "oauth" ? () => handleRefreshToken(conn.id) : undefined
-                      }
-                      isRefreshing={refreshingId === conn.id}
-                      onApplyCodexAuthLocal={
-                        providerId === "codex"
-                          ? () => handleApplyCodexAuthLocal(conn.id)
-                          : undefined
-                      }
-                      isApplyingCodexAuthLocal={applyingCodexAuthId === conn.id}
-                      onExportCodexAuthFile={
-                        providerId === "codex"
-                          ? () => handleExportCodexAuthFile(conn.id)
-                          : undefined
-                      }
-                      isExportingCodexAuthFile={exportingCodexAuthId === conn.id}
-                      onProxy={() =>
-                        setProxyTarget({
-                          level: "key",
-                          id: conn.id,
-                          label: conn.name || conn.email || conn.id,
-                        })
-                      }
-                      hasProxy={!!connProxyMap[conn.id]?.proxy}
-                      proxySource={connProxyMap[conn.id]?.level || null}
-                      proxyHost={connProxyMap[conn.id]?.proxy?.host || null}
-                    />
-                  ))}
+                <div className="overflow-hidden rounded-xl border border-border/50 bg-gradient-to-b from-bg-subtle/25 to-transparent dark:from-white/[0.02]">
+                  <div className="flex flex-col divide-y divide-border/50">
+                    {sorted.map((conn, index) => (
+                      <ConnectionRow
+                        key={conn.id}
+                        connection={conn}
+                        isOAuth={conn.authType === "oauth"}
+                        isFirst={index === 0}
+                        isLast={index === sorted.length - 1}
+                        onMoveUp={() => handleSwapPriority(conn, sorted[index - 1])}
+                        onMoveDown={() => handleSwapPriority(conn, sorted[index + 1])}
+                        onToggleActive={(isActive) =>
+                          handleUpdateConnectionStatus(conn.id, isActive)
+                        }
+                        onToggleRateLimit={(enabled) => handleToggleRateLimit(conn.id, enabled)}
+                        isCodex={providerId === "codex"}
+                        onToggleCodex5h={(enabled) =>
+                          handleToggleCodexLimit(conn.id, "use5h", enabled)
+                        }
+                        onToggleCodexWeekly={(enabled) =>
+                          handleToggleCodexLimit(conn.id, "useWeekly", enabled)
+                        }
+                        onRetest={() => handleRetestConnection(conn.id)}
+                        isRetesting={retestingId === conn.id}
+                        onEdit={() => {
+                          setSelectedConnection(conn);
+                          setShowEditModal(true);
+                        }}
+                        onDelete={() => handleDelete(conn.id)}
+                        showBulkSelect
+                        bulkSelected={
+                          typeof conn.id === "string" && selectedConnectionIds.includes(conn.id)
+                        }
+                        onToggleBulkSelect={
+                          typeof conn.id === "string"
+                            ? () => toggleConnectionBulkSelect(conn.id)
+                            : undefined
+                        }
+                        onReauth={
+                          conn.authType === "oauth" && allowQoderOAuthUi
+                            ? () => setShowOAuthModal(true)
+                            : undefined
+                        }
+                        onRefreshToken={
+                          conn.authType === "oauth" ? () => handleRefreshToken(conn.id) : undefined
+                        }
+                        isRefreshing={refreshingId === conn.id}
+                        onApplyCodexAuthLocal={
+                          providerId === "codex"
+                            ? () => handleApplyCodexAuthLocal(conn.id)
+                            : undefined
+                        }
+                        isApplyingCodexAuthLocal={applyingCodexAuthId === conn.id}
+                        onExportCodexAuthFile={
+                          providerId === "codex"
+                            ? () => handleExportCodexAuthFile(conn.id)
+                            : undefined
+                        }
+                        isExportingCodexAuthFile={exportingCodexAuthId === conn.id}
+                        onProxy={() =>
+                          setProxyTarget({
+                            level: "key",
+                            id: conn.id,
+                            label: conn.name || conn.email || conn.id,
+                          })
+                        }
+                        hasProxy={!!connProxyMap[conn.id]?.proxy}
+                        proxySource={connProxyMap[conn.id]?.level || null}
+                        proxyHost={connProxyMap[conn.id]?.proxy?.host || null}
+                      />
+                    ))}
+                  </div>
                 </div>
               );
             }
@@ -2699,108 +2747,111 @@ export default function ProviderDetailPage() {
             });
 
             return (
-              <div className="flex flex-col gap-0">
+              <div className="flex flex-col gap-3">
                 {groupKeys.map((tag, gi) => {
                   const groupConns = groupMap.get(tag)!;
                   return (
                     <div
                       key={tag || "__untagged__"}
-                      className={
-                        gi > 0
-                          ? "border-t border-black/[0.06] dark:border-white/[0.06] mt-1 pt-1"
-                          : ""
-                      }
+                      className={gi > 0 ? "mt-1 border-t border-border/50 pt-3" : ""}
                     >
                       {tag && (
-                        <div className="flex items-center gap-2 px-3 pt-2 pb-1">
+                        <div className="flex items-center gap-2 px-1 pb-2 pt-1 sm:px-2">
                           <span className="material-symbols-outlined text-[13px] text-text-muted/50">
                             label
                           </span>
-                          <span className="text-[11px] font-semibold uppercase tracking-widest text-text-muted/60 select-none">
+                          <span className="select-none text-[11px] font-semibold uppercase tracking-[0.2em] text-text-muted/70">
                             {tag}
                           </span>
-                          <div className="flex-1 h-px bg-black/[0.04] dark:bg-white/[0.04]" />
-                          <span className="text-[10px] text-text-muted/40">
+                          <div className="h-px flex-1 bg-border/60" />
+                          <span className="text-[10px] tabular-nums text-text-muted/50">
                             {groupConns.length}
                           </span>
                         </div>
                       )}
-                      <div className="flex flex-col divide-y divide-black/[0.03] dark:divide-white/[0.03]">
-                        {groupConns.map((conn, index) => (
-                          <ConnectionRow
-                            key={conn.id}
-                            connection={conn}
-                            isOAuth={conn.authType === "oauth"}
-                            isFirst={gi === 0 && index === 0}
-                            isLast={gi === groupKeys.length - 1 && index === groupConns.length - 1}
-                            onMoveUp={() =>
-                              handleSwapPriority(conn, sorted[sorted.indexOf(conn) - 1])
-                            }
-                            onMoveDown={() =>
-                              handleSwapPriority(conn, sorted[sorted.indexOf(conn) + 1])
-                            }
-                            onToggleActive={(isActive) =>
-                              handleUpdateConnectionStatus(conn.id, isActive)
-                            }
-                            onToggleRateLimit={(enabled) => handleToggleRateLimit(conn.id, enabled)}
-                            isCodex={providerId === "codex"}
-                            onToggleCodex5h={(enabled) =>
-                              handleToggleCodexLimit(conn.id, "use5h", enabled)
-                            }
-                            onToggleCodexWeekly={(enabled) =>
-                              handleToggleCodexLimit(conn.id, "useWeekly", enabled)
-                            }
-                            onRetest={() => handleRetestConnection(conn.id)}
-                            isRetesting={retestingId === conn.id}
-                            onEdit={() => {
-                              setSelectedConnection(conn);
-                              setShowEditModal(true);
-                            }}
-                            onDelete={() => handleDelete(conn.id)}
-                            showBulkSelect
-                            bulkSelected={
-                              typeof conn.id === "string" && selectedConnectionIds.includes(conn.id)
-                            }
-                            onToggleBulkSelect={
-                              typeof conn.id === "string"
-                                ? () => toggleConnectionBulkSelect(conn.id)
-                                : undefined
-                            }
-                            onReauth={
-                              conn.authType === "oauth" && allowQoderOAuthUi
-                                ? () => setShowOAuthModal(true)
-                                : undefined
-                            }
-                            onRefreshToken={
-                              conn.authType === "oauth"
-                                ? () => handleRefreshToken(conn.id)
-                                : undefined
-                            }
-                            isRefreshing={refreshingId === conn.id}
-                            onApplyCodexAuthLocal={
-                              providerId === "codex"
-                                ? () => handleApplyCodexAuthLocal(conn.id)
-                                : undefined
-                            }
-                            isApplyingCodexAuthLocal={applyingCodexAuthId === conn.id}
-                            onExportCodexAuthFile={
-                              providerId === "codex"
-                                ? () => handleExportCodexAuthFile(conn.id)
-                                : undefined
-                            }
-                            isExportingCodexAuthFile={exportingCodexAuthId === conn.id}
-                            onProxy={() =>
-                              setProxyTarget({
-                                level: "key",
-                                id: conn.id,
-                                label: conn.name || conn.email || conn.id,
-                              })
-                            }
-                            hasProxy={!!connProxyMap[conn.id]?.proxy}
-                            proxySource={connProxyMap[conn.id]?.level || null}
-                            proxyHost={connProxyMap[conn.id]?.proxy?.host || null}
-                          />
-                        ))}
+                      <div className="overflow-hidden rounded-xl border border-border/50 bg-gradient-to-b from-bg-subtle/25 to-transparent dark:from-white/[0.02]">
+                        <div className="flex flex-col divide-y divide-border/50">
+                          {groupConns.map((conn, index) => (
+                            <ConnectionRow
+                              key={conn.id}
+                              connection={conn}
+                              isOAuth={conn.authType === "oauth"}
+                              isFirst={gi === 0 && index === 0}
+                              isLast={
+                                gi === groupKeys.length - 1 && index === groupConns.length - 1
+                              }
+                              onMoveUp={() =>
+                                handleSwapPriority(conn, sorted[sorted.indexOf(conn) - 1])
+                              }
+                              onMoveDown={() =>
+                                handleSwapPriority(conn, sorted[sorted.indexOf(conn) + 1])
+                              }
+                              onToggleActive={(isActive) =>
+                                handleUpdateConnectionStatus(conn.id, isActive)
+                              }
+                              onToggleRateLimit={(enabled) =>
+                                handleToggleRateLimit(conn.id, enabled)
+                              }
+                              isCodex={providerId === "codex"}
+                              onToggleCodex5h={(enabled) =>
+                                handleToggleCodexLimit(conn.id, "use5h", enabled)
+                              }
+                              onToggleCodexWeekly={(enabled) =>
+                                handleToggleCodexLimit(conn.id, "useWeekly", enabled)
+                              }
+                              onRetest={() => handleRetestConnection(conn.id)}
+                              isRetesting={retestingId === conn.id}
+                              onEdit={() => {
+                                setSelectedConnection(conn);
+                                setShowEditModal(true);
+                              }}
+                              onDelete={() => handleDelete(conn.id)}
+                              showBulkSelect
+                              bulkSelected={
+                                typeof conn.id === "string" &&
+                                selectedConnectionIds.includes(conn.id)
+                              }
+                              onToggleBulkSelect={
+                                typeof conn.id === "string"
+                                  ? () => toggleConnectionBulkSelect(conn.id)
+                                  : undefined
+                              }
+                              onReauth={
+                                conn.authType === "oauth" && allowQoderOAuthUi
+                                  ? () => setShowOAuthModal(true)
+                                  : undefined
+                              }
+                              onRefreshToken={
+                                conn.authType === "oauth"
+                                  ? () => handleRefreshToken(conn.id)
+                                  : undefined
+                              }
+                              isRefreshing={refreshingId === conn.id}
+                              onApplyCodexAuthLocal={
+                                providerId === "codex"
+                                  ? () => handleApplyCodexAuthLocal(conn.id)
+                                  : undefined
+                              }
+                              isApplyingCodexAuthLocal={applyingCodexAuthId === conn.id}
+                              onExportCodexAuthFile={
+                                providerId === "codex"
+                                  ? () => handleExportCodexAuthFile(conn.id)
+                                  : undefined
+                              }
+                              isExportingCodexAuthFile={exportingCodexAuthId === conn.id}
+                              onProxy={() =>
+                                setProxyTarget({
+                                  level: "key",
+                                  id: conn.id,
+                                  label: conn.name || conn.email || conn.id,
+                                })
+                              }
+                              hasProxy={!!connProxyMap[conn.id]?.proxy}
+                              proxySource={connProxyMap[conn.id]?.level || null}
+                              proxyHost={connProxyMap[conn.id]?.proxy?.host || null}
+                            />
+                          ))}
+                        </div>
                       </div>
                     </div>
                   );
@@ -2813,8 +2864,13 @@ export default function ProviderDetailPage() {
 
       {/* Models — hidden for search providers (they don't have models) */}
       {!isSearchProvider && (
-        <Card>
-          <h2 className="text-lg font-semibold mb-4">{t("availableModels")}</h2>
+        <Card className="rounded-xl border-border/50 shadow-sm">
+          <div className="mb-5 flex items-center gap-2">
+            <span className="material-symbols-outlined text-text-muted/70" aria-hidden>
+              smart_toy
+            </span>
+            <h2 className="text-lg font-semibold tracking-tight">{t("availableModels")}</h2>
+          </div>
           {renderModelsSection()}
 
           {/* Custom Models — available for providers without managed available-model metadata */}
@@ -2825,6 +2881,10 @@ export default function ProviderDetailPage() {
               copied={copied}
               onCopy={copy}
               onModelsChanged={fetchProviderModelMeta}
+              onTestModel={handleTestModel}
+              modelTestResults={modelTestResults}
+              testingModelKey={testingModelKey}
+              canTestModels={connections.length > 0}
             />
           )}
         </Card>
@@ -2832,16 +2892,20 @@ export default function ProviderDetailPage() {
 
       {/* Search provider info */}
       {isSearchProvider && (
-        <Card>
-          <h2 className="text-lg font-semibold mb-4">{t("searchProvider") || "Search Provider"}</h2>
-          <p className="text-sm text-text-muted">
-            {t("searchProviderDesc") ||
-              "This provider is used for web search via POST /v1/search. No model configuration needed — search providers are ready to use once an API key is connected."}
-          </p>
+        <Card className="rounded-xl border-border/50 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-text-muted/70" aria-hidden>
+              search
+            </span>
+            <h2 className="text-lg font-semibold tracking-tight">{t("searchProvider")}</h2>
+          </div>
+          <p className="text-sm leading-relaxed text-text-muted">{t("searchProviderDesc")}</p>
           {providerId === "perplexity-search" && (
-            <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
-              <span className="material-symbols-outlined text-sm text-blue-400">link</span>
-              <p className="text-xs text-blue-300">
+            <div className="mt-4 flex items-start gap-3 rounded-xl border border-blue-500/25 bg-blue-500/10 px-4 py-3">
+              <span className="material-symbols-outlined mt-0.5 shrink-0 text-sm text-blue-400">
+                link
+              </span>
+              <p className="text-xs leading-relaxed text-blue-200/90">
                 Uses the same API key as <strong>Perplexity</strong> (chat provider). If you already
                 have Perplexity configured, no additional setup is needed.
               </p>
@@ -3153,58 +3217,71 @@ function ModelRow({
 
   return (
     <div
-      className={`group flex min-w-[220px] max-w-md items-center gap-2 rounded-lg border px-3 py-2 hover:bg-sidebar/50 ${borderColor}`}
+      className={cn(
+        "group flex min-w-0 flex-col gap-2 rounded-xl border bg-surface/50 px-3 py-3 shadow-sm transition-colors duration-200 hover:bg-sidebar/40",
+        borderColor
+      )}
     >
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-        <span
-          className="material-symbols-outlined shrink-0 text-base"
-          style={statusColor ? { color: statusColor } : { color: "var(--color-text-muted)" }}
-        >
-          {statusIcon}
-        </span>
-        <code className="rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted">
-          {fullModel}
-        </code>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-2">
+          <span
+            className="material-symbols-outlined mt-0.5 shrink-0 text-lg"
+            style={statusColor ? { color: statusColor } : { color: "var(--color-text-muted)" }}
+          >
+            {statusIcon}
+          </span>
+          <code className="min-w-0 break-all rounded-md bg-sidebar/80 px-2 py-1.5 font-mono text-[11px] leading-snug text-text-main sm:text-xs">
+            {fullModel}
+          </code>
+        </div>
+        <div className="shrink-0 pt-0.5">
+          <ModelCompatPopover
+            t={t}
+            effectiveModelNormalize={(p) => effectiveModelNormalize(model.id, p)}
+            effectiveModelPreserveDeveloper={(p) => effectiveModelPreserveDeveloper(model.id, p)}
+            getUpstreamHeadersRecord={getUpstreamHeadersRecord}
+            onCompatPatch={(protocol, payload) =>
+              saveModelCompatFlags(model.id, { compatByProtocol: { [protocol]: payload } })
+            }
+            showDeveloperToggle={showDeveloperToggle}
+            disabled={compatDisabled}
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-1 border-t border-border/50 pt-2">
         {onTest && (
-          <div className="relative flex items-center group/btn-test">
-            <button
-              type="button"
-              onClick={onTest}
-              disabled={isTesting}
-              className={`rounded p-0.5 text-text-muted transition-opacity hover:bg-sidebar hover:text-primary disabled:opacity-100 ${isTesting ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
-              title={isTesting ? t("testingModel") : t("testModel")}
-              aria-label={isTesting ? t("testingModel") : t("testModel")}
+          <button
+            type="button"
+            onClick={onTest}
+            disabled={isTesting}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-text-muted transition-colors hover:bg-sidebar hover:text-primary disabled:opacity-50",
+              isTesting && "text-primary"
+            )}
+            title={isTesting ? t("testingModel") : t("testModel")}
+            aria-label={isTesting ? t("testingModel") : t("testModel")}
+          >
+            <span
+              className={`material-symbols-outlined text-base ${isTesting ? "animate-spin" : ""}`}
             >
-              <span
-                className={`material-symbols-outlined text-sm ${isTesting ? "animate-spin" : ""}`}
-              >
-                {isTesting ? "progress_activity" : "science"}
-              </span>
-            </button>
-          </div>
+              {isTesting ? "progress_activity" : "science"}
+            </span>
+            <span className="hidden sm:inline">
+              {isTesting ? t("testingModel") : t("testModel")}
+            </span>
+          </button>
         )}
         <button
+          type="button"
           onClick={() => onCopy(fullModel, `model-${model.id}`)}
-          className="rounded p-0.5 text-text-muted hover:bg-sidebar hover:text-primary"
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-text-muted transition-colors hover:bg-sidebar hover:text-primary"
           title={t("copyModel")}
         >
-          <span className="material-symbols-outlined text-sm">
+          <span className="material-symbols-outlined text-base">
             {copied === `model-${model.id}` ? "check" : "content_copy"}
           </span>
+          <span className="hidden sm:inline">{t("copyModel")}</span>
         </button>
-      </div>
-      <div className="shrink-0">
-        <ModelCompatPopover
-          t={t}
-          effectiveModelNormalize={(p) => effectiveModelNormalize(model.id, p)}
-          effectiveModelPreserveDeveloper={(p) => effectiveModelPreserveDeveloper(model.id, p)}
-          getUpstreamHeadersRecord={getUpstreamHeadersRecord}
-          onCompatPatch={(protocol, payload) =>
-            saveModelCompatFlags(model.id, { compatByProtocol: { [protocol]: payload } })
-          }
-          showDeveloperToggle={showDeveloperToggle}
-          disabled={compatDisabled}
-        />
       </div>
     </div>
   );
@@ -3397,66 +3474,82 @@ function PassthroughModelRow({
     testStatus === "ok" ? "#22c55e" : testStatus === "error" ? "#ef4444" : undefined;
 
   return (
-    <div className={`group flex gap-0 rounded-lg border p-3 hover:bg-sidebar/50 ${borderColor}`}>
-      <div className="flex min-w-0 flex-1 items-start gap-3">
-        <span
-          className="material-symbols-outlined shrink-0 text-base"
-          style={statusColor ? { color: statusColor } : { color: "var(--color-text-muted)" }}
-        >
-          {statusIcon}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{modelId}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-1">
-            <code className="rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted">
+    <div
+      className={cn(
+        "group flex min-w-0 flex-col gap-2 rounded-xl border bg-surface/50 p-3 shadow-sm transition-colors hover:bg-sidebar/40",
+        borderColor
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-2">
+          <span
+            className="material-symbols-outlined mt-0.5 shrink-0 text-lg"
+            style={statusColor ? { color: statusColor } : { color: "var(--color-text-muted)" }}
+          >
+            {statusIcon}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium leading-snug text-text-main">{modelId}</p>
+            <code className="mt-1 block break-all rounded-md bg-sidebar/80 px-2 py-1.5 font-mono text-[11px] leading-snug text-text-muted sm:text-xs">
               {fullModel}
             </code>
-            {onTest && (
-              <button
-                type="button"
-                onClick={onTest}
-                disabled={isTesting}
-                className={`rounded p-0.5 text-text-muted transition-opacity hover:bg-sidebar hover:text-primary disabled:opacity-100 ${isTesting ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
-                title={isTesting ? t("testingModel") : t("testModel")}
-                aria-label={isTesting ? t("testingModel") : t("testModel")}
-              >
-                <span
-                  className={`material-symbols-outlined text-sm ${isTesting ? "animate-spin" : ""}`}
-                >
-                  {isTesting ? "progress_activity" : "science"}
-                </span>
-              </button>
-            )}
-            <button
-              onClick={() => onCopy(fullModel, `model-${modelId}`)}
-              className="rounded p-0.5 text-text-muted hover:bg-sidebar hover:text-primary"
-              title={t("copyModel")}
-            >
-              <span className="material-symbols-outlined text-sm">
-                {copied === `model-${modelId}` ? "check" : "content_copy"}
-              </span>
-            </button>
           </div>
         </div>
+        <div className="flex shrink-0 items-center gap-0.5 pt-0.5">
+          <ModelCompatPopover
+            t={t}
+            effectiveModelNormalize={(p) => effectiveModelNormalize(modelId, p)}
+            effectiveModelPreserveDeveloper={(p) => effectiveModelPreserveDeveloper(modelId, p)}
+            getUpstreamHeadersRecord={getUpstreamHeadersRecord}
+            onCompatPatch={(protocol, payload) =>
+              saveModelCompatFlags(modelId, { compatByProtocol: { [protocol]: payload } })
+            }
+            showDeveloperToggle={showDeveloperToggle}
+            disabled={compatDisabled}
+          />
+          <button
+            type="button"
+            onClick={onDeleteAlias}
+            className="rounded-md p-1.5 text-red-500 hover:bg-red-500/10"
+            title={t("removeModel")}
+          >
+            <span className="material-symbols-outlined text-lg">delete</span>
+          </button>
+        </div>
       </div>
-      <div className="flex shrink-0 items-center gap-1 self-start">
-        <ModelCompatPopover
-          t={t}
-          effectiveModelNormalize={(p) => effectiveModelNormalize(modelId, p)}
-          effectiveModelPreserveDeveloper={(p) => effectiveModelPreserveDeveloper(modelId, p)}
-          getUpstreamHeadersRecord={getUpstreamHeadersRecord}
-          onCompatPatch={(protocol, payload) =>
-            saveModelCompatFlags(modelId, { compatByProtocol: { [protocol]: payload } })
-          }
-          showDeveloperToggle={showDeveloperToggle}
-          disabled={compatDisabled}
-        />
+      <div className="flex items-center gap-1 border-t border-border/50 pt-2">
+        {onTest && (
+          <button
+            type="button"
+            onClick={onTest}
+            disabled={isTesting}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-text-muted transition-colors hover:bg-sidebar hover:text-primary disabled:opacity-50",
+              isTesting && "text-primary"
+            )}
+            title={isTesting ? t("testingModel") : t("testModel")}
+            aria-label={isTesting ? t("testingModel") : t("testModel")}
+          >
+            <span
+              className={`material-symbols-outlined text-base ${isTesting ? "animate-spin" : ""}`}
+            >
+              {isTesting ? "progress_activity" : "science"}
+            </span>
+            <span className="hidden sm:inline">
+              {isTesting ? t("testingModel") : t("testModel")}
+            </span>
+          </button>
+        )}
         <button
-          onClick={onDeleteAlias}
-          className="rounded p-1 text-red-500 hover:bg-red-50"
-          title={t("removeModel")}
+          type="button"
+          onClick={() => onCopy(fullModel, `model-${modelId}`)}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-text-muted transition-colors hover:bg-sidebar hover:text-primary"
+          title={t("copyModel")}
         >
-          <span className="material-symbols-outlined text-sm">delete</span>
+          <span className="material-symbols-outlined text-base">
+            {copied === `model-${modelId}` ? "check" : "content_copy"}
+          </span>
+          <span className="hidden sm:inline">{t("copyModel")}</span>
         </button>
       </div>
     </div>
@@ -3489,6 +3582,10 @@ function CustomModelsSection({
   copied,
   onCopy,
   onModelsChanged,
+  onTestModel,
+  modelTestResults = {},
+  testingModelKey = null,
+  canTestModels = false,
 }: CustomModelsSectionProps) {
   const t = useTranslations("providers");
   const notify = useNotificationStore();
@@ -3509,6 +3606,15 @@ function CustomModelsSection({
 
   const customMap = useMemo(() => buildCompatMap(customModels), [customModels]);
   const overrideMap = useMemo(() => buildCompatMap(modelCompatOverrides), [modelCompatOverrides]);
+
+  const endpointOptionMeta: Record<string, { icon: string; label: string }> = {
+    chat: { icon: "chat", label: "Chat" },
+    embeddings: { icon: "data_array", label: "Embeddings" },
+    images: { icon: "image", label: "Images" },
+    audio: { icon: "graphic_eq", label: "Audio" },
+  };
+
+  const pendingAddFullModel = newModelId.trim() ? `${providerAlias}/${newModelId.trim()}` : "";
 
   const fetchCustomModels = useCallback(async () => {
     try {
@@ -3531,29 +3637,44 @@ function CustomModelsSection({
 
   const handleAdd = async () => {
     if (!newModelId.trim() || adding) return;
+    const modelIdTrim = newModelId.trim();
+    const fullModelForProbe = `${providerAlias}/${modelIdTrim}`;
     setAdding(true);
     try {
+      if (newEndpoints.includes("chat")) {
+        if (!canTestModels || !onTestModel) {
+          notify.error(t("addConnectionToImport"));
+          return;
+        }
+        const probeOk = await onTestModel(fullModelForProbe);
+        if (!probeOk) return;
+      }
       const res = await fetch("/api/provider-models", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           provider: providerId,
-          modelId: newModelId.trim(),
+          modelId: modelIdTrim,
           modelName: newModelName.trim() || undefined,
           apiFormat: newApiFormat,
           supportedEndpoints: newEndpoints,
         }),
       });
       if (res.ok) {
+        await fetchCustomModels();
+        onModelsChanged?.();
+        notify.success(t("modelAddedSuccess", { modelId: modelIdTrim }));
         setNewModelId("");
         setNewModelName("");
         setNewApiFormat("chat-completions");
         setNewEndpoints(["chat"]);
-        await fetchCustomModels();
-        onModelsChanged?.();
+      } else {
+        const detail = await formatProviderModelsErrorResponse(res);
+        notify.error(detail || t("failedAddModelTryAgain"));
       }
     } catch (e) {
       console.error("Failed to add custom model:", e);
+      notify.error(t("failedAddModelTryAgain"));
     } finally {
       setAdding(false);
     }
@@ -3666,95 +3787,138 @@ function CustomModelsSection({
   };
 
   return (
-    <div className="mt-6 pt-6 border-t border-border">
-      <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-        <span className="material-symbols-outlined text-base text-primary">tune</span>
-        {t("customModels")}
-      </h3>
-      <p className="text-xs text-text-muted mb-3">{t("customModelsHint")}</p>
+    <div className="mt-6 border-t border-border pt-6">
+      <div className="mb-4">
+        <h3 className="flex items-center gap-2 text-base font-semibold tracking-tight">
+          <span className="material-symbols-outlined text-xl text-primary" aria-hidden>
+            tune
+          </span>
+          {t("customModels")}
+        </h3>
+        <p className="mt-1 text-sm text-text-muted">{t("customModelsHint")}</p>
+      </div>
 
-      {/* Add form */}
-      <div className="flex flex-col gap-3 mb-3">
-        <div className="flex items-end gap-2">
-          <div className="flex-1">
-            <label htmlFor="custom-model-id" className="text-xs text-text-muted mb-1 block">
-              {t("modelId")}
-            </label>
-            <input
-              id="custom-model-id"
-              type="text"
-              value={newModelId}
-              onChange={(e) => setNewModelId(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              placeholder={t("customModelPlaceholder")}
-              className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
-            />
-          </div>
-          <div className="w-40">
-            <label htmlFor="custom-model-name" className="text-xs text-text-muted mb-1 block">
-              {t("displayName")}
-            </label>
-            <input
-              id="custom-model-name"
-              type="text"
-              value={newModelName}
-              onChange={(e) => setNewModelName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              placeholder={t("optional")}
-              className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
-            />
-          </div>
-          <Button size="sm" icon="add" onClick={handleAdd} disabled={!newModelId.trim() || adding}>
-            {adding ? t("adding") : t("add")}
-          </Button>
-        </div>
-
-        {/* API Format + Supported Endpoints */}
-        <div className="flex items-end gap-4 flex-wrap">
-          <div className="w-48">
-            <label htmlFor="custom-api-format" className="text-xs text-text-muted mb-1 block">
-              API Format
-            </label>
-            <select
-              id="custom-api-format"
-              value={newApiFormat}
-              onChange={(e) => setNewApiFormat(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
-            >
-              <option value="chat-completions">Chat Completions</option>
-              <option value="responses">Responses API</option>
-            </select>
-          </div>
-          <div className="flex-1">
-            <span className="text-xs text-text-muted mb-1 block">Supported Endpoints</span>
-            <div className="flex items-center gap-3">
-              {["chat", "embeddings", "images", "audio"].map((ep) => (
-                <label
-                  key={ep}
-                  className="flex items-center gap-1.5 text-xs text-text-main cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={newEndpoints.includes(ep)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setNewEndpoints((prev) => [...prev, ep]);
-                      } else {
-                        setNewEndpoints((prev) => prev.filter((x) => x !== ep));
-                      }
-                    }}
-                    className="rounded border-border"
-                  />
-                  {ep === "chat"
-                    ? "💬 Chat"
-                    : ep === "embeddings"
-                      ? "📐 Embeddings"
-                      : ep === "images"
-                        ? "🖼️ Images"
-                        : "🔊 Audio"}
-                </label>
-              ))}
+      {/* Add form — single card; Add applies to all fields */}
+      <div className="mb-5 rounded-xl border border-border/60 bg-bg-subtle/30 p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,14rem)]">
+            <div className="min-w-0">
+              <label
+                htmlFor="custom-model-id"
+                className="mb-1.5 block text-xs font-medium text-text-muted"
+              >
+                {t("modelId")}
+              </label>
+              <input
+                id="custom-model-id"
+                type="text"
+                value={newModelId}
+                onChange={(e) => setNewModelId(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                placeholder={t("customModelPlaceholder")}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:border-primary focus:outline-none"
+              />
             </div>
+            <div className="min-w-0">
+              <label
+                htmlFor="custom-model-name"
+                className="mb-1.5 block text-xs font-medium text-text-muted"
+              >
+                {t("displayName")}
+              </label>
+              <input
+                id="custom-model-name"
+                type="text"
+                value={newModelName}
+                onChange={(e) => setNewModelName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                placeholder={t("optional")}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border/50 bg-background/50 p-4">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+              API &amp; routing
+            </p>
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,13rem)_1fr] lg:items-start">
+              <div className="min-w-0">
+                <label
+                  htmlFor="custom-api-format"
+                  className="mb-1.5 block text-xs font-medium text-text-muted"
+                >
+                  API Format
+                </label>
+                <select
+                  id="custom-api-format"
+                  value={newApiFormat}
+                  onChange={(e) => setNewApiFormat(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:border-primary focus:outline-none"
+                >
+                  <option value="chat-completions">Chat Completions</option>
+                  <option value="responses">Responses API</option>
+                </select>
+              </div>
+              <div className="min-w-0">
+                <span className="mb-2 block text-xs font-medium text-text-muted">
+                  Supported Endpoints
+                </span>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {["chat", "embeddings", "images", "audio"].map((ep) => {
+                    const meta = endpointOptionMeta[ep];
+                    const checked = newEndpoints.includes(ep);
+                    return (
+                      <label
+                        key={ep}
+                        className={cn(
+                          "flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 transition-colors",
+                          checked
+                            ? "border-primary/35 bg-primary/10"
+                            : "border-border/60 bg-background/80 hover:border-border"
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewEndpoints((prev) => [...prev, ep]);
+                            } else {
+                              setNewEndpoints((prev) => prev.filter((x) => x !== ep));
+                            }
+                          }}
+                          className="rounded border-border"
+                        />
+                        <span
+                          className="material-symbols-outlined text-base text-text-muted"
+                          aria-hidden
+                        >
+                          {meta.icon}
+                        </span>
+                        <span className="text-xs font-medium text-text-main">{meta.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end border-t border-border/40 pt-4">
+            <Button
+              size="sm"
+              icon="add"
+              onClick={handleAdd}
+              disabled={!newModelId.trim() || adding}
+              className="w-full min-w-[10rem] sm:w-auto"
+            >
+              {adding && testingModelKey === pendingAddFullModel
+                ? t("testingModel")
+                : adding
+                  ? t("adding")
+                  : t("add")}
+            </Button>
           </div>
         </div>
       </div>
@@ -3770,10 +3934,15 @@ function CustomModelsSection({
             return (
               <div
                 key={model.id}
-                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-sidebar/50"
+                className={cn(
+                  "flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-sidebar/50",
+                  modelTestResults[fullModel] === "ok" && "border-green-500/35",
+                  modelTestResults[fullModel] === "error" && "border-red-500/30",
+                  !modelTestResults[fullModel] && "border-border"
+                )}
               >
                 {editingModelId !== model.id && (
-                  <span className="material-symbols-outlined text-base text-primary shrink-0">
+                  <span className="material-symbols-outlined shrink-0 text-base text-primary">
                     tune
                   </span>
                 )}
@@ -3839,77 +4008,120 @@ function CustomModelsSection({
                   </div>
 
                   {editingModelId === model.id && (
-                    <div className="mt-3 min-w-0 max-w-full rounded-lg border border-border bg-muted p-3 dark:bg-zinc-900">
-                      <div className="flex min-w-0 flex-wrap items-end gap-x-3 gap-y-2">
-                        <div className="w-[11rem] shrink-0 min-w-0">
-                          <label className="text-xs text-text-muted mb-1 block">API Format</label>
+                    <div className="mt-3 min-w-0 max-w-full rounded-lg border border-border/60 bg-muted/50 p-4 dark:bg-zinc-900/80">
+                      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+                        API &amp; routing
+                      </p>
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,13rem)_1fr] lg:items-start">
+                        <div className="min-w-0">
+                          <label className="mb-1.5 block text-xs font-medium text-text-muted">
+                            API Format
+                          </label>
                           <select
                             value={editingApiFormat}
                             onChange={(e) => setEditingApiFormat(e.target.value)}
-                            className="w-full px-2.5 py-2 text-xs border border-border rounded-lg bg-background text-text-main focus:outline-none focus:border-primary"
+                            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none"
                           >
                             <option value="chat-completions">Chat Completions</option>
                             <option value="responses">Responses API</option>
                           </select>
                         </div>
-                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 overflow-x-auto overflow-y-visible [scrollbar-width:thin]">
-                          <span className="text-xs text-text-muted shrink-0">
+                        <div className="min-w-0">
+                          <span className="mb-2 block text-xs font-medium text-text-muted">
                             Supported Endpoints
                           </span>
-                          <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1 min-w-0">
-                            {["chat", "embeddings", "images", "audio"].map((ep) => (
-                              <label
-                                key={ep}
-                                className="flex items-center gap-1.5 text-xs text-text-main cursor-pointer whitespace-nowrap"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={editingEndpoints.includes(ep)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setEditingEndpoints((prev) =>
-                                        prev.includes(ep) ? prev : [...prev, ep]
-                                      );
-                                    } else {
-                                      setEditingEndpoints((prev) => prev.filter((x) => x !== ep));
-                                    }
-                                  }}
-                                  className="rounded border-border"
-                                />
-                                {ep === "chat"
-                                  ? "💬 Chat"
-                                  : ep === "embeddings"
-                                    ? "📐 Embeddings"
-                                    : ep === "images"
-                                      ? "🖼️ Images"
-                                      : "🔊 Audio"}
-                              </label>
-                            ))}
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            {["chat", "embeddings", "images", "audio"].map((ep) => {
+                              const meta = endpointOptionMeta[ep];
+                              const checked = editingEndpoints.includes(ep);
+                              return (
+                                <label
+                                  key={ep}
+                                  className={cn(
+                                    "flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 transition-colors",
+                                    checked
+                                      ? "border-primary/35 bg-primary/10"
+                                      : "border-border/60 bg-background/80 hover:border-border"
+                                  )}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setEditingEndpoints((prev) =>
+                                          prev.includes(ep) ? prev : [...prev, ep]
+                                        );
+                                      } else {
+                                        setEditingEndpoints((prev) => prev.filter((x) => x !== ep));
+                                      }
+                                    }}
+                                    className="rounded border-border"
+                                  />
+                                  <span
+                                    className="material-symbols-outlined text-base text-text-muted"
+                                    aria-hidden
+                                  >
+                                    {meta.icon}
+                                  </span>
+                                  <span className="text-xs font-medium text-text-main">
+                                    {meta.label}
+                                  </span>
+                                </label>
+                              );
+                            })}
                           </div>
                         </div>
-                        <div className="flex shrink-0 flex-wrap items-center gap-2 pb-0.5">
-                          <Button
-                            size="sm"
-                            onClick={() => saveEdit(model.id)}
-                            disabled={savingModelId === model.id}
-                          >
-                            {savingModelId === model.id ? t("saving") : t("save")}
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={cancelEdit}>
-                            {t("cancel")}
-                          </Button>
-                        </div>
+                      </div>
+                      <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-border/40 pt-3">
+                        <Button
+                          size="sm"
+                          onClick={() => saveEdit(model.id)}
+                          disabled={savingModelId === model.id}
+                        >
+                          {savingModelId === model.id ? t("saving") : t("save")}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={cancelEdit}>
+                          {t("cancel")}
+                        </Button>
                       </div>
                     </div>
                   )}
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex shrink-0 flex-wrap items-center gap-0.5">
+                  {canTestModels && onTestModel && (
+                    <button
+                      type="button"
+                      onClick={() => void onTestModel(fullModel)}
+                      disabled={testingModelKey === fullModel}
+                      className={cn(
+                        "rounded-md p-1.5 text-text-muted transition-colors hover:bg-sidebar hover:text-primary",
+                        modelTestResults[fullModel] === "ok" &&
+                          "text-green-500 hover:text-green-400",
+                        modelTestResults[fullModel] === "error" && "text-red-500 hover:text-red-400"
+                      )}
+                      title={testingModelKey === fullModel ? t("testingModel") : t("testModel")}
+                      aria-label={
+                        testingModelKey === fullModel ? t("testingModel") : t("testModel")
+                      }
+                    >
+                      <span
+                        className={cn(
+                          "material-symbols-outlined text-lg",
+                          testingModelKey === fullModel && "animate-spin"
+                        )}
+                      >
+                        {testingModelKey === fullModel ? "progress_activity" : "science"}
+                      </span>
+                    </button>
+                  )}
                   <button
+                    type="button"
                     onClick={() => beginEdit(model)}
-                    className="rounded p-1 text-text-muted hover:bg-sidebar hover:text-primary"
+                    className="rounded-md p-1.5 text-text-muted hover:bg-sidebar hover:text-primary"
                     title={t("edit")}
                   >
-                    <span className="material-symbols-outlined text-sm">edit</span>
+                    <span className="material-symbols-outlined text-lg">edit</span>
                   </button>
                   <ModelCompatPopover
                     t={t}
@@ -3931,11 +4143,12 @@ function CustomModelsSection({
                     disabled={savingModelId === model.id}
                   />
                   <button
+                    type="button"
                     onClick={() => handleRemove(model.id)}
-                    className="rounded p-1 text-red-500 hover:bg-red-50"
+                    className="rounded-md p-1.5 text-red-500 hover:bg-red-500/10"
                     title={t("removeCustomModel")}
                   >
-                    <span className="material-symbols-outlined text-sm">delete</span>
+                    <span className="material-symbols-outlined text-lg">delete</span>
                   </button>
                 </div>
               </div>
@@ -3943,7 +4156,15 @@ function CustomModelsSection({
           })}
         </div>
       ) : (
-        <p className="text-xs text-text-muted">{t("noCustomModels")}</p>
+        <div className="rounded-lg border border-dashed border-border/70 bg-bg-subtle/20 py-10 text-center">
+          <span
+            className="material-symbols-outlined mb-2 inline-block text-3xl text-text-muted/50"
+            aria-hidden
+          >
+            deployed_code
+          </span>
+          <p className="text-sm text-text-muted">{t("noCustomModels")}</p>
+        </div>
       )}
     </div>
   );
@@ -3955,6 +4176,10 @@ CustomModelsSection.propTypes = {
   copied: PropTypes.string,
   onCopy: PropTypes.func.isRequired,
   onModelsChanged: PropTypes.func,
+  onTestModel: PropTypes.func,
+  modelTestResults: PropTypes.object,
+  testingModelKey: PropTypes.string,
+  canTestModels: PropTypes.bool,
 };
 
 function CompatibleModelsSection({
@@ -4587,258 +4812,274 @@ function ConnectionRow({
 
   return (
     <div
-      className={`group flex items-center justify-between p-3 rounded-lg hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors ${connection.isActive === false ? "opacity-60" : ""}`}
+      className={cn(
+        "group flex flex-col gap-3 px-2 py-4 transition-colors duration-200 sm:px-3",
+        "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]",
+        connection.isActive === false && "opacity-60"
+      )}
     >
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        {showBulkSelect && onToggleBulkSelect && (
-          <input
-            type="checkbox"
-            checked={!!bulkSelected}
-            onChange={onToggleBulkSelect}
-            className="h-4 w-4 shrink-0 rounded border-border"
-            aria-label={t("selectConnection")}
-            onClick={(e) => e.stopPropagation()}
-          />
-        )}
-        {/* Priority arrows */}
-        <div className="flex flex-col">
-          <button
-            onClick={onMoveUp}
-            disabled={isFirst}
-            className={`p-0.5 rounded ${isFirst ? "text-text-muted/30 cursor-not-allowed" : "hover:bg-sidebar text-text-muted hover:text-primary"}`}
-          >
-            <span className="material-symbols-outlined text-sm">keyboard_arrow_up</span>
-          </button>
-          <button
-            onClick={onMoveDown}
-            disabled={isLast}
-            className={`p-0.5 rounded ${isLast ? "text-text-muted/30 cursor-not-allowed" : "hover:bg-sidebar text-text-muted hover:text-primary"}`}
-          >
-            <span className="material-symbols-outlined text-sm">keyboard_arrow_down</span>
-          </button>
-        </div>
-        <span className="material-symbols-outlined text-base text-text-muted">
-          {isOAuth ? "lock" : "key"}
-        </span>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{displayName}</p>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <Badge variant={statusPresentation.statusVariant as any} size="sm" dot>
-              {statusPresentation.statusLabel}
-            </Badge>
-            {/* T12: Token expiry status indicator (state-driven, no Date.now in render) */}
-            {tokenMinsLeft !== null &&
-              (tokenMinsLeft < 0 ? (
-                <span
-                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-red-500/15 text-red-500"
-                  title={`Token expired: ${connection.expiresAt}`}
-                >
-                  <span className="material-symbols-outlined text-[11px]">error</span>
-                  expired
-                </span>
-              ) : tokenMinsLeft < 30 ? (
-                <span
-                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-500/15 text-amber-500"
-                  title={`Token expires in ${tokenMinsLeft}m`}
-                >
-                  <span className="material-symbols-outlined text-[11px]">warning</span>
-                  {`~${tokenMinsLeft}m`}
-                </span>
-              ) : null)}
-            {isCooldown && connection.isActive !== false && (
-              <CooldownTimer until={connection.rateLimitedUntil} />
-            )}
-            {statusPresentation.errorBadge && connection.isActive !== false && (
-              <Badge variant={statusPresentation.errorBadge.variant} size="sm">
-                {t(statusPresentation.errorBadge.labelKey)}
-              </Badge>
-            )}
-            {connection.lastError && connection.isActive !== false && (
-              <span
-                className={`text-xs truncate max-w-[300px] ${statusPresentation.errorTextClass}`}
-                title={connection.lastError.replace(/<[^>]+>/gm, "")}
-              >
-                {connection.lastError.replace(/<[^>]+>/gm, "")}
-              </span>
-            )}
-            <span className="text-xs text-text-muted">#{connection.priority}</span>
-            {connection.globalPriority && (
-              <span className="text-xs text-text-muted">
-                {t("autoPriority", { priority: connection.globalPriority })}
-              </span>
-            )}
-            {/* Rate Limit Protection — inline toggle with label */}
-            <span className="text-text-muted/30 select-none">|</span>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          {showBulkSelect && onToggleBulkSelect && (
+            <input
+              type="checkbox"
+              checked={!!bulkSelected}
+              onChange={onToggleBulkSelect}
+              className="mt-1 h-4 w-4 shrink-0 rounded border-border"
+              aria-label={t("selectConnection")}
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+          <div className="flex shrink-0 flex-col">
             <button
-              onClick={() => onToggleRateLimit(!rateLimitEnabled)}
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition-all cursor-pointer ${
-                rateLimitEnabled
-                  ? "bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/25"
-                  : "bg-black/[0.03] dark:bg-white/[0.03] text-text-muted/50 hover:text-text-muted hover:bg-black/[0.06] dark:hover:bg-white/[0.06]"
-              }`}
-              title={
-                rateLimitEnabled ? t("disableRateLimitProtection") : t("enableRateLimitProtection")
-              }
+              type="button"
+              onClick={onMoveUp}
+              disabled={isFirst}
+              className={`rounded p-0.5 ${isFirst ? "cursor-not-allowed text-text-muted/30" : "text-text-muted hover:bg-sidebar hover:text-primary"}`}
             >
-              <span className="material-symbols-outlined text-[13px]">shield</span>
-              {rateLimitEnabled ? t("rateLimitProtected") : t("rateLimitUnprotected")}
+              <span className="material-symbols-outlined text-sm">keyboard_arrow_up</span>
             </button>
-            {isCodex && (
-              <>
-                <span className="text-text-muted/30 select-none">|</span>
-                <button
-                  onClick={() => onToggleCodex5h?.(!codex5hEnabled)}
-                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition-all cursor-pointer ${
-                    codex5hEnabled
-                      ? "bg-blue-500/15 text-blue-500 hover:bg-blue-500/25"
-                      : "bg-black/[0.03] dark:bg-white/[0.03] text-text-muted/50 hover:text-text-muted hover:bg-black/[0.06] dark:hover:bg-white/[0.06]"
-                  }`}
-                  title="Toggle Codex 5h limit policy"
-                >
-                  <span className="material-symbols-outlined text-[13px]">timer</span>
-                  5h {codex5hEnabled ? "ON" : "OFF"}
-                </button>
-                <button
-                  onClick={() => onToggleCodexWeekly?.(!codexWeeklyEnabled)}
-                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition-all cursor-pointer ${
-                    codexWeeklyEnabled
-                      ? "bg-violet-500/15 text-violet-500 hover:bg-violet-500/25"
-                      : "bg-black/[0.03] dark:bg-white/[0.03] text-text-muted/50 hover:text-text-muted hover:bg-black/[0.06] dark:hover:bg-white/[0.06]"
-                  }`}
-                  title="Toggle Codex weekly limit policy"
-                >
-                  <span className="material-symbols-outlined text-[13px]">date_range</span>
-                  Weekly {codexWeeklyEnabled ? "ON" : "OFF"}
-                </button>
-              </>
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={isLast}
+              className={`rounded p-0.5 ${isLast ? "cursor-not-allowed text-text-muted/30" : "text-text-muted hover:bg-sidebar hover:text-primary"}`}
+            >
+              <span className="material-symbols-outlined text-sm">keyboard_arrow_down</span>
+            </button>
+          </div>
+          <span className="material-symbols-outlined mt-0.5 shrink-0 text-base text-text-muted">
+            {isOAuth ? "lock" : "key"}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium leading-snug text-text-main">{displayName}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Badge variant={statusPresentation.statusVariant as any} size="sm" dot>
+                {statusPresentation.statusLabel}
+              </Badge>
+              {tokenMinsLeft !== null &&
+                (tokenMinsLeft < 0 ? (
+                  <span
+                    className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium bg-red-500/15 text-red-500"
+                    title={`Token expired: ${connection.expiresAt}`}
+                  >
+                    <span className="material-symbols-outlined text-[11px]">error</span>
+                    expired
+                  </span>
+                ) : tokenMinsLeft < 30 ? (
+                  <span
+                    className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium bg-amber-500/15 text-amber-500"
+                    title={`Token expires in ${tokenMinsLeft}m`}
+                  >
+                    <span className="material-symbols-outlined text-[11px]">warning</span>
+                    {`~${tokenMinsLeft}m`}
+                  </span>
+                ) : null)}
+              {isCooldown && connection.isActive !== false && (
+                <CooldownTimer until={connection.rateLimitedUntil} />
+              )}
+              {statusPresentation.errorBadge && connection.isActive !== false && (
+                <Badge variant={statusPresentation.errorBadge.variant} size="sm">
+                  {t(statusPresentation.errorBadge.labelKey)}
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex w-full flex-wrap items-center gap-1.5 border border-border/40 bg-bg-subtle/35 p-1.5 sm:w-auto sm:justify-end lg:max-w-[min(100%,28rem)] lg:shrink-0 lg:rounded-lg">
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="refresh"
+            loading={isRetesting}
+            disabled={connection.isActive === false}
+            onClick={onRetest}
+            className="h-8 px-2 text-xs"
+            title={t("retestAuthentication")}
+          >
+            {t("retest")}
+          </Button>
+          {onRefreshToken && (
+            <Button
+              size="sm"
+              variant="ghost"
+              icon="token"
+              loading={isRefreshing}
+              disabled={connection.isActive === false || isRefreshing}
+              onClick={onRefreshToken}
+              className="h-8 px-2 text-xs text-amber-500 hover:text-amber-400"
+              title="Refresh OAuth token manually"
+            >
+              Token
+            </Button>
+          )}
+          {isCodex && onApplyCodexAuthLocal && (
+            <Button
+              size="sm"
+              variant="ghost"
+              icon="download_done"
+              loading={isApplyingCodexAuthLocal}
+              disabled={isApplyingCodexAuthLocal}
+              onClick={onApplyCodexAuthLocal}
+              className="h-8 px-2 text-xs text-emerald-500 hover:text-emerald-400"
+              title={applyCodexAuthLabel}
+            >
+              {applyCodexAuthLabel}
+            </Button>
+          )}
+          {isCodex && onExportCodexAuthFile && (
+            <Button
+              size="sm"
+              variant="ghost"
+              icon="download"
+              loading={isExportingCodexAuthFile}
+              disabled={isExportingCodexAuthFile}
+              onClick={onExportCodexAuthFile}
+              className="h-8 px-2 text-xs text-sky-500 hover:text-sky-400"
+              title={exportCodexAuthLabel}
+            >
+              {exportCodexAuthLabel}
+            </Button>
+          )}
+          <div className="mx-0.5 flex items-center gap-1 border-l border-border/50 pl-2">
+            <Toggle
+              size="sm"
+              checked={connection.isActive ?? true}
+              onChange={onToggleActive}
+              title={(connection.isActive ?? true) ? t("disableConnection") : t("enableConnection")}
+            />
+          </div>
+          <div className="flex items-center gap-0.5">
+            {onReauth && (
+              <button
+                type="button"
+                onClick={onReauth}
+                className="rounded p-1.5 text-amber-600 hover:bg-amber-500/10 hover:text-amber-500"
+                title={t("reauthenticateConnection")}
+              >
+                <span className="material-symbols-outlined text-lg">passkey</span>
+              </button>
             )}
-            {hasProxy &&
-              (() => {
-                const colorClass =
-                  proxySource === "global"
-                    ? "bg-emerald-500/15 text-emerald-500"
-                    : proxySource === "provider"
-                      ? "bg-amber-500/15 text-amber-500"
-                      : "bg-blue-500/15 text-blue-500";
-                const label =
-                  proxySource === "global"
-                    ? t("proxySourceGlobal")
-                    : proxySource === "provider"
-                      ? t("proxySourceProvider")
-                      : t("proxySourceKey");
-                return (
-                  <>
-                    <span className="text-text-muted/30 select-none">|</span>
-                    <span
-                      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${colorClass}`}
-                      title={t("proxyConfiguredBySource", {
-                        source: label,
-                        host: proxyHost || t("configured"),
-                      })}
-                    >
-                      <span className="material-symbols-outlined text-[13px]">vpn_lock</span>
-                      {proxyHost || t("proxy")}
-                    </span>
-                  </>
-                );
-              })()}
+            <button
+              type="button"
+              onClick={onEdit}
+              className="rounded p-1.5 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5"
+              title={t("edit")}
+            >
+              <span className="material-symbols-outlined text-lg">edit</span>
+            </button>
+            <button
+              type="button"
+              onClick={onProxy}
+              className="rounded p-1.5 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5"
+              title={t("proxyConfig")}
+            >
+              <span className="material-symbols-outlined text-lg">vpn_lock</span>
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="rounded p-1.5 text-red-500 hover:bg-red-500/10"
+              title={t("delete")}
+            >
+              <span className="material-symbols-outlined text-lg">delete</span>
+            </button>
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="ghost"
-          icon="refresh"
-          loading={isRetesting}
-          disabled={connection.isActive === false}
-          onClick={onRetest}
-          className="!h-7 !px-2 text-xs"
-          title={t("retestAuthentication")}
-        >
-          {t("retest")}
-        </Button>
-        {/* T12: Manual token refresh for OAuth accounts */}
-        {onRefreshToken && (
-          <Button
-            size="sm"
-            variant="ghost"
-            icon="token"
-            loading={isRefreshing}
-            disabled={connection.isActive === false || isRefreshing}
-            onClick={onRefreshToken}
-            className="!h-7 !px-2 text-xs text-amber-500 hover:text-amber-400"
-            title="Refresh OAuth token manually"
-          >
-            Token
-          </Button>
-        )}
-        {isCodex && onApplyCodexAuthLocal && (
-          <Button
-            size="sm"
-            variant="ghost"
-            icon="download_done"
-            loading={isApplyingCodexAuthLocal}
-            disabled={isApplyingCodexAuthLocal}
-            onClick={onApplyCodexAuthLocal}
-            className="!h-7 !px-2 text-xs text-emerald-500 hover:text-emerald-400"
-            title={applyCodexAuthLabel}
-          >
-            {applyCodexAuthLabel}
-          </Button>
-        )}
-        {isCodex && onExportCodexAuthFile && (
-          <Button
-            size="sm"
-            variant="ghost"
-            icon="download"
-            loading={isExportingCodexAuthFile}
-            disabled={isExportingCodexAuthFile}
-            onClick={onExportCodexAuthFile}
-            className="!h-7 !px-2 text-xs text-sky-500 hover:text-sky-400"
-            title={exportCodexAuthLabel}
-          >
-            {exportCodexAuthLabel}
-          </Button>
-        )}
-        <Toggle
-          size="sm"
-          checked={connection.isActive ?? true}
-          onChange={onToggleActive}
-          title={(connection.isActive ?? true) ? t("disableConnection") : t("enableConnection")}
-        />
-        <div className="flex gap-1 ml-1 transition-opacity">
-          {onReauth && (
-            <button
-              onClick={onReauth}
-              className="p-2 hover:bg-amber-500/10 rounded text-amber-600 hover:text-amber-500"
-              title={t("reauthenticateConnection")}
-            >
-              <span className="material-symbols-outlined text-[18px]">passkey</span>
-            </button>
+
+      {connection.lastError && connection.isActive !== false && (
+        <p
+          className={cn(
+            "rounded-md border border-red-500/20 bg-red-500/5 px-2.5 py-2 text-xs leading-relaxed wrap-break-word",
+            statusPresentation.errorTextClass
           )}
-          <button
-            onClick={onEdit}
-            className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary"
-            title={t("edit")}
-          >
-            <span className="material-symbols-outlined text-[18px]">edit</span>
-          </button>
-          <button
-            onClick={onProxy}
-            className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary"
-            title={t("proxyConfig")}
-          >
-            <span className="material-symbols-outlined text-[18px]">vpn_lock</span>
-          </button>
-          <button
-            onClick={onDelete}
-            className="p-2 hover:bg-red-500/10 rounded text-red-500"
-            title={t("delete")}
-          >
-            <span className="material-symbols-outlined text-[18px]">delete</span>
-          </button>
-        </div>
+          title={connection.lastError.replace(/<[^>]+>/gm, "")}
+        >
+          {connection.lastError.replace(/<[^>]+>/gm, "")}
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/40 pt-3 text-xs">
+        <span className="tabular-nums text-text-muted">
+          #{connection.priority}
+          {connection.globalPriority
+            ? ` · ${t("autoPriority", { priority: connection.globalPriority })}`
+            : ""}
+        </span>
+        <button
+          type="button"
+          onClick={() => onToggleRateLimit(!rateLimitEnabled)}
+          className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all ${
+            rateLimitEnabled
+              ? "bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/25"
+              : "bg-black/[0.03] text-text-muted/70 hover:bg-black/[0.06] dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
+          }`}
+          title={
+            rateLimitEnabled ? t("disableRateLimitProtection") : t("enableRateLimitProtection")
+          }
+        >
+          <span className="material-symbols-outlined text-[14px]">shield</span>
+          {rateLimitEnabled ? t("rateLimitProtected") : t("rateLimitUnprotected")}
+        </button>
+        {isCodex && (
+          <>
+            <button
+              type="button"
+              onClick={() => onToggleCodex5h?.(!codex5hEnabled)}
+              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all ${
+                codex5hEnabled
+                  ? "bg-blue-500/15 text-blue-500 hover:bg-blue-500/25"
+                  : "bg-black/[0.03] text-text-muted/70 hover:bg-black/[0.06] dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
+              }`}
+              title="Toggle Codex 5h limit policy"
+            >
+              <span className="material-symbols-outlined text-[14px]">timer</span>
+              5h {codex5hEnabled ? "ON" : "OFF"}
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleCodexWeekly?.(!codexWeeklyEnabled)}
+              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all ${
+                codexWeeklyEnabled
+                  ? "bg-violet-500/15 text-violet-500 hover:bg-violet-500/25"
+                  : "bg-black/[0.03] text-text-muted/70 hover:bg-black/[0.06] dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
+              }`}
+              title="Toggle Codex weekly limit policy"
+            >
+              <span className="material-symbols-outlined text-[14px]">date_range</span>
+              Weekly {codexWeeklyEnabled ? "ON" : "OFF"}
+            </button>
+          </>
+        )}
+        {hasProxy &&
+          (() => {
+            const colorClass =
+              proxySource === "global"
+                ? "bg-emerald-500/15 text-emerald-500"
+                : proxySource === "provider"
+                  ? "bg-amber-500/15 text-amber-500"
+                  : "bg-blue-500/15 text-blue-500";
+            const label =
+              proxySource === "global"
+                ? t("proxySourceGlobal")
+                : proxySource === "provider"
+                  ? t("proxySourceProvider")
+                  : t("proxySourceKey");
+            return (
+              <span
+                className={`inline-flex max-w-full items-center gap-0.5 rounded-md px-2 py-1 text-xs font-medium ${colorClass}`}
+                title={t("proxyConfiguredBySource", {
+                  source: label,
+                  host: proxyHost || t("configured"),
+                })}
+              >
+                <span className="material-symbols-outlined shrink-0 text-[14px]">vpn_lock</span>
+                <span className="min-w-0 truncate">{proxyHost || t("proxy")}</span>
+              </span>
+            );
+          })()}
       </div>
     </div>
   );

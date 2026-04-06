@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "限制和配额",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "速率限制",
     "remaining": "剩余",
     "requestsPerMinute": "请求/分钟",
@@ -2536,6 +2537,7 @@
     "autoRefresh": "自动刷新",
     "refreshAll": "全部刷新",
     "loadingQuotas": "正在加载...",
+    "quotaRefreshing": "Refreshing…",
     "account": "账户",
     "modelQuotas": "模型配额",
     "lastUsed": "最近刷新",

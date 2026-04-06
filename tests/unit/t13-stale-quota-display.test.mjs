@@ -29,3 +29,16 @@ test("T13: parseQuotaData keeps usage unchanged when resetAt is in the future", 
   assert.equal(parsed[0].used, 42);
   assert.equal(parsed[0].staleAfterReset, false);
 });
+
+test("T13: past reset with zero usage does not flag staleAfterReset (Kiro / consistent snapshot)", () => {
+  const past = new Date(Date.now() - 60_000).toISOString();
+  const parsed = parseQuotaData("kiro", {
+    quotas: {
+      credit: { used: 0, total: 100, resetAt: past, remainingPercentage: 100 },
+    },
+  });
+
+  assert.equal(parsed.length, 1);
+  assert.equal(parsed[0].used, 0);
+  assert.equal(parsed[0].staleAfterReset, false);
+});

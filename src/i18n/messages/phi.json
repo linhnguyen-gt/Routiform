@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "Mga Limitasyon at Quota",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "Hangganan ng Rate",
     "remaining": "Natitira",
     "requestsPerMinute": "Mga kahilingan/min",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "Auto-refresh",
     "refreshAll": "I-refresh Lahat",
     "loadingQuotas": "Naglo-load...",
+    "quotaRefreshing": "Refreshing…",
     "account": "Account",
     "modelQuotas": "Mga Modelong Quota",
     "lastUsed": "Last Refreshed",

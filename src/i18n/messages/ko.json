@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "한도 및 할당량",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "비율 제한",
     "remaining": "남은",
     "requestsPerMinute": "요청/분",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "자동 새로고침",
     "refreshAll": "모두 새로 고침",
     "loadingQuotas": "로드 중...",
+    "quotaRefreshing": "Refreshing…",
     "account": "계정",
     "modelQuotas": "모델 할당량",
     "lastUsed": "Last Refreshed",

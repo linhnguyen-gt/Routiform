@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "Rajoitukset ja kiintiöt",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "Rate Limit",
     "remaining": "Jäljellä",
     "requestsPerMinute": "Pyynnöt/min",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "Automaattinen päivitys",
     "refreshAll": "Päivitä kaikki",
     "loadingQuotas": "Ladataan...",
+    "quotaRefreshing": "Refreshing…",
     "account": "Tili",
     "modelQuotas": "Mallikiintiöt",
     "lastUsed": "Last Refreshed",

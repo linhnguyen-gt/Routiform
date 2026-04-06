@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "Had & Kuota",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "Had Kadar",
     "remaining": "yang tinggal",
     "requestsPerMinute": "Permintaan/min",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "Muat semula automatik",
     "refreshAll": "Muat semula Semua",
     "loadingQuotas": "Memuatkan...",
+    "quotaRefreshing": "Refreshing…",
     "account": "Akaun",
     "modelQuotas": "Kuota Model",
     "lastUsed": "Last Refreshed",

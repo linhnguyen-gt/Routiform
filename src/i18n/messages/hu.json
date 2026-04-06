@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "Korlátok és kvóták",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "Rate Limit",
     "remaining": "Maradt",
     "requestsPerMinute": "Kérések/perc",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "Automatikus frissítés",
     "refreshAll": "Összes frissítése",
     "loadingQuotas": "Betöltés...",
+    "quotaRefreshing": "Refreshing…",
     "account": "fiók",
     "modelQuotas": "Modellkvóták",
     "lastUsed": "Last Refreshed",

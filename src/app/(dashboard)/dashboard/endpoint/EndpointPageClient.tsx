@@ -431,7 +431,7 @@ export default function APIPageClient({ machineId }) {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-6">
         <CardSkeleton />
         <CardSkeleton />
       </div>
@@ -483,12 +483,17 @@ export default function APIPageClient({ machineId }) {
   );
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       {/* Endpoint Card */}
-      <Card className={cloudEnabled ? "" : ""}>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-semibold">{t("title")}</h2>
+      <Card className="rounded-xl border-border/50 shadow-sm">
+        <div className="mb-4 flex flex-col gap-4 border-b border-border/40 pb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="mb-1 flex items-center gap-2">
+              <span className="material-symbols-outlined text-text-muted/80" aria-hidden>
+                hub
+              </span>
+              <h2 className="text-lg font-semibold tracking-tight">{t("title")}</h2>
+            </div>
             <div className="mt-2">
               <Button
                 size="sm"
@@ -509,7 +514,7 @@ export default function APIPageClient({ machineId }) {
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             {cloudEnabled ? (
               <Button
                 size="sm"
@@ -678,8 +683,8 @@ export default function APIPageClient({ machineId }) {
         </div>
       </Card>
 
-      <Card>
-        <div className="flex flex-wrap gap-3 items-center justify-between">
+      <Card className="rounded-xl border-border/50 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">{t("sectionTitle") || "Integration Surface"}</h2>
             <p className="text-sm text-text-muted">
@@ -700,10 +705,10 @@ export default function APIPageClient({ machineId }) {
       </Card>
 
       {viewTab === "api" ? (
-        <Card>
-          <div className="flex items-center justify-between mb-4">
+        <Card className="rounded-xl border-border/50 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold">{t("available")}</h2>
+              <h2 className="text-lg font-semibold tracking-tight">{t("available")}</h2>
               <p className="text-sm text-text-muted">
                 {t("modelsAcrossEndpoints", {
                   models: Object.values(endpointData).reduce(
@@ -1011,10 +1016,12 @@ export default function APIPageClient({ machineId }) {
           </div>
         </Card>
       ) : (
-        <Card>
+        <Card className="rounded-xl border-border/50 shadow-sm">
           <div className="flex flex-col gap-6">
             <div>
-              <h2 className="text-lg font-semibold">{t("protocolsTitle") || "Protocols"}</h2>
+              <h2 className="text-lg font-semibold tracking-tight">
+                {t("protocolsTitle") || "Protocols"}
+              </h2>
               <p className="text-sm text-text-muted mt-1">
                 {t("protocolsDescription") ||
                   "MCP and A2A are first-class endpoints with dedicated observability and controls."}

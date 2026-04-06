@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "制限と割り当て",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "レート制限",
     "remaining": "残り",
     "requestsPerMinute": "リクエスト/分",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "自動更新",
     "refreshAll": "すべて更新",
     "loadingQuotas": "読み込み中...",
+    "quotaRefreshing": "Refreshing…",
     "account": "アカウント",
     "modelQuotas": "モデルのクォータ",
     "lastUsed": "Last Refreshed",

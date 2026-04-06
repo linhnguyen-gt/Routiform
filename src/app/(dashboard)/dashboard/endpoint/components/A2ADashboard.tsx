@@ -296,14 +296,14 @@ export default function A2ADashboardPage() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="mx-auto w-full max-w-5xl py-2">
         <div className="text-sm text-text-muted">{t("loading")}</div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard label={t("health")} value={status?.status === "ok" ? t("ok") : "—"} />
         <StatCard label={t("totalTasks")} value={status?.tasks?.total || 0} />
@@ -316,8 +316,8 @@ export default function A2ADashboardPage() {
         />
       </div>
 
-      <Card className="p-5">
-        <h2 className="text-lg font-semibold mb-4">{t("taskStateOverview")}</h2>
+      <Card className="rounded-xl border-border/50 p-5 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold tracking-tight">{t("taskStateOverview")}</h2>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {(["submitted", "working", "completed", "failed", "cancelled"] as A2ATaskState[]).map(
             (state) => (
@@ -331,7 +331,7 @@ export default function A2ADashboardPage() {
       </Card>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <Card className="p-5">
+        <Card className="rounded-xl border-border/50 p-5 shadow-sm">
           <h2 className="text-lg font-semibold mb-3">{t("agentCard")}</h2>
           {status?.agent ? (
             <div className="space-y-2 text-sm">
@@ -355,7 +355,7 @@ export default function A2ADashboardPage() {
           )}
         </Card>
 
-        <Card className="p-5">
+        <Card className="rounded-xl border-border/50 p-5 shadow-sm">
           <h2 className="text-lg font-semibold mb-3">{t("quickValidation")}</h2>
           <p className="text-sm text-text-muted mb-3">{t("quickValidationDescription")}</p>
           <div className="flex flex-wrap gap-2">
@@ -380,7 +380,7 @@ export default function A2ADashboardPage() {
         </Card>
       </div>
 
-      <Card className="p-5">
+      <Card className="rounded-xl border-border/50 p-5 shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
           <div>
             <h2 className="text-lg font-semibold">{t("taskManagement")}</h2>
@@ -535,7 +535,7 @@ export default function A2ADashboardPage() {
       </Card>
 
       {selectedTask && (
-        <Card className="p-5">
+        <Card className="rounded-xl border-border/50 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold">{t("taskDetail")}</h2>
             <Button size="sm" variant="secondary" onClick={() => setSelectedTask(null)}>

@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "ขีดจำกัดและโควต้า",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "ขีดจำกัดอัตรา",
     "remaining": "ที่เหลืออยู่",
     "requestsPerMinute": "คำขอ/นาที",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "รีเฟรชอัตโนมัติ",
     "refreshAll": "รีเฟรชทั้งหมด",
     "loadingQuotas": "กำลังโหลด...",
+    "quotaRefreshing": "Refreshing…",
     "account": "บัญชี",
     "modelQuotas": "โควต้าโมเดล",
     "lastUsed": "Last Refreshed",

@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "Grænser og kvoter",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "Satsgrænse",
     "remaining": "Tilbage",
     "requestsPerMinute": "Forespørgsler/min",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "Automatisk opdatering",
     "refreshAll": "Opdater alle",
     "loadingQuotas": "Indlæser...",
+    "quotaRefreshing": "Refreshing…",
     "account": "Konto",
     "modelQuotas": "Modelkvoter",
     "lastUsed": "Last Refreshed",

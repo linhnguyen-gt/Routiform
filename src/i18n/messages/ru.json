@@ -1375,6 +1375,7 @@
   },
   "limits": {
     "title": "Лимиты и квоты",
+    "pageDescription": "Track OAuth provider quotas, active request sessions, and temporary rate-limit lockouts.",
     "rateLimit": "Ограничение скорости",
     "remaining": "Осталось",
     "requestsPerMinute": "Запросов/мин",
@@ -2524,6 +2525,7 @@
     "autoRefresh": "Автообновление",
     "refreshAll": "Обновить все",
     "loadingQuotas": "Загрузка...",
+    "quotaRefreshing": "Refreshing…",
     "account": "Аккаунт",
     "modelQuotas": "Модельные квоты",
     "lastUsed": "Last Refreshed",

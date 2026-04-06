@@ -8,6 +8,7 @@ import A2ADashboardPage from "./components/A2ADashboard";
 import ApiEndpointsTab from "./ApiEndpointsTab";
 import { useTranslations } from "next-intl";
 import { copyToClipboard } from "@/shared/utils/clipboard";
+import { cn } from "@/shared/utils/cn";
 
 type ServiceStatus = {
   online: boolean;
@@ -126,75 +127,49 @@ function TransportSelector({
   };
 
   return (
-    <div
-      className="rounded-lg border p-4 mt-3"
-      style={{ borderColor: "var(--color-border)", background: "var(--color-bg-secondary)" }}
-    >
-      <div className="flex items-center gap-2 mb-3">
-        <span
-          className="material-symbols-rounded text-base"
-          style={{ color: "var(--color-primary)" }}
-        >
-          swap_horiz
-        </span>
-        <span className="text-sm font-medium" style={{ color: "var(--color-text)" }}>
-          Transport Mode
-        </span>
+    <div className="mt-4 rounded-xl border border-border/60 bg-bg-subtle/40 p-4 shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.06]">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="material-symbols-rounded text-base text-primary">swap_horiz</span>
+        <span className="text-sm font-semibold text-text-main">Transport Mode</span>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex flex-wrap gap-2">
         {options.map((opt) => (
           <button
             key={opt.value}
+            type="button"
             onClick={() => onChange(opt.value)}
             disabled={disabled}
-            className="flex flex-col items-start px-4 py-2.5 rounded-lg border transition-all duration-200 text-left"
-            style={{
-              borderColor: value === opt.value ? "var(--color-primary)" : "var(--color-border)",
-              background:
-                value === opt.value
-                  ? "rgba(var(--color-primary-rgb, 99,102,241), 0.1)"
-                  : "transparent",
-              opacity: disabled ? 0.5 : 1,
-              cursor: disabled ? "wait" : "pointer",
-            }}
+            className={cn(
+              "flex min-w-[140px] flex-col items-start rounded-lg border px-4 py-2.5 text-left transition-all duration-200",
+              value === opt.value
+                ? "border-primary/50 bg-primary/10 shadow-sm"
+                : "border-border/60 bg-surface/50 hover:border-border",
+              disabled ? "cursor-wait opacity-50" : "cursor-pointer"
+            )}
           >
             <span
-              className="text-sm font-semibold"
-              style={{
-                color: value === opt.value ? "var(--color-primary)" : "var(--color-text)",
-              }}
+              className={cn(
+                "text-sm font-semibold",
+                value === opt.value ? "text-primary" : "text-text-main"
+              )}
             >
               {opt.label}
             </span>
-            <span className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
-              {opt.desc}
-            </span>
+            <span className="mt-0.5 text-xs text-text-muted">{opt.desc}</span>
           </button>
         ))}
       </div>
 
-      {/* Connection info */}
-      <div
-        className="mt-3 rounded-md px-3 py-2 flex items-center gap-2"
-        style={{ background: "var(--color-bg-tertiary)" }}
-      >
-        <span
-          className="material-symbols-rounded text-sm"
-          style={{ color: "var(--color-text-muted)" }}
-        >
+      <div className="mt-3 flex items-center gap-2 rounded-lg border border-border/50 bg-bg-subtle/60 px-3 py-2">
+        <span className="material-symbols-rounded text-sm text-text-muted">
           {value === "stdio" ? "terminal" : "link"}
         </span>
-        <code className="text-xs break-all" style={{ color: "var(--color-text-muted)" }}>
-          {urlMap[value]}
-        </code>
+        <code className="min-w-0 flex-1 break-all text-xs text-text-muted">{urlMap[value]}</code>
         {value !== "stdio" && (
           <button
-            className="ml-auto text-xs px-2 py-0.5 rounded border hover:opacity-80 transition-opacity"
-            style={{
-              borderColor: "var(--color-border)",
-              color: "var(--color-text-muted)",
-            }}
+            type="button"
+            className="ml-auto shrink-0 rounded-md border border-border/60 px-2 py-0.5 text-xs text-text-muted transition-colors hover:bg-sidebar hover:text-primary"
             onClick={() => void copyToClipboard(urlMap[value])}
             title="Copy URL"
           >
@@ -210,6 +185,7 @@ function TransportSelector({
 export default function EndpointPage() {
   const [activeTab, setActiveTab] = useState("endpoint-proxy");
   const t = useTranslations("endpoints");
+  const th = useTranslations("header");
 
   const [mcpStatus, setMcpStatus] = useState<ServiceStatus>({ online: false, loading: true });
   const [a2aStatus, setA2aStatus] = useState<ServiceStatus>({ online: false, loading: true });
@@ -333,53 +309,76 @@ export default function EndpointPage() {
   }, [refreshMcpStatus, refreshA2aStatus]);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <SegmentedControl
-          options={[
-            { value: "endpoint-proxy", label: t("tabProxy"), icon: "api" },
-            { value: "mcp", label: "MCP", icon: "hub" },
-            { value: "a2a", label: "A2A", icon: "group_work" },
-            { value: "api-endpoints", label: t("tabApiEndpoints"), icon: "code" },
-          ]}
-          value={activeTab}
-          onChange={setActiveTab}
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 pb-8">
+      <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-surface via-surface to-bg-subtle/40 p-6 shadow-sm ring-1 ring-black/[0.03] dark:to-white/[0.03] dark:ring-white/[0.06] sm:p-7">
+        <div
+          className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-primary/10 blur-3xl"
+          aria-hidden
         />
-
-        {activeTab === "mcp" && (
-          <ServiceToggle
-            label="MCP"
-            status={mcpStatus}
-            enabled={mcpEnabled}
-            onToggle={() => void toggleService("mcp")}
-            toggling={mcpToggling}
-          />
-        )}
-        {activeTab === "a2a" && (
-          <ServiceToggle
-            label="A2A"
-            status={a2aStatus}
-            enabled={a2aEnabled}
-            onToggle={() => void toggleService("a2a")}
-            toggling={a2aToggling}
-          />
-        )}
+        <div className="relative flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-text-main">
+              {th("endpoint")}
+            </h1>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-muted">
+              {th("endpointDescription")}
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Transport selector for MCP */}
+      <div className="rounded-xl border border-border/50 bg-surface/70 p-3 shadow-sm sm:p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+          <div className="min-w-0 flex-1 overflow-x-auto">
+            <SegmentedControl
+              options={[
+                { value: "endpoint-proxy", label: t("tabProxy"), icon: "api" },
+                { value: "mcp", label: "MCP", icon: "hub" },
+                { value: "a2a", label: "A2A", icon: "group_work" },
+                { value: "api-endpoints", label: t("tabApiEndpoints"), icon: "code" },
+              ]}
+              value={activeTab}
+              onChange={setActiveTab}
+            />
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border/40 pt-3 lg:border-t-0 lg:pt-0">
+            {activeTab === "mcp" && (
+              <ServiceToggle
+                label="MCP"
+                status={mcpStatus}
+                enabled={mcpEnabled}
+                onToggle={() => void toggleService("mcp")}
+                toggling={mcpToggling}
+              />
+            )}
+            {activeTab === "a2a" && (
+              <ServiceToggle
+                label="A2A"
+                status={a2aStatus}
+                enabled={a2aEnabled}
+                onToggle={() => void toggleService("a2a")}
+                toggling={a2aToggling}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
       {activeTab === "mcp" && mcpEnabled && (
         <TransportSelector
           value={mcpTransport}
-          onChange={(t) => void changeTransport(t)}
+          onChange={(tr) => void changeTransport(tr)}
           disabled={transportSaving}
           baseUrl={baseUrl}
         />
       )}
 
-      {activeTab === "endpoint-proxy" && <EndpointPageClient machineId="" />}
-      {activeTab === "mcp" && <McpDashboardPage />}
-      {activeTab === "a2a" && <A2ADashboardPage />}
-      {activeTab === "api-endpoints" && <ApiEndpointsTab />}
+      <div className="flex min-h-0 flex-col gap-6">
+        {activeTab === "endpoint-proxy" && <EndpointPageClient machineId="" />}
+        {activeTab === "mcp" && <McpDashboardPage />}
+        {activeTab === "a2a" && <A2ADashboardPage />}
+        {activeTab === "api-endpoints" && <ApiEndpointsTab />}
+      </div>
     </div>
   );
 }
