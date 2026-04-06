@@ -1,12 +1,12 @@
 /**
- * OmniRoute MCP Server — Model Context Protocol server exposing
- * OmniRoute gateway intelligence as tools for AI agents.
+ * Routiform MCP Server — Model Context Protocol server exposing
+ * Routiform gateway intelligence as tools for AI agents.
  *
  * Supports two transports:
  *   1. stdio  — for IDE integration (VS Code, Cursor, Claude Desktop)
  *   2. HTTP   — for remote/programmatic access
  *
- * Tools wrap existing OmniRoute API endpoints and add intelligence
+ * Tools wrap existing Routiform API endpoints and add intelligence
  * such as routing simulation, budget guards, and session snapshots.
  */
 
@@ -62,11 +62,14 @@ import { normalizeQuotaResponse } from "../../src/shared/contracts/quota.ts";
 
 // ============ Configuration ============
 
-const OMNIROUTE_BASE_URL = process.env.OMNIROUTE_BASE_URL || "http://localhost:20128";
-const OMNIROUTE_API_KEY = process.env.OMNIROUTE_API_KEY || "";
-const MCP_ENFORCE_SCOPES = process.env.OMNIROUTE_MCP_ENFORCE_SCOPES === "true";
+const ROUTIFORM_BASE_URL =
+  process.env.ROUTIFORM_BASE_URL || process.env.OMNIROUTE_BASE_URL || "http://localhost:20128";
+const ROUTIFORM_API_KEY = process.env.ROUTIFORM_API_KEY || process.env.OMNIROUTE_API_KEY || "";
+const MCP_ENFORCE_SCOPES =
+  process.env.ROUTIFORM_MCP_ENFORCE_SCOPES === "true" ||
+  process.env.OMNIROUTE_MCP_ENFORCE_SCOPES === "true";
 const MCP_ALLOWED_SCOPES = new Set(
-  (process.env.OMNIROUTE_MCP_SCOPES || "")
+  (process.env.ROUTIFORM_MCP_SCOPES || process.env.OMNIROUTE_MCP_SCOPES || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean)
@@ -114,13 +117,13 @@ function normalizeComboModels(
 }
 
 /**
- * Internal fetch helper that calls OmniRoute API endpoints.
+ * Internal fetch helper that calls Routiform API endpoints.
  */
-async function omniRouteFetch(path: string, options: RequestInit = {}): Promise<unknown> {
-  const url = `${OMNIROUTE_BASE_URL}${path}`;
+async function routiformFetch(path: string, options: RequestInit = {}): Promise<unknown> {
+  const url = `${ROUTIFORM_BASE_URL}${path}`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(OMNIROUTE_API_KEY ? { Authorization: `Bearer ${OMNIROUTE_API_KEY}` } : {}),
+    ...(ROUTIFORM_API_KEY ? { Authorization: `Bearer ${ROUTIFORM_API_KEY}` } : {}),
     ...((options.headers as Record<string, string>) || {}),
   };
 
@@ -128,7 +131,7 @@ async function omniRouteFetch(path: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "Unknown error");
-    throw new Error(`OmniRoute API error [${response.status}]: ${errorText}`);
+    throw new Error(`Routiform API error [${response.status}]: ${errorText}`);
   }
 
   return response.json();
@@ -183,9 +186,9 @@ async function handleGetHealth() {
   const start = Date.now();
   try {
     const [healthRaw, resilienceRaw, rateLimitsRaw] = await Promise.allSettled([
-      omniRouteFetch("/api/monitoring/health"),
-      omniRouteFetch("/api/resilience"),
-      omniRouteFetch("/api/rate-limits"),
+      routiformFetch("/api/monitoring/health"),
+      routiformFetch("/api/resilience"),
+      routiformFetch("/api/rate-limits"),
     ]);
 
     const health = healthRaw.status === "fulfilled" ? toRecord(healthRaw.value) : {};
@@ -233,7 +236,7 @@ async function handleGetHealth() {
 async function handleListCombos(args: { includeMetrics?: boolean }) {
   const start = Date.now();
   try {
-    const combosRaw = await omniRouteFetch("/api/combos");
+    const combosRaw = await routiformFetch("/api/combos");
     const combosRecord = toRecord(combosRaw);
     const combos = Array.isArray(combosRecord.combos)
       ? combosRecord.combos
@@ -242,7 +245,7 @@ async function handleListCombos(args: { includeMetrics?: boolean }) {
         : [];
     let metrics: JsonRecord = {};
     if (args.includeMetrics) {
-      metrics = toRecord(await omniRouteFetch("/api/combos/metrics").catch(() => ({})));
+      metrics = toRecord(await routiformFetch("/api/combos/metrics").catch(() => ({})));
     }
 
     const result = {
@@ -275,7 +278,7 @@ async function handleListCombos(args: { includeMetrics?: boolean }) {
 async function handleGetComboMetrics(args: { comboId: string }) {
   const start = Date.now();
   try {
-    const result = await omniRouteFetch(
+    const result = await routiformFetch(
       `/api/combos/metrics?comboId=${encodeURIComponent(args.comboId)}`
     );
     await logToolCall("routiform_get_combo_metrics", args, result, Date.now() - start, true);
@@ -290,7 +293,7 @@ async function handleGetComboMetrics(args: { comboId: string }) {
 async function handleSwitchCombo(args: { comboId: string; active: boolean }) {
   const start = Date.now();
   try {
-    const result = await omniRouteFetch(`/api/combos/${encodeURIComponent(args.comboId)}`, {
+    const result = await routiformFetch(`/api/combos/${encodeURIComponent(args.comboId)}`, {
       method: "PUT",
       body: JSON.stringify({ isActive: args.active }),
     });
@@ -310,7 +313,7 @@ async function handleCheckQuota(args: { provider?: string; connectionId?: string
     if (args.connectionId) path += `?connectionId=${encodeURIComponent(args.connectionId)}`;
     else if (args.provider) path += `?provider=${encodeURIComponent(args.provider)}`;
 
-    const result = normalizeQuotaResponse(await omniRouteFetch(path), {
+    const result = normalizeQuotaResponse(await routiformFetch(path), {
       provider: args.provider || null,
       connectionId: args.connectionId || null,
     });
@@ -343,7 +346,7 @@ async function handleRouteRequest(args: {
       body["x-combo"] = args.combo;
     }
 
-    const raw = (await omniRouteFetch("/v1/chat/completions", {
+    const raw = (await routiformFetch("/v1/chat/completions", {
       method: "POST",
       body: JSON.stringify(body),
     })) as JsonRecord;
@@ -408,7 +411,7 @@ async function handleCostReport(args: { period?: string }) {
     };
     const range = rangeMap[period] || "30d";
     const raw = toRecord(
-      await omniRouteFetch(`/api/usage/analytics?range=${encodeURIComponent(range)}`)
+      await routiformFetch(`/api/usage/analytics?range=${encodeURIComponent(range)}`)
     );
     const tokenCount = toRecord(raw.tokenCount);
     const budget = toRecord(raw.budget);
@@ -457,7 +460,7 @@ async function handleListModelsCatalog(args: { provider?: string; capability?: s
       if (params.toString()) path += `?${params.toString()}`;
     }
 
-    const raw = toRecord(await omniRouteFetch(path));
+    const raw = toRecord(await routiformFetch(path));
 
     // If we used the direct provider endpoint
     let rawModels: unknown[] = [];
@@ -468,7 +471,7 @@ async function handleListModelsCatalog(args: { provider?: string; capability?: s
     } else {
       rawModels = Array.isArray(raw.data) ? raw.data : [];
       source = "local_catalog";
-      // OmniRoute's global /v1/models is always a cached/local catalog
+      // Routiform's global /v1/models is always a cached/local catalog
     }
 
     const result = {
@@ -521,7 +524,7 @@ async function handleWebSearch(args: {
     };
     if (args.provider) body.provider = args.provider;
 
-    const result = await omniRouteFetch("/v1/search", {
+    const result = await routiformFetch("/v1/search", {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -537,11 +540,11 @@ async function handleWebSearch(args: {
 // ============ MCP Server Setup ============
 
 /**
- * Create and configure the OmniRoute MCP Server with all essential tools.
+ * Create and configure the Routiform MCP Server with all essential tools.
  */
 export function createMcpServer(): McpServer {
   const server = new McpServer({
-    name: "omniroute",
+    name: "routiform",
     version: process.env.npm_package_version || "1.8.1",
   });
 
@@ -550,7 +553,7 @@ export function createMcpServer(): McpServer {
     "routiform_get_health",
     {
       description:
-        "Returns OmniRoute health status including uptime, memory, circuit breakers, rate limits, and cache stats",
+        "Returns Routiform health status including uptime, memory, circuit breakers, rate limits, and cache stats",
       inputSchema: getHealthInput,
     },
     withScopeEnforcement("routiform_get_health", async (args) => {
@@ -607,7 +610,7 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     "routiform_route_request",
     {
-      description: "Sends a chat completion request through OmniRoute intelligent routing",
+      description: "Sends a chat completion request through Routiform intelligent routing",
       inputSchema: routeRequestInput,
     },
     withScopeEnforcement("routiform_route_request", (args) =>
@@ -751,7 +754,7 @@ export function createMcpServer(): McpServer {
     "routiform_sync_pricing",
     {
       description:
-        "Syncs pricing data from external sources (LiteLLM) into OmniRoute without overwriting user-set prices",
+        "Syncs pricing data from external sources (LiteLLM) into Routiform without overwriting user-set prices",
       inputSchema: syncPricingInput,
     },
     withScopeEnforcement("routiform_sync_pricing", (args) =>
@@ -763,7 +766,7 @@ export function createMcpServer(): McpServer {
     "routiform_web_search",
     {
       description:
-        "Performs a web search using OmniRoute's search gateway. Supports multiple providers (Serper, Brave, Perplexity, Exa, Tavily) with automatic failover. Returns search results with titles, URLs, snippets, and position data.",
+        "Performs a web search using Routiform's search gateway. Supports multiple providers (Serper, Brave, Perplexity, Exa, Tavily) with automatic failover. Returns search results with titles, URLs, snippets, and position data.",
       inputSchema: webSearchInput,
     },
     withScopeEnforcement("routiform_web_search", (args) =>
@@ -824,7 +827,7 @@ export function createMcpServer(): McpServer {
 
 /**
  * Start the MCP server with stdio transport.
- * Called when `omniroute --mcp` is used.
+ * Called when `routiform --mcp` is used (legacy `omniroute --mcp` still works).
  */
 export async function startMcpStdio(): Promise<void> {
   const server = createMcpServer();
@@ -843,10 +846,10 @@ export async function startMcpStdio(): Promise<void> {
   process.once("SIGINT", stopHeartbeatOnce);
   process.once("SIGTERM", stopHeartbeatOnce);
 
-  console.error("[MCP] OmniRoute MCP Server starting (stdio transport)...");
+  console.error("[MCP] Routiform MCP Server starting (stdio transport)...");
   try {
     await server.connect(transport);
-    console.error("[MCP] OmniRoute MCP Server connected and ready.");
+    console.error("[MCP] Routiform MCP Server connected and ready.");
   } finally {
     stopHeartbeatOnce();
     process.off("exit", stopHeartbeatOnce);

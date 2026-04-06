@@ -74,7 +74,7 @@ function toMessageArray(raw: unknown): A2AMessage[] | null {
 
 function authenticate(req: NextRequest): boolean {
   // If no API key is configured, allow all requests
-  const configuredKey = process.env.OMNIROUTE_API_KEY;
+  const configuredKey = process.env.ROUTIFORM_API_KEY || process.env.OMNIROUTE_API_KEY;
   if (!configuredKey) return true;
 
   const authHeader = req.headers.get("authorization") || "";

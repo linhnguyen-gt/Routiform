@@ -142,11 +142,11 @@ const parsedInterval = parseInt(process.env.MODELS_DEV_SYNC_INTERVAL || "86400",
 const SYNC_INTERVAL_MS =
   Number.isFinite(parsedInterval) && parsedInterval > 0 ? parsedInterval * 1000 : 86400 * 1000;
 
-// ─── Provider mapping: models.dev provider ID → OmniRoute provider IDs/aliases ──
+// ─── Provider mapping: models.dev provider ID → Routiform provider IDs/aliases ──
 //
 // models.dev uses canonical provider IDs (e.g. "openai", "anthropic", "google").
-// OmniRoute uses both full IDs and short aliases (e.g. "cc" for claude, "cx" for codex).
-// We map each models.dev provider to ALL OmniRoute identifiers that should receive
+// Routiform uses both full IDs and short aliases (e.g. "cc" for claude, "cx" for codex).
+// We map each models.dev provider to ALL Routiform identifiers that should receive
 // its pricing/capability data.
 
 const MODELS_DEV_PROVIDER_MAP: Record<string, string[]> = {
@@ -172,7 +172,7 @@ const MODELS_DEV_PROVIDER_MAP: Record<string, string[]> = {
   perplexity: ["pplx", "perplexity"],
   // OAuth / special providers
   bedrock: ["kiro", "kr"], // kr = Kiro (AWS Bedrock)
-  // Additional providers that may overlap with OmniRoute
+  // Additional providers that may overlap with Routiform
   alibaba: ["ali", "alibaba", "bcp", "alicode", "alicode-intl"],
   zai: ["zai", "glm"], // GLM models via Z.AI
   moonshot: ["kimi", "kimi-coding", "kmc", "kmca"],
@@ -192,7 +192,7 @@ const MODELS_DEV_PROVIDER_MAP: Record<string, string[]> = {
 };
 
 /**
- * Map a models.dev provider ID to OmniRoute provider IDs.
+ * Map a models.dev provider ID to Routiform provider IDs.
  * Returns array of provider identifiers (may include aliases).
  */
 export function mapProviderId(modelsDevProviderId: string): string[] {
@@ -242,9 +242,9 @@ export async function fetchModelsDev(): Promise<ModelsDevData> {
 // ─── Transform: Pricing ──────────────────────────────────
 
 /**
- * Transform models.dev raw data → OmniRoute PricingByProvider format.
+ * Transform models.dev raw data → Routiform PricingByProvider format.
  *
- * models.dev costs are already in $/1M tokens (same as OmniRoute format).
+ * models.dev costs are already in $/1M tokens (same as Routiform format).
  * Maps: cache_read → cached, cache_write → cache_creation.
  */
 export function transformModelsDevToPricing(raw: ModelsDevData): PricingByProvider {
@@ -274,7 +274,7 @@ export function transformModelsDevToPricing(raw: ModelsDevData): PricingByProvid
         entry.reasoning = model.cost.reasoning;
       }
 
-      // Write to ALL mapped OmniRoute providers
+      // Write to ALL mapped Routiform providers
       for (const omniProvider of omniRouteProviders) {
         if (!result[omniProvider]) result[omniProvider] = {};
         result[omniProvider][modelId] = entry;

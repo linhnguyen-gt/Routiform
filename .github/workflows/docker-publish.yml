@@ -17,12 +17,18 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Docker Hub namespace + image (must match DOCKERHUB_USERNAME secret for login)
+  IMAGE_NAME: linhnguyen0944/routiform
+
 jobs:
   docker:
     name: Build and Push Docker (multi-arch)
     runs-on: ubuntu-latest
-    env:
-      IMAGE_NAME: diegosouzapw/omniroute
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -48,45 +54,69 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract version from release tag or input
+      - name: Resolve image version tag
         id: version
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION="${{ inputs.version }}"
-          else
+          elif [ "${{ github.event_name }}" = "release" ]; then
             VERSION="${GITHUB_REF_NAME}"
             VERSION="${VERSION#v}"
+          else
+            # push to main — use app version from package.json (not branch name)
+            VERSION=$(node -p "require('./package.json').version")
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Publishing Docker image: $IMAGE_NAME:$VERSION"
+          echo "Publishing ${{ env.IMAGE_NAME }}:$VERSION / :latest (base) and :${VERSION}-cli / :cli (runner-cli)"
 
-      - name: Build and push multi-arch image
+      - name: Build and push base image (runner-base)
         uses: docker/build-push-action@v6
         with:
           context: .
           target: runner-base
           platforms: linux/amd64,linux/arm64
           push: true
+          pull: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          no-cache: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: |
             ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
             ${{ env.IMAGE_NAME }}:latest
-            ghcr.io/diegosouzapw/omniroute:${{ steps.version.outputs.version }}
-            ghcr.io/diegosouzapw/omniroute:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          no-cache: false
+            ghcr.io/${{ github.repository_owner }}/routiform:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/routiform:latest
+          cache-from: type=gha,scope=routiform-base
+          cache-to: type=gha,mode=max,scope=routiform-base
         env:
           DOCKER_BUILDKIT_INLINE_CACHE: 1
 
-      - name: Inspect image
+      - name: Build and push CLI image (runner-cli)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runner-cli
+          platforms: linux/amd64,linux/arm64
+          push: true
+          pull: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          no-cache: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}-cli
+            ${{ env.IMAGE_NAME }}:cli
+            ghcr.io/${{ github.repository_owner }}/routiform:${{ steps.version.outputs.version }}-cli
+            ghcr.io/${{ github.repository_owner }}/routiform:cli
+          cache-from: type=gha,scope=routiform-cli
+          cache-to: type=gha,mode=max,scope=routiform-cli
+        env:
+          DOCKER_BUILDKIT_INLINE_CACHE: 1
+
+      - name: Inspect images
         run: |
           docker buildx imagetools inspect "${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}"
+          docker buildx imagetools inspect "${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}-cli"
 
       - name: Update Docker Hub description
         uses: peter-evans/dockerhub-description@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: diegosouzapw/omniroute
-          short-description: "OmniRoute — Unified AI proxy. Route any LLM through one endpoint."
+          repository: linhnguyen0944/routiform
+          short-description: "Routiform — unified AI proxy. Route any LLM through one endpoint."
           readme-filepath: ./README.md

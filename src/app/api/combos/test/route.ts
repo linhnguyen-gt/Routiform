@@ -39,7 +39,10 @@ function ensureTranslatorsForComboTest() {
 
 /** Unit tests mock `fetch`; production uses in-process `handleChat` (no extra HTTP hop). */
 function comboTestUsesHttpFetch() {
-  return process.env.OMNIROUTE_COMBO_TEST_USE_FETCH === "1";
+  return (
+    process.env.ROUTIFORM_COMBO_TEST_USE_FETCH === "1" ||
+    process.env.OMNIROUTE_COMBO_TEST_USE_FETCH === "1"
+  );
 }
 
 async function testComboModel(modelStr, chatCompletionsUrl, request) {

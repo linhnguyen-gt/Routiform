@@ -32,7 +32,11 @@ function isEnvFlagEnabled(name: string): boolean {
 }
 
 function isHealthCheckDisabled(): boolean {
-  return isEnvFlagEnabled("OMNIROUTE_DISABLE_TOKEN_HEALTHCHECK") || process.env.NODE_ENV === "test";
+  return (
+    isEnvFlagEnabled("ROUTIFORM_DISABLE_TOKEN_HEALTHCHECK") ||
+    isEnvFlagEnabled("OMNIROUTE_DISABLE_TOKEN_HEALTHCHECK") ||
+    process.env.NODE_ENV === "test"
+  );
 }
 
 // ── Logging helper ───────────────────────────────────────────────────────────
@@ -42,7 +46,11 @@ let pendingHideLogs: Promise<boolean> | null = null;
 const CACHE_TTL = 30_000; // Cache settings for 30 seconds
 
 async function shouldHideLogs(): Promise<boolean> {
-  if (isEnvFlagEnabled("OMNIROUTE_HIDE_HEALTHCHECK_LOGS") || process.env.NODE_ENV === "test") {
+  if (
+    isEnvFlagEnabled("ROUTIFORM_HIDE_HEALTHCHECK_LOGS") ||
+    isEnvFlagEnabled("OMNIROUTE_HIDE_HEALTHCHECK_LOGS") ||
+    process.env.NODE_ENV === "test"
+  ) {
     return true;
   }
 
@@ -104,16 +112,23 @@ export function clearHealthCheckLogCache() {
 // ── Singleton guard (globalThis survives HMR re-evaluation) ─────────────────
 
 declare global {
+  var __routiformTokenHC:
+    | { initialized: boolean; interval: ReturnType<typeof setInterval> | null }
+    | undefined;
+  /** @deprecated */
   var __omnirouteTokenHC:
     | { initialized: boolean; interval: ReturnType<typeof setInterval> | null }
     | undefined;
 }
 
 function getHCState() {
-  if (!globalThis.__omnirouteTokenHC) {
-    globalThis.__omnirouteTokenHC = { initialized: false, interval: null };
+  if (!globalThis.__routiformTokenHC && globalThis.__omnirouteTokenHC) {
+    globalThis.__routiformTokenHC = globalThis.__omnirouteTokenHC;
   }
-  return globalThis.__omnirouteTokenHC;
+  if (!globalThis.__routiformTokenHC) {
+    globalThis.__routiformTokenHC = { initialized: false, interval: null };
+  }
+  return globalThis.__routiformTokenHC;
 }
 
 /**

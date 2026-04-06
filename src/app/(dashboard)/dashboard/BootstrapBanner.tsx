@@ -3,19 +3,26 @@
 import { useState } from "react";
 
 /**
- * Shown when OmniRoute was started with auto-generated secrets (zero-config mode).
+ * Shown when Routiform was started with auto-generated secrets (zero-config mode).
  * The banner is dismissable and persists only for the current session.
+ *
+ * `serverEnvPath` is the real on-disk path from the server (respects DATA_DIR — e.g. /app/data/server.env in Docker).
  */
-export default function BootstrapBanner() {
+export default function BootstrapBanner({ serverEnvPath }: { serverEnvPath: string }) {
   const [dismissed, setDismissed] = useState(false);
 
   if (dismissed) return null;
 
-  // Determine default data dir hint based on platform hint from user-agent
-  const dataDir =
-    typeof navigator !== "undefined" && navigator.platform?.startsWith("Win")
-      ? "%APPDATA%\\omniroute\\server.env"
-      : "~/.omniroute/server.env";
+  const displayPath =
+    serverEnvPath ||
+    (typeof navigator !== "undefined" && navigator.platform?.startsWith("Win")
+      ? "%APPDATA%\\routiform\\server.env"
+      : "~/.routiform/server.env");
+
+  const dockerNote =
+    displayPath.startsWith("/app/") || displayPath.includes("/app/data/")
+      ? " In Docker this path is inside your container volume (see DATA_DIR in compose)."
+      : "";
 
   return (
     <div
@@ -26,14 +33,14 @@ export default function BootstrapBanner() {
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-amber-300">Running in zero-config mode</p>
         <p className="mt-0.5 text-amber-200/80">
-          OmniRoute auto-generated secure encryption keys on first launch. They are persisted to{" "}
-          <code className="font-mono bg-amber-500/20 px-1 rounded text-xs">{dataDir}</code>. No
-          action is required — your data is encrypted and safe. To use custom keys, add{" "}
+          Routiform auto-generated secure encryption keys on first launch. They are persisted to{" "}
+          <code className="font-mono bg-amber-500/20 px-1 rounded text-xs break-all">{displayPath}</code>
+          . No action is required — your data is encrypted and safe.{dockerNote} To use custom keys, add{" "}
           <code className="font-mono bg-amber-500/20 px-1 rounded text-xs">JWT_SECRET</code> and{" "}
           <code className="font-mono bg-amber-500/20 px-1 rounded text-xs">
             STORAGE_ENCRYPTION_KEY
           </code>{" "}
-          to that file.
+          to that file (or set them in your container env / compose file — they override on startup).
         </p>
       </div>
       <button

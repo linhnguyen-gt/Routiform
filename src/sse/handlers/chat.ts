@@ -876,6 +876,7 @@ function withSessionHeader(response: Response, sessionId: string | null): Respon
   if (!response || !sessionId) return response;
 
   try {
+    response.headers.set("X-Routiform-Session-Id", sessionId);
     response.headers.set("X-OmniRoute-Session-Id", sessionId);
     return response;
   } catch {
@@ -884,6 +885,7 @@ function withSessionHeader(response: Response, sessionId: string | null): Respon
       statusText: response.statusText,
       headers: response.headers,
     });
+    cloned.headers.set("X-Routiform-Session-Id", sessionId);
     cloned.headers.set("X-OmniRoute-Session-Id", sessionId);
     return cloned;
   }

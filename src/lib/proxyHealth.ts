@@ -2,7 +2,7 @@
  * T14: Proxy Fast-Fail — TCP health check with in-memory cache.
  *
  * When a configured HTTP/SOCKS5 proxy is unreachable, every request
- * through OmniRoute used to wait for the full PROXY_TIMEOUT_MS (30s)
+ * through Routiform used to wait for the full PROXY_TIMEOUT_MS (30s)
  * before failing. This module detects dead proxies in <2s via a quick
  * TCP connection check, caching the result to avoid overhead per request.
  *

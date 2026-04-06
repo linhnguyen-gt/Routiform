@@ -1,6 +1,6 @@
 /**
- * OmniRoute MCP Advanced Tools — 10 intelligence tools that differentiate
- * OmniRoute from all other AI gateways.
+ * Routiform MCP Advanced Tools — 10 intelligence tools that differentiate
+ * Routiform from all other AI gateways.
  *
  * Tools:
  *   1. routiform_simulate_route     — Dry-run routing simulation
@@ -18,14 +18,15 @@
 import { logToolCall } from "../audit.ts";
 import { normalizeQuotaResponse } from "../../../src/shared/contracts/quota.ts";
 
-const OMNIROUTE_BASE_URL = process.env.OMNIROUTE_BASE_URL || "http://localhost:20128";
-const OMNIROUTE_API_KEY = process.env.OMNIROUTE_API_KEY || "";
+const ROUTIFORM_BASE_URL =
+  process.env.ROUTIFORM_BASE_URL || process.env.OMNIROUTE_BASE_URL || "http://localhost:20128";
+const ROUTIFORM_API_KEY = process.env.ROUTIFORM_API_KEY || process.env.OMNIROUTE_API_KEY || "";
 
 async function apiFetch(path: string, options: RequestInit = {}): Promise<unknown> {
-  const url = `${OMNIROUTE_BASE_URL}${path}`;
+  const url = `${ROUTIFORM_BASE_URL}${path}`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(OMNIROUTE_API_KEY ? { Authorization: `Bearer ${OMNIROUTE_API_KEY}` } : {}),
+    ...(ROUTIFORM_API_KEY ? { Authorization: `Bearer ${ROUTIFORM_API_KEY}` } : {}),
     ...((options.headers as Record<string, string>) || {}),
   };
   const response = await fetch(url, { ...options, headers, signal: AbortSignal.timeout(30000) });
@@ -452,7 +453,7 @@ export async function handleSetResilienceProfile(args: {
       };
     }
 
-    // Apply to OmniRoute via API (contract: PATCH + { profiles, defaults })
+    // Apply to Routiform via API (contract: PATCH + { profiles, defaults })
     await apiFetch("/api/resilience", {
       method: "PATCH",
       body: JSON.stringify({

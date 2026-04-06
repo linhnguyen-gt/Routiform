@@ -21,7 +21,7 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
         event: "test.ping",
         timestamp: new Date().toISOString(),
         data: {
-          message: "Test webhook delivery from OmniRoute",
+          message: "Test webhook delivery from Routiform",
           webhookId: webhook.id,
         },
       },

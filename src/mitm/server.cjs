@@ -9,7 +9,15 @@ const os = require("os");
 // This file runs as a standalone CommonJS process and cannot import the ES module.
 function getDataDir() {
   if (process.env.DATA_DIR) return path.resolve(process.env.DATA_DIR.trim());
-  return path.join(os.homedir(), ".omniroute");
+  const home = os.homedir();
+  const newDot = path.join(home, ".routiform");
+  const oldDot = path.join(home, ".omniroute");
+  try {
+    if (!fs.existsSync(newDot) && fs.existsSync(oldDot)) return oldDot;
+  } catch {
+    /* ignore */
+  }
+  return newDot;
 }
 
 // Configuration
@@ -212,7 +220,7 @@ async function intercept(req, res, bodyBuffer, mappedModel) {
 
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
-      throw new Error(`OmniRoute ${response.status}: ${errText}`);
+      throw new Error(`Routiform ${response.status}: ${errText}`);
     }
 
     res.writeHead(200, {
@@ -246,8 +254,11 @@ const server = https.createServer(sslOptions, async (req, res) => {
   // Save request log if enabled
   if (bodyBuffer.length > 0) saveRequestLog(req.url, bodyBuffer);
 
-  // Anti-loop: requests from OmniRoute bypass interception
-  if (req.headers["x-omniroute-source"] === "omniroute") {
+  // Anti-loop: requests originating from Routiform bypass interception
+  if (
+    req.headers["x-omniroute-source"] === "omniroute" ||
+    req.headers["x-routiform-source"] === "routiform"
+  ) {
     return passthrough(req, res, bodyBuffer);
   }
 

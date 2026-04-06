@@ -18,7 +18,7 @@ import { memo, useState, Component, type ReactNode } from "react";
 import Image from "next/image";
 import { ProviderIcon as LobehubProviderIcon } from "@lobehub/icons";
 
-// Mapping from OmniRoute provider IDs → Lobehub icon IDs
+// Mapping from Routiform provider IDs → Lobehub icon IDs
 // Lobehub uses lowercase IDs matching ModelProvider enum values
 const LOBEHUB_PROVIDER_MAP: Record<string, string> = {
   openai: "openai",

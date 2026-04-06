@@ -281,7 +281,8 @@ export function extractExternalSessionId(
   const raw =
     h.get("x-session-id") ?? // Preferred: hyphenated (passes through Nginx)
     h.get("x_session_id") ?? // Underscore variant (direct HTTP / custom clients)
-    h.get("x-omniroute-session") ?? // OmniRoute-specific form
+    h.get("x-routiform-session") ??
+    h.get("x-omniroute-session") ?? // legacy
     h.get("session-id") ?? // Bare session-id
     null;
   if (!raw || !raw.trim()) return null;

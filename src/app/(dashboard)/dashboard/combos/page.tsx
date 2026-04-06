@@ -171,7 +171,8 @@ const STRATEGY_RECOMMENDATIONS_FALLBACK = {
   },
 };
 
-const COMBO_USAGE_GUIDE_STORAGE_KEY = "omniroute:combos:hide-usage-guide";
+const COMBO_USAGE_GUIDE_STORAGE_KEY = "routiform:combos:hide-usage-guide";
+const COMBO_USAGE_GUIDE_STORAGE_KEY_LEGACY = "omniroute:combos:hide-usage-guide";
 
 const COMBO_TEMPLATE_FALLBACK = {
   title: "Quick templates",
@@ -378,7 +379,10 @@ export default function CombosPage() {
 
   useEffect(() => {
     try {
-      if (globalThis.localStorage?.getItem(COMBO_USAGE_GUIDE_STORAGE_KEY) === "1") {
+      if (
+        globalThis.localStorage?.getItem(COMBO_USAGE_GUIDE_STORAGE_KEY) === "1" ||
+        globalThis.localStorage?.getItem(COMBO_USAGE_GUIDE_STORAGE_KEY_LEGACY) === "1"
+      ) {
         setShowUsageGuide(false);
       }
     } catch {
@@ -528,6 +532,7 @@ export default function CombosPage() {
     setShowUsageGuide(false);
     try {
       globalThis.localStorage?.setItem(COMBO_USAGE_GUIDE_STORAGE_KEY, "1");
+      globalThis.localStorage?.removeItem(COMBO_USAGE_GUIDE_STORAGE_KEY_LEGACY);
     } catch {}
   };
 
@@ -535,6 +540,7 @@ export default function CombosPage() {
     setShowUsageGuide(true);
     try {
       globalThis.localStorage?.removeItem(COMBO_USAGE_GUIDE_STORAGE_KEY);
+      globalThis.localStorage?.removeItem(COMBO_USAGE_GUIDE_STORAGE_KEY_LEGACY);
     } catch {}
   };
 

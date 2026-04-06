@@ -1,10 +1,10 @@
 /**
- * MCP Tool Schemas — Contracts for all 16 OmniRoute MCP tools.
+ * MCP Tool Schemas — Contracts for all 16 Routiform MCP tools.
  *
  * Defines input/output Zod schemas, descriptions, scopes, and audit levels
  * for both essential (Phase 1) and advanced (Phase 3) MCP tools.
  *
- * Each tool wraps existing OmniRoute API endpoints and exposes them through
+ * Each tool wraps existing Routiform API endpoints and exposes them through
  * the Model Context Protocol, enabling AI agents in IDEs (VS Code, Cursor,
  * Copilot, Claude Desktop) to intelligently query gateway state.
  */
@@ -30,7 +30,7 @@ export interface McpToolDefinition<TInput extends z.ZodTypeAny, TOutput extends 
   auditLevel: AuditLevel;
   /** Phase: 1 = essential, 2 = advanced */
   phase: 1 | 2;
-  /** Source endpoints on OmniRoute that this tool wraps */
+  /** Source endpoints on Routiform that this tool wraps */
   sourceEndpoints: readonly string[];
 }
 
@@ -80,7 +80,7 @@ export const getHealthOutput = z.object({
 export const getHealthTool: McpToolDefinition<typeof getHealthInput, typeof getHealthOutput> = {
   name: "routiform_get_health",
   description:
-    "Returns the current health status of OmniRoute including uptime, memory usage, circuit breaker states for all providers, rate limit status, and cache statistics.",
+    "Returns the current health status of Routiform including uptime, memory usage, circuit breaker states for all providers, rate limit status, and cache statistics.",
   inputSchema: getHealthInput,
   outputSchema: getHealthOutput,
   scopes: ["read:health"],
@@ -301,7 +301,7 @@ export const routeRequestTool: McpToolDefinition<
 > = {
   name: "routiform_route_request",
   description:
-    "Sends a chat completion request through OmniRoute's intelligent routing pipeline. Supports combo selection, budget limits, and task role hints for optimal provider matching.",
+    "Sends a chat completion request through Routiform's intelligent routing pipeline. Supports combo selection, budget limits, and task role hints for optimal provider matching.",
   inputSchema: routeRequestInput,
   outputSchema: routeRequestOutput,
   scopes: ["execute:completions"],
@@ -444,7 +444,7 @@ export const webSearchOutput = z.object({
 export const webSearchTool: McpToolDefinition<typeof webSearchInput, typeof webSearchOutput> = {
   name: "routiform_web_search",
   description:
-    "Performs a web search using OmniRoute's search gateway. Supports multiple providers (Serper, Brave, Perplexity, Exa, Tavily) with automatic failover. Returns search results with titles, URLs, snippets, and position data.",
+    "Performs a web search using Routiform's search gateway. Supports multiple providers (Serper, Brave, Perplexity, Exa, Tavily) with automatic failover. Returns search results with titles, URLs, snippets, and position data.",
   inputSchema: webSearchInput,
   outputSchema: webSearchOutput,
   scopes: ["execute:search"],
@@ -856,7 +856,7 @@ export const syncPricingTool: McpToolDefinition<typeof syncPricingInput, typeof 
   {
     name: "routiform_sync_pricing",
     description:
-      "Syncs pricing data from external sources (LiteLLM) into OmniRoute. Synced pricing fills gaps not covered by hardcoded defaults without overwriting user-set prices. Use dryRun=true to preview.",
+      "Syncs pricing data from external sources (LiteLLM) into Routiform. Synced pricing fills gaps not covered by hardcoded defaults without overwriting user-set prices. Use dryRun=true to preview.",
     inputSchema: syncPricingInput,
     outputSchema: syncPricingOutput,
     scopes: ["pricing:write"],

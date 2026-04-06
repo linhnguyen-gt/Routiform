@@ -4,7 +4,7 @@
  * Defines per-provider "fingerprints" that control the exact ordering of HTTP headers
  * and JSON body fields to match the native CLI tools exactly.
  *
- * When `cliCompatMode` is enabled for a provider, OmniRoute reorders outgoing requests
+ * When `cliCompatMode` is enabled for a provider, Routiform reorders outgoing requests
  * to be indistinguishable from the real CLI binary, reducing account flagging risk.
  *
  * Header order and body field order were captured via mitmproxy traffic analysis.

@@ -9,7 +9,7 @@ import { isAuthRequired, isAuthenticated } from "@/shared/utils/apiAuth";
 
 const MAX_UPLOAD_SIZE = 100 * 1024 * 1024; // 100 MB
 
-// Required tables that must exist in a valid OmniRoute database
+// Required tables that must exist in a valid Routiform database
 const REQUIRED_TABLES = ["provider_connections", "provider_nodes", "combos", "api_keys"];
 
 /**
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     }
 
     // Write uploaded file to temp location
-    tmpPath = path.join(os.tmpdir(), `omniroute-import-${Date.now()}.sqlite`);
+    tmpPath = path.join(os.tmpdir(), `routiform-import-${Date.now()}.sqlite`);
     fs.writeFileSync(tmpPath, fileBuffer!);
 
     // Validate SQLite integrity
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
       if (missingTables.length > 0) {
         return NextResponse.json(
           {
-            error: `Invalid OmniRoute database. Missing tables: ${missingTables.join(", ")}`,
+            error: `Invalid Routiform database. Missing tables: ${missingTables.join(", ")}`,
           },
           { status: 400 }
         );

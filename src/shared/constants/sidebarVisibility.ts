@@ -56,7 +56,8 @@ const PRIMARY_SIDEBAR_ITEMS: readonly SidebarItemDefinition[] = [
   { id: "costs", href: "/dashboard/costs", i18nKey: "costs", icon: "account_balance_wallet" },
   { id: "analytics", href: "/dashboard/analytics", i18nKey: "analytics", icon: "analytics" },
   { id: "limits", href: "/dashboard/limits", i18nKey: "limits", icon: "tune" },
-  { id: "cache", href: "/dashboard/cache", i18nKey: "cache", icon: "cached" },
+  // exact: media lives under /dashboard/cache/media — prefix match would keep "cache" active there
+  { id: "cache", href: "/dashboard/cache", i18nKey: "cache", icon: "cached", exact: true },
   { id: "media", href: "/dashboard/cache/media", i18nKey: "media", icon: "perm_media" },
 ];
 
@@ -89,7 +90,7 @@ const HELP_SIDEBAR_ITEMS: readonly SidebarItemDefinition[] = [
   { id: "docs", href: "/docs", i18nKey: "docs", icon: "menu_book", external: true },
   {
     id: "issues",
-    href: "https://github.com/diegosouzapw/OmniRoute/issues",
+    href: "https://github.com/linhnguyen-gt/Routiform/issues",
     i18nKey: "issues",
     icon: "bug_report",
     external: true,
@@ -132,7 +133,7 @@ export const SIDEBAR_SECTIONS: readonly SidebarSectionDefinition[] = [
 ] as const;
 
 export const HIDDEN_SIDEBAR_ITEMS_SETTING_KEY = "hiddenSidebarItems";
-export const SIDEBAR_SETTINGS_UPDATED_EVENT = "omniroute:settings-updated";
+export const SIDEBAR_SETTINGS_UPDATED_EVENT = "routiform:settings-updated";
 
 export function normalizeHiddenSidebarItems(value: unknown): HideableSidebarItemId[] {
   if (!Array.isArray(value)) return [];

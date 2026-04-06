@@ -16,8 +16,10 @@ import Badge from "@/shared/components/Badge";
 import { CardSkeleton } from "@/shared/components/Loading";
 import { USAGE_SUPPORTED_PROVIDERS } from "@/shared/constants/providers";
 
-const LS_GROUP_BY = "omniroute:limits:groupBy";
-const LS_EXPANDED_GROUPS = "omniroute:limits:expandedGroups";
+const LS_GROUP_BY = "routiform:limits:groupBy";
+const LS_LEGACY_GROUP_BY = "omniroute:limits:groupBy";
+const LS_EXPANDED_GROUPS = "routiform:limits:expandedGroups";
+const LS_LEGACY_EXPANDED_GROUPS = "omniroute:limits:expandedGroups";
 
 const MIN_FETCH_INTERVAL_MS = 30000; // Debounce per-connection fetches
 const QUOTA_BAR_GREEN_THRESHOLD = 50;
@@ -88,14 +90,17 @@ export default function ProviderLimits() {
   const [tierFilter, setTierFilter] = useState("all");
   const [groupBy, setGroupBy] = useState<"none" | "environment">(() => {
     if (typeof window === "undefined") return "none";
-    const saved = localStorage.getItem(LS_GROUP_BY);
+    const saved =
+      localStorage.getItem(LS_GROUP_BY) || localStorage.getItem(LS_LEGACY_GROUP_BY);
     if (saved === "environment" || saved === "none") return saved;
     return "none";
   });
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
     try {
-      const saved = localStorage.getItem(LS_EXPANDED_GROUPS);
+      const saved =
+        localStorage.getItem(LS_EXPANDED_GROUPS) ||
+        localStorage.getItem(LS_LEGACY_EXPANDED_GROUPS);
       return saved ? new Set(JSON.parse(saved)) : new Set();
     } catch {
       return new Set();
@@ -384,7 +389,9 @@ export default function ProviderLimits() {
   // Default inteligente: se não há preferência salva e há connections com grupo, abre em Por Ambiente
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const hasSaved = localStorage.getItem(LS_GROUP_BY) !== null;
+    const hasSaved =
+      localStorage.getItem(LS_GROUP_BY) !== null ||
+      localStorage.getItem(LS_LEGACY_GROUP_BY) !== null;
     if (
       !hasSaved &&
       connections.some((c) => (c.providerSpecificData?.tag as string | undefined)?.trim())

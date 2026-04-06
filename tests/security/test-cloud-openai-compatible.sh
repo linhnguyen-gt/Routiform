@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Defaults requested
-BASE_URL="${BASE_URL:-https://omniroute.com/v1}"
+BASE_URL="${BASE_URL:-https://routiform.com/v1}"
 MODEL="${MODEL:-kr/claude-sonnet-4.5}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-45}"
 API_KEY="${API_KEY:-${CLOUD_API_KEY:-${OPENAI_API_KEY:-}}}"
@@ -32,7 +32,7 @@ JSON
 )
 
 HTTP_CODE=$(curl -sS -m "${TIMEOUT_SECONDS}" \
-  -o /tmp/omniroute_cloud_test_response.json \
+  -o /tmp/routiform_cloud_test_response.json \
   -w "%{http_code}" \
   -X POST "${ENDPOINT}" \
   -H "Authorization: Bearer ${API_KEY}" \
@@ -41,7 +41,7 @@ HTTP_CODE=$(curl -sS -m "${TIMEOUT_SECONDS}" \
 
 echo "[cloud-test] HTTP status: ${HTTP_CODE}"
 echo "[cloud-test] Response body:"
-cat /tmp/omniroute_cloud_test_response.json || true
+cat /tmp/routiform_cloud_test_response.json || true
 echo
 
 if [[ "${HTTP_CODE}" =~ ^2 ]]; then

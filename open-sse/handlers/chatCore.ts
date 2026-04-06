@@ -482,6 +482,7 @@ export async function handleChatCore({
         headers: {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": getCorsOrigin(),
+          "X-Routiform-Idempotent": "true",
           "X-OmniRoute-Idempotent": "true",
         },
       }),
@@ -694,6 +695,7 @@ export async function handleChatCore({
           headers: {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": getCorsOrigin(),
+            "X-Routiform-Cache": "HIT",
             "X-OmniRoute-Cache": "HIT",
           },
         }),
@@ -2068,6 +2070,7 @@ export async function handleChatCore({
         headers: {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": getCorsOrigin(),
+          "X-Routiform-Cache": "MISS",
           "X-OmniRoute-Cache": "MISS",
         },
       }),
@@ -2223,6 +2226,7 @@ export async function handleChatCore({
     // Chain: provider → transform → progress → client
     const transformedBody = pipeWithDisconnect(providerResponse, transformStream, streamController);
     finalStream = transformedBody.pipeThrough(progressTransform);
+    responseHeaders["X-Routiform-Progress"] = "enabled";
     responseHeaders["X-OmniRoute-Progress"] = "enabled";
   } else {
     finalStream = pipeWithDisconnect(providerResponse, transformStream, streamController);

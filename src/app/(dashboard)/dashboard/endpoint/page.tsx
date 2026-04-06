@@ -110,7 +110,7 @@ function TransportSelector({
   baseUrl: string;
 }) {
   const options: { value: McpTransport; label: string; desc: string }[] = [
-    { value: "stdio", label: "stdio", desc: "Local — IDE spawns process via omniroute --mcp" },
+    { value: "stdio", label: "stdio", desc: "Local — IDE spawns process via routiform --mcp" },
     { value: "sse", label: "SSE", desc: "Remote — Server-Sent Events over HTTP" },
     {
       value: "streamable-http",
@@ -120,7 +120,7 @@ function TransportSelector({
   ];
 
   const urlMap: Record<McpTransport, string> = {
-    stdio: "omniroute --mcp",
+    stdio: "routiform --mcp",
     sse: `${baseUrl}/api/mcp/sse`,
     "streamable-http": `${baseUrl}/api/mcp/stream`,
   };

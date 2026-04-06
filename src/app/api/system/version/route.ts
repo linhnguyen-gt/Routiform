@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 
 async function getLatestNpmVersion(): Promise<string | null> {
   try {
-    const { stdout } = await execFileAsync("npm", ["info", "omniroute", "version", "--json"], {
+    const { stdout } = await execFileAsync("npm", ["info", "routiform", "version", "--json"], {
       timeout: 10000,
     });
     const parsed = JSON.parse(stdout.trim());
@@ -142,15 +142,15 @@ export async function POST(req: NextRequest) {
 
       try {
         // Step 1: Install
-        send({ step: "install", status: "running", message: `Installing omniroute@${latest}...` });
+        send({ step: "install", status: "running", message: `Installing routiform@${latest}...` });
         await execFileAsync(
           "npm",
-          ["install", "-g", `omniroute@${latest}`, "--ignore-scripts", "--legacy-peer-deps"],
+          ["install", "-g", `routiform@${latest}`, "--ignore-scripts", "--legacy-peer-deps"],
           {
             timeout: 300000,
           }
         );
-        send({ step: "install", status: "done", message: `Installed omniroute@${latest}` });
+        send({ step: "install", status: "done", message: `Installed routiform@${latest}` });
 
         // Step 2: Rebuild native modules (critical for better-sqlite3)
         send({
@@ -161,9 +161,9 @@ export async function POST(req: NextRequest) {
         const globalRoot = (
           await execFileAsync("npm", ["root", "-g"], { timeout: 10000 })
         ).stdout.trim();
-        const omniPath = `${globalRoot}/omniroute/app`;
+        const routiformPath = `${globalRoot}/routiform/app`;
         await execFileAsync("npm", ["rebuild", "better-sqlite3"], {
-          cwd: omniPath,
+          cwd: routiformPath,
           timeout: 120000,
         });
         send({ step: "rebuild", status: "done", message: "Native modules rebuilt" });
@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
         // Step 3: Restart PM2
         send({ step: "restart", status: "running", message: "Restarting service via PM2..." });
         try {
-          await execFileAsync("pm2", ["restart", "omniroute", "--update-env"], { timeout: 30000 });
+          await execFileAsync("pm2", ["restart", "routiform", "--update-env"], { timeout: 30000 });
           send({ step: "restart", status: "done", message: "Service restarted" });
         } catch {
           // PM2 may not be available (Docker/manual setups)

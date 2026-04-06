@@ -8,14 +8,15 @@
 import type { A2ATask, TaskArtifact } from "../taskManager";
 import { normalizeQuotaResponse } from "@/shared/contracts/quota";
 
-const OMNIROUTE_BASE_URL = process.env.OMNIROUTE_BASE_URL || "http://localhost:20128";
-const OMNIROUTE_API_KEY = process.env.OMNIROUTE_API_KEY || "";
+const ROUTIFORM_BASE_URL =
+  process.env.ROUTIFORM_BASE_URL || process.env.OMNIROUTE_BASE_URL || "http://localhost:20128";
+const ROUTIFORM_API_KEY = process.env.ROUTIFORM_API_KEY || process.env.OMNIROUTE_API_KEY || "";
 
 async function quotaFetch(path: string): Promise<any> {
-  const url = `${OMNIROUTE_BASE_URL}${path}`;
+  const url = `${ROUTIFORM_BASE_URL}${path}`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(OMNIROUTE_API_KEY ? { Authorization: `Bearer ${OMNIROUTE_API_KEY}` } : {}),
+    ...(ROUTIFORM_API_KEY ? { Authorization: `Bearer ${ROUTIFORM_API_KEY}` } : {}),
   };
   const res = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
   if (!res.ok) throw new Error(`API [${res.status}]`);

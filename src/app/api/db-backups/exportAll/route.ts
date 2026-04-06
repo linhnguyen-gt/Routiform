@@ -6,7 +6,7 @@ import path from "path";
 import os from "os";
 import { isAuthRequired, isAuthenticated } from "@/shared/utils/apiAuth";
 
-const RESTORE_README = `OmniRoute portable backup
+const RESTORE_README = `Routiform portable backup
 ========================
 
 Files in this archive:
@@ -16,7 +16,7 @@ Files in this archive:
 - *.json           Redundant summaries (settings, combos, providers without secrets) for inspection
 
 Moving to another computer (recommended):
-1) Install OmniRoute and note DATA_DIR (Settings shows the database path).
+1) Install Routiform and note DATA_DIR (Settings shows the database path).
 2) Stop the app.
 3) Extract storage.sqlite and server.env (if included) into DATA_DIR.
 4) Start the app.
@@ -50,8 +50,8 @@ export async function GET(request: Request) {
 
     const db = getDbInstance();
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const tempDir = path.join(os.tmpdir(), `omniroute-export-${timestamp}`);
-    const tarBasename = `omniroute-full-backup-${timestamp}.tar.gz`;
+    const tempDir = path.join(os.tmpdir(), `routiform-export-${timestamp}`);
+    const tarBasename = `routiform-full-backup-${timestamp}.tar.gz`;
     const tarPath = path.join(os.tmpdir(), tarBasename);
 
     try {
@@ -129,7 +129,7 @@ export async function GET(request: Request) {
       const metadata = {
         exportedAt: new Date().toISOString(),
         version: process.env.npm_package_version || "unknown",
-        format: "omniroute-full-backup-v2",
+        format: "routiform-full-backup-v2",
         includedServerEnv,
         contents: [
           "storage.sqlite - Full database",
@@ -158,7 +158,7 @@ export async function GET(request: Request) {
         status: 200,
         headers: {
           "Content-Type": "application/gzip",
-          "Content-Disposition": `attachment; filename="omniroute-full-backup-${timestamp}.tar.gz"`,
+          "Content-Disposition": `attachment; filename="routiform-full-backup-${timestamp}.tar.gz"`,
           "Content-Length": archiveBuffer.length.toString(),
         },
       });

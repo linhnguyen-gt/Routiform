@@ -139,7 +139,7 @@ function toString(value: unknown): string {
 
 /**
  * Lazy-load the database connection.
- * Uses the same SQLite database as the main OmniRoute app.
+ * Uses the same SQLite database as the main Routiform app.
  */
 async function getDb(): Promise<AuditDatabase | null> {
   if (db) return db;
@@ -150,9 +150,16 @@ async function getDb(): Promise<AuditDatabase | null> {
     const { join } = await import("node:path");
     const { existsSync } = await import("node:fs");
 
+    const home = homedir();
     const dbPath = process.env.DATA_DIR
       ? join(process.env.DATA_DIR, "storage.sqlite")
-      : join(homedir(), ".omniroute", "storage.sqlite");
+      : (() => {
+          const newDot = join(home, ".routiform", "storage.sqlite");
+          const oldDot = join(home, ".omniroute", "storage.sqlite");
+          if (existsSync(newDot)) return newDot;
+          if (existsSync(oldDot)) return oldDot;
+          return newDot;
+        })();
 
     if (!existsSync(dbPath)) {
       console.error(`[MCP Audit] Database not found at ${dbPath} — audit logging disabled`);
@@ -193,7 +200,7 @@ export async function logToolCall(
 
     const inputHash = await hashInput(input);
     const outputSummary = summarizeOutput(output);
-    const apiKeyId = process.env.OMNIROUTE_API_KEY_ID || null;
+    const apiKeyId = process.env.ROUTIFORM_API_KEY_ID || process.env.OMNIROUTE_API_KEY_ID || null;
 
     database
       .prepare(

@@ -138,11 +138,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "File too small to be a valid archive." }, { status: 400 });
     }
 
-    tarPath = path.join(os.tmpdir(), `omniroute-import-all-${Date.now()}.tar.gz`);
+    tarPath = path.join(os.tmpdir(), `routiform-import-all-${Date.now()}.tar.gz`);
     fs.writeFileSync(tarPath, fileBuffer!);
     validateTarListingSafe(tarPath);
 
-    extractDir = path.join(os.tmpdir(), `omniroute-extract-${Date.now()}`);
+    extractDir = path.join(os.tmpdir(), `routiform-extract-${Date.now()}`);
     fs.mkdirSync(extractDir, { recursive: true });
 
     execSync(`tar -xzf "${tarPath}" -C "${extractDir}"`, {
@@ -155,7 +155,7 @@ export async function POST(request: Request) {
     );
     if (sqliteCandidates.length === 0) {
       return NextResponse.json(
-        { error: "No storage.sqlite found in archive. Use Export All from OmniRoute." },
+        { error: "No storage.sqlite found in archive. Use Export All from Routiform." },
         { status: 400 }
       );
     }
@@ -185,7 +185,7 @@ export async function POST(request: Request) {
       if (missingTables.length > 0) {
         return NextResponse.json(
           {
-            error: `Invalid OmniRoute database. Missing tables: ${missingTables.join(", ")}`,
+            error: `Invalid Routiform database. Missing tables: ${missingTables.join(", ")}`,
           },
           { status: 400 }
         );

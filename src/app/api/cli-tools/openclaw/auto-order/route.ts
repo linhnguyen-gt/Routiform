@@ -6,14 +6,15 @@
 
 import { NextResponse } from "next/server";
 
-const OMNIROUTE_BASE_URL = process.env.OMNIROUTE_BASE_URL || "http://localhost:20128";
+const ROUTIFORM_BASE_URL =
+  process.env.ROUTIFORM_BASE_URL || process.env.OMNIROUTE_BASE_URL || "http://localhost:20128";
 
 export async function GET() {
   try {
     // Fetch current health and combos to determine best provider ordering
     const [healthRes, combosRes] = await Promise.allSettled([
-      fetch(`${OMNIROUTE_BASE_URL}/api/monitoring/health`, { signal: AbortSignal.timeout(5000) }),
-      fetch(`${OMNIROUTE_BASE_URL}/api/combos`, { signal: AbortSignal.timeout(5000) }),
+      fetch(`${ROUTIFORM_BASE_URL}/api/monitoring/health`, { signal: AbortSignal.timeout(5000) }),
+      fetch(`${ROUTIFORM_BASE_URL}/api/combos`, { signal: AbortSignal.timeout(5000) }),
     ]);
 
     const health = healthRes.status === "fulfilled" ? await healthRes.value.json() : {};
@@ -52,7 +53,7 @@ export async function GET() {
         allow_fallbacks: true,
       },
       generated_at: new Date().toISOString(),
-      source: "omniroute-auto-combo",
+      source: "routiform-auto-combo",
     });
   } catch {
     return NextResponse.json({
@@ -61,7 +62,7 @@ export async function GET() {
         allow_fallbacks: true,
       },
       generated_at: new Date().toISOString(),
-      source: "omniroute-fallback",
+      source: "routiform-fallback",
     });
   }
 }

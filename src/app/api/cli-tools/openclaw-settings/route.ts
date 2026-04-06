@@ -242,7 +242,7 @@ export async function DELETE() {
 
     return NextResponse.json({
       success: true,
-      message: "OmniRoute settings removed successfully",
+      message: "Routiform settings removed successfully",
     });
   } catch (error) {
     console.log("Error resetting openclaw settings:", error);

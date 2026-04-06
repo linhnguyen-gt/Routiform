@@ -9,7 +9,7 @@
 If you discover a security vulnerability in OmniRoute, please report it responsibly:
 
 1. **DO NOT** open a public GitHub issue
-2. Use [GitHub Security Advisories](https://github.com/diegosouzapw/OmniRoute/security/advisories/new)
+2. Use [GitHub Security Advisories](https://github.com/linhnguyen-gt/Routiform/security/advisories/new)
 3. Include: description, reproduction steps, and potential impact
 
 ## Response Timeline

@@ -37,7 +37,7 @@ export class GeminiCLIExecutor extends BaseExecutor {
 
   /**
    * Fetch the current cloudaicompanionProject via loadCodeAssist API.
-   * Native Gemini CLI refreshes this every 30 seconds — OmniRoute stores it once
+   * Native Gemini CLI refreshes this every 30 seconds — Routiform stores it once
    * at OAuth connection time, so it goes stale. This method keeps it fresh.
    */
   async refreshProject(accessToken: string): Promise<string | null> {
@@ -88,7 +88,7 @@ export class GeminiCLIExecutor extends BaseExecutor {
 
       if (!response.ok) {
         console.warn(
-          `[OmniRoute] loadCodeAssist returned ${response.status} — falling back to stored projectId`
+          `[Routiform] loadCodeAssist returned ${response.status} — falling back to stored projectId`
         );
         return null;
       }
@@ -103,7 +103,7 @@ export class GeminiCLIExecutor extends BaseExecutor {
 
       if (!projectId) {
         console.warn(
-          "[OmniRoute] loadCodeAssist returned no project — falling back to stored projectId"
+          "[Routiform] loadCodeAssist returned no project — falling back to stored projectId"
         );
         return null;
       }
@@ -128,7 +128,7 @@ export class GeminiCLIExecutor extends BaseExecutor {
       return projectId;
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.warn(`[OmniRoute] loadCodeAssist failed (${msg}) — falling back to stored projectId`);
+      console.warn(`[Routiform] loadCodeAssist failed (${msg}) — falling back to stored projectId`);
       return null;
     }
   }

@@ -1,5 +1,5 @@
 /**
- * A2A (Agent-to-Agent) Schemas — Contracts for OmniRoute A2A Server.
+ * A2A (Agent-to-Agent) Schemas — Contracts for Routiform A2A Server.
  *
  * Defines the Agent Card structure, Task lifecycle, Message format,
  * and all A2A protocol types conforming to A2A Protocol v0.3.

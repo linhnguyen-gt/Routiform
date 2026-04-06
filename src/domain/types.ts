@@ -1,7 +1,7 @@
 /**
  * Domain Types — FASE-03 Architecture Refactoring
  *
- * Centralized type definitions for the OmniRoute domain layer.
+ * Centralized type definitions for the Routiform domain layer.
  * Uses JSDoc for type safety without TypeScript compilation.
  *
  * @module domain/types

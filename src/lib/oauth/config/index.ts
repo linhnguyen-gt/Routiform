@@ -2,7 +2,7 @@
  * OAuth CLI Configuration
  *
  * Provides server credentials for OAuth CLI services to communicate
- * with the running OmniRoute server when saving tokens.
+ * with the running Routiform server when saving tokens.
  */
 
 import { getRuntimePorts } from "@/lib/runtime/ports";
@@ -24,8 +24,10 @@ function getDefaultApiServer() {
  */
 export function getServerCredentials(): ServerCredentials {
   return {
-    server: process.env.OMNIROUTE_SERVER || process.env.SERVER_URL || getDefaultApiServer(),
-    token: process.env.OMNIROUTE_TOKEN || process.env.CLI_TOKEN || "",
-    userId: process.env.OMNIROUTE_USER_ID || process.env.CLI_USER_ID || "cli",
+    server:
+      process.env.ROUTIFORM_SERVER || process.env.OMNIROUTE_SERVER || process.env.SERVER_URL || getDefaultApiServer(),
+    token: process.env.ROUTIFORM_TOKEN || process.env.OMNIROUTE_TOKEN || process.env.CLI_TOKEN || "",
+    userId:
+      process.env.ROUTIFORM_USER_ID || process.env.OMNIROUTE_USER_ID || process.env.CLI_USER_ID || "cli",
   };
 }

@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_IMAGE="${BASE_IMAGE:-omniroute-local-base}"
-CLI_IMAGE="${CLI_IMAGE:-omniroute-local-cli}"
+BASE_IMAGE="${BASE_IMAGE:-routiform-local-base}"
+CLI_IMAGE="${CLI_IMAGE:-routiform-local-cli}"
 
-BASE_CONTAINER="${BASE_CONTAINER:-omniroute-cli-runtime-base}"
-CLI_CONTAINER="${CLI_CONTAINER:-omniroute-cli-runtime-cli}"
-HOST_CONTAINER="${HOST_CONTAINER:-omniroute-cli-runtime-host}"
-WRITE_BLOCK_CONTAINER="${WRITE_BLOCK_CONTAINER:-omniroute-cli-runtime-write-block}"
-WRITE_ALLOW_CONTAINER="${WRITE_ALLOW_CONTAINER:-omniroute-cli-runtime-write-allow}"
-REGRESSION_CONTAINER="${REGRESSION_CONTAINER:-omniroute-cli-runtime-regression}"
+BASE_CONTAINER="${BASE_CONTAINER:-routiform-cli-runtime-base}"
+CLI_CONTAINER="${CLI_CONTAINER:-routiform-cli-runtime-cli}"
+HOST_CONTAINER="${HOST_CONTAINER:-routiform-cli-runtime-host}"
+WRITE_BLOCK_CONTAINER="${WRITE_BLOCK_CONTAINER:-routiform-cli-runtime-write-block}"
+WRITE_ALLOW_CONTAINER="${WRITE_ALLOW_CONTAINER:-routiform-cli-runtime-write-allow}"
+REGRESSION_CONTAINER="${REGRESSION_CONTAINER:-routiform-cli-runtime-regression}"
 
 BASE_PORT="${BASE_PORT:-20140}"
 CLI_PORT="${CLI_PORT:-20141}"
@@ -67,13 +67,13 @@ read_json_field() {
 }
 
 echo "[1/8] Building Docker images (runner-base + runner-cli)"
-docker build --target runner-base -t "${BASE_IMAGE}" "${WORKDIR}" >/tmp/omniroute_cli_runtime_build_base.log
-docker build --target runner-cli -t "${CLI_IMAGE}" "${WORKDIR}" >/tmp/omniroute_cli_runtime_build_cli.log
+docker build --target runner-base -t "${BASE_IMAGE}" "${WORKDIR}" >/tmp/routiform_cli_runtime_build_base.log
+docker build --target runner-cli -t "${CLI_IMAGE}" "${WORKDIR}" >/tmp/routiform_cli_runtime_build_cli.log
 echo "      Build done."
 
 echo "[2/8] Validating runner-base (no CLIs)"
 docker rm -f "${BASE_CONTAINER}" >/dev/null 2>&1 || true
-docker run -d --name "${BASE_CONTAINER}" -p "${BASE_PORT}:20128" --env-file "${ENV_FILE}" "${BASE_IMAGE}" >/tmp/omniroute_cli_runtime_base.cid
+docker run -d --name "${BASE_CONTAINER}" -p "${BASE_PORT}:20128" --env-file "${ENV_FILE}" "${BASE_IMAGE}" >/tmp/routiform_cli_runtime_base.cid
 wait_ready "${BASE_PORT}" || { echo "      FAIL: base container did not become ready"; exit 1; }
 
 for tool in codex claude droid openclaw; do
@@ -100,7 +100,7 @@ done
 
 echo "[3/8] Validating runner-cli (codex/claude/droid/openclaw preinstalled)"
 docker rm -f "${CLI_CONTAINER}" >/dev/null 2>&1 || true
-docker run -d --name "${CLI_CONTAINER}" -p "${CLI_PORT}:20128" --env-file "${ENV_FILE}" "${CLI_IMAGE}" >/tmp/omniroute_cli_runtime_cli.cid
+docker run -d --name "${CLI_CONTAINER}" -p "${CLI_PORT}:20128" --env-file "${ENV_FILE}" "${CLI_IMAGE}" >/tmp/routiform_cli_runtime_cli.cid
 wait_ready "${CLI_PORT}" || { echo "      FAIL: cli container did not become ready"; exit 1; }
 
 for tool in codex claude droid; do
@@ -147,7 +147,7 @@ docker run -d --name "${HOST_CONTAINER}" -p "${HOST_PORT}:20128" \
   -e CLI_MODE=host \
   -e CLI_EXTRA_PATHS=/host-cli/bin \
   -v "${TMP_HOST_BIN_DIR}:/host-cli/bin:ro" \
-  "${BASE_IMAGE}" >/tmp/omniroute_cli_runtime_host.cid
+  "${BASE_IMAGE}" >/tmp/routiform_cli_runtime_host.cid
 wait_ready "${HOST_PORT}" || { echo "      FAIL: host-mode container did not become ready"; exit 1; }
 
 HOST_INSTALLED="$(read_json_field "${HOST_PORT}" "/api/cli-tools/codex-settings" '.installed')"
@@ -162,17 +162,17 @@ docker rm -f "${WRITE_BLOCK_CONTAINER}" >/dev/null 2>&1 || true
 docker run -d --name "${WRITE_BLOCK_CONTAINER}" -p "${WRITE_BLOCK_PORT}:20128" \
   --env-file "${ENV_FILE}" \
   -e CLI_ALLOW_CONFIG_WRITES=false \
-  "${CLI_IMAGE}" >/tmp/omniroute_cli_runtime_write_block.cid
+  "${CLI_IMAGE}" >/tmp/routiform_cli_runtime_write_block.cid
 wait_ready "${WRITE_BLOCK_PORT}" || { echo "      FAIL: write-block container did not become ready"; exit 1; }
 
 WRITE_BLOCK_POST_CODE="$(
-  curl -sS -o /tmp/omniroute_cli_runtime_write_block_post.json -w '%{http_code}' \
+  curl -sS -o /tmp/routiform_cli_runtime_write_block_post.json -w '%{http_code}' \
     -X POST "http://127.0.0.1:${WRITE_BLOCK_PORT}/api/cli-tools/codex-settings" \
     -H 'Content-Type: application/json' \
     --data '{"baseUrl":"http://localhost:20128","apiKey":"sk_test_key","model":"cc/claude-opus-4-6"}'
 )"
 WRITE_BLOCK_DELETE_CODE="$(
-  curl -sS -o /tmp/omniroute_cli_runtime_write_block_delete.json -w '%{http_code}' \
+  curl -sS -o /tmp/routiform_cli_runtime_write_block_delete.json -w '%{http_code}' \
     -X DELETE "http://127.0.0.1:${WRITE_BLOCK_PORT}/api/cli-tools/codex-settings"
 )"
 assert_equals "write-block POST codex-settings" "403" "${WRITE_BLOCK_POST_CODE}"
@@ -186,11 +186,11 @@ docker run -d --name "${WRITE_ALLOW_CONTAINER}" -p "${WRITE_ALLOW_PORT}:20128" \
   -e CLI_ALLOW_CONFIG_WRITES=true \
   -e CLI_CONFIG_HOME=/host-home \
   -v "${TMP_WRITE_HOME}:/host-home" \
-  "${CLI_IMAGE}" >/tmp/omniroute_cli_runtime_write_allow.cid
+  "${CLI_IMAGE}" >/tmp/routiform_cli_runtime_write_allow.cid
 wait_ready "${WRITE_ALLOW_PORT}" || { echo "      FAIL: write-allow container did not become ready"; exit 1; }
 
 WRITE_ALLOW_POST_CODE="$(
-  curl -sS -o /tmp/omniroute_cli_runtime_write_allow_post.json -w '%{http_code}' \
+  curl -sS -o /tmp/routiform_cli_runtime_write_allow_post.json -w '%{http_code}' \
     -X POST "http://127.0.0.1:${WRITE_ALLOW_PORT}/api/cli-tools/codex-settings" \
     -H 'Content-Type: application/json' \
     --data '{"baseUrl":"http://localhost:20128","apiKey":"sk_test_key","model":"cc/claude-opus-4-6"}'
@@ -205,7 +205,7 @@ else
 fi
 
 WRITE_ALLOW_DELETE_CODE="$(
-  curl -sS -o /tmp/omniroute_cli_runtime_write_allow_delete.json -w '%{http_code}' \
+  curl -sS -o /tmp/routiform_cli_runtime_write_allow_delete.json -w '%{http_code}' \
     -X DELETE "http://127.0.0.1:${WRITE_ALLOW_PORT}/api/cli-tools/codex-settings"
 )"
 assert_equals "write-allow DELETE codex-settings" "200" "${WRITE_ALLOW_DELETE_CODE}"
@@ -223,7 +223,7 @@ docker run -d --name "${REGRESSION_CONTAINER}" -p "${REGRESSION_PORT}:20128" \
   --env-file "${ENV_FILE}" \
   -e CLI_CODEX_BIN=/host-bad/codex \
   -v "${TMP_BAD_BIN_DIR}:/host-bad:ro" \
-  "${BASE_IMAGE}" >/tmp/omniroute_cli_runtime_regression.cid
+  "${BASE_IMAGE}" >/tmp/routiform_cli_runtime_regression.cid
 wait_ready "${REGRESSION_PORT}" || { echo "      FAIL: regression container did not become ready"; exit 1; }
 
 REGRESSION_RUNNABLE="$(read_json_field "${REGRESSION_PORT}" "/api/cli-tools/codex-settings" '.runnable')"

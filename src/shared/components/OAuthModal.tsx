@@ -274,7 +274,7 @@ export default function OAuthModal({
       // Redirect URI strategy:
       // - Codex/OpenAI: always port 1455 (registered in OAuth app)
       // - Google OAuth providers (antigravity, gemini-cli): always localhost, regardless of
-      //   where OmniRoute is hosted — Google only accepts pre-registered localhost URIs with
+      //   where Routiform is hosted — Google only accepts pre-registered localhost URIs with
       //   the built-in credentials. Remote users must configure their own credentials.
       // - Other providers on remote: use actual origin (supports PUBLIC_URL env var)
       // - Localhost: use localhost:port
@@ -287,7 +287,7 @@ export default function OAuthModal({
         const port = window.location.port || "20128";
         redirectUri = `http://localhost:${port}/callback`;
       } else if (!isLocalhost) {
-        // Behind reverse proxy: use actual origin (e.g., https://omniroute.example.com/callback)
+        // Behind reverse proxy: use actual origin (e.g., https://routiform.example.com/callback)
         // Supports PUBLIC_URL env var override, or falls back to window.location.origin.
         const publicUrl = process.env.NEXT_PUBLIC_BASE_URL;
         const origin =
@@ -618,7 +618,7 @@ export default function OAuthModal({
                   open <code>localhost</code> — copy that full URL and paste it below. For fully
                   remote use without this manual step,{" "}
                   <a
-                    href="https://github.com/diegosouzapw/OmniRoute#oauth-on-a-remote-server"
+                    href="https://github.com/linhnguyen-gt/Routiform#oauth-on-a-remote-server"
                     target="_blank"
                     rel="noreferrer"
                     className="underline"
@@ -632,7 +632,7 @@ export default function OAuthModal({
               {!isTrueLocalhost && !GOOGLE_OAUTH_PROVIDERS.has(provider) && (
                 <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-200">
                   <span className="material-symbols-outlined text-sm align-middle mr-1">info</span>
-                  <strong>Remote access:</strong> Since you&apos;re accessing OmniRoute remotely,
+                  <strong>Remote access:</strong> Since you&apos;re accessing Routiform remotely,
                   after authorizing you&apos;ll see an error page (localhost not found). That&apos;s
                   expected — just copy the full URL from your browser&apos;s address bar and paste
                   it below.

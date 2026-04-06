@@ -2,7 +2,7 @@
 set -euo pipefail
 
 LOCAL_BASE_URL="${LOCAL_BASE_URL:-http://127.0.0.1:20128}"
-CLOUD_BASE_URL="${CLOUD_BASE_URL:-https://omniroute.com/v1}"
+CLOUD_BASE_URL="${CLOUD_BASE_URL:-https://routiform.com/v1}"
 MODEL="${MODEL:-kr/claude-sonnet-4.5}"
 STREAM_MODE="${STREAM_MODE:-false}"
 MAX_RETRIES="${MAX_RETRIES:-6}"

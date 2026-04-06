@@ -29,7 +29,7 @@ export function buildClineHeaders(
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
     "X-Title": "Cline",
-    "User-Agent": `OmniRoute/${CLIENT_VERSION}`,
+    "User-Agent": `Routiform/${CLIENT_VERSION}`,
     "X-PLATFORM": typeof process !== "undefined" ? process.platform : "unknown",
     "X-PLATFORM-VERSION": typeof process !== "undefined" ? process.version : "unknown",
     "X-CLIENT-TYPE": "routiform",

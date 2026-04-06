@@ -222,7 +222,7 @@ export const CLI_TOOLS = {
   opencode: {
     id: "opencode",
     name: "OpenCode",
-    image: "/providers/opencode.png",
+    image: "/providers/opencode.svg",
     icon: "terminal",
     color: "#FF6B35",
     description: "OpenCode AI coding agent (Terminal)",
@@ -236,7 +236,7 @@ export const CLI_TOOLS = {
       },
       {
         type: "warning",
-        text: 'Thinking variant example: opencode run "implement this feature" --model omniroute/claude-sonnet-4-5-thinking --variant high',
+        text: 'Thinking variant example: opencode run "implement this feature" --model routiform/claude-sonnet-4-5-thinking --variant high',
       },
     ],
     guideSteps: [
@@ -254,8 +254,8 @@ export const CLI_TOOLS = {
       language: "json",
       code: `{
   "providers": {
-    "omniroute": {
-      "name": "OmniRoute",
+    "routiform": {
+      "name": "Routiform",
       "api": "openai",
       "baseURL": "{{baseUrl}}",
       "apiKey": "{{apiKey}}",

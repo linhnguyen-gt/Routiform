@@ -14,13 +14,13 @@ const inter = Inter({
 
 export async function generateMetadata() {
   const settings = await getSettings();
-  const instanceName = settings?.instanceName || "OmniRoute";
+  const instanceName = settings?.instanceName || "Routiform";
   const customFaviconUrl = settings?.customFaviconUrl || settings?.customFaviconBase64;
 
   return {
     title: `${instanceName} — AI Gateway for Multi-Provider LLMs`,
     description:
-      "OmniRoute is an AI gateway for multi-provider LLMs. One endpoint for all your AI providers.",
+      "Routiform is an AI gateway for multi-provider LLMs. One endpoint for all your AI providers.",
     icons: {
       icon: customFaviconUrl ? "/api/settings/favicon" : "/favicon.svg",
       apple: "/apple-touch-icon.svg",

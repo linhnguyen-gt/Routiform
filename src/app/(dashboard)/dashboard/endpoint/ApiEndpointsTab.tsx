@@ -196,17 +196,28 @@ export default function ApiEndpointsTab() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           method: ep.method,
-          path: ep.path.replace("/api/", "/"),
-          body: tryBody ? JSON.parse(tryBody) : undefined,
+          // OpenAPI paths are app routes (e.g. /api/v1/...); do not strip /api or requests hit wrong URLs (404).
+          path: ep.path,
+          body:
+            tryBody && tryBody.trim()
+              ? (() => {
+                  try {
+                    return JSON.parse(tryBody);
+                  } catch {
+                    throw new Error("Invalid JSON in request body");
+                  }
+                })()
+              : undefined,
         }),
       });
-      if (res.ok) setTryResult(await res.json());
+      const payload = await res.json().catch(() => null);
+      if (payload) setTryResult(payload);
     } catch (err: any) {
       setTryResult({
         status: 0,
         statusText: "Error",
         headers: {},
-        body: { error: err.message },
+        body: { error: err?.message || String(err) },
         latencyMs: 0,
         contentType: "application/json",
       });
@@ -501,7 +512,7 @@ export default function ApiEndpointsTab() {
                             </p>
                             <code className="text-[11px] font-mono text-text-main break-all">
                               curl -X {ep.method} http://localhost:20128
-                              {ep.path.replace("/api/", "/")}
+                              {ep.path}
                               {ep.security ? ' -H "Authorization: Bearer YOUR_KEY"' : ""}
                               {ep.requestBody
                                 ? " -H \"Content-Type: application/json\" -d '{...}'"
@@ -622,7 +633,7 @@ export default function ApiEndpointsTab() {
                 <div>
                   <h3 className="text-sm font-semibold">Event Webhooks</h3>
                   <p className="text-[11px] text-text-muted">
-                    Receive HTTP callbacks when events occur in OmniRoute
+                    Receive HTTP callbacks when events occur in Routiform
                   </p>
                 </div>
               </div>

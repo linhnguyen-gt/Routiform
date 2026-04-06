@@ -127,7 +127,7 @@ export default function LoginPage() {
           </div>
 
           <p className="text-center text-xs text-text-muted/60 mt-8">
-            OmniRoute — {t("unifiedProxy")}
+            Routiform — {t("unifiedProxy")}
           </p>
         </div>
       </div>
@@ -166,7 +166,7 @@ export default function LoginPage() {
           </div>
 
           <p className="text-center text-xs text-text-muted/60 mt-8">
-            OmniRoute — {t("unifiedAiApiProxy")}
+            Routiform — {t("unifiedAiApiProxy")}
           </p>
         </div>
       </div>
@@ -184,7 +184,7 @@ export default function LoginPage() {
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center">
                 <span className="material-symbols-outlined text-white text-[20px]">hub</span>
               </div>
-              <span className="text-xl font-semibold text-text-main tracking-tight">OmniRoute</span>
+              <span className="text-xl font-semibold text-text-main tracking-tight">Routiform</span>
             </div>
             <h1 className="text-2xl font-bold text-text-main tracking-tight">{t("signIn")}</h1>
             <p className="text-text-muted mt-1.5">{t("enterPassword")}</p>

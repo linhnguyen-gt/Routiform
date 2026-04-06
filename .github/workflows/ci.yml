@@ -162,7 +162,7 @@ jobs:
       JWT_SECRET: ci-test-secret-with-sufficient-length-for-validation
       API_KEY_SECRET: ci-test-api-key-secret-long
       INITIAL_PASSWORD: ci-test-password-for-integration
-      DATA_DIR: /tmp/omniroute-ci
+      DATA_DIR: /tmp/routiform-ci
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6

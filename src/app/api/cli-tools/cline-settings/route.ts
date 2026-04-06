@@ -37,7 +37,7 @@ const readSecrets = async () => {
   }
 };
 
-// Check if OmniRoute is configured as OpenAI-compatible provider
+// Check if Routiform is configured as OpenAI-compatible provider
 const hasRoutiformConfig = (globalState: any) => {
   if (!globalState) return false;
   const isOpenAi =
@@ -99,7 +99,7 @@ export async function GET() {
   }
 }
 
-// POST - Configure Cline to use OmniRoute as OpenAI-compatible provider
+// POST - Configure Cline to use Routiform as OpenAI-compatible provider
 export async function POST(request: Request) {
   let rawBody;
   try {
@@ -199,7 +199,7 @@ export async function POST(request: Request) {
   }
 }
 
-// DELETE - Remove OmniRoute OpenAI-compatible provider config
+// DELETE - Remove Routiform OpenAI-compatible provider config
 export async function DELETE() {
   try {
     const writeGuard = ensureCliConfigWriteAllowed();
@@ -256,7 +256,7 @@ export async function DELETE() {
 
     return NextResponse.json({
       success: true,
-      message: "OmniRoute settings removed from Cline",
+      message: "Routiform settings removed from Cline",
     });
   } catch (error) {
     console.log("Error resetting cline settings:", error);

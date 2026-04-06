@@ -29,10 +29,16 @@ const readSettings = async () => {
   }
 };
 
-// Check if settings has OmniRoute customModels
+const DROID_ROUTIFORM_CUSTOM_ID = "custom:Routiform-0";
+/** @deprecated kept for settings files created before rebrand */
+const DROID_LEGACY_CUSTOM_ID = "custom:OmniRoute-0";
+
+// Check if settings has Routiform (or legacy OmniRoute) customModels
 const hasRoutiformConfig = (settings: any) => {
   if (!settings || !settings.customModels) return false;
-  return settings.customModels.some((m) => m.id === "custom:OmniRoute-0");
+  return settings.customModels.some(
+    (m) => m.id === DROID_ROUTIFORM_CUSTOM_ID || m.id === DROID_LEGACY_CUSTOM_ID
+  );
 };
 
 // GET - Check droid CLI and read current settings
@@ -75,7 +81,7 @@ export async function GET() {
   }
 }
 
-// POST - Update OmniRoute customModels (merge with existing settings)
+// POST - Update Routiform customModels (merge with existing settings)
 export async function POST(request: Request) {
   let rawBody;
   try {
@@ -141,16 +147,18 @@ export async function POST(request: Request) {
       settings.customModels = [];
     }
 
-    // Remove existing OmniRoute config if any
-    settings.customModels = settings.customModels.filter((m) => m.id !== "custom:OmniRoute-0");
+    // Remove existing Routiform / legacy OmniRoute config if any
+    settings.customModels = settings.customModels.filter(
+      (m) => m.id !== DROID_ROUTIFORM_CUSTOM_ID && m.id !== DROID_LEGACY_CUSTOM_ID
+    );
 
     // Normalize baseUrl to ensure /v1 suffix
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
 
-    // Add new OmniRoute config
+    // Add new Routiform config
     const customModel = {
       model: model,
-      id: "custom:OmniRoute-0",
+      id: DROID_ROUTIFORM_CUSTOM_ID,
       index: 0,
       baseUrl: normalizedBaseUrl,
       apiKey: apiKey || "your_api_key",
@@ -183,7 +191,7 @@ export async function POST(request: Request) {
   }
 }
 
-// DELETE - Remove OmniRoute customModels only (keep other settings)
+// DELETE - Remove Routiform customModels only (keep other settings)
 export async function DELETE() {
   try {
     const writeGuard = ensureCliConfigWriteAllowed();
@@ -211,9 +219,11 @@ export async function DELETE() {
       throw error;
     }
 
-    // Remove OmniRoute customModels
+    // Remove Routiform / legacy OmniRoute customModels
     if (settings.customModels) {
-      settings.customModels = settings.customModels.filter((m) => m.id !== "custom:OmniRoute-0");
+      settings.customModels = settings.customModels.filter(
+        (m) => m.id !== DROID_ROUTIFORM_CUSTOM_ID && m.id !== DROID_LEGACY_CUSTOM_ID
+      );
 
       // Remove customModels array if empty
       if (settings.customModels.length === 0) {
@@ -233,7 +243,7 @@ export async function DELETE() {
 
     return NextResponse.json({
       success: true,
-      message: "OmniRoute settings removed successfully",
+      message: "Routiform settings removed successfully",
     });
   } catch (error) {
     console.log("Error resetting droid settings:", error);

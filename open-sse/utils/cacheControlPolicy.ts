@@ -2,7 +2,7 @@
  * Cache Control Policy
  *
  * Determines when to preserve client-side prompt caching headers (cache_control)
- * vs. applying OmniRoute's own caching strategy.
+ * vs. applying Routiform's own caching strategy.
  *
  * Client-side caching (e.g., Claude Code) should be preserved when:
  * 1. Client is Claude Code or similar caching-aware client
@@ -123,7 +123,7 @@ export function isDeterministicStrategy(
  * @param comboStrategy - The combo's routing strategy (if applicable)
  * @param targetProvider - The target provider for the request
  * @param settings - Cache control settings from database (optional)
- * @returns true if cache_control should be preserved, false if OmniRoute should manage it
+ * @returns true if cache_control should be preserved, false if Routiform should manage it
  */
 export function shouldPreserveCacheControl({
   userAgent,

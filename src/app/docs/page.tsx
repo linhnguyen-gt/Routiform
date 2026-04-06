@@ -197,7 +197,7 @@ export default function DocsPage() {
                 {t("endpointPage")}
               </Link>
               <a
-                href="https://github.com/diegosouzapw/OmniRoute"
+                href="https://github.com/linhnguyen-gt/Routiform"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-3 py-2 rounded-lg border border-border text-sm hover:bg-bg transition-colors flex items-center gap-1"
@@ -206,7 +206,7 @@ export default function DocsPage() {
                 <span className="material-symbols-outlined text-[14px]">open_in_new</span>
               </a>
               <a
-                href="https://github.com/diegosouzapw/OmniRoute/issues"
+                href="https://github.com/linhnguyen-gt/Routiform/issues"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-3 py-2 rounded-lg border border-border text-sm hover:bg-bg transition-colors"

@@ -12,7 +12,7 @@ import { getRuntimePorts } from "@/lib/runtime/ports";
 
 const { apiPort } = getRuntimePorts();
 
-// Check if a tool has OmniRoute configured by reading its config file directly
+// Check if a tool has Routiform configured by reading its config file directly
 // This replaces the expensive self-referential HTTP calls to /api/cli-tools/*-settings
 async function checkToolConfigStatus(toolId: string): Promise<string> {
   try {
@@ -22,7 +22,7 @@ async function checkToolConfigStatus(toolId: string): Promise<string> {
     const content = await fs.readFile(configPath, "utf-8");
     const config = JSON.parse(content);
 
-    // Each tool stores OmniRoute config differently
+    // Each tool stores Routiform config differently
     switch (toolId) {
       case "claude":
         return config?.env?.ANTHROPIC_BASE_URL ? "configured" : "not_configured";
@@ -34,7 +34,7 @@ async function checkToolConfigStatus(toolId: string): Promise<string> {
       case "openclaw":
       case "cline":
       case "kilo":
-        // Generic check: look for OmniRoute-specific markers in the config
+        // Generic check: look for Routiform-specific markers in the config
         const configStr = JSON.stringify(config).toLowerCase();
         return configStr.includes("omniroute") ||
           configStr.includes("sk_routiform") ||

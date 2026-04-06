@@ -11,7 +11,7 @@ import { useTranslations } from "next-intl";
  * Generates the chatLanguageModels.json block for VS Code GitHub Copilot
  * using the Azure vendor pattern as required by Copilot's architecture.
  *
- * Feature request: https://github.com/diegosouzapw/OmniRoute/issues/142
+ * Feature request: https://github.com/linhnguyen-gt/Routiform/issues/142
  */
 export default function CopilotToolCard({
   tool,
@@ -25,11 +25,15 @@ export default function CopilotToolCard({
   batchStatus,
 }) {
   const t = useTranslations("cliTools");
+  const LS_COPILOT_MODELS = "routiform-copilot-selected-models";
+  const LS_COPILOT_KEY = "routiform-cli-key-copilot";
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [selectedModels, setSelectedModels] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set<string>();
     try {
-      const saved = localStorage.getItem("omniroute-copilot-selected-models");
+      const saved =
+        localStorage.getItem(LS_COPILOT_MODELS) ||
+        localStorage.getItem("omniroute-copilot-selected-models");
       return saved ? new Set<string>(JSON.parse(saved)) : new Set<string>();
     } catch {
       return new Set<string>();
@@ -37,7 +41,8 @@ export default function CopilotToolCard({
   });
   const [selectedApiKey, setSelectedApiKey] = useState(() => {
     if (typeof window !== "undefined") {
-      const savedKey = localStorage.getItem("omniroute-cli-key-copilot");
+      const savedKey =
+        localStorage.getItem(LS_COPILOT_KEY) || localStorage.getItem("omniroute-cli-key-copilot");
       if (savedKey && apiKeys?.some((k: any) => k.key === savedKey)) return savedKey;
     }
     return apiKeys?.length > 0 ? apiKeys[0].key : "";
@@ -84,10 +89,7 @@ export default function CopilotToolCard({
   // Persist selection
   useEffect(() => {
     if (selectedModels.size > 0) {
-      localStorage.setItem(
-        "omniroute-copilot-selected-models",
-        JSON.stringify([...selectedModels])
-      );
+      localStorage.setItem(LS_COPILOT_MODELS, JSON.stringify([...selectedModels]));
     }
   }, [selectedModels]);
 
@@ -129,9 +131,9 @@ export default function CopilotToolCard({
     }));
 
     const config = {
-      name: "OmniRoute",
+      name: "Routiform",
       vendor: "azure",
-      apiKey: `\${input:chat.lm.secret.omniroute}`,
+      apiKey: `\${input:chat.lm.secret.routiform}`,
       models,
     };
 
@@ -146,7 +148,7 @@ export default function CopilotToolCard({
 
   const handleApiKeyChange = (value: string) => {
     setSelectedApiKey(value);
-    if (value) localStorage.setItem("omniroute-cli-key-copilot", value);
+    if (value) localStorage.setItem(LS_COPILOT_KEY, value);
   };
 
   return (

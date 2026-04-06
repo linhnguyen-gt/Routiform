@@ -40,7 +40,8 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    environment: NPM_TOKEN
+    # Use `environment: <name>` only if you create a GitHub Environment (Settings → Environments)
+    # and attach protection rules; secrets use `secrets.NPM_TOKEN` below, not the env block name.
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -79,7 +80,7 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "📦 Publishing omniroute@$VERSION with tag=$TAG"
+          echo "📦 Publishing routiform@$VERSION with tag=$TAG"
 
       - name: Sync package.json version
         run: |
@@ -95,7 +96,7 @@ jobs:
           VERSION="${{ steps.resolve.outputs.version }}"
           TAG="${{ steps.resolve.outputs.tag }}"
           # Check if this version is already published — skip instead of failing with E403
-          if npm view "omniroute@${VERSION}" version --silent 2>/dev/null | grep -q "^${VERSION}$"; then
+          if npm view "routiform@${VERSION}" version --silent 2>/dev/null | grep -q "^${VERSION}$"; then
             echo "⚠️ Version ${VERSION} is already published on npm — skipping."
             exit 0
           fi
@@ -104,7 +105,7 @@ jobs:
           else
             npm publish --access public --tag "$TAG"
           fi
-          echo "✅ Published omniroute@$VERSION (tag: $TAG)"
+          echo "✅ Published routiform@$VERSION (tag: $TAG)"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -115,7 +116,7 @@ jobs:
 
           echo "Configuring for GitHub Packages..."
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > .npmrc
-          npm pkg set name="@diegosouzapw/omniroute"
+          npm pkg set name="@diegosouzapw/routiform"
 
           if [ "$TAG" = "latest" ]; then
             npm publish --registry=https://npm.pkg.github.com || echo "⚠️ Version ${VERSION} might already be published on GitHub."

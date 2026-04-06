@@ -41,7 +41,7 @@ export default function HeroSection() {
             {t("getStarted")}
           </button>
           <a
-            href="https://github.com/diegosouzapw/OmniRoute"
+            href="https://github.com/linhnguyen-gt/Routiform"
             target="_blank"
             rel="noopener noreferrer"
             className="w-full sm:w-auto h-12 px-8 rounded-lg border border-[#2D333B] bg-[#111520] hover:bg-[#2D333B] text-white text-base font-bold transition-all flex items-center justify-center gap-2"

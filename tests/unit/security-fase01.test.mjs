@@ -63,7 +63,7 @@ test("secretsValidator: validateSecrets rejects too-short JWT_SECRET", async () 
 test("secretsValidator: validateSecrets warns on known weak secrets", async () => {
   await withEnv(
     {
-      JWT_SECRET: "omniroute-default-secret-change-me",
+      JWT_SECRET: "routiform-default-secret-change-me",
       API_KEY_SECRET: "endpoint-proxy-api-key-secret",
     },
     async () => {

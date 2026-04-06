@@ -704,6 +704,7 @@ export async function handleComboChat({
         const transformedStream = res.body.pipeThrough(transform).pipeThrough(sanitize);
         // Add model info as response header for clients that support it
         const headers = new Headers(res.headers);
+        headers.set("X-Routiform-Model", modelStr);
         headers.set("X-OmniRoute-Model", modelStr);
         return new Response(transformedStream, {
           status: res.status,

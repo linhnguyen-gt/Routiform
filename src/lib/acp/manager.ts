@@ -5,7 +5,7 @@
  * Communication happens via stdin/stdout (JSON-RPC style) or piped HTTP.
  *
  * This module provides a "CLI-as-backend" transport: instead of intercepting
- * HTTP API calls, OmniRoute spawns the CLI directly and feeds prompts through
+ * HTTP API calls, Routiform spawns the CLI directly and feeds prompts through
  * its native interface.
  */
 

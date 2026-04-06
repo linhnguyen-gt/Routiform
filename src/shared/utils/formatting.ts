@@ -156,3 +156,15 @@ export function truncateUrl(url, max = 50) {
 export function safePercentage(value: unknown): number | undefined {
   return typeof value === "number" && isFinite(value) ? value : undefined;
 }
+
+/**
+ * Round a 0–100 percentage for UI (fixes float noise like 97.89999999999999).
+ * @param {number} value - Raw percentage
+ * @param {number} decimals - Decimal places (default 1)
+ */
+export function roundPercentageDisplay(value: number, decimals = 1) {
+  if (!Number.isFinite(value)) return 0;
+  const clamped = Math.min(100, Math.max(0, value));
+  const f = 10 ** decimals;
+  return Math.round(clamped * f) / f;
+}

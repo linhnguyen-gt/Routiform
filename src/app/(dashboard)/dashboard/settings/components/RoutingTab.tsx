@@ -359,7 +359,7 @@ export default function RoutingTab() {
             {
               value: "auto",
               label: "Auto (Recommended)",
-              desc: "Preserve cache_control for native Claude-compatible flows with deterministic routing; CC-compatible bridges use OmniRoute-managed markers",
+              desc: "Preserve cache_control for native Claude-compatible flows with deterministic routing; CC-compatible bridges use Routiform-managed markers",
             },
             {
               value: "always",
@@ -369,7 +369,7 @@ export default function RoutingTab() {
             {
               value: "never",
               label: "Never Preserve",
-              desc: "Always remove client cache_control headers, let OmniRoute manage caching",
+              desc: "Always remove client cache_control headers, let Routiform manage caching",
             },
           ].map((option) => (
             <button

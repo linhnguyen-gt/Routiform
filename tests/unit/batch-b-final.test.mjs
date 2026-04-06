@@ -28,7 +28,7 @@ describe("evalRunner", () => {
   it("should have golden-set suite pre-registered", () => {
     const suite = getSuite("golden-set");
     assert.ok(suite);
-    assert.equal(suite.name, "OmniRoute Golden Set");
+    assert.equal(suite.name, "Routiform Golden Set");
     assert.ok(suite.cases.length >= 10);
   });
 

@@ -25,6 +25,7 @@ const INTERNAL_BASE_URL =
   `http://localhost:${dashboardPort}`;
 
 const globalState = globalThis as typeof globalThis & {
+  __routiformModelSyncInternalAuthToken?: string;
   __omnirouteModelSyncInternalAuthToken?: string;
 };
 
@@ -34,8 +35,11 @@ let internalAuthToken: string | null = null;
 
 function getInternalAuthToken(): string {
   if (!internalAuthToken) {
-    internalAuthToken = globalState.__omnirouteModelSyncInternalAuthToken || randomUUID();
-    globalState.__omnirouteModelSyncInternalAuthToken = internalAuthToken;
+    internalAuthToken =
+      globalState.__routiformModelSyncInternalAuthToken ||
+      globalState.__omnirouteModelSyncInternalAuthToken ||
+      randomUUID();
+    globalState.__routiformModelSyncInternalAuthToken = internalAuthToken;
   }
   return internalAuthToken;
 }
@@ -49,8 +53,13 @@ export function buildModelSyncInternalHeaders(): Record<string, string> {
 }
 
 export function isModelSyncInternalRequest(request: Request): boolean {
-  if (!internalAuthToken && globalState.__omnirouteModelSyncInternalAuthToken) {
-    internalAuthToken = globalState.__omnirouteModelSyncInternalAuthToken;
+  if (!internalAuthToken) {
+    if (globalState.__routiformModelSyncInternalAuthToken) {
+      internalAuthToken = globalState.__routiformModelSyncInternalAuthToken;
+    } else if (globalState.__omnirouteModelSyncInternalAuthToken) {
+      internalAuthToken = globalState.__omnirouteModelSyncInternalAuthToken;
+      globalState.__routiformModelSyncInternalAuthToken = internalAuthToken;
+    }
   }
   const headerToken = request.headers.get(MODEL_SYNC_INTERNAL_AUTH_HEADER);
   return Boolean(headerToken && internalAuthToken && headerToken === internalAuthToken);
@@ -160,7 +169,7 @@ async function runSyncCycle(apiBaseUrl: string): Promise<void> {
 
 /**
  * Start the model sync scheduler.
- * @param apiBaseUrl — internal base URL to call OmniRoute's own API
+ * @param apiBaseUrl — internal base URL to call Routiform's own API
  * @param intervalMs — sync interval in milliseconds (default: 24h)
  */
 export function startModelSyncScheduler(

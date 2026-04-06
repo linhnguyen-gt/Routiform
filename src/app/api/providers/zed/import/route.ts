@@ -62,7 +62,7 @@ export async function POST(request: Request): Promise<NextResponse<ImportRespons
       });
     }
 
-    // Save to database using OmniRoute's provider schema
+    // Save to database using Routiform's provider schema
     let savedCount = 0;
     for (const cred of credentials) {
       if (!cred.token) continue;

@@ -34,7 +34,7 @@ describe("Electron URL Validation", () => {
   });
 
   it("should allow https URLs", () => {
-    assert.equal(validateExternalUrl("https://github.com/diegosouzapw/OmniRoute").allowed, true);
+    assert.equal(validateExternalUrl("https://github.com/linhnguyen-gt/Routiform").allowed, true);
   });
 
   it("should block file:// protocol (RCE risk)", () => {

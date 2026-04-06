@@ -70,7 +70,7 @@ const SYNC_SOURCES = (process.env.PRICING_SYNC_SOURCES || "litellm")
 const LITELLM_PRICING_URL =
   "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
 
-// ─── Provider mapping: LiteLLM provider → OmniRoute aliases ─────
+// ─── Provider mapping: LiteLLM provider → Routiform aliases ─────
 
 const LITELLM_PROVIDER_MAP: Record<string, string[]> = {
   openai: ["openai", "cx"],
@@ -152,7 +152,7 @@ export function transformToRoutiform(raw: Record<string, LiteLLMModelInfo>): Pri
     const slashIdx = modelKey.indexOf("/");
     const modelName = slashIdx >= 0 ? modelKey.slice(slashIdx + 1) : modelKey;
 
-    // Map to OmniRoute providers
+    // Map to Routiform providers
     const litellmProvider = info.litellm_provider || "";
     const omniRouteProviders = LITELLM_PROVIDER_MAP[litellmProvider];
 

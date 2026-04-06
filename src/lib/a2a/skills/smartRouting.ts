@@ -1,20 +1,21 @@
 /**
  * A2A Skill: Smart Routing
  *
- * Receives a prompt + metadata → routes via OmniRoute pipeline →
+ * Receives a prompt + metadata → routes via Routiform pipeline →
  * returns response with routing_explanation, cost_envelope, resilience_trace, policy_verdict.
  */
 
 import type { A2ATask, TaskArtifact } from "../taskManager";
 
-const OMNIROUTE_BASE_URL = process.env.OMNIROUTE_BASE_URL || "http://localhost:20128";
-const OMNIROUTE_API_KEY = process.env.OMNIROUTE_API_KEY || "";
+const ROUTIFORM_BASE_URL =
+  process.env.ROUTIFORM_BASE_URL || process.env.OMNIROUTE_BASE_URL || "http://localhost:20128";
+const ROUTIFORM_API_KEY = process.env.ROUTIFORM_API_KEY || process.env.OMNIROUTE_API_KEY || "";
 
 async function routeFetch(path: string, options: RequestInit = {}): Promise<any> {
-  const url = `${OMNIROUTE_BASE_URL}${path}`;
+  const url = `${ROUTIFORM_BASE_URL}${path}`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(OMNIROUTE_API_KEY ? { Authorization: `Bearer ${OMNIROUTE_API_KEY}` } : {}),
+    ...(ROUTIFORM_API_KEY ? { Authorization: `Bearer ${ROUTIFORM_API_KEY}` } : {}),
   };
   const res = await fetch(url, { ...options, headers, signal: AbortSignal.timeout(30000) });
   if (!res.ok) throw new Error(`API [${res.status}]: ${await res.text().catch(() => "error")}`);

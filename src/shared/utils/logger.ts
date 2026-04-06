@@ -1,5 +1,5 @@
 /**
- * Structured Logger — Pino-based logger for OmniRoute
+ * Structured Logger — Pino-based logger for Routiform
  *
  * Usage:
  *   import { logger } from "@/shared/utils/logger";
@@ -22,7 +22,7 @@ const isDev = process.env.NODE_ENV !== "production";
 
 const baseConfig: pino.LoggerOptions = {
   level: getAppLogLevel(isDev ? "debug" : "info"),
-  base: { service: "omniroute" },
+  base: { service: "routiform" },
   timestamp: pino.stdTimeFunctions.isoTime,
   formatters: {
     level(label: string) {

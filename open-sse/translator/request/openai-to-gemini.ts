@@ -389,7 +389,7 @@ function wrapInCloudCodeEnvelope(model, geminiCLI, credentials = null, isAntigra
 
   if (!projectId) {
     console.warn(
-      `[OmniRoute] ${isAntigravity ? "Antigravity" : "GeminiCLI"} account is missing projectId. ` +
+      `[Routiform] ${isAntigravity ? "Antigravity" : "GeminiCLI"} account is missing projectId. ` +
         `Attempting request with empty project — reconnect OAuth to resolve.`
     );
     projectId = "";
@@ -442,7 +442,7 @@ function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = nu
 
   if (!projectId) {
     console.warn(
-      `[OmniRoute] Antigravity/Claude account is missing projectId. ` +
+      `[Routiform] Antigravity/Claude account is missing projectId. ` +
         `Attempting request with empty project — reconnect OAuth to resolve.`
     );
     projectId = "";

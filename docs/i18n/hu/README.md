@@ -24,20 +24,20 @@ _Your universal API proxy — one endpoint, 60+ providers, zero downtime. Now wi
 ![Docker Pulls](https://img.shields.io/docker/pulls/diegosouzapw/omniroute)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/diegosouzapw/omniroute/total?style=flat&label=eletron%20donwloads&color=blue)
 
-[![stars](https://custom-icon-badges.demolab.com/github/stars/diegosouzapw/OmniRoute?logo=star&style=flat)](https://github.com/diegosouzapw/OmniRoute/stargazers)
-[![open issues](https://custom-icon-badges.demolab.com/github/issues-raw/diegosouzapw/OmniRoute?logo=issue)](https://github.com/diegosouzapw/OmniRoute/issues)
-[![license](https://custom-icon-badges.demolab.com/github/license/diegosouzapw/OmniRoute?logo=law)](https://github.com/diegosouzapw/OmniRoute/blob/main/LICENSE)
-[![last commit](https://custom-icon-badges.demolab.com/github/last-commit/diegosouzapw/OmniRoute?logo=history&logoColor=white)](https://github.com/diegosouzapw/OmniRoute/commits/main)
+[![stars](https://custom-icon-badges.demolab.com/github/stars/linhnguyen-gt/Routiform?logo=star&style=flat)](https://github.com/linhnguyen-gt/Routiform/stargazers)
+[![open issues](https://custom-icon-badges.demolab.com/github/issues-raw/linhnguyen-gt/Routiform?logo=issue)](https://github.com/linhnguyen-gt/Routiform/issues)
+[![license](https://custom-icon-badges.demolab.com/github/license/linhnguyen-gt/Routiform?logo=law)](https://github.com/linhnguyen-gt/Routiform/blob/main/LICENSE)
+[![last commit](https://custom-icon-badges.demolab.com/github/last-commit/linhnguyen-gt/Routiform?logo=history&logoColor=white)](https://github.com/linhnguyen-gt/Routiform/commits/main)
 [![total contributions](https://custom-icon-badges.demolab.com/badge/dynamic/json?logo=graph&logoColor=fff&color=blue&label=total%20contributions&query=%24.totalContributions&url=https%3A%2F%2Fstreak-stats.demolab.com%2F%3Fuser%3Ddiegosouzapw%26type%3Djson)](https://github.com/diegosouzapw)
-[![code size](https://custom-icon-badges.demolab.com/github/languages/code-size/diegosouzapw/OmniRoute?logo=file-code&logoColor=white)](https://github.com/diegosouzapw/OmniRoute)
-[![pr closed](https://custom-icon-badges.demolab.com/github/issues-pr-closed/diegosouzapw/OmniRoute?color=purple&logo=git-pull-request&logoColor=white)](https://github.com/diegosouzapw/OmniRoute/pulls?q=is%3Apr+is%3Aclosed)
-[![tag](https://custom-icon-badges.demolab.com/github/v/tag/diegosouzapw/OmniRoute?logo=tag&logoColor=white)](https://github.com/diegosouzapw/OmniRoute/tags)
+[![code size](https://custom-icon-badges.demolab.com/github/languages/code-size/linhnguyen-gt/Routiform?logo=file-code&logoColor=white)](https://github.com/linhnguyen-gt/Routiform)
+[![pr closed](https://custom-icon-badges.demolab.com/github/issues-pr-closed/linhnguyen-gt/Routiform?color=purple&logo=git-pull-request&logoColor=white)](https://github.com/linhnguyen-gt/Routiform/pulls?q=is%3Apr+is%3Aclosed)
+[![tag](https://custom-icon-badges.demolab.com/github/v/tag/linhnguyen-gt/Routiform?logo=tag&logoColor=white)](https://github.com/linhnguyen-gt/Routiform/tags)
 [![github streak](https://custom-icon-badges.demolab.com/badge/dynamic/json?logo=fire&logoColor=fff&color=orange&label=github%20streak&query=%24.currentStreak.length&suffix=%20days&url=https%3A%2F%2Fstreak-stats.demolab.com%2F%3Fuser%3Ddiegosouzapw%26type%3Djson)](https://github.com/diegosouzapw)
 [![followers](https://custom-icon-badges.demolab.com/github/followers/diegosouzapw?logo=person-add)](https://github.com/diegosouzapw?tab=followers)
-[![fork](https://custom-icon-badges.demolab.com/github/forks/diegosouzapw/OmniRoute?logo=fork)](https://github.com/diegosouzapw/OmniRoute/network/members)
-[![watch](https://custom-icon-badges.demolab.com/github/watchers/diegosouzapw/OmniRoute?logo=eye)](https://github.com/diegosouzapw/OmniRoute/watchers)
+[![fork](https://custom-icon-badges.demolab.com/github/forks/linhnguyen-gt/Routiform?logo=fork)](https://github.com/linhnguyen-gt/Routiform/network/members)
+[![watch](https://custom-icon-badges.demolab.com/github/watchers/linhnguyen-gt/Routiform?logo=eye)](https://github.com/linhnguyen-gt/Routiform/watchers)
 
-[![License](https://img.shields.io/github/license/diegosouzapw/OmniRoute)](https://github.com/diegosouzapw/OmniRoute/blob/main/LICENSE)
+[![License](https://img.shields.io/github/license/linhnguyen-gt/Routiform)](https://github.com/linhnguyen-gt/Routiform/blob/main/LICENSE)
 [![Website](https://img.shields.io/badge/Website-omniroute.online-blue?logo=google-chrome&logoColor=white)](https://omniroute.online)
 [![WhatsApp](https://img.shields.io/badge/WhatsApp-Community-25D366?logo=whatsapp&logoColor=white)](https://chat.whatsapp.com/JI7cDQ1GyaiDHhVBpLxf8b?mode=gi_t)
 
@@ -186,8 +186,8 @@ _Connect any AI-powered IDE or CLI tool through OmniRoute — free API gateway f
 > 💬 **Join our community!** [WhatsApp Group](https://chat.whatsapp.com/JI7cDQ1GyaiDHhVBpLxf8b?mode=gi_t) — Get help, share tips, and stay updated.
 
 - **Website**: [omniroute.online](https://omniroute.online)
-- **GitHub**: [github.com/diegosouzapw/OmniRoute](https://github.com/diegosouzapw/OmniRoute)
-- **Issues**: [github.com/diegosouzapw/OmniRoute/issues](https://github.com/diegosouzapw/OmniRoute/issues)
+- **GitHub**: [github.com/linhnguyen-gt/Routiform](https://github.com/linhnguyen-gt/Routiform)
+- **Issues**: [github.com/linhnguyen-gt/Routiform/issues](https://github.com/linhnguyen-gt/Routiform/issues)
 - **WhatsApp**: [Community Group](https://chat.whatsapp.com/JI7cDQ1GyaiDHhVBpLxf8b?mode=gi_t)
 - **Contributing**: See [CONTRIBUTING.md](CONTRIBUTING.md), open a PR, or pick a `good first issue`
 - **Original Project**: [9router by decolua](https://github.com/decolua/9router)
@@ -880,8 +880,8 @@ depends="openssl"
 short_desc="Universal AI gateway with smart routing for multiple LLM providers"
 maintainer="zenobit <zenobit@disroot.org>"
 license="MIT"
-homepage="https://github.com/diegosouzapw/OmniRoute"
-distfiles="https://github.com/diegosouzapw/OmniRoute/archive/refs/tags/v${version}.tar.gz"
+homepage="https://github.com/linhnguyen-gt/Routiform"
+distfiles="https://github.com/linhnguyen-gt/Routiform/archive/refs/tags/v${version}.tar.gz"
 checksum=009400afee90a9f32599d8fe734145cfd84098140b7287990183dde45ae2245b
 system_accounts="_omniroute"
 omniroute_homedir="/var/lib/omniroute"
@@ -2228,7 +2228,7 @@ OmniRoute has **210+ features planned** across multiple development phases. Here
 
 ## 👥 Contributors
 
-[![Contributors](https://contrib.rocks/image?repo=diegosouzapw/OmniRoute&max=100&columns=20&anon=1)](https://github.com/diegosouzapw/OmniRoute/graphs/contributors)
+[![Contributors](https://contrib.rocks/image?repo=linhnguyen-gt/Routiform&max=100&columns=20&anon=1)](https://github.com/linhnguyen-gt/Routiform/graphs/contributors)
 
 ### How to Contribute
 
@@ -2253,7 +2253,7 @@ gh release create v2.0.0 --title "v2.0.0" --generate-notes
 
 ## Stargazers over time
 
-## [![Stargazers over time](https://starchart.cc/diegosouzapw/OmniRoute.svg?variant=adaptive)](https://starchart.cc/diegosouzapw/OmniRoute)
+## [![Stargazers over time](https://starchart.cc/linhnguyen-gt/Routiform.svg?variant=adaptive)](https://starchart.cc/linhnguyen-gt/Routiform)
 
 ## 🙏 Acknowledgments
 

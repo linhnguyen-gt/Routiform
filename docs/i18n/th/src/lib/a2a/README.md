@@ -749,4 +749,4 @@ open-sse/mcp-server/
 
 ## สิทธิ์การใช้งาน
 
-Part of [OmniRoute](https://github.com/diegosouzapw/OmniRoute) — MIT License.
+Part of [OmniRoute](https://github.com/linhnguyen-gt/Routiform) — MIT License.

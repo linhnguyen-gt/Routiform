@@ -83,7 +83,7 @@ export async function getMitmStatus() {
 
 /**
  * Start MITM proxy
- * @param {string} apiKey - OmniRoute API key
+ * @param {string} apiKey - Routiform API key
  * @param {string} sudoPassword - Sudo password for DNS/cert operations
  */
 export async function startMitm(apiKey, sudoPassword) {

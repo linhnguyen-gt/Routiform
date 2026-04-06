@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE_NAME="${1:-omniroute-local-hardened}"
-CONTAINER_NAME="${2:-omniroute-hardening-test}"
+IMAGE_NAME="${1:-routiform-local-hardened}"
+CONTAINER_NAME="${2:-routiform-hardening-test}"
 HOST_PORT="${3:-20129}"
 
 WORKDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -19,7 +19,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "[1/6] Building image: ${IMAGE_NAME}"
-docker build -t "${IMAGE_NAME}" "${WORKDIR}" >/tmp/omniroute_hardening_build.log
+docker build -t "${IMAGE_NAME}" "${WORKDIR}" >/tmp/routiform_hardening_build.log
 echo "      Build done."
 
 echo "[2/6] Starting test container: ${CONTAINER_NAME} on :${HOST_PORT}"
@@ -31,7 +31,7 @@ docker run -d \
   -e REQUIRE_API_KEY=true \
   -e AUTH_COOKIE_SECURE=true \
   -e DATA_DIR=/app/data \
-  "${IMAGE_NAME}" >/tmp/omniroute_hardening_container_id.txt
+  "${IMAGE_NAME}" >/tmp/routiform_hardening_container_id.txt
 
 echo "[3/6] Waiting for service..."
 for _ in $(seq 1 30); do

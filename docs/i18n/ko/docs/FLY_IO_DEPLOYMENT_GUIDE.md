@@ -254,7 +254,7 @@ Fly 会自动滚动更新机器。
 
 ### 9.1 跟踪原仓库更新并保留 fork 的 `fly.toml`
 
-如果当前仓库是 fork，并且你要同步上游 `https://github.com/diegosouzapw/OmniRoute` 的更新，推荐按下面流程执行。
+如果当前仓库是 fork，并且你要同步上游 `https://github.com/linhnguyen-gt/Routiform` 的更新，推荐按下面流程执行。
 
 先确认远程：
 
@@ -270,7 +270,7 @@ git remote -v
 如果没有 `upstream`，先添加：
 
 ```powershell
-git remote add upstream https://github.com/diegosouzapw/OmniRoute.git
+git remote add upstream https://github.com/linhnguyen-gt/Routiform.git
 ```
 
 同步上游前，先抓取最新提交和标签：

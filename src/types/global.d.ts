@@ -17,6 +17,23 @@ declare namespace NodeJS {
     API_HOST?: string;
     DASHBOARD_PORT?: string;
     OMNIROUTE_PORT?: string;
+    ROUTIFORM_PORT?: string;
+    ROUTIFORM_SERVER?: string;
+    OMNIROUTE_SERVER?: string;
+    ROUTIFORM_TOKEN?: string;
+    OMNIROUTE_TOKEN?: string;
+    ROUTIFORM_USER_ID?: string;
+    OMNIROUTE_USER_ID?: string;
+    ROUTIFORM_BASE_URL?: string;
+    OMNIROUTE_BASE_URL?: string;
+    ROUTIFORM_API_KEY?: string;
+    OMNIROUTE_API_KEY?: string;
+    ROUTIFORM_BOOTSTRAPPED?: string;
+    OMNIROUTE_BOOTSTRAPPED?: string;
+    /** "true"|"1" show / "false"|"0" hide zero-config banner; unset defers to Docker detection */
+    ROUTIFORM_SHOW_ZERO_CONFIG_BANNER?: string;
+    DOCKER?: string;
+    CONTAINER?: string;
     NODE_ENV?: "development" | "production" | "test";
   }
 }

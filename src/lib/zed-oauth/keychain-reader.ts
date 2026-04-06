@@ -84,7 +84,7 @@ const ZED_SERVICE_PATTERNS = [
 ];
 
 /**
- * Maps Zed service names to OmniRoute provider IDs
+ * Maps Zed service names to Routiform provider IDs
  */
 function extractProviderFromService(service: string): string {
   const lower = service.toLowerCase();

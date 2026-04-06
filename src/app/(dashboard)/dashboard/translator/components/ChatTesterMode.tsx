@@ -19,7 +19,7 @@ const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
  * How it works:
  * 1. You type a message and select a "Client Format" (how the request is structured)
  * 2. The message is built into a request body matching the client format
- * 3. OmniRoute detects the format, translates it through the pipeline, and sends to the provider
+ * 3. Routiform detects the format, translates it through the pipeline, and sends to the provider
  * 4. Each pipeline step is shown on the right: Client → Detect → OpenAI → Provider → Response
  */
 

@@ -2255,7 +2255,7 @@
   },
   "translator": {
     "title": "Traductor",
-    "metaTitle": "Patio de juegos del traductor | OmniRuta",
+    "metaTitle": "Patio de juegos del traductor | Routiform",
     "metaDescription": "Depurar, probar y visualizar traducciones de formatos API entre proveedores",
     "playgroundTitle": "Patio de juegos del traductor",
     "playground": "Zona de juegos",
@@ -2680,7 +2680,7 @@
     "exchangingCodeForTokens": "Exchanging code for tokens..."
   },
   "landing": {
-    "brandName": "OmniRuta",
+    "brandName": "Routiform",
     "navigateHome": "Navegar a casa",
     "toggleMenu": "Alternar menú",
     "featuresLink": "Características",
@@ -2899,9 +2899,9 @@
     "clearHistory": "Borrar el historial de uso en cualquier momento",
     "configureRetention": "Configurar políticas de retención de registros",
     "backupRestore": "Haga una copia de seguridad y restaure su base de datos",
-    "privacyMetadataTitle": "Política de privacidad | OmniRuta",
+    "privacyMetadataTitle": "Política de privacidad | Routiform",
     "privacyMetadataDescription": "Política de privacidad para el enrutador proxy API Routiform AI.",
-    "termsMetadataTitle": "Términos de servicio | OmniRuta",
+    "termsMetadataTitle": "Términos de servicio | Routiform",
     "termsMetadataDescription": "Términos de servicio para el enrutador proxy API Routiform AI.",
     "backToHome": "De vuelta a casa",
     "lastUpdated": "Última actualización: {date}",

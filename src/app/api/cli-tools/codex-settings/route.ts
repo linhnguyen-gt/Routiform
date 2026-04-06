@@ -91,7 +91,7 @@ const readConfig = async () => {
   }
 };
 
-// Check if config has OmniRoute settings
+// Check if config has Routiform settings
 const hasRoutiformConfig = (config: string | null) => {
   if (!config) return false;
   return (
@@ -140,7 +140,7 @@ export async function GET() {
   }
 }
 
-// POST - Update OmniRoute settings (merge with existing config)
+// POST - Update Routiform settings (merge with existing config)
 export async function POST(request: Request) {
   let rawBody;
   try {
@@ -210,7 +210,7 @@ export async function POST(request: Request) {
       /* No existing config */
     }
 
-    // Update only OmniRoute related fields (api_key goes to auth.json, not config.toml)
+    // Update only Routiform related fields (api_key goes to auth.json, not config.toml)
     parsed._root.model = model;
     parsed._root.model_provider = "omniroute";
 
@@ -218,7 +218,7 @@ export async function POST(request: Request) {
     // Ensure /v1 suffix is added only once
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
     parsed._sections["model_providers.omniroute"] = {
-      name: "OmniRoute",
+      name: "Routiform",
       base_url: normalizedBaseUrl,
       wire_api: "responses",
     };
@@ -257,7 +257,7 @@ export async function POST(request: Request) {
   }
 }
 
-// DELETE - Remove OmniRoute settings only (keep other settings)
+// DELETE - Remove Routiform settings only (keep other settings)
 export async function DELETE() {
   try {
     const writeGuard = ensureCliConfigWriteAllowed();
@@ -285,7 +285,7 @@ export async function DELETE() {
       throw error;
     }
 
-    // Remove OmniRoute related root fields only if they point to omniroute
+    // Remove Routiform related root fields only if they point to omniroute
     if (parsed._root.model_provider === "omniroute") {
       delete parsed._root.model;
       delete parsed._root.model_provider;
@@ -324,7 +324,7 @@ export async function DELETE() {
 
     return NextResponse.json({
       success: true,
-      message: "OmniRoute settings removed successfully",
+      message: "Routiform settings removed successfully",
     });
   } catch (error) {
     console.log("Error resetting codex settings:", error);

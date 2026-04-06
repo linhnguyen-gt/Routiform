@@ -12,9 +12,9 @@
  * This script copies the correctly-built native binary from the root
  * into the standalone app directory — no rebuild or build tools needed.
  *
- * Fixes: https://github.com/diegosouzapw/OmniRoute/issues/129
- * Fixes: https://github.com/diegosouzapw/OmniRoute/issues/321
- * Fixes: https://github.com/diegosouzapw/OmniRoute/issues/426
+ * Fixes: https://github.com/linhnguyen-gt/Routiform/issues/129
+ * Fixes: https://github.com/linhnguyen-gt/Routiform/issues/321
+ * Fixes: https://github.com/linhnguyen-gt/Routiform/issues/426
  */
 
 import { existsSync, copyFileSync, mkdirSync } from "node:fs";

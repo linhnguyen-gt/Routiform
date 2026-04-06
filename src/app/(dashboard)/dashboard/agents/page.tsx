@@ -428,12 +428,12 @@ export default function AgentsPage() {
                     const config = {
                       $schema: "https://opencode.ai/config.json",
                       provider: {
-                        omniroute: {
+                        routiform: {
                           npm: "@ai-sdk/openai-compatible",
-                          name: "OmniRoute",
+                          name: "Routiform",
                           options: {
                             baseURL,
-                            apiKey: "YOUR_OMNIROUTE_API_KEY",
+                            apiKey: "YOUR_ROUTIFORM_API_KEY",
                           },
                           models:
                             Object.keys(models).length > 0

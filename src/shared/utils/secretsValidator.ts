@@ -9,6 +9,9 @@
 
 const KNOWN_WEAK_SECRETS = [
   "omniroute-default-secret-change-me",
+  "routiform-default-secret-change-me",
+  "omniroute-default-insecure-api-key-secret",
+  "routiform-default-insecure-api-key-secret",
   "change-me-to-a-long-random-secret",
   "endpoint-proxy-api-key-secret",
   "change-me-storage-encryption-key",

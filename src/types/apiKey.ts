@@ -1,5 +1,5 @@
 /**
- * API key — authentication credential for accessing the OmniRoute proxy.
+ * API key — authentication credential for accessing the Routiform proxy.
  */
 export interface ApiKey {
   id: string;

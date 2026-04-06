@@ -16,10 +16,10 @@ RUN mkdir -p /app/data && npm run build -- --webpack
 FROM node:22-bookworm-slim AS runner-base
 WORKDIR /app
 
-LABEL org.opencontainers.image.title="omniroute" \
-  org.opencontainers.image.description="Unified AI proxy — route any LLM through one endpoint" \
-  org.opencontainers.image.url="https://omniroute.online" \
-  org.opencontainers.image.source="https://github.com/diegosouzapw/OmniRoute" \
+LABEL org.opencontainers.image.title="routiform" \
+  org.opencontainers.image.description="Routiform — unified AI proxy; route any LLM through one endpoint" \
+  org.opencontainers.image.url="https://github.com/linhnguyen-gt/Routiform" \
+  org.opencontainers.image.source="https://github.com/linhnguyen-gt/Routiform" \
   org.opencontainers.image.licenses="MIT"
 
 ENV NODE_ENV=production

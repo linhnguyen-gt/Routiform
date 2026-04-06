@@ -163,7 +163,7 @@ function formatMessage(message: unknown): string {
 export function buildQoderPrompt(body: unknown): string {
   const requestBody = asRecord(body);
   const lines = [
-    "You are answering an OmniRoute OpenAI-compatible request through the Qoder CLI transport.",
+    "You are answering an Routiform OpenAI-compatible request through the Qoder CLI transport.",
     "Respond as a plain language model only.",
     "Do not use your own tools, do not inspect files, and do not run commands.",
     "Do not mention the adapter unless the user explicitly asks.",
@@ -361,11 +361,11 @@ function buildCosyHeadersForValidation(bodyStr: string, token: string) {
   const aesKeyStr = aesKeyBytes.toString("hex").slice(0, 16);
   const aesKeyBuf = Buffer.from(aesKeyStr, "utf8");
 
-  const uid = "omniroute.user@qoder.sh";
+  const uid = "routiform.user@qoder.sh";
   const userInfo = {
     uid: uid,
     security_oauth_token: token,
-    name: "omniroute",
+    name: "routiform",
     aid: "",
     email: uid,
   };

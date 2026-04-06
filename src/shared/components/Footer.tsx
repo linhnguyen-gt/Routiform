@@ -11,7 +11,7 @@ const footerLinks = {
     { label: "Pricing", href: "#pricing" },
     {
       label: "Changelog",
-      href: "https://github.com/diegosouzapw/OmniRoute/releases",
+      href: "https://github.com/linhnguyen-gt/Routiform/releases",
       external: true,
     },
   ],
@@ -20,16 +20,16 @@ const footerLinks = {
     { label: "API Reference", href: "/docs#api-reference" },
     {
       label: "Help Center",
-      href: "https://github.com/diegosouzapw/OmniRoute/discussions",
+      href: "https://github.com/linhnguyen-gt/Routiform/discussions",
       external: true,
     },
   ],
   company: [
-    { label: "About", href: "https://github.com/diegosouzapw/OmniRoute", external: true },
-    { label: "Blog", href: "https://github.com/diegosouzapw/OmniRoute/releases", external: true },
+    { label: "About", href: "https://github.com/linhnguyen-gt/Routiform", external: true },
+    { label: "Blog", href: "https://github.com/linhnguyen-gt/Routiform/releases", external: true },
     {
       label: "Contact",
-      href: "https://github.com/diegosouzapw/OmniRoute/issues/new/choose",
+      href: "https://github.com/linhnguyen-gt/Routiform/issues/new/choose",
       external: true,
     },
     { label: "Terms", href: "/terms" },
@@ -83,7 +83,7 @@ export default function Footer() {
             {/* Social links */}
             <div className="flex gap-4">
               <a
-                href="https://github.com/diegosouzapw/OmniRoute/discussions"
+                href="https://github.com/linhnguyen-gt/Routiform/discussions"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-400 hover:text-primary transition-colors"
@@ -94,7 +94,7 @@ export default function Footer() {
                 </svg>
               </a>
               <a
-                href="https://github.com/diegosouzapw/OmniRoute"
+                href="https://github.com/linhnguyen-gt/Routiform"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-400 hover:text-primary transition-colors"
@@ -154,7 +154,7 @@ export default function Footer() {
               Privacy
             </Link>
             <a
-              href="https://github.com/diegosouzapw/OmniRoute/blob/main/LICENSE"
+              href="https://github.com/linhnguyen-gt/Routiform/blob/main/LICENSE"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-primary transition-colors"

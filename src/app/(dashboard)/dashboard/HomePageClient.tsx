@@ -145,7 +145,7 @@ export default function HomePageClient({ machineId }) {
     { label: ts("cliTools"), href: "/dashboard/cli-tools", icon: "terminal" },
     {
       label: t("reportIssue"),
-      href: "https://github.com/diegosouzapw/OmniRoute/issues",
+      href: "https://github.com/linhnguyen-gt/Routiform/issues",
       external: true,
       icon: "bug_report",
     },
@@ -178,7 +178,7 @@ export default function HomePageClient({ machineId }) {
               {
                 step: "restart",
                 status: "pending",
-                message: "Waiting for OmniRoute to restart with the new version.",
+                message: "Waiting for Routiform to restart with the new version.",
               },
             ]
           : [
@@ -190,7 +190,7 @@ export default function HomePageClient({ machineId }) {
               {
                 step: "restart",
                 status: "pending",
-                message: "Waiting for OmniRoute to restart with the new version.",
+                message: "Waiting for Routiform to restart with the new version.",
               },
             ];
 
@@ -222,14 +222,14 @@ export default function HomePageClient({ machineId }) {
               next = mergeUpdateStep(next, {
                 step: "complete",
                 status: "done",
-                message: `OmniRoute is now running v${targetVersion}.`,
+                message: `Routiform is now running v${targetVersion}.`,
               });
 
               return next;
             });
             setUpdating(false);
             setUpdatePhase("done");
-            notify.success(`OmniRoute updated to v${targetVersion}.`);
+            notify.success(`Routiform updated to v${targetVersion}.`);
             await fetchData();
             return;
           }
@@ -253,7 +253,7 @@ export default function HomePageClient({ machineId }) {
             next = mergeUpdateStep(next, {
               step: "restart",
               status: "pending",
-              message: `Waiting for OmniRoute to come back on v${targetVersion}.`,
+              message: `Waiting for Routiform to come back on v${targetVersion}.`,
             });
 
             return next;
@@ -278,7 +278,7 @@ export default function HomePageClient({ machineId }) {
             next = mergeUpdateStep(next, {
               step: "restart",
               status: "running",
-              message: "Service restart in progress. Waiting for OmniRoute to come back online...",
+              message: "Service restart in progress. Waiting for Routiform to come back online...",
             });
 
             return next;
@@ -438,7 +438,7 @@ export default function HomePageClient({ machineId }) {
                     ? "Update Complete!"
                     : updatePhase === "failed"
                       ? "Update Failed"
-                      : "Updating OmniRoute..."}
+                      : "Updating Routiform..."}
                 </h3>
                 <p className="text-xs text-text-muted mt-0.5">
                   {updatePhase === "done"

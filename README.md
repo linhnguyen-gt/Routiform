@@ -1,6 +1,6 @@
 # 🚀 Routiform — The Free AI Gateway
 
-_Fork maintained at [linhnguyen-gt/Routiform](https://github.com/linhnguyen-gt/Routiform); upstream: [diegosouzapw/OmniRoute](https://github.com/diegosouzapw/OmniRoute)._
+_Fork maintained at [linhnguyen-gt/Routiform](https://github.com/linhnguyen-gt/Routiform); upstream: [linhnguyen-gt/Routiform](https://github.com/linhnguyen-gt/Routiform)._
 
 ### Never stop coding. Smart routing to **FREE & low-cost AI models** with automatic fallback.
 
@@ -832,8 +832,8 @@ routiform --mcp
 
 Then connect your MCP client over `stdio` and test tools like:
 
-- `omniroute_get_health`
-- `omniroute_list_combos`
+- `routiform_get_health`
+- `routiform_list_combos`
 
 **A2A (for agent-to-agent workflows):**
 
@@ -881,8 +881,8 @@ license="MIT"
 homepage="https://github.com/linhnguyen-gt/Routiform"
 distfiles="https://github.com/linhnguyen-gt/Routiform/archive/refs/tags/v${version}.tar.gz"
 checksum=009400afee90a9f32599d8fe734145cfd84098140b7287990183dde45ae2245b
-system_accounts="_omniroute"
-omniroute_homedir="/var/lib/routiform"
+system_accounts="_routiform"
+routiform_homedir="/var/lib/routiform"
 export NODE_ENV=production
 export npm_config_engine_strict=false
 export npm_config_loglevel=error
@@ -1512,8 +1512,8 @@ routiform --mcp
 Recommended validation flow:
 
 1. Connect your MCP client over stdio.
-2. Run `omniroute_get_health`.
-3. Run `omniroute_list_combos`.
+2. Run `routiform_get_health`.
+3. Run `routiform_list_combos`.
 4. Open `/dashboard/mcp` to confirm heartbeat, activity, and audit.
 
 Useful APIs for automation:

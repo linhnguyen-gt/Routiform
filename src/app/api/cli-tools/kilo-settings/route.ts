@@ -26,7 +26,7 @@ const readAuth = async () => {
   }
 };
 
-// Check if OmniRoute OpenAI-compatible provider is configured
+// Check if Routiform OpenAI-compatible provider is configured
 const hasRoutiformConfig = (auth) => {
   if (!auth) return false;
   const routerEntry = auth["openai-compatible"] || auth["omniroute"];
@@ -107,7 +107,7 @@ export async function GET() {
   }
 }
 
-// POST - Configure Kilo Code to use OmniRoute as OpenAI-compatible provider
+// POST - Configure Kilo Code to use Routiform as OpenAI-compatible provider
 export async function POST(request) {
   let rawBody;
   try {
@@ -168,7 +168,7 @@ export async function POST(request) {
     // Normalize baseUrl
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
 
-    // Add/update OmniRoute as openai-compatible provider
+    // Add/update Routiform as openai-compatible provider
     auth["openai-compatible"] = {
       type: "api-key",
       apiKey: apiKey || "sk_routiform",
@@ -197,7 +197,7 @@ export async function POST(request) {
 
       // Set custom provider config for the extension
       vscodeSettings["kilocode.customProvider"] = {
-        name: "OmniRoute",
+        name: "Routiform",
         baseURL: normalizedBaseUrl,
         apiKey: apiKey || "sk_routiform",
       };
@@ -226,7 +226,7 @@ export async function POST(request) {
   }
 }
 
-// DELETE - Remove OmniRoute config from Kilo
+// DELETE - Remove Routiform config from Kilo
 export async function DELETE() {
   try {
     const writeGuard = ensureCliConfigWriteAllowed();
@@ -249,7 +249,7 @@ export async function DELETE() {
       throw error;
     }
 
-    // Remove OmniRoute provider
+    // Remove Routiform provider
     delete auth["openai-compatible"];
     delete auth["omniroute"];
 
@@ -282,7 +282,7 @@ export async function DELETE() {
 
     return NextResponse.json({
       success: true,
-      message: "OmniRoute settings removed from Kilo Code",
+      message: "Routiform settings removed from Kilo Code",
     });
   } catch (error) {
     console.log("Error resetting kilo settings:", error);

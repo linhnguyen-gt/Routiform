@@ -1,4 +1,5 @@
-export const SHOW_CONFIGURED_ONLY_STORAGE_KEY = "omniroute-providers-show-configured-only";
+export const SHOW_CONFIGURED_ONLY_STORAGE_KEY = "routiform-providers-show-configured-only";
+export const SHOW_CONFIGURED_ONLY_STORAGE_KEY_LEGACY = "omniroute-providers-show-configured-only";
 
 interface StorageReader {
   getItem(key: string): string | null;
@@ -24,7 +25,10 @@ function getBrowserStorage(): StorageWriter | null {
 export function readConfiguredOnlyPreference(storage: StorageReader | null = getBrowserStorage()) {
   if (!storage) return false;
 
-  return parseConfiguredOnlyPreference(storage.getItem(SHOW_CONFIGURED_ONLY_STORAGE_KEY));
+  return parseConfiguredOnlyPreference(
+    storage.getItem(SHOW_CONFIGURED_ONLY_STORAGE_KEY) ||
+      storage.getItem(SHOW_CONFIGURED_ONLY_STORAGE_KEY_LEGACY)
+  );
 }
 
 export function writeConfiguredOnlyPreference(
@@ -35,8 +39,10 @@ export function writeConfiguredOnlyPreference(
 
   if (enabled) {
     storage.setItem(SHOW_CONFIGURED_ONLY_STORAGE_KEY, "true");
+    storage.removeItem(SHOW_CONFIGURED_ONLY_STORAGE_KEY_LEGACY);
     return;
   }
 
   storage.removeItem(SHOW_CONFIGURED_ONLY_STORAGE_KEY);
+  storage.removeItem(SHOW_CONFIGURED_ONLY_STORAGE_KEY_LEGACY);
 }

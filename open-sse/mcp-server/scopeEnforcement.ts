@@ -49,6 +49,12 @@ function extractMetaScopeList(meta: unknown): string[] {
     if (authScopes.length > 0) return authScopes;
   }
 
+  const routi = metaRecord.routiform;
+  if (routi && typeof routi === "object") {
+    const routiScopes = normalizeScopeList((routi as Record<string, unknown>).scopes);
+    if (routiScopes.length > 0) return routiScopes;
+  }
+
   const omni = metaRecord.omniroute;
   if (omni && typeof omni === "object") {
     const omniScopes = normalizeScopeList((omni as Record<string, unknown>).scopes);

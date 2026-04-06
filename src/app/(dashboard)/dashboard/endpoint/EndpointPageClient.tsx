@@ -1059,7 +1059,7 @@ export default function APIPageClient({ machineId }) {
                 </div>
                 <div className="mt-3 rounded-lg bg-bg p-3 border border-border/70">
                   <p className="text-xs font-semibold mb-1">{t("quickStart") || "Quick Start"}</p>
-                  <code className="text-xs font-mono break-all">omniroute --mcp</code>
+                  <code className="text-xs font-mono break-all">routiform --mcp</code>
                 </div>
                 <div className="mt-3">
                   <Link
@@ -1127,7 +1127,7 @@ export default function APIPageClient({ machineId }) {
                   {t("mcpQuickStartTitle") || "MCP Quick Start"}
                 </h4>
                 <ol className="text-sm text-text-muted space-y-1 list-decimal list-inside">
-                  <li>{t("mcpQuickStartStep1") || "Run the MCP server via `omniroute --mcp`."}</li>
+                  <li>{t("mcpQuickStartStep1") || "Run the MCP server via `routiform --mcp`."}</li>
                   <li>
                     {t("mcpQuickStartStep2") ||
                       "Configure your MCP client to connect over stdio transport."}

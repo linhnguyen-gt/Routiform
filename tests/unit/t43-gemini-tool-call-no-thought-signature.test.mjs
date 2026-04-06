@@ -6,7 +6,7 @@
  * the first functionCall part for a tool-call batch, and replays fail if the
  * signature is stripped or emitted as a separate sibling part.
  *
- * Reproduces: https://github.com/diegosouzapw/OmniRoute/issues/725
+ * Reproduces: https://github.com/linhnguyen-gt/Routiform/issues/725
  */
 
 import test from "node:test";

@@ -1,5 +1,5 @@
 import { getModelsByProviderId } from "@routiform/open-sse/config/providerModels.ts";
-import { safePercentage } from "@/shared/utils/formatting";
+import { roundPercentageDisplay, safePercentage } from "@/shared/utils/formatting";
 
 const PROVIDER_PLAN_FALLBACKS = new Set([
   "claude code",
@@ -163,7 +163,7 @@ function normalizeQuotaEntry(name: string, quota: any = {}, extras: any = {}) {
     staleAfterReset && total > 0
       ? 100
       : remainingPercentageRaw !== undefined
-        ? remainingPercentageRaw
+        ? roundPercentageDisplay(remainingPercentageRaw, 1)
         : undefined;
 
   return {

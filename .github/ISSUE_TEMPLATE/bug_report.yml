@@ -12,7 +12,7 @@ body:
     id: version
     attributes:
       label: OmniRoute Version
-      description: "Run `omniroute --version` or check the left sidebar in the dashboard."
+      description: "Run `routiform --version` (or `omniroute --version` for legacy CLI) or check the left sidebar in the dashboard."
       placeholder: "e.g. 3.0.9"
     validations:
       required: true

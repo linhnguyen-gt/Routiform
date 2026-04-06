@@ -19,7 +19,7 @@ Thank you for your interest in contributing! This guide covers everything you ne
 ### Clone & Install
 
 ```bash
-git clone https://github.com/diegosouzapw/OmniRoute.git
+git clone https://github.com/linhnguyen-gt/Routiform.git
 cd OmniRoute
 npm install
 ```
@@ -295,5 +295,5 @@ Releases are managed via the `/generate-release` workflow. When a new GitHub Rel
 
 - **Architecture**: See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - **API Reference**: See [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md)
-- **Issues**: [github.com/diegosouzapw/OmniRoute/issues](https://github.com/diegosouzapw/OmniRoute/issues)
+- **Issues**: [github.com/linhnguyen-gt/Routiform/issues](https://github.com/linhnguyen-gt/Routiform/issues)
 - **ADRs**: See `docs/adr/` for architectural decision records

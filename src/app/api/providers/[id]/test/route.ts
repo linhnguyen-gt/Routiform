@@ -50,7 +50,7 @@ const OAUTH_TEST_CONFIG = {
     method: "GET",
     authHeader: "Authorization",
     authPrefix: "Bearer ",
-    extraHeaders: { "User-Agent": "OmniRoute", Accept: "application/vnd.github+json" },
+    extraHeaders: { "User-Agent": "Routiform", Accept: "application/vnd.github+json" },
   },
   iflow: {
     // iFlow's getUserInfo endpoint returns 400 without a specific format.
