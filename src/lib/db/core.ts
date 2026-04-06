@@ -330,6 +330,27 @@ function checkpointDb(db: SqliteDatabase, mode: CheckpointMode = "TRUNCATE"): bo
   return true;
 }
 
+/** Custom OpenAI-compatible path overrides on provider_nodes (migration 003). */
+function ensureProviderNodePathsColumns(db: SqliteDatabase) {
+  try {
+    const columns = db.prepare("PRAGMA table_info(provider_nodes)").all() as Array<{
+      name?: string;
+    }>;
+    const columnNames = new Set(columns.map((column) => String(column.name ?? "")));
+    if (!columnNames.has("chat_path")) {
+      db.exec("ALTER TABLE provider_nodes ADD COLUMN chat_path TEXT");
+      console.log("[DB] Added provider_nodes.chat_path column");
+    }
+    if (!columnNames.has("models_path")) {
+      db.exec("ALTER TABLE provider_nodes ADD COLUMN models_path TEXT");
+      console.log("[DB] Added provider_nodes.models_path column");
+    }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn("[DB] Failed to verify provider_nodes schema:", message);
+  }
+}
+
 function ensureProviderConnectionsColumns(db: SqliteDatabase) {
   try {
     const columns = db.prepare("PRAGMA table_info(provider_connections)").all() as Array<{
@@ -417,6 +438,7 @@ export function getDbInstance(): SqliteDatabase {
     const memoryDb = new Database(":memory:");
     memoryDb.pragma("journal_mode = WAL");
     memoryDb.exec(SCHEMA_SQL);
+    ensureProviderNodePathsColumns(memoryDb);
     ensureUsageHistoryColumns(memoryDb);
     setDb(memoryDb);
     return memoryDb;
@@ -499,17 +521,18 @@ export function getDbInstance(): SqliteDatabase {
   ensureProviderConnectionsColumns(db);
   ensureUsageHistoryColumns(db);
   ensureCallLogsColumns(db);
+  ensureProviderNodePathsColumns(db);
 
   // ── Versioned Migrations ──
   // Auto-seed 001 as applied (the inline SCHEMA_SQL already created these tables)
   // then run any new migrations (002+)
   db.exec(`
-    CREATE TABLE IF NOT EXISTS _omniroute_migrations (
+    CREATE TABLE IF NOT EXISTS _routiform_migrations (
       version TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       applied_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
-    INSERT OR IGNORE INTO _omniroute_migrations (version, name)
+    INSERT OR IGNORE INTO _routiform_migrations (version, name)
     VALUES ('001', 'initial_schema');
   `);
   runMigrations(db);

@@ -1,50 +1,50 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
-import { createPortal } from "react-dom";
-import { useNotificationStore } from "@/store/notificationStore";
-import PropTypes from "prop-types";
-import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
-import Image from "next/image";
-import { useTranslations } from "next-intl";
-import {
-  Card,
-  Button,
-  Badge,
-  Input,
-  Modal,
-  CardSkeleton,
-  OAuthModal,
-  KiroOAuthWrapper,
-  CursorAuthModal,
-  Toggle,
-  Select,
-  ProxyConfigModal,
-} from "@/shared/components";
-import ProviderIcon from "@/shared/components/ProviderIcon";
-import {
-  FREE_PROVIDERS,
-  OAUTH_PROVIDERS,
-  APIKEY_PROVIDERS,
-  getProviderAlias,
-  isOpenAICompatibleProvider,
-  isAnthropicCompatibleProvider,
-  isClaudeCodeCompatibleProvider,
-  supportsApiKeyOnFreeProvider,
-} from "@/shared/constants/providers";
-import { getModelsByProviderId } from "@/shared/constants/models";
 import {
   compatibleProviderSupportsModelImport,
   getCompatibleFallbackModels,
 } from "@/lib/providers/managedAvailableModels";
-import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import {
+  Badge,
+  Button,
+  Card,
+  CardSkeleton,
+  CursorAuthModal,
+  Input,
+  KiroOAuthWrapper,
+  Modal,
+  OAuthModal,
+  ProxyConfigModal,
+  Select,
+  Toggle,
+} from "@/shared/components";
+import ProviderIcon from "@/shared/components/ProviderIcon";
 import {
   MODEL_COMPAT_PROTOCOL_KEYS,
   type ModelCompatProtocolKey,
 } from "@/shared/constants/modelCompat";
-import { resolveManagedModelAlias } from "@/shared/utils/providerModelAliases";
+import { getModelsByProviderId } from "@/shared/constants/models";
+import {
+  APIKEY_PROVIDERS,
+  FREE_PROVIDERS,
+  OAUTH_PROVIDERS,
+  getProviderAlias,
+  isAnthropicCompatibleProvider,
+  isClaudeCodeCompatibleProvider,
+  isOpenAICompatibleProvider,
+  supportsApiKeyOnFreeProvider,
+} from "@/shared/constants/providers";
+import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { cn } from "@/shared/utils/cn";
+import { resolveManagedModelAlias } from "@/shared/utils/providerModelAliases";
+import { useNotificationStore } from "@/store/notificationStore";
+import { useTranslations } from "next-intl";
+import Image from "next/image";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import PropTypes from "prop-types";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type CompatByProtocolMap = Partial<
   Record<

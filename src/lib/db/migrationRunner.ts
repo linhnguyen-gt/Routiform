@@ -35,12 +35,33 @@ function resolveMigrationsDir(): string {
 
 const MIGRATIONS_DIR = resolveMigrationsDir();
 
+const MIGRATIONS_TABLE = "_routiform_migrations";
+const LEGACY_MIGRATIONS_TABLE = "_omniroute_migrations";
+
+/** One-time rename after Routiform rebrand — existing installs keep applied versions. */
+function maybeRenameLegacyMigrationsTable(db: Database.Database): void {
+  try {
+    const hasLegacy = db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
+      .get(LEGACY_MIGRATIONS_TABLE) as { name?: string } | undefined;
+    const hasCurrent = db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
+      .get(MIGRATIONS_TABLE) as { name?: string } | undefined;
+    if (hasLegacy && !hasCurrent) {
+      db.exec(`ALTER TABLE ${LEGACY_MIGRATIONS_TABLE} RENAME TO ${MIGRATIONS_TABLE}`);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
- * Ensure the schema_migrations tracking table exists.
+ * Ensure the versioned migrations tracking table exists.
  */
 function ensureMigrationsTable(db: Database.Database): void {
+  maybeRenameLegacyMigrationsTable(db);
   db.exec(`
-    CREATE TABLE IF NOT EXISTS _omniroute_migrations (
+    CREATE TABLE IF NOT EXISTS ${MIGRATIONS_TABLE} (
       version TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       applied_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -74,7 +95,7 @@ function getMigrationFiles(): Array<{ version: string; name: string; path: strin
  * Get list of already-applied migration versions.
  */
 function getAppliedVersions(db: Database.Database): Set<string> {
-  const rows = db.prepare("SELECT version FROM _omniroute_migrations").all() as Array<{
+  const rows = db.prepare(`SELECT version FROM ${MIGRATIONS_TABLE}`).all() as Array<{
     version: string;
   }>;
   return new Set(rows.map((r) => r.version));
@@ -98,7 +119,7 @@ export function runMigrations(db: Database.Database): number {
 
     const applyMigration = db.transaction(() => {
       db.exec(sql);
-      db.prepare("INSERT INTO _omniroute_migrations (version, name) VALUES (?, ?)").run(
+      db.prepare(`INSERT INTO ${MIGRATIONS_TABLE} (version, name) VALUES (?, ?)`).run(
         migration.version,
         migration.name
       );
@@ -132,7 +153,7 @@ export function getMigrationStatus(db: Database.Database): {
   ensureMigrationsTable(db);
 
   const appliedRows = db
-    .prepare("SELECT version, name, applied_at FROM _omniroute_migrations ORDER BY version")
+    .prepare(`SELECT version, name, applied_at FROM ${MIGRATIONS_TABLE} ORDER BY version`)
     .all() as Array<{ version: string; name: string; applied_at: string }>;
 
   const appliedVersions = new Set(appliedRows.map((r) => r.version));

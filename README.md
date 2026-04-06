@@ -13,13 +13,13 @@ _Your universal API proxy — one endpoint, 60+ providers, zero downtime. Now wi
 <div align="center">
 
 [![npm version](https://img.shields.io/npm/v/routiform?color=cb3837&logo=npm)](https://www.npmjs.com/package/routiform)
-[![Docker Hub](https://img.shields.io/docker/v/linhnguyen-gt/routiform?label=Docker%20Hub&logo=docker&color=2496ED)](https://hub.docker.com/r/linhnguyen-gt/routiform)
+[![Docker Hub](https://img.shields.io/docker/v/linhnguyen0944/routiform?label=Docker%20Hub&logo=docker&color=2496ED)](https://hub.docker.com/r/linhnguyen0944/routiform)
 
 ![NPM Downloads](https://img.shields.io/npm/dw/routiform?label=npm%20down%20week&color=red)
 ![NPM Downloads](https://img.shields.io/npm/dm/routiform?label=npm%20down%20month&color=red)
 
 ![NPM Downloads](https://img.shields.io/npm/d18m/routiform?label=npm%20down%20year&color=red)
-![Docker Pulls](https://img.shields.io/docker/pulls/linhnguyen-gt/routiform)
+![Docker Pulls](https://img.shields.io/docker/pulls/linhnguyen0944/routiform)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/linhnguyen-gt/routiform/total?style=flat&label=eletron%20donwloads&color=blue)
 
 [![stars](https://custom-icon-badges.demolab.com/github/stars/linhnguyen-gt/Routiform?logo=star&style=flat)](https://github.com/linhnguyen-gt/Routiform/stargazers)
@@ -953,35 +953,23 @@ post_install() {
 
 ## 🐳 Docker
 
-Routiform is available as a public Docker image on [Docker Hub](https://hub.docker.com/r/linhnguyen-gt/routiform).
+Routiform is available as a public Docker image on [Docker Hub](https://hub.docker.com/r/linhnguyen0944/routiform).
 
-**Quick run:**
-
-```bash
-docker run -d \
-  --name routiform \
-  --restart unless-stopped \
-  --stop-timeout 40 \
-  -p 20128:20128 \
-  -v routiform-data:/app/data \
-  linhnguyen-gt/routiform:latest
-```
-
-**With environment file:**
+**Pull and run** (`cli` image — API on **20128**, dashboard on **20129** when using split ports):
 
 ```bash
-# Copy and edit .env first
+# Copy and edit .env first (secrets, `NEXT_PUBLIC_BASE_URL`, etc.)
 cp .env.example .env
 
-docker run -d \
-  --name routiform \
-  --restart unless-stopped \
-  --stop-timeout 40 \
+docker pull linhnguyen0944/routiform:cli
+
+docker run --rm -p 20128:20128 -p 20129:20129 \
+  -e DATA_DIR=/app/data -v routiform-data:/app/data \
   --env-file .env \
-  -p 20128:20128 \
-  -v routiform-data:/app/data \
-  linhnguyen-gt/routiform:latest
+  linhnguyen0944/routiform:cli
 ```
+
+Use `-d --name routiform --restart unless-stopped --stop-timeout 40` instead of `--rm` if you want a long-running detached container.
 
 **Using Docker Compose:**
 
@@ -1013,7 +1001,7 @@ Routiform can be securely exposed using Caddy's automatic SSL provisioning. Ensu
 ```yaml
 services:
   routiform:
-    image: linhnguyen-gt/routiform:latest
+    image: linhnguyen0944/routiform:cli
     container_name: routiform
     restart: unless-stopped
     volumes:
@@ -1035,10 +1023,9 @@ volumes:
   routiform-data:
 ```
 
-| Image                    | Tag      | Size   | Description           |
-| ------------------------ | -------- | ------ | --------------------- |
-| `linhnguyen-gt/routiform` | `latest` | ~250MB | Latest stable release |
-| `linhnguyen-gt/routiform` | `1.0.3`  | ~250MB | Current version       |
+| Image                      | Tag   | Description                                |
+| -------------------------- | ----- | ------------------------------------------ |
+| `linhnguyen0944/routiform` | `cli` | Recommended — includes CLI tooling profile |
 
 ---
 
@@ -2151,7 +2138,7 @@ Se não quiser criar credenciais próprias agora, ainda é possível usar o flux
 - **CI/CD**: GitHub Actions (auto npm publish + Docker Hub on release)
 - **Website**: [github.com/linhnguyen-gt/Routiform](https://github.com/linhnguyen-gt/Routiform)
 - **Package**: [npmjs.com/package/routiform](https://www.npmjs.com/package/routiform)
-- **Docker**: [hub.docker.com/r/linhnguyen-gt/routiform](https://hub.docker.com/r/linhnguyen-gt/routiform)
+- **Docker**: [hub.docker.com/r/linhnguyen0944/routiform](https://hub.docker.com/r/linhnguyen0944/routiform)
 - **Resilience**: Circuit breaker, exponential backoff, anti-thundering herd, TLS spoofing, auto-combo self-healing
 
 </details>
@@ -2237,6 +2224,8 @@ gh release create v2.0.0 --title "v2.0.0" --generate-notes
 Special thanks to **[9router](https://github.com/decolua/9router)** by **[decolua](https://github.com/decolua)** — the original project that inspired this fork. Routiform builds upon that incredible foundation with additional features, multi-modal APIs, and a full TypeScript rewrite.
 
 Special thanks to **[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)** — the original Go implementation that inspired this JavaScript port.
+
+Special thanks to **[OmniRoute](https://github.com/diegosouzapw/OmniRoute)** — the widely used AI gateway and upstream community project whose ideas, ecosystem, and ongoing work continue to inform Routiform.
 
 ---
 

@@ -234,7 +234,7 @@ gh workflow run docker-publish.yml --repo diegosouzapw/OmniRoute --ref v2.x.y
 ### 15. Deploy to BOTH VPS environments (MANDATORY)
 
 > Always deploy to **both** environments after every release.
-> See `/deploy-vps` workflow for detailed steps.
+> Follow the manual commands below (no automated `deploy-vps` workflow in this repo).
 
 ```bash
 # Build and pack locally

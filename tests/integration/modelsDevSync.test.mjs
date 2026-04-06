@@ -6,19 +6,27 @@
 
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { unlinkSync, existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
-// Point DB at a temp file
-const TEST_DB = "/tmp/omniroute-test-modelsdev.sqlite";
+/** Isolated DATA_DIR — core uses DATA_DIR/storage.sqlite (DB_FILE is not read). */
+let testDataDir = "";
 
-before(() => {
-  if (existsSync(TEST_DB)) unlinkSync(TEST_DB);
-  process.env.DATA_DIR = "/tmp";
-  process.env.DB_FILE = TEST_DB;
+before(async () => {
+  const { resetDbInstance } = await import("../../src/lib/db/core.ts");
+  resetDbInstance();
+  testDataDir = mkdtempSync(path.join(os.tmpdir(), "routiform-modelsdev-"));
+  process.env.DATA_DIR = testDataDir;
+  delete process.env.DB_FILE;
 });
 
-after(() => {
-  if (existsSync(TEST_DB)) unlinkSync(TEST_DB);
+after(async () => {
+  const { resetDbInstance } = await import("../../src/lib/db/core.ts");
+  resetDbInstance();
+  if (testDataDir && existsSync(testDataDir)) {
+    rmSync(testDataDir, { recursive: true, force: true });
+  }
 });
 
 describe("modelsDevSync — integration: live fetch → DB → retrieve", () => {
