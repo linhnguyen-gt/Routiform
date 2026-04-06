@@ -1,9 +1,20 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import createNextIntlPlugin from "next-intl/plugin";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // When a parent directory has another lockfile (e.g. ~/pnpm-lock.yaml), Next.js may pick the
+  // wrong workspace root and skip PostCSS — breaking Tailwind v4 (`@import "tailwindcss"`).
+  outputFileTracingRoot: path.join(__dirname),
+  // Default is 10MB; `src/proxy.ts` + `/api/db-backups/import` allow up to 100MB (see bodySizeGuard).
+  experimental: {
+    proxyClientMaxBodySize: "100mb",
+  },
   // Turbopack config: redirect native modules to stubs at build time
   turbopack: {
     resolveAlias: {

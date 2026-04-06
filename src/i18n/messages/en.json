@@ -641,7 +641,8 @@
       "opencode": "Use when you prefer terminal-native agent runs and scripted automation via OpenCode.",
       "kiro": "Use when integrating Kiro and controlling model routing centrally from OmniRoute.",
       "antigravity": "Use when Antigravity/Kiro traffic must be intercepted through MITM and routed to OmniRoute.",
-      "copilot": "Use when you want Copilot chat style UX while enforcing OmniRoute keys and routing rules."
+      "copilot": "Use when you want Copilot chat style UX while enforcing OmniRoute keys and routing rules.",
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through OmniRoute."
     },
     "toolDescriptions": {
       "antigravity": "Google Antigravity IDE with MITM",
@@ -1836,7 +1837,7 @@
     "syncing": "Syncing...",
     "lastSync": "Last sync",
     "never": "Never",
-    "justNow": "Just now",
+    "justNow": "just now",
     "modelsDevStats": "Sync Statistics",
     "modelsDevStatsDesc": "Current models.dev data coverage",
     "providers": "Providers",
@@ -2212,7 +2213,6 @@
     "backupCreated": "Backup created: {file}",
     "restoreSuccess": "Restored! {connections} connections, {nodes} nodes, {combos} combos, {apiKeys} API keys.",
     "importSuccess": "Database imported! {connections} connections, {nodes} nodes, {combos} combos, {apiKeys} API keys.",
-    "justNow": "just now",
     "minutesAgo": "{count}m ago",
     "hoursAgo": "{count}h ago",
     "daysAgo": "{count}d ago",
@@ -2227,7 +2227,6 @@
     "errorDuringImport": "An error occurred during import",
     "modelPricing": "Model Pricing",
     "modelPricingDesc": "Configure cost rates per model • All rates in $/1M tokens",
-    "providers": "Providers",
     "registry": "Registry",
     "priced": "Priced",
     "searchProvidersModels": "Search providers or models...",

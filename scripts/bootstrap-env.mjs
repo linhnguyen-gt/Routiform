@@ -110,6 +110,16 @@ function parseEnvFile(filePath) {
   return env;
 }
 
+/**
+ * Drop KEY= (empty) entries from a parsed .env so placeholders copied from
+ * `.env.example` do not overwrite real values in `server.env` during merge.
+ */
+function omitEmptyEnvValues(record) {
+  return Object.fromEntries(
+    Object.entries(record).filter(([, v]) => v != null && String(v).trim() !== "")
+  );
+}
+
 // ── Write a simple KEY=VALUE env file ───────────────────────────────────────
 function writeEnvFile(filePath, env) {
   const lines = [
@@ -131,8 +141,9 @@ export function bootstrapEnv({ dataDirOverride, quiet = false } = {}) {
   const log = quiet ? () => {} : (msg) => process.stderr.write(`[bootstrap] ${msg}\n`);
 
   const preferredEnvPath = getPreferredEnvFilePath(process.env);
-  const preferredEnv = preferredEnvPath ? parseEnvFile(preferredEnvPath) : {};
-  const dataDir = resolveDataDir(dataDirOverride, { ...preferredEnv, ...process.env });
+  const preferredEnvRaw = preferredEnvPath ? parseEnvFile(preferredEnvPath) : {};
+  const preferredEnv = omitEmptyEnvValues(preferredEnvRaw);
+  const dataDir = resolveDataDir(dataDirOverride, { ...preferredEnvRaw, ...process.env });
   const serverEnvPath = join(dataDir, "server.env");
 
   // ── Layer 1: Load persisted server.env ────────────────────────────────────

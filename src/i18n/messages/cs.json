@@ -639,7 +639,8 @@
       "opencode": "Použijte, pokud dáváte přednost spouštění agentů nativně v terminálu a skriptované automatizaci přes OpenCode.",
       "kiro": "Použijte při integraci Kiro a centrálním řízení směrování modelů z OmniRoute.",
       "antigravity": "Použijte, pokud musí být provoz Antigravity/Kiro zachycen prostřednictvím MITM a směrován do OmniRoute.",
-      "copilot": "Použijte, pokud chcete uživatelské rozhraní ve stylu Copilot chat a zároveň vynutit klíče a pravidla směrování OmniRoute."
+      "copilot": "Použijte, pokud chcete uživatelské rozhraní ve stylu Copilot chat a zároveň vynutit klíče a pravidla směrování OmniRoute.",
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through OmniRoute."
     },
     "toolDescriptions": {
       "antigravity": "Google Antigravity IDE s MITM",

@@ -639,7 +639,8 @@
       "opencode": "Gunakan saat Anda lebih suka menjalankan agen terminal-asli dan otomatisasi skrip melalui OpenCode.",
       "kiro": "Gunakan saat mengintegrasikan Kiro dan mengontrol perutean model secara terpusat dari OmniRoute.",
       "antigravity": "Gunakan ketika lalu lintas Antigravitasi/Kiro harus dicegat melalui MITM dan dialihkan ke OmniRoute.",
-      "copilot": "Gunakan saat Anda menginginkan UX gaya obrolan kopilot sambil menerapkan kunci OmniRoute dan aturan perutean."
+      "copilot": "Gunakan saat Anda menginginkan UX gaya obrolan kopilot sambil menerapkan kunci OmniRoute dan aturan perutean.",
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through OmniRoute."
     },
     "toolDescriptions": {
       "antigravity": "IDE Antigravitasi Google dengan MITM",

@@ -639,7 +639,8 @@
       "opencode": "ใช้เมื่อคุณต้องการเรียกใช้ Terminal-Native Agent และใช้สคริปต์อัตโนมัติผ่าน OpenCode",
       "kiro": "ใช้เมื่อรวม Kiro และควบคุมการกำหนดเส้นทางโมเดลจากส่วนกลางจาก OmniRoute",
       "antigravity": "ใช้เมื่อต้องสกัดกั้นการรับส่งข้อมูล Antigravity/Kiro ผ่าน MITM และกำหนดเส้นทางไปยัง OmniRoute",
-      "copilot": "ใช้เมื่อคุณต้องการ UX รูปแบบการแชทของ Copilot ในขณะที่บังคับใช้คีย์ OmniRoute และกฎการกำหนดเส้นทาง"
+      "copilot": "ใช้เมื่อคุณต้องการ UX รูปแบบการแชทของ Copilot ในขณะที่บังคับใช้คีย์ OmniRoute และกฎการกำหนดเส้นทาง",
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through OmniRoute."
     },
     "toolDescriptions": {
       "antigravity": "Google ต้านแรงโน้มถ่วง IDE พร้อม MITM",

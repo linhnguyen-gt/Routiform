@@ -639,7 +639,8 @@
       "opencode": "当您更喜欢通过 OpenCode 进行终端本机代理运行和脚本自动化时使用。",
       "kiro": "在集成 Kiro 并从 OmniRoute 集中控制模型路由时使用。",
       "antigravity": "当必须通过 MITM 拦截 Antigravity/Kiro 流量并将其路由到 OmniRoute 时使用。",
-      "copilot": "当您想要 Copilot 聊天风格的 UX 同时强制执行 OmniRoute 键和路由规则时使用。"
+      "copilot": "当您想要 Copilot 聊天风格的 UX 同时强制执行 OmniRoute 键和路由规则时使用。",
+      "windsurf": "在 Windsurf 中编码且需要通过 OmniRoute 路由 OpenAI 兼容模型时使用。"
     },
     "toolDescriptions": {
       "antigravity": "带 MITM 的 Google Antigravity IDE",

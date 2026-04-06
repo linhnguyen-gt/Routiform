@@ -47,6 +47,7 @@
   "homepage": "https://omniroute.online",
   "scripts": {
     "dev": "node scripts/run-next.mjs dev",
+    "dev:unlock": "node scripts/clear-next-dev-lock.mjs",
     "build": "node scripts/build-next-isolated.mjs",
     "build:cli": "node scripts/prepublish.mjs",
     "start": "node scripts/run-next.mjs start",
@@ -98,6 +99,7 @@
     "https-proxy-agent": "^8.0.0",
     "jose": "^6.1.3",
     "js-yaml": "^4.1.0",
+    "json5": "^2.2.3",
     "lowdb": "^7.0.1",
     "monaco-editor": "^0.55.1",
     "next": "16.0.10",

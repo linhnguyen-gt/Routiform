@@ -639,7 +639,8 @@
       "opencode": "Úselo cuando prefiera ejecuciones de agentes nativos de terminal y automatización con scripts a través de OpenCode.",
       "kiro": "Utilícelo al integrar Kiro y controlar el enrutamiento de modelos de forma centralizada desde OmniRoute.",
       "antigravity": "Úselo cuando el tráfico de Antigravity/Kiro debe interceptarse a través de MITM y enrutarse a OmniRoute.",
-      "copilot": "Úselo cuando desee una experiencia de usuario estilo chat Copilot mientras aplica las claves de OmniRoute y las reglas de enrutamiento."
+      "copilot": "Úselo cuando desee una experiencia de usuario estilo chat Copilot mientras aplica las claves de OmniRoute y las reglas de enrutamiento.",
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through OmniRoute."
     },
     "toolDescriptions": {
       "antigravity": "IDE antigravedad de Google con MITM",

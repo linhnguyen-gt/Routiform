@@ -639,7 +639,8 @@
       "opencode": "Käytä, kun haluat käyttää päätealustaisia ​​agentteja ja komentosarjottua automaatiota OpenCoden kautta.",
       "kiro": "Käytä integroitaessa Kiroa ja ohjattaessa mallin reititystä keskitetysti OmniRoutesta.",
       "antigravity": "Käytä, kun Antigravity/Kiro-liikenne on siepattava MITM:n kautta ja ohjattava OmniRouteen.",
-      "copilot": "Käytä, kun haluat Copilot-chat-tyylisen UX:n ja pakota OmniRoute-avaimia ja reitityssääntöjä."
+      "copilot": "Käytä, kun haluat Copilot-chat-tyylisen UX:n ja pakota OmniRoute-avaimia ja reitityssääntöjä.",
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through OmniRoute."
     },
     "toolDescriptions": {
       "antigravity": "Google Antigravity IDE ja MITM",

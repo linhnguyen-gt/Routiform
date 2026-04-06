@@ -639,7 +639,8 @@
       "opencode": "OpenCode를 통해 터미널 기반 에이전트 실행 및 스크립트 자동화를 선호할 때 사용하세요.",
       "kiro": "Kiro를 통합하고 OmniRoute에서 중앙에서 모델 라우팅을 제어할 때 사용합니다.",
       "antigravity": "Antigravity/Kiro 트래픽이 MITM을 통해 가로채어 OmniRoute로 라우팅되어야 하는 경우에 사용합니다.",
-      "copilot": "OmniRoute 키와 라우팅 규칙을 적용하면서 Copilot 채팅 스타일 UX를 원할 때 사용하세요."
+      "copilot": "OmniRoute 키와 라우팅 규칙을 적용하면서 Copilot 채팅 스타일 UX를 원할 때 사용하세요.",
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through OmniRoute."
     },
     "toolDescriptions": {
       "antigravity": "MITM이 포함된 Google 반중력 IDE",

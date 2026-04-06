@@ -639,7 +639,8 @@
       "opencode": "Gamitin kapag mas gusto mo ang terminal-native agent run at scripted automation sa pamamagitan ng OpenCode.",
       "kiro": "Gamitin kapag isinasama ang Kiro at kinokontrol ang pagruruta ng modelo sa gitna mula sa OmniRoute.",
       "antigravity": "Gamitin kapag ang trapiko ng Antigravity/Kiro ay dapat ma-intercept sa MITM at iruta sa OmniRoute.",
-      "copilot": "Gamitin kapag gusto mong Copilot chat style UX habang ipinapatupad ang mga OmniRoute key at mga panuntunan sa pagruruta."
+      "copilot": "Gamitin kapag gusto mong Copilot chat style UX habang ipinapatupad ang mga OmniRoute key at mga panuntunan sa pagruruta.",
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through OmniRoute."
     },
     "toolDescriptions": {
       "antigravity": "Google Antigravity IDE na may MITM",

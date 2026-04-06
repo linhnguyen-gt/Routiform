@@ -639,7 +639,8 @@
       "opencode": "Brug, når du foretrækker terminal-native agentkørsler og scriptet automatisering via OpenCode.",
       "kiro": "Bruges ved integration af Kiro og styring af modelrouting centralt fra OmniRoute.",
       "antigravity": "Bruges, når Antigravity/Kiro-trafik skal opsnappes gennem MITM og dirigeres til OmniRoute.",
-      "copilot": "Brug, når du ønsker Copilot-chatstil UX, mens du håndhæver OmniRoute-nøgler og routingregler."
+      "copilot": "Brug, når du ønsker Copilot-chatstil UX, mens du håndhæver OmniRoute-nøgler og routingregler.",
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through OmniRoute."
     },
     "toolDescriptions": {
       "antigravity": "Google Antigravity IDE med MITM",

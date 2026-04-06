@@ -13,19 +13,29 @@ import { saveCliToolLastConfigured, deleteCliToolLastConfigured } from "@/lib/db
 import { cliSettingsEnvSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { getApiKeyById } from "@/lib/localDb";
+import { parseCliToolConfigJson } from "@/shared/utils/parseCliToolConfigJson";
 
 // Get claude settings path based on OS
 const getClaudeSettingsPath = () => getCliPrimaryConfigPath("claude");
 
-// Read current settings
-const readSettings = async () => {
+// Read current settings (null if missing; parseError if file exists but is not valid JSON5)
+const readSettings = async (): Promise<{
+  data: Record<string, unknown> | null;
+  parseError?: string;
+}> => {
   try {
     const settingsPath = getClaudeSettingsPath();
     const content = await fs.readFile(settingsPath, "utf-8");
-    return JSON.parse(content);
-  } catch (error: any) {
-    if (error.code === "ENOENT") {
-      return null;
+    try {
+      return { data: parseCliToolConfigJson(content) as Record<string, unknown> };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { data: null, parseError: msg };
+    }
+  } catch (error: unknown) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") {
+      return { data: null };
     }
     throw error;
   }
@@ -52,8 +62,9 @@ export async function GET() {
       });
     }
 
-    const settings = await readSettings();
-    const hasOmniRoute = !!settings?.env?.ANTHROPIC_BASE_URL;
+    const { data: settings, parseError } = await readSettings();
+    const env = settings?.env as Record<string, unknown> | undefined;
+    const hasOmniRoute = !!env?.ANTHROPIC_BASE_URL;
 
     return NextResponse.json({
       installed: runtime.installed,
@@ -63,6 +74,7 @@ export async function GET() {
       runtimeMode: runtime.runtimeMode,
       reason: runtime.reason,
       settings: settings,
+      settingsParseError: parseError ?? null,
       hasOmniRoute: hasOmniRoute,
       settingsPath: getClaudeSettingsPath(),
     });
@@ -126,13 +138,18 @@ export async function POST(request: Request) {
     // Backup current settings before modifying
     await createBackup("claude", settingsPath);
 
-    // Read current settings
+    // Read current settings (JSONC / JSON5 — same as Claude Code CLI)
     let currentSettings: Record<string, any> = {};
     try {
       const content = await fs.readFile(settingsPath, "utf-8");
-      currentSettings = JSON.parse(content);
-    } catch (error: any) {
-      if (error.code !== "ENOENT") {
+      try {
+        currentSettings = parseCliToolConfigJson(content) as Record<string, any>;
+      } catch {
+        currentSettings = {};
+      }
+    } catch (error: unknown) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT") {
         throw error;
       }
     }
@@ -197,9 +214,21 @@ export async function DELETE() {
     let currentSettings: Record<string, any> = {};
     try {
       const content = await fs.readFile(settingsPath, "utf-8");
-      currentSettings = JSON.parse(content);
-    } catch (error: any) {
-      if (error.code === "ENOENT") {
+      try {
+        currentSettings = parseCliToolConfigJson(content) as Record<string, any>;
+      } catch (parseErr: unknown) {
+        const msg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+        return NextResponse.json(
+          {
+            error: "Settings file exists but could not be parsed. Fix or remove it manually.",
+            details: msg,
+          },
+          { status: 400 }
+        );
+      }
+    } catch (error: unknown) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") {
         return NextResponse.json({
           success: true,
           message: "No settings file to reset",

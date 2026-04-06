@@ -639,7 +639,8 @@
       "opencode": "Sử dụng khi bạn thích chạy tác nhân gốc trên thiết bị đầu cuối và tự động hóa theo kịch bản thông qua OpenCode.",
       "kiro": "Sử dụng khi tích hợp Kiro và điều khiển định tuyến mô hình tập trung từ OmniRoute.",
       "antigravity": "Sử dụng khi lưu lượng truy cập AntiGravity/Kiro phải bị chặn thông qua MITM và được định tuyến đến OmniRoute.",
-      "copilot": "Sử dụng khi bạn muốn UX kiểu trò chuyện Copilot trong khi thực thi các khóa OmniRoute và quy tắc định tuyến."
+      "copilot": "Sử dụng khi bạn muốn UX kiểu trò chuyện Copilot trong khi thực thi các khóa OmniRoute và quy tắc định tuyến.",
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through OmniRoute."
     },
     "toolDescriptions": {
       "antigravity": "IDE chống trọng lực của Google với MITM",

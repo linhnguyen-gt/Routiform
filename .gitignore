@@ -155,7 +155,12 @@ vscode-extension/
 typescript
 
 # Gemini Antigravity agent data
-.gemini/
 
 # Superpowers plans/specs (internal tooling, not project code)
 docs/superpowers/
+
+# AIKit - AI Development Kits
+.shared/
+.claude/
+CLAUDE.md
+.mcp.json

@@ -639,7 +639,8 @@
       "opencode": "Akkor használja, ha a terminál-natív ügynökfuttatásokat és az OpenCode-on keresztüli parancsfájl-automatizálást részesíti előnyben.",
       "kiro": "Használja a Kiro integrálásához és a modell-útválasztás központi vezérléséhez az OmniRoute-ból.",
       "antigravity": "Akkor használja, ha az Antigravity/Kiro forgalmat MITM-en keresztül kell elfogni, és az OmniRoute-hoz kell irányítani.",
-      "copilot": "Használja, ha másodpilóta csevegési stílusú UX-et szeretne, miközben betartja az OmniRoute kulcsokat és útválasztási szabályokat."
+      "copilot": "Használja, ha másodpilóta csevegési stílusú UX-et szeretne, miközben betartja az OmniRoute kulcsokat és útválasztási szabályokat.",
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through OmniRoute."
     },
     "toolDescriptions": {
       "antigravity": "Google Antigravity IDE MITM-mel",

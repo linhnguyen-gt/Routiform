@@ -639,7 +639,8 @@
       "opencode": "השתמש כאשר אתה מעדיף ריצות סוכנים מקוריים ומאוטומציה של סקריפטים באמצעות OpenCode.",
       "kiro": "השתמש בעת שילוב Kiro ושליטה בניתוב מודלים באופן מרכזי מ- OmniRoute.",
       "antigravity": "השתמש כאשר יש ליירט תעבורת Antigravity/Kiro דרך MITM ולנתב אל OmniRoute.",
-      "copilot": "השתמש כאשר אתה רוצה UX בסגנון צ'אט Copilot תוך אכיפת מפתחות וכללי ניתוב OmniRoute."
+      "copilot": "השתמש כאשר אתה רוצה UX בסגנון צ'אט Copilot תוך אכיפת מפתחות וכללי ניתוב OmniRoute.",
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through OmniRoute."
     },
     "toolDescriptions": {
       "antigravity": "Google Antigravity IDE עם MITM",

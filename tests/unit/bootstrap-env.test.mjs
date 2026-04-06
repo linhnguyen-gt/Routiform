@@ -64,6 +64,27 @@ test("bootstrapEnv prefers ~/.omniroute/.env over server.env", () => {
   });
 });
 
+test("bootstrapEnv ignores empty .env placeholders so server.env secrets are not wiped", () => {
+  withTempEnv(({ dataDir }) => {
+    process.env.DATA_DIR = dataDir;
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dataDir, "server.env"),
+      "STORAGE_ENCRYPTION_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nJWT_SECRET=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n",
+      "utf8"
+    );
+    fs.writeFileSync(path.join(dataDir, ".env"), "STORAGE_ENCRYPTION_KEY=\nJWT_SECRET=\n", "utf8");
+
+    const env = bootstrapEnv({ quiet: true });
+
+    assert.equal(env.STORAGE_ENCRYPTION_KEY, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    assert.equal(
+      env.JWT_SECRET,
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    );
+  });
+});
+
 test("bootstrapEnv refuses to generate a new key over encrypted data", () => {
   withTempEnv(({ dataDir }) => {
     process.env.DATA_DIR = dataDir;

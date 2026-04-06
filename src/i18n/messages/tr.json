@@ -639,7 +639,8 @@
       "opencode": "Terminal yerel ajan çalıştırmaları ve OpenCode ile betik tabanlı otomasyon tercih ettiğinizde kullanın.",
       "kiro": "Kiro'yu entegre ederken model yönlendirmesini OmniRoute üzerinden merkezi olarak yönetmek istediğinizde kullanın.",
       "antigravity": "Antigravity/Kiro trafiğinin MITM üzerinden yakalanıp OmniRoute'a yönlendirilmesi gerektiğinde kullanın.",
-      "copilot": "OmniRoute anahtarları ve yönlendirme kuralları uygulanırken Copilot sohbet tarzı bir UX istediğinizde kullanın."
+      "copilot": "OmniRoute anahtarları ve yönlendirme kuralları uygulanırken Copilot sohbet tarzı bir UX istediğinizde kullanın.",
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through OmniRoute."
     },
     "toolDescriptions": {
       "antigravity": "MITM ile Google Antigravity IDE",

@@ -639,7 +639,8 @@
       "opencode": "استخدمه عندما تفضل تشغيل الوكيل الأصلي للمحطة والأتمتة النصية عبر OpenCode.",
       "kiro": "يُستخدم عند دمج Kiro والتحكم في توجيه النموذج مركزيًا من OmniRoute.",
       "antigravity": "يُستخدم عندما يجب اعتراض حركة مرور Antigravity/Kiro عبر MITM وتوجيهها إلى OmniRoute.",
-      "copilot": "استخدمه عندما تريد UX بأسلوب دردشة Copilot أثناء فرض مفاتيح OmniRoute وقواعد التوجيه."
+      "copilot": "استخدمه عندما تريد UX بأسلوب دردشة Copilot أثناء فرض مفاتيح OmniRoute وقواعد التوجيه.",
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through OmniRoute."
     },
     "toolDescriptions": {
       "antigravity": "جوجل مكافحة الجاذبية IDE مع MITM",

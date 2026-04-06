@@ -639,7 +639,8 @@
       "opencode": "ターミナルネイティブのエージェントの実行と OpenCode によるスクリプトによる自動化を希望する場合に使用します。",
       "kiro": "Kiro を統合し、OmniRoute からモデルのルーティングを一元的に制御する場合に使用します。",
       "antigravity": "Antigravity/Kiro トラフィックを MITM 経由でインターセプトし、OmniRoute にルーティングする必要がある場合に使用します。",
-      "copilot": "OmniRoute キーとルーティング ルールを適用しながら、Copilot チャット スタイルの UX が必要な場合に使用します。"
+      "copilot": "OmniRoute キーとルーティング ルールを適用しながら、Copilot チャット スタイルの UX が必要な場合に使用します。",
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through OmniRoute."
     },
     "toolDescriptions": {
       "antigravity": "MITM を備えた Google Antigravity IDE",
