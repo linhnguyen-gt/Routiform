@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.6.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.6.0...v3.6.1) (2026-04-07)
+
+
+### Bug Fixes
+
+* **publish:** compile MITM utilities with project TS settings ([b2fffed](https://github.com/linhnguyen-gt/Routiform/commit/b2fffede31da1927d655d1b7ff46a4259355493d))
+
 ## 3.6.0 (2026-04-07)
 
 
