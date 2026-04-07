@@ -159,6 +159,8 @@ typescript
 # Superpowers plans/specs (internal tooling, not project code)
 docs/superpowers/
 
+error/
+
 # AIKit - AI Development Kits
 .shared/
 .claude/
