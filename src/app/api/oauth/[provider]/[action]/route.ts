@@ -18,6 +18,7 @@ import { getConsistentMachineId } from "@/shared/utils/machineId";
 import { syncToCloud } from "@/lib/cloudSync";
 import { startLocalServer } from "@/lib/oauth/utils/server";
 import { runWithProxyContext } from "@routiform/open-sse/utils/proxyFetch.ts";
+import { supportsProviderModelAutoSync } from "@/shared/utils/providerAutoSync";
 import {
   jsonObjectSchema,
   oauthExchangeSchema,
@@ -40,6 +41,22 @@ function safeEqual(a: string | null | undefined, b: string | null | undefined): 
   const bb = Buffer.from(String(b));
   if (ba.length !== bb.length) return false;
   return timingSafeEqual(ba, bb);
+}
+
+function ensureAutoSyncDefault(provider: string, payload: Record<string, unknown>) {
+  const psd =
+    payload.providerSpecificData && typeof payload.providerSpecificData === "object"
+      ? (payload.providerSpecificData as Record<string, unknown>)
+      : {};
+  if (psd.autoSync === false || psd.autoSync === true) return payload;
+  const defaultAutoSync = supportsProviderModelAutoSync(provider);
+  return {
+    ...payload,
+    providerSpecificData: {
+      ...psd,
+      autoSync: defaultAutoSync,
+    },
+  };
 }
 
 /**
@@ -264,6 +281,7 @@ export async function POST(
       if (!tokenData.name && (tokenData.email || tokenData.displayName)) {
         tokenData.name = tokenData.email || tokenData.displayName;
       }
+      const tokenPayload = ensureAutoSyncDefault(provider, tokenData as Record<string, unknown>);
 
       // Upsert: update existing connection if same provider+email, else create new
       const expiresAt = tokenData.expiresIn
@@ -275,18 +293,23 @@ export async function POST(
         const existing = await getProviderConnections({ provider });
         const match = existing.find((c: any) => {
           // safeEqual: constant-time comparison to prevent timing attacks (CWE-208, finding #258-6/7)
-          if (!safeEqual(c.email, tokenData.email) || c.authType !== "oauth") return false;
+          if (!safeEqual(c.email, tokenPayload.email as string) || c.authType !== "oauth") {
+            return false;
+          }
           // For Codex, also check workspaceId to avoid overwriting different workspace connections
-          if (provider === "codex" && tokenData.providerSpecificData?.workspaceId) {
+          if (provider === "codex" && (tokenPayload.providerSpecificData as any)?.workspaceId) {
             const existingWorkspace = c.providerSpecificData?.workspaceId;
-            return safeEqual(existingWorkspace, tokenData.providerSpecificData.workspaceId);
+            return safeEqual(
+              existingWorkspace,
+              (tokenPayload.providerSpecificData as any).workspaceId
+            );
           }
           return true;
         });
         const matchId = typeof match?.id === "string" ? match.id : null;
         if (matchId) {
           connection = await updateProviderConnection(matchId, {
-            ...tokenData,
+            ...tokenPayload,
             expiresAt,
             testStatus: "active",
             isActive: true,
@@ -297,7 +320,7 @@ export async function POST(
         connection = await createProviderConnection({
           provider,
           authType: "oauth",
-          ...tokenData,
+          ...tokenPayload,
           expiresAt,
           testStatus: "active",
         });
@@ -350,6 +373,10 @@ export async function POST(
         if (!result.tokens.name && (result.tokens.email || result.tokens.displayName)) {
           result.tokens.name = result.tokens.email || result.tokens.displayName;
         }
+        const tokenPayload = ensureAutoSyncDefault(
+          provider,
+          result.tokens as Record<string, unknown>
+        );
 
         // Upsert: update existing connection if same provider+email, else create new
         const expiresAt = result.tokens.expiresIn
@@ -361,18 +388,23 @@ export async function POST(
           const existing = await getProviderConnections({ provider });
           const match = existing.find((c: any) => {
             // safeEqual: constant-time comparison to prevent timing attacks (CWE-208, finding #258-8/9)
-            if (!safeEqual(c.email, result.tokens.email) || c.authType !== "oauth") return false;
+            if (!safeEqual(c.email, tokenPayload.email as string) || c.authType !== "oauth") {
+              return false;
+            }
             // For Codex, also check workspaceId to avoid overwriting different workspace connections
-            if (provider === "codex" && result.tokens.providerSpecificData?.workspaceId) {
+            if (provider === "codex" && (tokenPayload.providerSpecificData as any)?.workspaceId) {
               const existingWorkspace = c.providerSpecificData?.workspaceId;
-              return safeEqual(existingWorkspace, result.tokens.providerSpecificData.workspaceId);
+              return safeEqual(
+                existingWorkspace,
+                (tokenPayload.providerSpecificData as any).workspaceId
+              );
             }
             return true;
           });
           const matchId = typeof match?.id === "string" ? match.id : null;
           if (matchId) {
             connection = await updateProviderConnection(matchId, {
-              ...result.tokens,
+              ...tokenPayload,
               expiresAt,
               testStatus: "active",
               isActive: true,
@@ -383,7 +415,7 @@ export async function POST(
           connection = await createProviderConnection({
             provider,
             authType: "oauth",
-            ...result.tokens,
+            ...tokenPayload,
             expiresAt,
             testStatus: "active",
           });
@@ -475,7 +507,7 @@ export async function POST(
         if (!tokenData.name && (tokenData.email || tokenData.displayName)) {
           tokenData.name = tokenData.email || tokenData.displayName;
         }
-
+        const tokenPayload = ensureAutoSyncDefault(provider, tokenData as Record<string, unknown>);
         // Upsert: update existing connection if same provider+email, else create new
         const expiresAt = tokenData.expiresIn
           ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString()
@@ -486,18 +518,23 @@ export async function POST(
           const existing = await getProviderConnections({ provider });
           const match = existing.find((c: any) => {
             // safeEqual: constant-time comparison to prevent timing attacks (CWE-208, finding #258-6/7)
-            if (!safeEqual(c.email, tokenData.email) || c.authType !== "oauth") return false;
+            if (!safeEqual(c.email, tokenPayload.email as string) || c.authType !== "oauth") {
+              return false;
+            }
             // For Codex, also check workspaceId to avoid overwriting different workspace connections
-            if (provider === "codex" && tokenData.providerSpecificData?.workspaceId) {
+            if (provider === "codex" && (tokenPayload.providerSpecificData as any)?.workspaceId) {
               const existingWorkspace = c.providerSpecificData?.workspaceId;
-              return safeEqual(existingWorkspace, tokenData.providerSpecificData.workspaceId);
+              return safeEqual(
+                existingWorkspace,
+                (tokenPayload.providerSpecificData as any).workspaceId
+              );
             }
             return true;
           });
           const matchId = typeof match?.id === "string" ? match.id : null;
           if (matchId) {
             connection = await updateProviderConnection(matchId, {
-              ...tokenData,
+              ...tokenPayload,
               expiresAt,
               testStatus: "active",
               isActive: true,
@@ -508,7 +545,7 @@ export async function POST(
           connection = await createProviderConnection({
             provider,
             authType: "oauth",
-            ...tokenData,
+            ...tokenPayload,
             expiresAt,
             testStatus: "active",
           });

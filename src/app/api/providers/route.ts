@@ -16,6 +16,7 @@ import { syncToCloud } from "@/lib/cloudSync";
 import { createProviderSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { normalizeQoderPatProviderData } from "@routiform/open-sse/services/qoderCli.ts";
+import { supportsProviderModelAutoSync } from "@/shared/utils/providerAutoSync";
 
 // GET /api/providers - List all connections
 export async function GET() {
@@ -132,6 +133,16 @@ export async function POST(request: Request) {
         ...(node.modelsPath ? { modelsPath: node.modelsPath } : {}),
       };
     }
+
+    const psd =
+      providerSpecificData && typeof providerSpecificData === "object"
+        ? (providerSpecificData as Record<string, unknown>)
+        : {};
+    providerSpecificData = {
+      ...psd,
+      autoSync:
+        psd.autoSync === false ? false : supportsProviderModelAutoSync(provider) ? true : false,
+    };
 
     const newConnection = await createProviderConnection({
       provider,

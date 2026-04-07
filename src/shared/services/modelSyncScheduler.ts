@@ -11,6 +11,7 @@
 import { randomUUID } from "node:crypto";
 import { getSettings, updateSettings } from "@/lib/localDb";
 import { getRuntimePorts } from "@/lib/runtime/ports";
+import { supportsProviderModelAutoSync } from "@/shared/utils/providerAutoSync";
 
 const DEFAULT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MODEL_SYNC_SETTING_KEY = "model_sync_last_run";
@@ -26,7 +27,6 @@ const INTERNAL_BASE_URL =
 
 const globalState = globalThis as typeof globalThis & {
   __routiformModelSyncInternalAuthToken?: string;
-  __routiformModelSyncInternalAuthToken?: string;
 };
 
 let schedulerTimer: NodeJS.Timeout | null = null;
@@ -35,10 +35,7 @@ let internalAuthToken: string | null = null;
 
 function getInternalAuthToken(): string {
   if (!internalAuthToken) {
-    internalAuthToken =
-      globalState.__routiformModelSyncInternalAuthToken ||
-      globalState.__routiformModelSyncInternalAuthToken ||
-      randomUUID();
+    internalAuthToken = globalState.__routiformModelSyncInternalAuthToken || randomUUID();
     globalState.__routiformModelSyncInternalAuthToken = internalAuthToken;
   }
   return internalAuthToken;
@@ -56,9 +53,6 @@ export function isModelSyncInternalRequest(request: Request): boolean {
   if (!internalAuthToken) {
     if (globalState.__routiformModelSyncInternalAuthToken) {
       internalAuthToken = globalState.__routiformModelSyncInternalAuthToken;
-    } else if (globalState.__routiformModelSyncInternalAuthToken) {
-      internalAuthToken = globalState.__routiformModelSyncInternalAuthToken;
-      globalState.__routiformModelSyncInternalAuthToken = internalAuthToken;
     }
   }
   const headerToken = request.headers.get(MODEL_SYNC_INTERNAL_AUTH_HEADER);
@@ -73,15 +67,23 @@ async function getAutoSyncConnections(): Promise<
 > {
   try {
     const { getProviderConnections } = await import("@/lib/localDb");
-    const connections = await getProviderConnections();
-    return connections.filter((conn: any) => {
-      if (!conn.isActive && conn.isActive !== undefined) return false;
-      const psd =
-        conn.providerSpecificData && typeof conn.providerSpecificData === "object"
-          ? conn.providerSpecificData
-          : {};
-      return psd.autoSync === true;
-    });
+    const connections = (await getProviderConnections()) as Array<Record<string, unknown>>;
+    return connections
+      .filter((conn) => {
+        if (conn.isActive === false) return false;
+        if (!supportsProviderModelAutoSync(String(conn.provider || ""))) return false;
+        const psd =
+          conn.providerSpecificData && typeof conn.providerSpecificData === "object"
+            ? (conn.providerSpecificData as Record<string, unknown>)
+            : {};
+        return psd.autoSync !== false;
+      })
+      .map((conn) => ({
+        id: typeof conn.id === "string" ? conn.id : "",
+        provider: typeof conn.provider === "string" ? conn.provider : "",
+        ...(typeof conn.name === "string" ? { name: conn.name } : {}),
+      }))
+      .filter((conn) => conn.id.length > 0 && conn.provider.length > 0);
   } catch (err) {
     console.warn("[ModelSync] Failed to load connections:", (err as Error).message);
     return [];

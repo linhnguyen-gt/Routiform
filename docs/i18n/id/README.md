@@ -39,9 +39,7 @@ _Your universal API proxy — one endpoint, 60+ providers, zero downtime. Now wi
 
 [![License](https://img.shields.io/github/license/linhnguyen-gt/Routiform)](https://github.com/linhnguyen-gt/Routiform/blob/main/LICENSE)
 [![Website](https://img.shields.io/badge/Website-routiform.online-blue?logo=google-chrome&logoColor=white)](https://routiform.online)
-[![WhatsApp](https://img.shields.io/badge/WhatsApp-Community-25D366?logo=whatsapp&logoColor=white)](https://chat.whatsapp.com/JI7cDQ1GyaiDHhVBpLxf8b?mode=gi_t)
 
-[🌐 Website](https://routiform.online) • [🚀 Quick Start](#-quick-start) • [💡 Features](#-key-features) • [📖 Docs](#-documentation) • [💰 Pricing](#-pricing-at-a-glance) • [💬 WhatsApp](https://chat.whatsapp.com/JI7cDQ1GyaiDHhVBpLxf8b?mode=gi_t)
 
 </div>
 
@@ -183,12 +181,10 @@ _Connect any AI-powered IDE or CLI tool through Routiform — free API gateway f
 
 ## 📧 Support
 
-> 💬 **Join our community!** [WhatsApp Group](https://chat.whatsapp.com/JI7cDQ1GyaiDHhVBpLxf8b?mode=gi_t) — Get help, share tips, and stay updated.
 
 - **Website**: [routiform.online](https://routiform.online)
 - **GitHub**: [github.com/linhnguyen-gt/Routiform](https://github.com/linhnguyen-gt/Routiform)
 - **Issues**: [github.com/linhnguyen-gt/Routiform/issues](https://github.com/linhnguyen-gt/Routiform/issues)
-- **WhatsApp**: [Community Group](https://chat.whatsapp.com/JI7cDQ1GyaiDHhVBpLxf8b?mode=gi_t)
 - **Contributing**: See [CONTRIBUTING.md](CONTRIBUTING.md), open a PR, or pick a `good first issue`
 - **Original Project**: [9router by decolua](https://github.com/decolua/9router)
 
