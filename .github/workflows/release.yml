@@ -6,6 +6,12 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      force_release:
+        description: "Force release even without feat/fix commits"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -52,6 +58,11 @@ jobs:
       - name: Detect releasable commits
         id: check
         run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force_release }}" = "true" ]; then
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -z "$LATEST_TAG" ]; then
             echo "should_release=true" >> "$GITHUB_OUTPUT"
