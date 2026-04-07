@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.6.3](https://github.com/linhnguyen-gt/Routiform/compare/v3.6.2...v3.6.3) (2026-04-07)
+
+
+### Bug Fixes
+
+* **release:** generate concise notes from changelog section ([dcfc96b](https://github.com/linhnguyen-gt/Routiform/commit/dcfc96b4ffe9cd0cab2aaba09505805fe6556f82))
+
 ### [3.6.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.6.1...v3.6.2) (2026-04-07)
 
 
