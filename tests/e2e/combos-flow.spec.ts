@@ -184,7 +184,9 @@ test.describe("Combos flow", () => {
       .click();
     await comboDialog.getByRole("button", { name: /add model|adicionar modelo/i }).click();
 
-    const modelDialog = page.getByRole("dialog").last();
+    const dialogs = page.getByRole("dialog");
+    await expect(dialogs).toHaveCount(2);
+    const modelDialog = dialogs.nth(1);
     await expect(modelDialog.getByRole("button", { name: /qa test model/i })).toBeVisible();
     await modelDialog.getByRole("button", { name: /qa test model/i }).click();
     // ModelSelectModal uses multiSelect: stays open until dismissed; backdrop blocks the combo form.
@@ -193,7 +195,7 @@ test.describe("Combos flow", () => {
       .getByRole("button", { name: /close|fechar/i })
       .last()
       .click();
-    await expect(modelDialog).toBeHidden();
+    await expect(dialogs).toHaveCount(1);
 
     await expect(saveBlockers).toHaveCount(0);
     await expect(comboCreateButton).toBeEnabled();
