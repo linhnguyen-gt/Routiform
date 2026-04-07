@@ -42,7 +42,8 @@ export async function POST(request: Request) {
       headers,
       body: JSON.stringify({
         model,
-        max_tokens: 1,
+        // Reasoning / OpenCode models: max_tokens 1 often yields empty `content` (tokens in reasoning only).
+        max_tokens: 256,
         stream: false,
         messages: [{ role: "user", content: "hi" }],
       }),

@@ -102,6 +102,15 @@ const STATIC_MODEL_PROVIDERS: Record<string, () => Array<{ id: string; name: str
     { id: "glm-4.7", name: "GLM 4.7" },
     { id: "kimi-k2.5", name: "Kimi K2.5" },
   ],
+  /** Curated Go-only list — not zen/v1 catalog (Zen has models Go cannot use). @see https://opencode.ai/docs/go/ */
+  "opencode-go": () => [
+    { id: "glm-5", name: "GLM-5" },
+    { id: "kimi-k2.5", name: "Kimi K2.5" },
+    { id: "mimo-v2-pro", name: "MiMo-V2-Pro" },
+    { id: "mimo-v2-omni", name: "MiMo-V2-Omni" },
+    { id: "minimax-m2.7", name: "MiniMax M2.7" },
+    { id: "minimax-m2.5", name: "MiniMax M2.5" },
+  ],
   qoder: () => getStaticQoderModels(),
 };
 

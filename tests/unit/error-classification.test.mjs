@@ -123,6 +123,18 @@ test("401 auth error: still uses flat cooldown, no backoff", () => {
   assert.equal(result.newBackoffLevel, undefined);
 });
 
+test("401 insufficient balance (OpenCode Zen workspace billing): does not lock connection", () => {
+  const result = checkFallbackError(
+    401,
+    "Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_x/billing (reset after 2m)",
+    0,
+    "minimax-m2.1",
+    "opencode-zen"
+  );
+  assert.equal(result.shouldFallback, false);
+  assert.equal(result.cooldownMs, 0);
+});
+
 test("400 bad request: still returns shouldFallback false", () => {
   const result = checkFallbackError(400, "", 0, null, "groq");
   assert.equal(result.shouldFallback, false);

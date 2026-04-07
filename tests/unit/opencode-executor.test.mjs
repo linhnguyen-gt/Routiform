@@ -86,6 +86,14 @@ describe("OpencodeExecutor", () => {
       assert.equal(m25Result.headers["anthropic-version"], "2023-06-01");
     });
 
+    it("strips opencode-go/ prefix so upstream gets bare model id per OpenCode docs", async () => {
+      const prefixed = createInput("opencode-go/kimi-k2.5", false, { apiKey: "k" });
+      const result = await goExecutor.execute(prefixed);
+      assert.equal(result.url, "https://opencode.ai/zen/go/v1/chat/completions");
+      const parsed = JSON.parse(fetchCalls[0].options.body);
+      assert.equal(parsed.model, "kimi-k2.5");
+    });
+
     it("routes openai responses target format models to responses endpoint", async () => {
       registerModel("opencode-zen", {
         id: "gpt-5-responses",

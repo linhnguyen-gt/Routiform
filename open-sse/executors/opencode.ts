@@ -1,6 +1,6 @@
 import { BaseExecutor, type ExecuteInput, type ProviderCredentials } from "./base.ts";
 import { PROVIDERS } from "../config/constants.ts";
-import { getModelTargetFormat } from "../config/providerModels.ts";
+import { getModelTargetFormat, stripProviderPrefixFromModelId } from "../config/providerModels.ts";
 
 export class OpencodeExecutor extends BaseExecutor {
   _requestFormat: string | null = null;
@@ -10,9 +10,15 @@ export class OpencodeExecutor extends BaseExecutor {
   }
 
   async execute(input: ExecuteInput) {
-    this._requestFormat = getModelTargetFormat(this.provider, input.model) || "openai";
+    // OpenCode APIs expect bare model ids (e.g. kimi-k2.5), not `opencode-go/kimi-k2.5`.
+    const bareModel = stripProviderPrefixFromModelId(this.provider, input.model);
+    this._requestFormat = getModelTargetFormat(this.provider, bareModel) || "openai";
     try {
-      return await super.execute(input);
+      const body =
+        input.body && typeof input.body === "object"
+          ? { ...(input.body as Record<string, unknown>), model: bareModel }
+          : input.body;
+      return await super.execute({ ...input, model: bareModel, body });
     } finally {
       this._requestFormat = null;
     }

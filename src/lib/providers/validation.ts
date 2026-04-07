@@ -913,8 +913,7 @@ export async function validateProviderApiKey({ provider, apiKey, providerSpecifi
   }
 
   const modelId = entry.models?.[0]?.id || null;
-  // (#532) Use testKeyBaseUrl if defined — some providers validate keys on a different endpoint
-  // than where requests are sent (e.g. opencode-go validates on zen/v1, not zen/go/v1)
+  // Use testKeyBaseUrl if defined — validation base can differ from the registry chat base.
   const validationEntry = entry.testKeyBaseUrl
     ? { ...entry, baseUrl: entry.testKeyBaseUrl }
     : entry;

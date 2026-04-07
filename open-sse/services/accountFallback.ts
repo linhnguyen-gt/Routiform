@@ -555,7 +555,18 @@ export function checkFallbackError(
     }
   }
 
+  // 401 workspace billing (e.g. OpenCode Zen "Insufficient balance") — not a bad API key.
+  // Applying the default 401 connection cooldown would block *all* models for ~2 minutes, including
+  // free-tier models that still work. Return without marking the connection unavailable.
   if (status === HTTP_STATUS.UNAUTHORIZED) {
+    const lower = errorStr.toLowerCase();
+    if (lower.includes("insufficient balance") || lower.includes("manage your billing")) {
+      return {
+        shouldFallback: false,
+        cooldownMs: 0,
+        reason: RateLimitReason.AUTH_ERROR,
+      };
+    }
     return {
       shouldFallback: true,
       cooldownMs: COOLDOWN_MS.unauthorized,

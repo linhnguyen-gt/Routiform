@@ -877,6 +877,12 @@ export default function ProviderDetailPage() {
     modelCompatOverrides: Array<CompatModelRow & { id: string }>;
   }>({ customModels: [], modelCompatOverrides: [] });
   const [syncedAvailableModels, setSyncedAvailableModels] = useState<any[]>([]);
+  /** OpenCode Zen only: live catalog from GET /api/providers/:id/models (Go uses static curated list). */
+  const [opencodeLiveCatalog, setOpencodeLiveCatalog] = useState<{
+    status: "idle" | "loading" | "ready" | "no_connection" | "error";
+    models: Array<{ id: string; name: string; contextLength?: number }>;
+    errorMessage: string;
+  }>({ status: "idle", models: [], errorMessage: "" });
   const [compatSavingModelId, setCompatSavingModelId] = useState<string | null>(null);
   const [applyingCodexAuthId, setApplyingCodexAuthId] = useState<string | null>(null);
   const [exportingCodexAuthId, setExportingCodexAuthId] = useState<string | null>(null);
@@ -919,9 +925,6 @@ export default function ProviderDetailPage() {
   const providerSupportsPat = supportsApiKeyOnFreeProvider(providerId);
   const isOAuth = providerSupportsOAuth && !providerSupportsPat;
   const allowQoderOAuthUi = providerId !== "qoder" || qoderBrowserOAuthEnabled === true;
-  const registryModels = getModelsByProviderId(providerId);
-  // For Gemini: always use synced API models (empty if no keys added yet)
-  const models = providerId === "gemini" ? syncedAvailableModels : registryModels;
   const providerAlias = getProviderAlias(providerId);
   const isManagedAvailableModelsProvider = isCompatible || providerId === "openrouter";
   const isSearchProvider = providerId.endsWith("-search");
@@ -941,6 +944,86 @@ export default function ProviderDetailPage() {
         .filter((id): id is string => typeof id === "string" && id.length > 0),
     [connections]
   );
+
+  const registryModels = useMemo(() => getModelsByProviderId(providerId), [providerId]);
+  /** Only Zen has a remote catalog; Go uses curated static list (Zen models ≠ Go models). */
+  const isOpencodeLiveCatalogProvider = providerId === "opencode-zen";
+  // Gemini: synced DB list. OpenCode Zen: live list from zen/v1/models via connection API.
+  const models = useMemo(() => {
+    if (providerId === "gemini") return syncedAvailableModels;
+    if (isOpencodeLiveCatalogProvider && opencodeLiveCatalog.status === "ready") {
+      return opencodeLiveCatalog.models;
+    }
+    return registryModels;
+  }, [
+    providerId,
+    syncedAvailableModels,
+    registryModels,
+    opencodeLiveCatalog,
+    isOpencodeLiveCatalogProvider,
+  ]);
+
+  useEffect(() => {
+    if (!isOpencodeLiveCatalogProvider || loading || isSearchProvider) return;
+
+    const primaryId = sortedConnectionIds[0];
+    if (!primaryId) {
+      setOpencodeLiveCatalog({ status: "no_connection", models: [], errorMessage: "" });
+      return;
+    }
+
+    let cancelled = false;
+    setOpencodeLiveCatalog((prev) =>
+      prev.status === "ready" && prev.models.length > 0
+        ? { ...prev, status: "loading" }
+        : { status: "loading", models: [], errorMessage: "" }
+    );
+
+    void (async () => {
+      try {
+        const res = await fetch(`/api/providers/${encodeURIComponent(primaryId)}/models`, {
+          cache: "no-store",
+        });
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          const msg = typeof data?.error === "string" ? data.error : `HTTP ${res.status}`;
+          setOpencodeLiveCatalog({ status: "error", models: [], errorMessage: msg });
+          return;
+        }
+        const raw = Array.isArray(data.models) ? data.models : [];
+        const normalized = raw
+          .map((m: Record<string, unknown>) => {
+            const id = String(m.id ?? m.name ?? "").trim();
+            if (!id) return null;
+            const name = String(m.name ?? m.displayName ?? m.id ?? "").trim() || id;
+            const row: { id: string; name: string; contextLength?: number } = { id, name };
+            if (typeof m.context_length === "number") row.contextLength = m.context_length;
+            if (typeof m.inputTokenLimit === "number") row.contextLength = m.inputTokenLimit;
+            return row;
+          })
+          .filter((x): x is { id: string; name: string; contextLength?: number } => x !== null);
+        setOpencodeLiveCatalog({ status: "ready", models: normalized, errorMessage: "" });
+      } catch (e) {
+        if (cancelled) return;
+        setOpencodeLiveCatalog({
+          status: "error",
+          models: [],
+          errorMessage: e instanceof Error ? e.message : "fetch failed",
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [providerId, loading, isSearchProvider, sortedConnectionIds, isOpencodeLiveCatalogProvider]);
+
+  useEffect(() => {
+    if (providerId !== "opencode-zen") {
+      setOpencodeLiveCatalog({ status: "idle", models: [], errorMessage: "" });
+    }
+  }, [providerId]);
 
   // Define callbacks BEFORE the useEffect that uses them
   const fetchAliases = useCallback(async () => {
@@ -1270,6 +1353,7 @@ export default function ProviderDetailPage() {
         success = ok;
         setModelTestResults((prev) => ({ ...prev, [fullModel]: ok ? "ok" : "error" }));
         if (ok) {
+          setModelTestBannerError("");
           const ms = typeof data.latencyMs === "number" ? data.latencyMs : null;
           notify.success(ms != null ? t("modelTestOk", { ms }) : t("testSuccess"));
         } else {
@@ -2132,6 +2216,35 @@ export default function ProviderDetailPage() {
     const modelTestBanner = modelTestBannerError ? (
       <p className="mb-3 break-words text-xs text-red-500">{modelTestBannerError}</p>
     ) : null;
+
+    if (isOpencodeLiveCatalogProvider) {
+      if (opencodeLiveCatalog.status === "idle" || opencodeLiveCatalog.status === "loading") {
+        return (
+          <div>
+            {modelTestBanner}
+            <p className="text-sm text-text-muted">{t("fetchingModels")}</p>
+          </div>
+        );
+      }
+      if (opencodeLiveCatalog.status === "no_connection") {
+        return (
+          <div>
+            {modelTestBanner}
+            <p className="text-sm text-text-muted">{t("addConnectionToImport")}</p>
+          </div>
+        );
+      }
+      if (opencodeLiveCatalog.status === "error") {
+        return (
+          <div>
+            {modelTestBanner}
+            <p className="mb-3 break-words text-xs text-red-500">
+              {t("failedFetchModels")}: {opencodeLiveCatalog.errorMessage}
+            </p>
+          </div>
+        );
+      }
+    }
 
     const autoSyncToggle = compatibleSupportsModelImport && canImportModels && (
       <button

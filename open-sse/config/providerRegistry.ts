@@ -51,7 +51,7 @@ export interface RegistryEntry {
   executor: string;
   baseUrl?: string;
   baseUrls?: string[];
-  /** Override base URL used only for API key validation (e.g., opencode-go validates on zen/v1) */
+  /** Override base URL used only for API key validation when it differs from chat base */
   testKeyBaseUrl?: string;
   responsesBaseUrl?: string;
   urlSuffix?: string;
@@ -543,9 +543,8 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     alias: "opencode-go",
     format: "openai",
     executor: "opencode",
+    /** Go tier: only models listed at https://opencode.ai/docs/go/ — do not use Zen catalog. */
     baseUrl: "https://opencode.ai/zen/go/v1",
-    // (#532) Key validation must hit the main zen endpoint (same key works for both tiers)
-    testKeyBaseUrl: "https://opencode.ai/zen/v1",
     authType: "apikey",
     authHeader: "Authorization",
     authPrefix: "Bearer",
@@ -553,6 +552,8 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     models: [
       { id: "glm-5", name: "GLM-5" },
       { id: "kimi-k2.5", name: "Kimi K2.5" },
+      { id: "mimo-v2-pro", name: "MiMo-V2-Pro" },
+      { id: "mimo-v2-omni", name: "MiMo-V2-Omni" },
       { id: "minimax-m2.7", name: "MiniMax M2.7", targetFormat: "claude" },
       { id: "minimax-m2.5", name: "MiniMax M2.5", targetFormat: "claude" },
     ],

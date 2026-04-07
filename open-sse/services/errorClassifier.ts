@@ -5,6 +5,27 @@ import {
 } from "./accountFallback.ts";
 import { unwrapOpenAIChatCompletionRoot } from "../utils/chatCompletionEnvelope.ts";
 
+/** o1 / Kimi / OpenCode may put text in reasoning fields with empty `content` (e.g. low max_tokens). */
+function hasAssistantReasoningSignal(
+  message: Record<string, unknown> | undefined,
+  delta: Record<string, unknown> | undefined
+): boolean {
+  const keys = ["reasoning", "reasoning_content", "thinking"] as const;
+  for (const k of keys) {
+    for (const slot of [message, delta]) {
+      if (!slot) continue;
+      const v = slot[k];
+      if (typeof v === "string" && v.trim().length > 0) return true;
+      if (v && typeof v === "object" && !Array.isArray(v)) {
+        const o = v as Record<string, unknown>;
+        if (typeof o.text === "string" && o.text.trim()) return true;
+        if (typeof o.content === "string" && o.content.trim()) return true;
+      }
+    }
+  }
+  return false;
+}
+
 /** True when assistant message has extractable user-visible text (string, parts[], or object text/content). */
 function hasRenderableAssistantContent(content: unknown): boolean {
   if (content === null || content === undefined) return false;
@@ -42,6 +63,18 @@ export function isEmptyContentResponse(responseBody: unknown): boolean {
     const firstChoice = body.choices[0] as Record<string, unknown> | undefined;
     if (!firstChoice) return true;
 
+    const usage = body.usage as Record<string, unknown> | undefined;
+    const completionTok =
+      typeof usage?.completion_tokens === "number" ? usage.completion_tokens : 0;
+    const details = usage?.completion_tokens_details as Record<string, unknown> | undefined;
+    const reasoningTok =
+      typeof details?.reasoning_tokens === "number" ? details.reasoning_tokens : 0;
+    // Reasoning models (Kimi, MiMo, o-series) may spend the whole budget on reasoning with
+    // empty `content`; if usage shows output tokens, treat as non-empty for routing (#opencode-go).
+    if (completionTok > 0 || reasoningTok > 0) {
+      return false;
+    }
+
     const message = firstChoice.message as Record<string, unknown> | undefined;
     const delta = firstChoice.delta as Record<string, unknown> | undefined;
 
@@ -59,7 +92,8 @@ export function isEmptyContentResponse(responseBody: unknown): boolean {
       (Array.isArray(delta?.tool_calls) && (delta.tool_calls as unknown[]).length > 0);
 
     const hasContent = hasRenderableAssistantContent(content);
-    return !hasContent && !hasToolCalls;
+    const hasReasoning = hasAssistantReasoningSignal(message, delta);
+    return !hasContent && !hasToolCalls && !hasReasoning;
   }
 
   if (Array.isArray(body.content)) {

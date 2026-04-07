@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { classifyProviderError, PROVIDER_ERROR_TYPES } =
+const { classifyProviderError, PROVIDER_ERROR_TYPES, isEmptyContentResponse } =
   await import("../../open-sse/services/errorClassifier.ts");
 
 test("classifyProviderError: 401 + account_deactivated => ACCOUNT_DEACTIVATED", () => {
@@ -37,7 +37,8 @@ test("classifyProviderError: 429 without billing signal => RATE_LIMITED", () => 
 test("classifyProviderError: 403 with 'has not been used in project' => PROJECT_ROUTE_ERROR (transient)", () => {
   const result = classifyProviderError(403, {
     error: {
-      message: "Cloud Code Private API has not been used in project 12345 before or it is disabled.",
+      message:
+        "Cloud Code Private API has not been used in project 12345 before or it is disabled.",
     },
   });
   assert.equal(result, PROVIDER_ERROR_TYPES.PROJECT_ROUTE_ERROR);
@@ -56,4 +57,34 @@ test("classifyProviderError: 403 with project string as plain string body => PRO
   });
   const result = classifyProviderError(403, body);
   assert.equal(result, PROVIDER_ERROR_TYPES.PROJECT_ROUTE_ERROR);
+});
+
+test("isEmptyContentResponse: false when message has reasoning_content only (OpenCode / o-style)", () => {
+  const empty = isEmptyContentResponse({
+    choices: [
+      {
+        message: {
+          role: "assistant",
+          content: "",
+          reasoning_content: "thinking…",
+        },
+      },
+    ],
+  });
+  assert.equal(empty, false);
+});
+
+test("isEmptyContentResponse: true when choices[0] has no content and no reasoning", () => {
+  const empty = isEmptyContentResponse({
+    choices: [{ message: { role: "assistant", content: "" } }],
+  });
+  assert.equal(empty, true);
+});
+
+test("isEmptyContentResponse: false when usage shows completion_tokens but content empty (reasoning-only)", () => {
+  const empty = isEmptyContentResponse({
+    choices: [{ message: { role: "assistant", content: "" } }],
+    usage: { completion_tokens: 12, prompt_tokens: 5 },
+  });
+  assert.equal(empty, false);
 });
