@@ -44,7 +44,7 @@ function extractOpenApiVersion(content) {
 
 function extractChangelogSections(content) {
   const headings = [
-    ...content.matchAll(/^##\s+(?:\[([^\]]+)\]|(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?))(?:\s+.*)?$/gm),
+    ...content.matchAll(/^#{2,3}\s+(?:\[([^\]]+)\]|(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?))(?:.*)?$/gm),
   ];
   return headings.map((match) => match[1] || match[2]).filter(Boolean);
 }

@@ -159,7 +159,7 @@ jobs:
             const content = fs.readFileSync("CHANGELOG.md", "utf8");
             const lines = content.split(/\r?\n/);
 
-            const headingRegex = new RegExp(`^##\\s+(?:\\[${version}\\]|${version})(?:\\s+.*)?$`);
+            const headingRegex = new RegExp(`^#{2,3}\\s+(?:\\[${version}\\]|${version})(?:.*)?$`);
             const start = lines.findIndex((line) => headingRegex.test(line.trim()));
             if (start < 0) {
               fs.writeFileSync(".release-notes.md", "");
@@ -168,7 +168,7 @@ jobs:
 
             let end = lines.length;
             for (let i = start + 1; i < lines.length; i += 1) {
-              if (/^##\s+/.test(lines[i])) {
+              if (/^#{2,3}\s+/.test(lines[i])) {
                 end = i;
                 break;
               }
