@@ -17,6 +17,9 @@ concurrency:
 jobs:
   release:
     name: Bump version, changelog, and publish release
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.version.outputs.version }}
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
@@ -91,3 +94,23 @@ jobs:
             exit 0
           fi
           gh release create "$TAG" --generate-notes
+
+  publish-npm:
+    name: Publish to npm
+    needs: release
+    if: needs.release.outputs.should_release == 'true'
+    uses: ./.github/workflows/npm-publish.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
+      tag: latest
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-docker:
+    name: Publish Docker images
+    needs: release
+    if: needs.release.outputs.should_release == 'true'
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
+    secrets: inherit

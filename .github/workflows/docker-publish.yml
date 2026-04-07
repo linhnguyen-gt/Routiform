@@ -1,6 +1,17 @@
 name: Publish to Docker Hub
 
 on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Version tag to build (e.g. 2.6.0)"
+        required: true
+        type: string
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
   release:
     types: [published]
   workflow_dispatch:
@@ -55,6 +66,8 @@ jobs:
         id: version
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          elif [ "${{ github.event_name }}" = "workflow_call" ]; then
             VERSION="${{ inputs.version }}"
           elif [ "${{ github.event_name }}" = "release" ]; then
             VERSION="${GITHUB_REF_NAME}"
