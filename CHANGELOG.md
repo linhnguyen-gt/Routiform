@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### ✨ New Features
+
+- **Combo observability:** Structured `COMBO` / `COMBO-RR` logs and `lastRoutingFailure` on combo metrics (status, model index, model id).
+- **Global combo fallback:** Configurable `globalFallbackStatusCodes` (default 502/503; opt-in 429/504) plus UI under Settings → Routing; `globalFallbackModel` validated in settings schema.
+- **Combo `requireToolCalling`:** Optional per-combo flag to drop non-tool-capable models when the request includes tools.
+
+### 📚 Documentation
+
+- **`docs/combo-streaming-and-fallback.md`** — Streaming vs non-streaming combo semantics and global fallback behavior.
+
 ---
 
 ## [3.5.2] — 2026-04-05

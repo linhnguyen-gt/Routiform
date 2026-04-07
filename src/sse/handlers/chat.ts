@@ -32,6 +32,7 @@ import { resolveProxyForConnection } from "@/lib/localDb";
 import { logProxyEvent } from "../../lib/proxyLogger";
 import { logTranslationEvent } from "../../lib/translatorEvents";
 import { sanitizeRequest } from "../../shared/utils/inputSanitizer";
+import { getGlobalFallbackStatusCodes } from "@/lib/globalComboFallback";
 
 // Pipeline integration — wired modules
 import { getCircuitBreaker, CircuitBreakerOpenError } from "../../shared/utils/circuitBreaker";
@@ -291,9 +292,10 @@ export async function handleChat(request: any, clientRawRequest: any = null) {
 
     // ── Global Fallback Provider (#689) ────────────────────────────────────
     // If combo exhausted all models, try the global fallback before giving up.
+    const fallbackTriggers = getGlobalFallbackStatusCodes(settings as Record<string, unknown>);
     if (
       !response.ok &&
-      [502, 503].includes(response.status) &&
+      fallbackTriggers.includes(response.status) &&
       typeof (settings as any)?.globalFallbackModel === "string" &&
       (settings as any).globalFallbackModel.trim()
     ) {

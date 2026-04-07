@@ -171,12 +171,15 @@ test("combo falls through provider-scoped 400s and reaches the next model", asyn
   assert.ok(badRequestLog);
 });
 
-test("combo bad-request fallback helper keeps generic 400s terminal", () => {
+test("combo bad-request fallback helper: patterns + GitHub opaque Bad Request", () => {
   assert.equal(shouldFallbackComboBadRequest(400, "request blocked by Gemini API"), true);
   assert.equal(
     shouldFallbackComboBadRequest(400, "One or more of the provided message roles is not valid"),
     true
   );
   assert.equal(shouldFallbackComboBadRequest(400, "bad request"), false);
+  assert.equal(shouldFallbackComboBadRequest(400, "Bad Request\n", "github"), true);
+  assert.equal(shouldFallbackComboBadRequest(400, "Bad Request\n", "gh"), true);
+  assert.equal(shouldFallbackComboBadRequest(400, "Bad Request\n", "openai"), false);
   assert.equal(shouldFallbackComboBadRequest(422, "request blocked by Gemini API"), false);
 });

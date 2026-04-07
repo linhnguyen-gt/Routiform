@@ -59,8 +59,67 @@ export class GithubExecutor extends BaseExecutor {
     return [{ role: "system", content: formatInstruction }, ...messages];
   }
 
+  /**
+   * GitHub Copilot `/chat/completions` only accepts OpenAI-style `text` and `image_url`
+   * message parts. Clients (Claude Code, OpenCode, etc.) often send `tool_use`, thinking,
+   * or other part types that Copilot rejects with HTTP 400. Align with 9router:
+   * coerce unknown parts to `text` (see open-sse/executors/github.js sanitizeMessagesForChatCompletions).
+   */
+  sanitizeMessagesForGitHubChatCompletions(body: any): any {
+    if (!body?.messages || !Array.isArray(body.messages)) return body;
+    const out = { ...body };
+    out.messages = body.messages.map((msg: any) => {
+      if (!msg.content) return msg;
+      if (typeof msg.content === "string") return msg;
+      if (Array.isArray(msg.content)) {
+        const cleanContent = msg.content
+          .map((part: any) => {
+            if (part.type === "text") return part;
+            if (part.type === "image_url") return part;
+            const text = part.text ?? part.content ?? JSON.stringify(part);
+            return { type: "text", text: typeof text === "string" ? text : JSON.stringify(text) };
+          })
+          .filter((part: any) => part.text !== "");
+        return { ...msg, content: cleanContent.length > 0 ? cleanContent : null };
+      }
+      return msg;
+    });
+    return out;
+  }
+
+  /**
+   * OpenCode / Claude Code often send multiple consecutive `system` messages.
+   * Copilot is happier with a single merged system block (fewer validation edge cases).
+   */
+  mergeConsecutiveSystemMessages(messages: any[] | undefined): any[] {
+    if (!Array.isArray(messages) || messages.length === 0) return messages;
+    const out: any[] = [];
+    for (const msg of messages) {
+      if (msg.role !== "system") {
+        out.push(msg);
+        continue;
+      }
+      const piece =
+        typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content ?? "");
+      const prev = out[out.length - 1] as { role?: string; content?: unknown } | undefined;
+      if (prev?.role === "system") {
+        const a =
+          typeof prev.content === "string" ? prev.content : JSON.stringify(prev.content ?? "");
+        prev.content = `${a}\n\n${piece}`;
+      } else {
+        out.push({ role: "system", content: piece });
+      }
+    }
+    return out;
+  }
+
   transformRequest(model: string, body: any, stream: boolean, credentials: any): any {
     const modifiedBody = JSON.parse(JSON.stringify(body));
+
+    if (Array.isArray(modifiedBody.messages)) {
+      modifiedBody.messages = this.mergeConsecutiveSystemMessages(modifiedBody.messages);
+    }
+
     if (modifiedBody.response_format && model.toLowerCase().includes("claude")) {
       modifiedBody.messages = this.injectResponseFormat(
         modifiedBody.messages,
@@ -77,16 +136,57 @@ export class GithubExecutor extends BaseExecutor {
         if (msg.role === "assistant") {
           delete msg.reasoning_text;
           delete msg.reasoning_content;
+          // OpenAI allows null content when tool_calls are present; some clients send "".
+          if (msg.content === "" && Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0) {
+            msg.content = null;
+          }
         }
       }
     }
 
-    return modifiedBody;
+    // Copilot /chat/completions is not guaranteed to accept OpenAI's stream_options
+    // (e.g. include_usage); unknown fields can yield 400.
+    delete modifiedBody.stream_options;
+    // Extra Chat Completions fields that Copilot often rejects or ignores (can cause opaque 400).
+    delete modifiedBody.parallel_tool_calls;
+    delete modifiedBody.metadata;
+    delete modifiedBody.user;
+
+    return this.sanitizeMessagesForGitHubChatCompletions(modifiedBody);
   }
 
   async execute(input: ExecuteInput) {
     const result = await super.execute(input);
     if (!result || !result.response) return result;
+
+    // Upstream often returns plain text "Bad Request\n" with no JSON — log context for debugging.
+    if (result.response.status === 400 && input.log?.warn) {
+      const withBody = result as { response: Response; transformedBody?: unknown };
+      let requestBodyBytes = 0;
+      try {
+        if (withBody.transformedBody !== undefined) {
+          requestBodyBytes = new TextEncoder().encode(
+            JSON.stringify(withBody.transformedBody)
+          ).length;
+        }
+      } catch {
+        requestBodyBytes = -1;
+      }
+      let responsePeek = "";
+      try {
+        responsePeek = await result.response.clone().text();
+      } catch {
+        responsePeek = "";
+      }
+      const headersObj: Record<string, string> = {};
+      result.response.headers.forEach((v, k) => {
+        headersObj[k] = v;
+      });
+      input.log.warn(
+        "GITHUB_400",
+        `requestBodyBytes≈${requestBodyBytes} responsePeek=${JSON.stringify(responsePeek.slice(0, 1500))} headers=${JSON.stringify(headersObj)}`
+      );
+    }
 
     if (!input.stream) {
       // wreq-js clone/text semantics consume the original response body. Materialize

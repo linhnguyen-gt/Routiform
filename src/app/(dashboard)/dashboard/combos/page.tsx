@@ -1068,6 +1068,21 @@ function ComboCard({
                     {metrics.fallbackRate}% fallback
                   </span>
                 )}
+                {metrics.lastRoutingFailure?.httpStatus != null && (
+                  <span
+                    className="text-[10px] text-rose-500/90"
+                    title={
+                      metrics.lastRoutingFailure.modelStr
+                        ? `${metrics.lastRoutingFailure.httpStatus} ${metrics.lastRoutingFailure.modelStr}`
+                        : String(metrics.lastRoutingFailure.httpStatus)
+                    }
+                  >
+                    last err {metrics.lastRoutingFailure.httpStatus}
+                    {metrics.lastRoutingFailure.modelStr
+                      ? ` · ${formatModelDisplay(metrics.lastRoutingFailure.modelStr)}`
+                      : ""}
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -1263,6 +1278,9 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders }) {
   const [agentToolFilter, setAgentToolFilter] = useState<string>(combo?.tool_filter_regex || "");
   const [agentContextCache, setAgentContextCache] = useState<boolean>(
     !!combo?.context_cache_protection
+  );
+  const [requireToolCalling, setRequireToolCalling] = useState<boolean>(
+    !!combo?.requireToolCalling
   );
 
   // DnD state
@@ -1638,6 +1656,8 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders }) {
     else delete saveData.tool_filter_regex;
     if (agentContextCache) saveData.context_cache_protection = true;
     else delete saveData.context_cache_protection;
+    if (requireToolCalling) saveData.requireToolCalling = true;
+    else delete saveData.requireToolCalling;
 
     await onSave(saveData);
     setSaving(false);
@@ -2185,6 +2205,25 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders }) {
                 Replaces any system message sent by the client. Leave empty to pass through client
                 system messages.
               </p>
+            </div>
+
+            {/* Tool-calling-only fallback */}
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <label className="text-[11px] font-medium text-text-muted block">
+                  Require tool-calling models
+                </label>
+                <p className="text-[10px] text-text-muted">
+                  When the request includes tools, skip combo entries that do not support tool
+                  calling (priority / weighted / round-robin, etc.).
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={requireToolCalling}
+                onChange={(e) => setRequireToolCalling(e.target.checked)}
+                className="accent-primary shrink-0"
+              />
             </div>
 
             {/* Tool Filter Regex */}

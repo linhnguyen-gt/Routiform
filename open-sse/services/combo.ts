@@ -10,7 +10,7 @@ import { resolveComboConfig, getDefaultComboConfig } from "./comboConfig.ts";
 import * as semaphore from "./rateLimitSemaphore.ts";
 import { getCircuitBreaker } from "../../src/shared/utils/circuitBreaker";
 import { fisherYatesShuffle, getNextFromDeck } from "../../src/shared/utils/shuffleDeck";
-import { parseModel } from "./model.ts";
+import { parseModel, resolveProviderAlias } from "./model.ts";
 import { applyComboAgentMiddleware, injectModelTag } from "./comboAgentMiddleware.ts";
 import { classifyWithConfig, DEFAULT_INTENT_CONFIG } from "./intentClassifier.ts";
 import { selectProvider as selectAutoProvider } from "./autoCombo/engine.ts";
@@ -32,6 +32,25 @@ const COMBO_BAD_REQUEST_FALLBACK_PATTERNS = [
 ];
 
 const MAX_COMBO_DEPTH = 3;
+
+/**
+ * When combo.requireToolCalling is set and the request includes tools, drop models
+ * that do not support tool calling (same idea as auto-strategy filter).
+ */
+function filterOrderedModelsForToolCalling(orderedModels, combo, body, log) {
+  if (!combo?.requireToolCalling || !Array.isArray(body?.tools) || body.tools.length === 0) {
+    return orderedModels;
+  }
+  const before = orderedModels.length;
+  const filtered = orderedModels.filter((m) => supportsToolCalling(m));
+  if (filtered.length < before) {
+    log.info(
+      "COMBO",
+      `requireToolCalling: removed ${before - filtered.length} model(s) without tool-calling support`
+    );
+  }
+  return filtered;
+}
 
 // Bootstrap defaults from ClawRouter benchmark (used when no local latency history exists yet)
 const DEFAULT_MODEL_P95_MS = {
@@ -366,10 +385,21 @@ function extractPromptForIntent(body) {
   return "";
 }
 
-export function shouldFallbackComboBadRequest(status, errorText) {
+export function shouldFallbackComboBadRequest(status, errorText, providerHint) {
   if (status !== 400 || !errorText) return false;
   const message = String(errorText);
-  return COMBO_BAD_REQUEST_FALLBACK_PATTERNS.some((pattern) => pattern.test(message));
+  if (COMBO_BAD_REQUEST_FALLBACK_PATTERNS.some((pattern) => pattern.test(message))) {
+    return true;
+  }
+  // GitHub Copilot often returns plain text "Bad Request\n" with no JSON — try next combo model.
+  const pid =
+    typeof providerHint === "string" && providerHint.length > 0
+      ? resolveProviderAlias(providerHint)
+      : "";
+  if (pid === "github" && /^\s*Bad Request\s*$/i.test(message.trim())) {
+    return true;
+  }
+  return false;
 }
 
 function mapIntentToTaskType(intent) {
@@ -716,6 +746,17 @@ export async function handleComboChat({
 
   // Route to pinned model if context caching specifies one (Fix #679)
   if (pinnedModel) {
+    if (
+      combo.requireToolCalling &&
+      Array.isArray(body?.tools) &&
+      body.tools.length > 0 &&
+      !supportsToolCalling(pinnedModel)
+    ) {
+      return unavailableResponse(
+        400,
+        "Combo requireToolCalling: pinned model does not support tool calling"
+      );
+    }
     log.info(
       "COMBO",
       `Bypassing strategy — routing directly to pinned context model: ${pinnedModel}`
@@ -933,12 +974,26 @@ export async function handleComboChat({
     log.info("COMBO", `Context-optimized ordering: largest first (${orderedModels[0]})`);
   }
 
+  if (orderedModels.length === 0) {
+    return unavailableResponse(503, "Combo has no models");
+  }
+
+  orderedModels = filterOrderedModelsForToolCalling(orderedModels, combo, body, log);
+  if (orderedModels.length === 0) {
+    return unavailableResponse(
+      400,
+      "Combo requireToolCalling: no models in this combo support tool calling for this request"
+    );
+  }
+
   let lastError = null;
   let earliestRetryAfter = null;
   let lastStatus = null;
   const startTime = Date.now();
   let resolvedByModel = null;
   let fallbackCount = 0;
+  let lastTriedModelIndex = null;
+  let lastTriedModelStr = null;
 
   for (let i = 0; i < orderedModels.length; i++) {
     const modelStr = orderedModels[i];
@@ -983,6 +1038,8 @@ export async function handleComboChat({
         `Trying model ${i + 1}/${orderedModels.length}: ${modelStr}${retry > 0 ? ` (retry ${retry})` : ""}`
       );
 
+      lastTriedModelIndex = i;
+      lastTriedModelStr = modelStr;
       const result = await handleSingleModelWrapped(body, modelStr);
 
       // Success — validate response quality before returning
@@ -999,6 +1056,9 @@ export async function handleComboChat({
             latencyMs: Date.now() - startTime,
             fallbackCount,
             strategy,
+            terminalHttpStatus: 200,
+            failureModelIndex: i,
+            failureModelStr: modelStr,
           });
           if (i > 0) fallbackCount++;
           break; // move to next model
@@ -1077,7 +1137,11 @@ export async function handleComboChat({
         provider,
         result.headers
       );
-      const comboBadRequestFallback = shouldFallbackComboBadRequest(result.status, errorText);
+      const comboBadRequestFallback = shouldFallbackComboBadRequest(
+        result.status,
+        errorText,
+        provider
+      );
 
       // Record failure in circuit breaker for transient errors
       if (TRANSIENT_FOR_BREAKER.includes(result.status)) {
@@ -1085,7 +1149,23 @@ export async function handleComboChat({
       }
 
       if (!shouldFallback && !comboBadRequestFallback) {
-        log.warn("COMBO", `Model ${modelStr} failed (no fallback)`, { status: result.status });
+        log.warn("COMBO", "Combo routing: terminal error (no fallback to next model)", {
+          comboName: combo.name,
+          strategy,
+          modelIndex: i,
+          totalModels: orderedModels.length,
+          modelStr,
+          terminalStatus: result.status,
+        });
+        recordComboRequest(combo.name, modelStr, {
+          success: false,
+          latencyMs: Date.now() - startTime,
+          fallbackCount,
+          strategy,
+          terminalHttpStatus: result.status,
+          failureModelIndex: i,
+          failureModelStr: modelStr,
+        });
         return result;
       }
 
@@ -1124,7 +1204,24 @@ export async function handleComboChat({
 
   // All models failed
   const latencyMs = Date.now() - startTime;
-  recordComboRequest(combo.name, null, { success: false, latencyMs, fallbackCount, strategy });
+  log.warn("COMBO", "Combo routing: all models exhausted", {
+    comboName: combo.name,
+    strategy,
+    lastModelIndex: lastTriedModelIndex,
+    lastModelStr: lastTriedModelStr,
+    terminalStatus: lastStatus,
+    totalModels: orderedModels.length,
+    fallbackCount,
+  });
+  recordComboRequest(combo.name, null, {
+    success: false,
+    latencyMs,
+    fallbackCount,
+    strategy,
+    terminalHttpStatus: lastStatus ?? null,
+    failureModelIndex: lastTriedModelIndex,
+    failureModelStr: lastTriedModelStr,
+  });
 
   if (allBreakersOpen) {
     log.warn("COMBO", "All models have circuit breaker OPEN — aborting");
@@ -1200,10 +1297,19 @@ async function handleRoundRobinCombo({
     orderedModels = models.map((m) => normalizeModelEntry(m).model);
   }
 
-  const modelCount = orderedModels.length;
-  if (modelCount === 0) {
+  if (orderedModels.length === 0) {
     return unavailableResponse(503, "Round-robin combo has no models");
   }
+
+  orderedModels = filterOrderedModelsForToolCalling(orderedModels, combo, body, log);
+  if (orderedModels.length === 0) {
+    return unavailableResponse(
+      400,
+      "Combo requireToolCalling: no models in this combo support tool calling for this request"
+    );
+  }
+
+  const modelCount = orderedModels.length;
 
   // Get and increment atomic counter
   const counter = rrCounters.get(combo.name) || 0;
@@ -1215,6 +1321,8 @@ async function handleRoundRobinCombo({
   let lastStatus = null;
   let earliestRetryAfter = null;
   let fallbackCount = 0;
+  let lastTriedModelIndex = null;
+  let lastTriedModelStr = null;
 
   // Try each model starting from the round-robin target
   for (let offset = 0; offset < modelCount; offset++) {
@@ -1278,6 +1386,8 @@ async function handleRoundRobinCombo({
           `[RR #${counter}] → ${modelStr}${offset > 0 ? ` (fallback +${offset})` : ""}${retry > 0 ? ` (retry ${retry})` : ""}`
         );
 
+        lastTriedModelIndex = modelIndex;
+        lastTriedModelStr = modelStr;
         const result = await handleSingleModel(body, modelStr);
 
         // Success — validate response quality before returning
@@ -1294,6 +1404,9 @@ async function handleRoundRobinCombo({
               latencyMs: Date.now() - startTime,
               fallbackCount,
               strategy: "round-robin",
+              terminalHttpStatus: 200,
+              failureModelIndex: modelIndex,
+              failureModelStr: modelStr,
             });
             if (offset > 0) fallbackCount++;
             break; // move to next model
@@ -1357,7 +1470,11 @@ async function handleRoundRobinCombo({
           provider,
           result.headers
         );
-        const comboBadRequestFallback = shouldFallbackComboBadRequest(result.status, errorText);
+        const comboBadRequestFallback = shouldFallbackComboBadRequest(
+          result.status,
+          errorText,
+          provider
+        );
 
         // Transient errors → mark in semaphore AND record circuit breaker failure
         if (TRANSIENT_FOR_BREAKER.includes(result.status) && cooldownMs > 0) {
@@ -1370,7 +1487,23 @@ async function handleRoundRobinCombo({
         }
 
         if (!shouldFallback && !comboBadRequestFallback) {
-          log.warn("COMBO-RR", `${modelStr} failed (no fallback)`, { status: result.status });
+          log.warn("COMBO-RR", "Combo routing (RR): terminal error (no fallback to next model)", {
+            comboName: combo.name,
+            strategy: "round-robin",
+            modelIndex,
+            totalModels: modelCount,
+            modelStr,
+            terminalStatus: result.status,
+          });
+          recordComboRequest(combo.name, modelStr, {
+            success: false,
+            latencyMs: Date.now() - startTime,
+            fallbackCount,
+            strategy: "round-robin",
+            terminalHttpStatus: result.status,
+            failureModelIndex: modelIndex,
+            failureModelStr: modelStr,
+          });
           return result;
         }
 
@@ -1408,11 +1541,23 @@ async function handleRoundRobinCombo({
 
   // All models exhausted
   const latencyMs = Date.now() - startTime;
+  log.warn("COMBO-RR", "Combo routing (RR): all models exhausted", {
+    comboName: combo.name,
+    strategy: "round-robin",
+    lastModelIndex: lastTriedModelIndex,
+    lastModelStr: lastTriedModelStr,
+    terminalStatus: lastStatus,
+    totalModels: modelCount,
+    fallbackCount,
+  });
   recordComboRequest(combo.name, null, {
     success: false,
     latencyMs,
     fallbackCount,
     strategy: "round-robin",
+    terminalHttpStatus: lastStatus ?? null,
+    failureModelIndex: lastTriedModelIndex,
+    failureModelStr: lastTriedModelStr,
   });
 
   // Early exit: check if all models have breaker OPEN

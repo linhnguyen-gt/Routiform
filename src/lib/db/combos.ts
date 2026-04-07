@@ -45,7 +45,7 @@ export async function createCombo(data: JsonRecord) {
   const db = getDbInstance();
   const now = new Date().toISOString();
 
-  const combo = {
+  const combo: JsonRecord = {
     id: uuidv4(),
     name: data.name,
     models: data.models || [],
@@ -55,6 +55,18 @@ export async function createCombo(data: JsonRecord) {
     createdAt: now,
     updatedAt: now,
   };
+
+  const optionalComboKeys = [
+    "requireToolCalling",
+    "system_message",
+    "tool_filter_regex",
+    "context_cache_protection",
+    "context_length",
+    "allowedProviders",
+  ];
+  for (const k of optionalComboKeys) {
+    if (data[k] !== undefined) combo[k] = data[k];
+  }
 
   db.prepare(
     "INSERT INTO combos (id, name, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"

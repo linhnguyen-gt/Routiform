@@ -62,6 +62,12 @@ test("GithubExecutor keeps non-codex model on /chat/completions", () => {
   assert.match(url, /\/chat\/completions$/);
 });
 
+test("GithubExecutor keeps claude-haiku-4.5 on /chat/completions (no Responses API on Copilot)", () => {
+  const executor = new GithubExecutor();
+  const url = executor.buildUrl("claude-haiku-4.5", true);
+  assert.match(url, /\/chat\/completions$/);
+});
+
 test("DefaultExecutor uses x-api-key for kimi-coding-apikey", () => {
   const executor = new DefaultExecutor("kimi-coding-apikey");
   const headers = executor.buildHeaders({ apiKey: "sk-kimi-test" }, true);

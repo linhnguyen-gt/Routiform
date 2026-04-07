@@ -29,7 +29,11 @@ export default function RoutingTab() {
   const [lkgpCacheStatus, setLkgpCacheStatus] = useState({ type: "", message: "" });
   const [newPattern, setNewPattern] = useState("");
   const [newTarget, setNewTarget] = useState("");
+  const [gfModel, setGfModel] = useState("");
+  const [gfStatuses, setGfStatuses] = useState([502, 503]);
+  const [gfSaving, setGfSaving] = useState(false);
   const t = useTranslations("settings");
+  const tc = useTranslations("common");
   const strategyHintKeyByValue = STRATEGIES.reduce<Record<string, string>>((acc, strategy) => {
     acc[strategy.value] = strategy.descKey;
     return acc;
@@ -41,6 +45,19 @@ export default function RoutingTab() {
       .then((data) => {
         setSettings(data);
         setAliases(data.wildcardAliases || []);
+        if (typeof data.globalFallbackModel === "string") {
+          setGfModel(data.globalFallbackModel);
+        } else {
+          setGfModel("");
+        }
+        if (
+          Array.isArray(data.globalFallbackStatusCodes) &&
+          data.globalFallbackStatusCodes.length > 0
+        ) {
+          setGfStatuses([...data.globalFallbackStatusCodes].sort((a, b) => a - b));
+        } else {
+          setGfStatuses([502, 503]);
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -74,6 +91,28 @@ export default function RoutingTab() {
     const updated = aliases.filter((_, i) => i !== idx);
     await updateSetting({ wildcardAliases: updated });
     setAliases(updated);
+  };
+
+  const toggleGfStatus = (code) => {
+    setGfStatuses((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code].sort((a, b) => a - b)
+    );
+  };
+
+  const saveGlobalFallback = async () => {
+    setGfSaving(true);
+    try {
+      const codes =
+        gfStatuses.length > 0 ? [...new Set(gfStatuses)].sort((a, b) => a - b) : [502, 503];
+      await updateSetting({
+        globalFallbackModel: gfModel.trim() ? gfModel.trim() : null,
+        globalFallbackStatusCodes: codes,
+      });
+    } catch (err) {
+      console.error("Failed to save global combo fallback:", err);
+    } finally {
+      setGfSaving(false);
+    }
   };
 
   return (
@@ -331,6 +370,60 @@ export default function RoutingTab() {
             className="mb-[2px] sm:w-auto w-full"
           >
             {t("add")}
+          </Button>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 rounded-lg bg-violet-500/10 text-violet-500">
+            <span className="material-symbols-outlined text-[20px]" aria-hidden="true">
+              backup
+            </span>
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold">{t("globalComboFallbackTitle")}</h3>
+            <p className="text-xs text-text-muted">{t("globalComboFallbackDesc")}</p>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <Input
+            label={t("globalFallbackModelLabel")}
+            placeholder="e.g. openrouter/openai/gpt-4o-mini"
+            value={gfModel}
+            onChange={(e) => setGfModel(e.target.value)}
+            disabled={loading}
+          />
+          <div>
+            <p className="text-xs font-medium text-text-muted mb-2">
+              {t("globalFallbackStatusLabel")}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {[502, 503, 429, 504].map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => toggleGfStatus(code)}
+                  disabled={loading}
+                  className={`px-2 py-1 rounded text-xs border transition-colors ${
+                    gfStatuses.includes(code)
+                      ? "border-violet-500/50 bg-violet-500/10 text-violet-700 dark:text-violet-300"
+                      : "border-border/50 text-text-muted hover:border-border"
+                  }`}
+                >
+                  {code}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-text-muted mt-1">{t("globalFallbackStatusHint")}</p>
+          </div>
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={saveGlobalFallback}
+            disabled={loading || gfSaving}
+          >
+            {gfSaving ? tc("loading") : t("saveGlobalFallback")}
           </Button>
         </div>
       </Card>

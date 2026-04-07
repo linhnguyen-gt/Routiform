@@ -218,3 +218,134 @@ test("T27: needsRefresh respects providerSpecificData copilot token metadata", (
     false
   );
 });
+
+test("T27: GitHub Copilot — unknown message parts become text (9router-style sanitize)", () => {
+  const executor = new GithubExecutor();
+  const request = {
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "hi" },
+          { type: "thinking", thinking: "internal" },
+        ],
+      },
+    ],
+  };
+  const transformed = executor.transformRequest("claude-haiku-4.5", request, true, {});
+  assert.equal(transformed.messages[0].content.length, 2);
+  assert.equal(transformed.messages[0].content[0].type, "text");
+  assert.equal(transformed.messages[0].content[1].type, "text");
+  assert.match(String(transformed.messages[0].content[1].text), /thinking|internal/i);
+});
+
+test("T27: image_url parts are preserved", () => {
+  const executor = new GithubExecutor();
+  const request = {
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "look" },
+          { type: "image_url", image_url: { url: "https://example.com/x.png" } },
+        ],
+      },
+    ],
+  };
+  const transformed = executor.transformRequest("claude-haiku-4.5", request, true, {});
+  assert.equal(transformed.messages[0].content[1].type, "image_url");
+});
+
+test("T27: assistant with tool_calls and empty string content becomes null content", () => {
+  const executor = new GithubExecutor();
+  const request = {
+    messages: [
+      {
+        role: "assistant",
+        content: "",
+        tool_calls: [
+          { id: "call_1", type: "function", function: { name: "read", arguments: "{}" } },
+        ],
+      },
+    ],
+  };
+  const transformed = executor.transformRequest("claude-haiku-4.5", request, true, {});
+  assert.equal(transformed.messages[0].content, null);
+});
+
+test("T27: consecutive system messages are merged for Copilot", () => {
+  const executor = new GithubExecutor();
+  const request = {
+    messages: [
+      { role: "system", content: "A" },
+      { role: "system", content: "B" },
+      { role: "user", content: "hi" },
+    ],
+  };
+  const transformed = executor.transformRequest("claude-haiku-4.5", request, true, {});
+  assert.equal(transformed.messages.length, 2);
+  assert.equal(transformed.messages[0].role, "system");
+  assert.match(String(transformed.messages[0].content), /A/);
+  assert.match(String(transformed.messages[0].content), /B/);
+});
+
+test("T27: stream_options stripped for Copilot compatibility", () => {
+  const executor = new GithubExecutor();
+  const request = {
+    messages: [{ role: "user", content: "x" }],
+    stream_options: { include_usage: true },
+  };
+  const transformed = executor.transformRequest("claude-haiku-4.5", request, true, {});
+  assert.equal(transformed.stream_options, undefined);
+});
+
+test("T27: parallel_tool_calls, metadata, user stripped for Copilot compatibility", () => {
+  const executor = new GithubExecutor();
+  const request = {
+    messages: [{ role: "user", content: "x" }],
+    parallel_tool_calls: true,
+    metadata: { foo: "bar" },
+    user: "end-user-id",
+  };
+  const transformed = executor.transformRequest("claude-haiku-4.5", request, true, {});
+  assert.equal(transformed.parallel_tool_calls, undefined);
+  assert.equal(transformed.metadata, undefined);
+  assert.equal(transformed.user, undefined);
+});
+
+test("T27: execute logs GITHUB_400 with request size and response peek", async () => {
+  const executor = new GithubExecutor();
+  const originalExecute = BaseExecutor.prototype.execute;
+  const warns = [];
+
+  BaseExecutor.prototype.execute = async () => ({
+    response: new Response("Bad Request\n", {
+      status: 400,
+      headers: { "content-type": "text/plain", "x-request-id": "req-1" },
+    }),
+    url: "https://api.githubcopilot.com/chat/completions",
+    transformedBody: { model: "claude-haiku-4.5", messages: [{ role: "user", content: "hi" }] },
+  });
+
+  try {
+    await executor.execute({
+      model: "claude-haiku-4.5",
+      body: { messages: [] },
+      stream: false,
+      credentials: { accessToken: "token" },
+      log: {
+        warn: (tag, msg) => {
+          warns.push({ tag, msg });
+        },
+      },
+    });
+  } finally {
+    BaseExecutor.prototype.execute = originalExecute;
+  }
+
+  const g400 = warns.find((w) => w.tag === "GITHUB_400");
+  assert.ok(g400, "expected GITHUB_400 warn");
+  assert.match(g400.msg, /requestBodyBytes≈/);
+  assert.match(g400.msg, /Bad Request/);
+  assert.match(g400.msg, /x-request-id/);
+});

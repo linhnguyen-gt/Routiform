@@ -162,5 +162,6 @@ docs/superpowers/
 # AIKit - AI Development Kits
 .shared/
 .claude/
+.cursorrules
 CLAUDE.md
 .mcp.json

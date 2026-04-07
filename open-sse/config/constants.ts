@@ -75,7 +75,27 @@ export const PROVIDER_MAX_TOKENS: Record<string, number> = {
   openai: 16384, // GPT-4/4o standard
   anthropic: 65536, // Claude models
   gemini: 65536, // Gemini Studio
+  // OpenCode / many clients default max_tokens≈32k; Sonnet/Opus/GPT Copilot models generally accept it.
+  // (#711) Only cap in chatCore when above this — avoids cutting completions so short the model feels “dumb”.
+  github: 32000,
 };
+
+/**
+ * Per-(provider, model) cap for max_tokens / max_completion_tokens in chatCore (#711).
+ * Haiku on Copilot tolerates **lower** max output than Sonnet/Opus; very high values used to 400
+ * (see microsoft/vscode#295720). We still cap Haiku below the global github ceiling.
+ */
+export function getProviderMaxTokensCap(provider: string, modelId: string): number | null {
+  const base = PROVIDER_MAX_TOKENS[provider];
+  if (base == null) return null;
+  if (provider === "github") {
+    const m = (modelId || "").toLowerCase();
+    if (/\bhaiku\b|\/haiku|claude-haiku/i.test(m)) {
+      return 8192;
+    }
+  }
+  return base;
+}
 
 export const DEFAULT_PROVIDER_MAX_TOKENS = 32000;
 

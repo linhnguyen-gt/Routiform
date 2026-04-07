@@ -22,7 +22,7 @@ import {
   parseUpstreamError,
   formatProviderError,
 } from "../utils/error.ts";
-import { HTTP_STATUS, PROVIDER_MAX_TOKENS } from "../config/constants.ts";
+import { HTTP_STATUS, getProviderMaxTokensCap } from "../config/constants.ts";
 import {
   classifyProviderError,
   PROVIDER_ERROR_TYPES,
@@ -359,6 +359,27 @@ function attachLogMeta(
  */
 const _proxyConfigCache = new Map<string, { mode: string; enabled: boolean; ts: number }>();
 const PROXY_CONFIG_CACHE_TTL = 10_000;
+
+/**
+ * Claude Code hits POST /v1/messages → we translate claude→openai before GitHub Copilot.
+ * OpenCode hits POST /v1/chat/completions → source/target are both OpenAI (near-passthrough),
+ * so the upstream payload can differ and Copilot returns opaque 400. Round-trip through
+ * Anthropic-shaped messages so the GitHub executor sees the same shape as Messages clients.
+ */
+/** @internal Exported for unit tests */
+export function shouldBridgeGithubClaudeOpenAiThroughClaudeFormat(
+  provider: string,
+  sourceFormat: string,
+  targetFormat: string,
+  resolvedModelId: string
+): boolean {
+  if (provider !== "github") return false;
+  if (sourceFormat !== FORMATS.OPENAI || targetFormat !== FORMATS.OPENAI) return false;
+  const m = (resolvedModelId || "").toLowerCase();
+  if (!m.includes("claude-")) return false;
+  if (/(^|-)codex($|-)/.test(m)) return false;
+  return true;
+}
 
 async function getUpstreamProxyConfigCached(providerId: string) {
   const cached = _proxyConfigCache.get(providerId);
@@ -992,17 +1013,59 @@ export async function handleChatCore({
         model || "",
         sourceFormat
       );
-      translatedBody = translateRequest(
-        sourceFormat,
-        targetFormat,
-        model,
-        translatedBody,
-        stream,
-        credentials,
-        provider,
-        reqLogger,
-        { normalizeToolCallId, preserveDeveloperRole, preserveCacheControl }
-      );
+      const translateOpts = {
+        normalizeToolCallId,
+        preserveDeveloperRole,
+        preserveCacheControl,
+      };
+
+      if (
+        shouldBridgeGithubClaudeOpenAiThroughClaudeFormat(
+          provider || "",
+          sourceFormat,
+          targetFormat,
+          String(resolvedModel || "")
+        )
+      ) {
+        const anthropicShaped = translateRequest(
+          FORMATS.OPENAI,
+          FORMATS.CLAUDE,
+          model,
+          translatedBody,
+          stream,
+          credentials,
+          provider,
+          reqLogger,
+          translateOpts
+        );
+        translatedBody = translateRequest(
+          FORMATS.CLAUDE,
+          FORMATS.OPENAI,
+          model,
+          anthropicShaped,
+          stream,
+          credentials,
+          provider,
+          reqLogger,
+          translateOpts
+        );
+        log?.debug?.(
+          "FORMAT",
+          "github Claude: OpenAI→Claude→OpenAI bridge (parity with /v1/messages clients)"
+        );
+      } else {
+        translatedBody = translateRequest(
+          sourceFormat,
+          targetFormat,
+          model,
+          translatedBody,
+          stream,
+          credentials,
+          provider,
+          reqLogger,
+          translateOpts
+        );
+      }
     }
   } catch (error) {
     const parsedStatus = Number(error?.statusCode);
@@ -1075,13 +1138,13 @@ export async function handleChatCore({
   // Provider-specific max_tokens caps (#711)
   // Some providers reject requests when max_tokens exceeds their API limit.
   // Cap before sending to avoid upstream HTTP 400 errors.
-  const providerCap = PROVIDER_MAX_TOKENS[provider];
+  const providerCap = getProviderMaxTokensCap(provider, String(translatedBody.model || ""));
   if (providerCap) {
     for (const field of ["max_tokens", "max_completion_tokens"] as const) {
       if (typeof translatedBody[field] === "number" && translatedBody[field] > providerCap) {
         log?.debug?.(
           "PARAMS",
-          `Capping ${field} from ${translatedBody[field]} to ${providerCap} for ${provider}`
+          `Capping ${field} from ${translatedBody[field]} to ${providerCap} for ${provider} (${String(translatedBody.model || "")})`
         );
         translatedBody[field] = providerCap;
       }
@@ -1575,6 +1638,13 @@ export async function handleChatCore({
 
     const errMsg = formatProviderError(new Error(message), provider, model, statusCode);
     console.log(`${COLORS.red}[ERROR] ${errMsg}${COLORS.reset}`);
+
+    if (provider === "github" && statusCode === HTTP_STATUS.BAD_REQUEST && message) {
+      log?.warn?.(
+        "GITHUB",
+        `chat/completions 400 — ${message}${upstreamErrorBody != null ? ` | response=${JSON.stringify(upstreamErrorBody).slice(0, 800)}` : ""}`
+      );
+    }
 
     // Log Antigravity retry time if available
     if (retryAfterMs && provider === "antigravity") {

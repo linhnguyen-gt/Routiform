@@ -112,8 +112,13 @@ jobs:
           docker buildx imagetools inspect "${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}"
           docker buildx imagetools inspect "${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}-cli"
 
+      # Hub REST API (repo description) is not the same as registry push auth. If this step returns
+      # 403 Forbidden, regenerate DOCKERHUB_TOKEN as a Personal Access Token with Read + Write + Delete
+      # (not read-only / not read-write only). See Docker Hub → Account Settings → Personal access tokens.
+      # README is truncated to 25kB by the action (Docker Hub limit); that warning is normal for large READMEs.
       - name: Update Docker Hub description
-        uses: peter-evans/dockerhub-description@v4
+        continue-on-error: true
+        uses: peter-evans/dockerhub-description@v5
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}

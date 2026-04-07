@@ -299,7 +299,7 @@ export function openaiToOpenAIResponsesRequest(
 
   const input = result.input as JsonRecord[];
 
-  // Extract first system message as instructions
+  // System messages → instructions (merge all system turns — OpenCode/Claude Code often send 2+)
   let hasSystemMessage = false;
   const messages = toArray(root.messages);
 
@@ -308,9 +308,13 @@ export function openaiToOpenAIResponsesRequest(
     const role = toString(msg.role);
 
     if (role === "system") {
+      const text =
+        typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content ?? "");
       if (!hasSystemMessage) {
-        result.instructions = typeof msg.content === "string" ? msg.content : "";
+        result.instructions = text;
         hasSystemMessage = true;
+      } else {
+        result.instructions = `${String(result.instructions ?? "")}\n\n${text}`;
       }
       continue;
     }
@@ -383,6 +387,17 @@ export function openaiToOpenAIResponsesRequest(
             outputContent.push(contentValue);
           }
         }
+      }
+
+      // Assistant turn with only reasoning_content (skipped above) + tool_calls: some upstreams
+      // (e.g. GitHub Copilot /responses) reject function_call items without a preceding
+      // assistant message. Insert a minimal output_text so the turn exists. (#224, OpenCode)
+      if (
+        outputContent.length === 0 &&
+        Array.isArray(msg.tool_calls) &&
+        msg.tool_calls.length > 0
+      ) {
+        outputContent.push({ type: "output_text", text: "\u200b" });
       }
 
       // Only add assistant message if content exists

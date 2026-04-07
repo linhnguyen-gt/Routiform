@@ -13,6 +13,15 @@ interface ModelMetrics {
   lastUsedAt: string | null;
 }
 
+/** Last terminal failure snapshot for observability (logs + dashboard). */
+export interface ComboLastRoutingFailure {
+  httpStatus: number | null;
+  modelIndex: number | null;
+  modelStr: string | null;
+  strategy: string;
+  at: string;
+}
+
 interface ComboMetricsEntry {
   totalRequests: number;
   totalSuccesses: number;
@@ -23,6 +32,7 @@ interface ComboMetricsEntry {
   lastUsedAt: string | null;
   intentCounts: Record<string, number>;
   byModel: Record<string, ModelMetrics>;
+  lastRoutingFailure: ComboLastRoutingFailure | null;
 }
 
 interface ComboMetricsView extends ComboMetricsEntry {
@@ -50,6 +60,9 @@ const metrics = new Map<string, ComboMetricsEntry>();
  * @param {number} options.latencyMs
  * @param {number} options.fallbackCount - How many fallbacks occurred
  * @param {string} [options.strategy] - "priority" or "weighted"
+ * @param {number} [options.terminalHttpStatus] - HTTP status on terminal failure
+ * @param {number} [options.failureModelIndex] - 0-based index in ordered list
+ * @param {string} [options.failureModelStr] - model id string when known
  */
 export function recordComboRequest(
   comboName: string,
@@ -59,7 +72,18 @@ export function recordComboRequest(
     latencyMs,
     fallbackCount = 0,
     strategy = "priority",
-  }: { success: boolean; latencyMs: number; fallbackCount?: number; strategy?: string }
+    terminalHttpStatus = null,
+    failureModelIndex = null,
+    failureModelStr = null,
+  }: {
+    success: boolean;
+    latencyMs: number;
+    fallbackCount?: number;
+    strategy?: string;
+    terminalHttpStatus?: number | null;
+    failureModelIndex?: number | null;
+    failureModelStr?: string | null;
+  }
 ): void {
   if (!metrics.has(comboName)) {
     metrics.set(comboName, {
@@ -72,11 +96,15 @@ export function recordComboRequest(
       lastUsedAt: null,
       intentCounts: {},
       byModel: {},
+      lastRoutingFailure: null,
     });
   }
 
   const combo = metrics.get(comboName);
   if (!combo) return;
+  if (combo.lastRoutingFailure === undefined) {
+    combo.lastRoutingFailure = null;
+  }
   combo.totalRequests++;
   combo.totalLatencyMs += latencyMs;
   combo.totalFallbacks += fallbackCount;
@@ -85,8 +113,24 @@ export function recordComboRequest(
 
   if (success) {
     combo.totalSuccesses++;
+    combo.lastRoutingFailure = null;
   } else {
     combo.totalFailures++;
+    if (terminalHttpStatus != null || failureModelIndex != null || failureModelStr != null) {
+      combo.lastRoutingFailure = {
+        httpStatus:
+          typeof terminalHttpStatus === "number" && Number.isFinite(terminalHttpStatus)
+            ? terminalHttpStatus
+            : null,
+        modelIndex:
+          typeof failureModelIndex === "number" && Number.isFinite(failureModelIndex)
+            ? failureModelIndex
+            : null,
+        modelStr: failureModelStr ?? null,
+        strategy,
+        at: new Date().toISOString(),
+      };
+    }
   }
 
   // Per-model tracking
@@ -127,6 +171,7 @@ export function getComboMetrics(comboName: string): ComboMetricsView | null {
 
   return {
     ...combo,
+    lastRoutingFailure: combo.lastRoutingFailure ?? null,
     avgLatencyMs:
       combo.totalRequests > 0 ? Math.round(combo.totalLatencyMs / combo.totalRequests) : 0,
     successRate:
@@ -174,11 +219,15 @@ export function recordComboIntent(comboName: string, intent: string): void {
       lastUsedAt: null,
       intentCounts: {},
       byModel: {},
+      lastRoutingFailure: null,
     });
   }
 
   const combo = metrics.get(comboName);
   if (!combo) return;
+  if (combo.lastRoutingFailure === undefined) {
+    combo.lastRoutingFailure = null;
+  }
   const key = String(intent || "unknown");
   combo.intentCounts[key] = (combo.intentCounts[key] || 0) + 1;
 }

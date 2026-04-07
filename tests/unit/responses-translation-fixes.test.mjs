@@ -1,12 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { convertResponsesApiFormat } = await import(
-  "../../open-sse/translator/helpers/responsesApiHelper.ts"
-);
-const { openaiResponsesToOpenAIRequest, openaiToOpenAIResponsesRequest } = await import(
-  "../../open-sse/translator/request/openai-responses.ts"
-);
+const { convertResponsesApiFormat } =
+  await import("../../open-sse/translator/helpers/responsesApiHelper.ts");
+const { openaiResponsesToOpenAIRequest, openaiToOpenAIResponsesRequest } =
+  await import("../../open-sse/translator/request/openai-responses.ts");
 
 test("convertResponsesApiFormat filters orphaned function_call_output items", () => {
   const body = {
@@ -105,9 +103,7 @@ test("Chat→Responses: image_url without detail omits detail", () => {
     messages: [
       {
         role: "user",
-        content: [
-          { type: "image_url", image_url: { url: "https://example.com/img.png" } },
-        ],
+        content: [{ type: "image_url", image_url: { url: "https://example.com/img.png" } }],
       },
     ],
   };
@@ -125,9 +121,7 @@ test("Responses→Chat: input_file converted to file content part", () => {
       {
         type: "message",
         role: "user",
-        content: [
-          { type: "input_file", file_id: "file-abc", filename: "data.csv" },
-        ],
+        content: [{ type: "input_file", file_id: "file-abc", filename: "data.csv" }],
       },
     ],
   };
@@ -145,9 +139,7 @@ test("Chat→Responses: file content part converted to input_file", () => {
     messages: [
       {
         role: "user",
-        content: [
-          { type: "file", file: { file_id: "file-abc", filename: "data.csv" } },
-        ],
+        content: [{ type: "file", file: { file_id: "file-abc", filename: "data.csv" } }],
       },
     ],
   };
@@ -342,9 +334,8 @@ test("Chat→Responses: deprecated function role message converted to function_c
   assert.equal(fcOutput.call_id, fcItem.call_id);
 });
 
-const { openaiToOpenAIResponsesResponse, openaiResponsesToOpenAIResponse } = await import(
-  "../../open-sse/translator/response/openai-responses.ts"
-);
+const { openaiToOpenAIResponsesResponse, openaiResponsesToOpenAIResponse } =
+  await import("../../open-sse/translator/response/openai-responses.ts");
 const { initState } = await import("../../open-sse/translator/index.ts");
 const { FORMATS } = await import("../../open-sse/translator/formats.ts");
 
@@ -352,7 +343,10 @@ test("Chat→Responses streaming: usage-only chunk is captured (not dropped)", (
   const state = initState(FORMATS.OPENAI_RESPONSES);
 
   // First chunk with content
-  const chunk1 = { choices: [{ index: 0, delta: { content: "hello" }, finish_reason: null }], id: "c1" };
+  const chunk1 = {
+    choices: [{ index: 0, delta: { content: "hello" }, finish_reason: null }],
+    id: "c1",
+  };
   openaiToOpenAIResponsesResponse(chunk1, state);
 
   // Usage-only chunk (empty choices, has usage)
@@ -378,7 +372,10 @@ test("Chat→Responses streaming: completed event includes accumulated output", 
   const state = initState(FORMATS.OPENAI_RESPONSES);
 
   // Text content
-  const chunk = { choices: [{ index: 0, delta: { content: "hello world" }, finish_reason: null }], id: "c1" };
+  const chunk = {
+    choices: [{ index: 0, delta: { content: "hello world" }, finish_reason: null }],
+    id: "c1",
+  };
   openaiToOpenAIResponsesResponse(chunk, state);
 
   // Finish
@@ -392,7 +389,13 @@ test("Chat→Responses streaming: completed event includes accumulated output", 
 });
 
 test("Responses→Chat streaming: reasoning delta emits reasoning_content in Chat chunk", () => {
-  const state = { started: false, chatId: null, created: null, toolCallIndex: 0, finishReasonSent: false };
+  const state = {
+    started: false,
+    chatId: null,
+    created: null,
+    toolCallIndex: 0,
+    finishReasonSent: false,
+  };
 
   const chunk = {
     type: "response.reasoning_summary_text.delta",
@@ -411,7 +414,13 @@ test("Chat→Responses streaming: multiple <think> tags in one chunk handled", (
 
   // Chunk with multiple think tags
   const chunk = {
-    choices: [{ index: 0, delta: { content: "<think>first</think>middle<think>second</think>end" }, finish_reason: null }],
+    choices: [
+      {
+        index: 0,
+        delta: { content: "<think>first</think>middle<think>second</think>end" },
+        finish_reason: null,
+      },
+    ],
     id: "c1",
   };
   const events = openaiToOpenAIResponsesResponse(chunk, state);
@@ -421,4 +430,56 @@ test("Chat→Responses streaming: multiple <think> tags in one chunk handled", (
     .map((e) => e.data.delta);
   const combined = textDeltas.join("");
   assert.ok(!combined.includes("<think>"), `text should not contain <think> tag, got: ${combined}`);
+});
+
+test("Chat→Responses: merge multiple system messages into instructions", () => {
+  const out = openaiToOpenAIResponsesRequest(
+    "claude-haiku-4.5",
+    {
+      messages: [
+        { role: "system", content: "First system" },
+        { role: "system", content: "Second system" },
+        { role: "user", content: "hi" },
+      ],
+    },
+    true,
+    null
+  );
+  assert.match(String(out.instructions), /First system/);
+  assert.match(String(out.instructions), /Second system/);
+});
+
+test("Chat→Responses: assistant with empty content + tool_calls gets minimal output_text before function_call", () => {
+  const out = openaiToOpenAIResponsesRequest(
+    "claude-haiku-4.5",
+    {
+      messages: [
+        { role: "user", content: "x" },
+        {
+          role: "assistant",
+          content: "",
+          reasoning_content: "long thinking not sent to API",
+          tool_calls: [
+            {
+              id: "call_1",
+              type: "function",
+              function: { name: "read", arguments: "{}" },
+            },
+          ],
+        },
+      ],
+    },
+    true,
+    null
+  );
+  const input = out.input;
+  const msgIdx = input.findIndex(
+    (i) => i.type === "message" && i.role === "assistant" && Array.isArray(i.content)
+  );
+  assert.ok(msgIdx >= 0, "assistant message should exist before tool calls");
+  const afterMsg = input.slice(msgIdx);
+  const fcIdx = afterMsg.findIndex((i) => i.type === "function_call");
+  assert.ok(fcIdx > 0, "function_call should follow assistant message");
+  assert.equal(afterMsg[0].content[0].type, "output_text");
+  assert.equal(afterMsg[0].content[0].text, "\u200b");
 });

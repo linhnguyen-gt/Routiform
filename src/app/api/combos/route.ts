@@ -45,7 +45,10 @@ export async function POST(request) {
       return NextResponse.json({ error: dagError.message }, { status: 400 });
     }
 
-    const combo = await createCombo({ name, models: models || [], strategy, config });
+    const combo = await createCombo({
+      ...validation.data,
+      models: models || [],
+    });
 
     // Auto sync to Cloud if enabled
     await syncToCloudIfEnabled();

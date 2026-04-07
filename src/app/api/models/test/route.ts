@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getApiKeys } from "@/models";
+import { modelTestRouteSchema } from "@/shared/validation/schemas";
+import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -8,11 +10,12 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const model = typeof body?.model === "string" ? body.model.trim() : "";
-    if (!model) {
-      return NextResponse.json({ error: "Model required" }, { status: 400 });
+    const rawBody = await request.json().catch(() => ({}));
+    const validation = validateBody(modelTestRouteSchema, rawBody);
+    if (isValidationFailure(validation)) {
+      return NextResponse.json(validation.error, { status: 400 });
     }
+    const { model } = validation.data;
 
     const baseUrl =
       process.env.BASE_URL ||
@@ -24,7 +27,8 @@ export async function POST(request: Request) {
     let apiKey: string | null = null;
     try {
       const keys = await getApiKeys();
-      apiKey = keys.find((k) => k.isActive !== false)?.key || null;
+      const rawKey = keys.find((k) => k.isActive !== false)?.key;
+      apiKey = typeof rawKey === "string" ? rawKey : null;
     } catch {
       // optional auth
     }
