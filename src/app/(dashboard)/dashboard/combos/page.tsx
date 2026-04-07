@@ -360,6 +360,7 @@ export default function CombosPage() {
   const [metrics, setMetrics] = useState({});
   const [testResults, setTestResults] = useState(null);
   const [testingCombo, setTestingCombo] = useState(null);
+  const [testComboName, setTestComboName] = useState("");
   const { copied, copy } = useCopyToClipboard();
   const notify = useNotificationStore();
   const [proxyTargetCombo, setProxyTargetCombo] = useState(null);
@@ -492,18 +493,27 @@ export default function CombosPage() {
 
   const handleTestCombo = async (combo) => {
     setTestingCombo(combo.name);
+    setTestComboName(combo.name);
     setTestResults(null);
     try {
       const res = await fetch("/api/combos/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ comboName: combo.name }),
+        signal: AbortSignal.timeout(60000),
       });
-      const data = await res.json();
-      setTestResults(data);
+      const data = await res.json().catch(() => ({ error: t("testFailed") }));
+      if (!res.ok) {
+        setTestResults({ error: data?.error || t("testFailed") });
+        notify.error(t("testFailed"));
+        return;
+      }
+      setTestResults(data || { error: t("testFailed") });
     } catch (error) {
       setTestResults({ error: t("testFailed") });
       notify.error(t("testFailed"));
+    } finally {
+      setTestingCombo(null);
     }
   };
 
@@ -667,8 +677,9 @@ export default function CombosPage() {
           onClose={() => {
             setTestResults(null);
             setTestingCombo(null);
+            setTestComboName("");
           }}
-          title={t("testResults", { name: testingCombo })}
+          title={t("testResults", { name: testComboName || testingCombo || "" })}
         >
           <TestResultsView results={testResults} />
         </Modal>

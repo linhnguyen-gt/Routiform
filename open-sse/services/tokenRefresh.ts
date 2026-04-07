@@ -93,55 +93,77 @@ export async function refreshAccessToken(
  * Cline refresh endpoint expects JSON body and returns camelCase fields.
  */
 export async function refreshClineToken(refreshToken, log, proxyConfig = null) {
-  const endpoint = PROVIDERS.cline?.refreshUrl;
-  if (!endpoint) {
+  const refreshUrl = PROVIDERS.cline?.refreshUrl;
+  const tokenUrl = PROVIDERS.cline?.tokenUrl;
+  const endpoints = Array.from(new Set([refreshUrl, tokenUrl].filter(Boolean)));
+  if (endpoints.length === 0) {
     log?.warn?.("TOKEN_REFRESH", "No refresh URL configured for Cline");
     return null;
   }
 
   try {
-    const response = await runWithProxyContext(proxyConfig, () =>
-      fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          refreshToken,
-          grantType: "refresh_token",
-          clientType: "extension",
-        }),
-      })
-    );
+    const payloadVariants = [
+      {
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+        client_type: "extension",
+      },
+      {
+        refreshToken,
+        grantType: "refresh_token",
+        clientType: "extension",
+      },
+    ];
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      log?.error?.("TOKEN_REFRESH", "Failed to refresh Cline token", {
-        status: response.status,
-        error: errorText,
-      });
-      return null;
+    let lastStatus = 0;
+    let lastError = "";
+
+    for (const endpoint of endpoints) {
+      for (const body of payloadVariants) {
+        const response = await runWithProxyContext(proxyConfig, () =>
+          fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify(body),
+          })
+        );
+
+        if (!response.ok) {
+          lastStatus = response.status;
+          lastError = await response.text();
+          continue;
+        }
+
+        const payload = await response.json();
+        const data = payload?.data || payload;
+        const expiresAtIso = data?.expiresAt;
+        const expiresIn = expiresAtIso
+          ? Math.max(1, Math.floor((new Date(expiresAtIso).getTime() - Date.now()) / 1000))
+          : undefined;
+
+        log?.info?.("TOKEN_REFRESH", "Successfully refreshed Cline token", {
+          endpoint,
+          hasNewAccessToken: !!data?.accessToken,
+          hasNewRefreshToken: !!data?.refreshToken,
+          expiresIn,
+        });
+
+        return {
+          accessToken: data?.accessToken,
+          refreshToken: data?.refreshToken || refreshToken,
+          expiresIn,
+        };
+      }
     }
 
-    const payload = await response.json();
-    const data = payload?.data || payload;
-    const expiresAtIso = data?.expiresAt;
-    const expiresIn = expiresAtIso
-      ? Math.max(1, Math.floor((new Date(expiresAtIso).getTime() - Date.now()) / 1000))
-      : undefined;
-
-    log?.info?.("TOKEN_REFRESH", "Successfully refreshed Cline token", {
-      hasNewAccessToken: !!data?.accessToken,
-      hasNewRefreshToken: !!data?.refreshToken,
-      expiresIn,
+    log?.warn?.("TOKEN_REFRESH", "Failed to refresh Cline token", {
+      status: lastStatus,
+      error: lastError,
     });
-
-    return {
-      accessToken: data?.accessToken,
-      refreshToken: data?.refreshToken || refreshToken,
-      expiresIn,
-    };
+    return null;
   } catch (error) {
     log?.error?.("TOKEN_REFRESH", `Network error refreshing Cline token: ${error.message}`);
     return null;

@@ -116,3 +116,61 @@ test("model sync route stores the real provider while keeping the account label"
     globalThis.fetch = originalFetch;
   }
 });
+
+test("model sync route preserves cline model metadata and detects metadata updates", async () => {
+  await resetStorage();
+
+  const connection = await providersDb.createProviderConnection({
+    provider: "cline",
+    authType: "oauth",
+    name: "cline-main",
+    accessToken: "test-token",
+  });
+
+  await modelsDb.replaceCustomModels("cline", [
+    {
+      id: "openai/gpt-4o-mini",
+      name: "GPT 4o mini",
+      source: "auto-sync",
+      clineMeta: { recommended: true, free: false, categories: ["recommended"] },
+    },
+  ]);
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    assert.equal(String(url), `http://localhost/api/providers/${connection.id}/models`);
+    return Response.json({
+      models: [
+        {
+          id: "openai/gpt-4o-mini",
+          name: "GPT 4o mini",
+          clineMeta: { recommended: true, free: true, categories: ["recommended", "free"] },
+        },
+      ],
+    });
+  };
+
+  try {
+    const response = await modelSyncRoute.POST(
+      new Request(`http://localhost/api/providers/${connection.id}/sync-models`, {
+        method: "POST",
+        headers: scheduler.buildModelSyncInternalHeaders(),
+      }),
+      { params: { id: connection.id } }
+    );
+
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.logged, true);
+    assert.equal(body.modelChanges.updated, 1);
+
+    const stored = await modelsDb.getCustomModels("cline");
+    assert.deepEqual(stored[0].clineMeta, {
+      recommended: true,
+      free: true,
+      categories: ["free", "recommended"],
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

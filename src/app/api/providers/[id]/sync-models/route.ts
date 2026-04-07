@@ -27,6 +27,33 @@ function toNonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
+function normalizeClineMeta(value: unknown): {
+  recommended?: boolean;
+  free?: boolean;
+  categories?: string[];
+} | null {
+  const record = asRecord(value);
+  const categories = Array.isArray(record.categories)
+    ? Array.from(
+        new Set(
+          record.categories
+            .map((category) => toNonEmptyString(category))
+            .filter((category): category is string => Boolean(category))
+        )
+      )
+        .sort()
+        .slice(0, 8)
+    : [];
+
+  const normalized = {
+    ...(typeof record.recommended === "boolean" ? { recommended: record.recommended } : {}),
+    ...(typeof record.free === "boolean" ? { free: record.free } : {}),
+    ...(categories.length > 0 ? { categories } : {}),
+  };
+
+  return Object.keys(normalized).length > 0 ? normalized : null;
+}
+
 function normalizeModelForComparison(model: unknown) {
   const record = asRecord(model);
   const id = toNonEmptyString(record.id) || "";
@@ -42,6 +69,7 @@ function normalizeModelForComparison(model: unknown) {
         )
       ).sort()
     : ["chat"];
+  const clineMeta = normalizeClineMeta(record.clineMeta);
 
   return {
     id,
@@ -49,6 +77,7 @@ function normalizeModelForComparison(model: unknown) {
     source,
     apiFormat,
     supportedEndpoints,
+    ...(clineMeta ? { clineMeta } : {}),
   };
 }
 
@@ -188,18 +217,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     // Replace the full model list
     const models = fetchedModels
-      .map((m: any) => ({
-        id: m.id || m.name || m.model,
-        name: m.name || m.displayName || m.id || m.model,
-        source: "auto-sync",
-        ...(Array.isArray(m.supportedEndpoints) && m.supportedEndpoints.length > 0
-          ? { supportedEndpoints: m.supportedEndpoints }
-          : {}),
-        ...(typeof m.inputTokenLimit === "number" ? { inputTokenLimit: m.inputTokenLimit } : {}),
-        ...(typeof m.outputTokenLimit === "number" ? { outputTokenLimit: m.outputTokenLimit } : {}),
-        ...(typeof m.description === "string" ? { description: m.description } : {}),
-        ...(m.supportsThinking === true ? { supportsThinking: true } : {}),
-      }))
+      .map((m: any) => {
+        const clineMeta = normalizeClineMeta(m.clineMeta);
+        return {
+          id: m.id || m.name || m.model,
+          name: m.name || m.displayName || m.id || m.model,
+          source: "auto-sync",
+          ...(Array.isArray(m.supportedEndpoints) && m.supportedEndpoints.length > 0
+            ? { supportedEndpoints: m.supportedEndpoints }
+            : {}),
+          ...(typeof m.inputTokenLimit === "number" ? { inputTokenLimit: m.inputTokenLimit } : {}),
+          ...(typeof m.outputTokenLimit === "number"
+            ? { outputTokenLimit: m.outputTokenLimit }
+            : {}),
+          ...(typeof m.description === "string" ? { description: m.description } : {}),
+          ...(m.supportsThinking === true ? { supportsThinking: true } : {}),
+          ...(clineMeta ? { clineMeta } : {}),
+        };
+      })
       .filter((m: any) => m.id && !registryIds.has(m.id));
 
     const previousModels = await getCustomModels(logProvider);

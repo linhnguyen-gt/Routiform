@@ -6,7 +6,6 @@ import { useTranslations } from "next-intl";
 import Modal from "./Modal";
 import Button from "./Button";
 import { getModelsByProviderId, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
-import { getCompatibleFallbackModels } from "@/lib/providers/managedAvailableModels";
 import {
   OAUTH_PROVIDERS,
   FREE_PROVIDERS,
@@ -213,25 +212,26 @@ export default function ModelSelectModal({
       const providerCustomModels = customModels[providerId] || customModels[rawProviderId] || [];
 
       if (providerInfo.passthroughModels) {
-        const aliasModels = Object.entries(modelAliases as Record<string, string>)
-          .filter(([, fullModel]: [string, string]) => fullModel.startsWith(`${alias}/`))
-          .map(([aliasName, fullModel]: [string, string]) => ({
-            id: fullModel.replace(`${alias}/`, ""),
-            name: aliasName,
-            value: fullModel,
-          }));
+        const syncedEntries = providerCustomModels.map((cm: any) => ({
+          id: cm.id,
+          name: cm.name || cm.id,
+          value: `${alias}/${cm.id}`,
+          isCustom: true,
+        }));
 
-        // Merge custom models for passthrough providers
-        const customEntries = providerCustomModels
-          .filter((cm) => !aliasModels.some((am) => am.id === cm.id))
-          .map((cm) => ({
-            id: cm.id,
-            name: cm.name || cm.id,
-            value: `${alias}/${cm.id}`,
-            isCustom: true,
-          }));
+        // Legacy fallback for older data where synced models were only saved as aliases.
+        const legacyAliasEntries =
+          syncedEntries.length === 0
+            ? Object.entries(modelAliases as Record<string, string>)
+                .filter(([, fullModel]: [string, string]) => fullModel.startsWith(`${alias}/`))
+                .map(([aliasName, fullModel]: [string, string]) => ({
+                  id: fullModel.replace(`${alias}/`, ""),
+                  name: aliasName,
+                  value: fullModel,
+                }))
+            : [];
 
-        const allModels = dedupeModelsById([...aliasModels, ...customEntries]);
+        const allModels = dedupeModelsById([...syncedEntries, ...legacyAliasEntries]);
 
         if (allModels.length > 0) {
           const matchedNode = providerNodes.find((node) => node.id === providerId);
@@ -249,40 +249,34 @@ export default function ModelSelectModal({
         const displayName = matchedNode?.name || providerInfo.name;
         const nodePrefix = matchedNode?.prefix || providerId; // Consider a more user-friendly fallback if providerId is a UUID
 
-        const nodeModels = Object.entries(modelAliases as Record<string, string>)
-          .filter(([, fullModel]: [string, string]) => fullModel.startsWith(`${providerId}/`))
-          .map(([aliasName, fullModel]: [string, string]) => ({
-            id: fullModel.replace(`${providerId}/`, ""),
-            name: aliasName,
-            value: `${nodePrefix}/${fullModel.replace(`${providerId}/`, "")}`,
-          }));
+        const syncedEntries = providerCustomModels.map((cm: any) => ({
+          id: cm.id,
+          name: cm.name || cm.id,
+          value: `${nodePrefix}/${cm.id}`,
+          isCustom: true,
+        }));
 
-        const fallbackEntries = (
-          getCompatibleFallbackModels(providerId, providerCustomModels) || []
-        )
-          .filter((fm) => !nodeModels.some((nm) => nm.id === fm.id))
-          .map((fm) => ({
-            id: fm.id,
-            name: fm.name || fm.id,
-            value: `${nodePrefix}/${fm.id}`,
-            isFallback: true,
-          }));
+        // Legacy fallback for older data where compatible provider models lived in aliases.
+        const legacyAliasEntries =
+          syncedEntries.length === 0
+            ? Object.entries(modelAliases as Record<string, string>)
+                .filter(
+                  ([, fullModel]: [string, string]) =>
+                    fullModel.startsWith(`${nodePrefix}/`) || fullModel.startsWith(`${providerId}/`)
+                )
+                .map(([aliasName, fullModel]: [string, string]) => {
+                  const modelId = fullModel
+                    .replace(`${nodePrefix}/`, "")
+                    .replace(`${providerId}/`, "");
+                  return {
+                    id: modelId,
+                    name: aliasName,
+                    value: `${nodePrefix}/${modelId}`,
+                  };
+                })
+            : [];
 
-        // Merge custom models for custom providers
-        const customEntries = providerCustomModels
-          .filter(
-            (cm) =>
-              !nodeModels.some((nm) => nm.id === cm.id) &&
-              !fallbackEntries.some((fm) => fm.id === cm.id)
-          )
-          .map((cm) => ({
-            id: cm.id,
-            name: cm.name || cm.id,
-            value: `${nodePrefix}/${cm.id}`,
-            isCustom: true,
-          }));
-
-        const allModels = dedupeModelsById([...nodeModels, ...fallbackEntries, ...customEntries]);
+        const allModels = dedupeModelsById([...syncedEntries, ...legacyAliasEntries]);
 
         if (allModels.length > 0) {
           groups[providerId] = {
@@ -296,29 +290,12 @@ export default function ModelSelectModal({
         }
       } else {
         const systemModels = getModelsByProviderId(providerId);
-        const hardcodedIds = new Set(systemModels.map((m) => m.id));
-        const hasHardcoded = systemModels.length > 0;
 
         const systemEntries = systemModels.map((m) => ({
           id: m.id,
           name: m.name,
           value: `${alias}/${m.id}`,
         }));
-
-        // 9router-style: when no hardcoded catalog (e.g. OpenRouter), list every alias under provider/ prefix.
-        const aliasEntries = Object.entries(modelAliases as Record<string, string>)
-          .filter(([aliasName, fullModel]) => {
-            const modelId = fullModel.replace(`${alias}/`, "");
-            return (
-              fullModel.startsWith(`${alias}/`) &&
-              (hasHardcoded ? aliasName === modelId : true) &&
-              !hardcodedIds.has(modelId)
-            );
-          })
-          .map(([aliasName, fullModel]) => {
-            const modelId = fullModel.replace(`${alias}/`, "");
-            return { id: modelId, name: aliasName, value: fullModel, isCustom: true };
-          });
 
         const customEntries = providerCustomModels
           .filter((cm) => !systemModels.some((sm) => sm.id === cm.id))
@@ -333,7 +310,6 @@ export default function ModelSelectModal({
         if (providerId === "openrouter") {
           const already = new Set([
             ...systemEntries.map((m) => String(m.id)),
-            ...aliasEntries.map((a) => String(a.id)),
             ...customEntries.map((c) => String(c.id)),
           ]);
           const source =
@@ -347,12 +323,7 @@ export default function ModelSelectModal({
             }));
         }
 
-        const allModels = dedupeModelsById([
-          ...systemEntries,
-          ...aliasEntries,
-          ...customEntries,
-          ...catalogEntries,
-        ]);
+        const allModels = dedupeModelsById([...systemEntries, ...customEntries, ...catalogEntries]);
 
         if (allModels.length > 0) {
           groups[providerId] = {

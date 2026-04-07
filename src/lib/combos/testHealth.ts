@@ -201,6 +201,38 @@ function hasReasoningOnlyCompletion(body: JsonRecord): boolean {
   });
 }
 
+function hasTokenOnlyAssistantCompletion(body: JsonRecord): boolean {
+  if (!Array.isArray(body.choices) || body.choices.length === 0) return false;
+  const usage = asRecord(body.usage);
+  const completionTokens =
+    typeof usage.completion_tokens === "number" && Number.isFinite(usage.completion_tokens)
+      ? usage.completion_tokens
+      : 0;
+  if (completionTokens <= 0) return false;
+
+  return body.choices.some((choice) => {
+    const choiceRecord = asRecord(choice);
+    const message = asRecord(choiceRecord.message);
+    if (message.role !== "assistant") return false;
+    if (extractAssistantVisibleText(choiceRecord)) return false;
+    if (extractReasoningText(message)) return false;
+    const finishReason =
+      typeof choiceRecord.finish_reason === "string" ? choiceRecord.finish_reason : "";
+    return finishReason === "stop" || finishReason === "length";
+  });
+}
+
+function isCodexLikeModel(modelHint: string): boolean {
+  const normalized = modelHint.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized.startsWith("cx/") ||
+    normalized.startsWith("codex/") ||
+    normalized.includes("/codex") ||
+    normalized.includes("-codex")
+  );
+}
+
 /**
  * Normalize OpenAI-style / proxy error JSON into a single string for combo test UI.
  */
@@ -275,7 +307,7 @@ function collectCompletionRoots(responseBody: unknown): JsonRecord[] {
   return out;
 }
 
-function extractComboTestResponseTextFromUnwrappedBody(body: JsonRecord): string {
+function extractComboTestResponseTextFromUnwrappedBody(body: JsonRecord, modelHint = ""): string {
   if (typeof body.output_text === "string" && body.output_text.trim()) {
     return body.output_text.trim();
   }
@@ -316,12 +348,16 @@ function extractComboTestResponseTextFromUnwrappedBody(body: JsonRecord): string
     return "[reasoning-only completion]";
   }
 
+  if (isCodexLikeModel(modelHint) && hasTokenOnlyAssistantCompletion(body)) {
+    return "[token-only completion]";
+  }
+
   return "";
 }
 
-export function extractComboTestResponseText(responseBody: unknown): string {
+export function extractComboTestResponseText(responseBody: unknown, modelHint = ""): string {
   for (const body of collectCompletionRoots(responseBody)) {
-    const t = extractComboTestResponseTextFromUnwrappedBody(body);
+    const t = extractComboTestResponseTextFromUnwrappedBody(body, modelHint);
     if (t) return t;
   }
   return "";

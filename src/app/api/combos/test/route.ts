@@ -101,7 +101,7 @@ async function testComboModel(modelStr, chatCompletionsUrl, request) {
         res.headers.get("content-type") || ""
       );
 
-      const responseText = extractComboTestResponseText(responseBody);
+      const responseText = extractComboTestResponseText(responseBody, modelStr);
       if (!responseText) {
         const embeddedErr = extractComboTestUpstreamError(responseBody, "");
         const contentType = res.headers.get("content-type") || "";

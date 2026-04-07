@@ -27,6 +27,8 @@ const COMBO_BAD_REQUEST_FALLBACK_PATTERNS = [
   /request blocked by .*api/i,
   /provided message roles? is not valid/i,
   /unsupported .*message role/i,
+  /requested model .* not supported/i,
+  /model .* is not supported/i,
   /no such tool available/i,
   /unsupported content part type/i,
   /tool(?:_call|_use)? .* not (?:available|found)/i,

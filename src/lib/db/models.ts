@@ -391,6 +391,11 @@ export async function replaceCustomModels(
     outputTokenLimit?: number;
     description?: string;
     supportsThinking?: boolean;
+    clineMeta?: {
+      recommended?: boolean;
+      free?: boolean;
+      categories?: string[];
+    };
   }>,
   { allowEmpty = false }: { allowEmpty?: boolean } = {}
 ) {
@@ -440,6 +445,11 @@ export async function replaceCustomModels(
         ? { supportsThinking: m.supportsThinking }
         : (prev as any)?.supportsThinking != null
           ? { supportsThinking: (prev as any).supportsThinking }
+          : {}),
+      ...(m.clineMeta != null
+        ? { clineMeta: m.clineMeta }
+        : (prev as any)?.clineMeta != null
+          ? { clineMeta: (prev as any).clineMeta }
           : {}),
       // Preserve existing compat flags
       ...(prev && (prev as any).normalizeToolCallId !== undefined

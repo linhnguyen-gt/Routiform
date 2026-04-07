@@ -165,6 +165,42 @@ test("combo test route accepts reasoning-only completions as healthy smoke-test 
   assert.equal(body.results[0].responseText, "[reasoning-only completion]");
 });
 
+test("combo test route accepts Codex token-only completions as healthy", async () => {
+  await createTestCombo(["cx/gpt-5.4"]);
+
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              role: "assistant",
+              content: "",
+            },
+          },
+        ],
+        usage: {
+          prompt_tokens: 100,
+          completion_tokens: 5,
+          total_tokens: 105,
+        },
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }
+    );
+
+  const response = await route.POST(makeRequest());
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.resolvedBy, "cx/gpt-5.4");
+  assert.equal(body.results[0].status, "ok");
+  assert.equal(body.results[0].responseText, "[token-only completion]");
+});
+
 test("combo test route surfaces provider errors instead of downgrading them to reachability", async () => {
   await createTestCombo();
 
