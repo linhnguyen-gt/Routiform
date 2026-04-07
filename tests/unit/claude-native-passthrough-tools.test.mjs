@@ -94,5 +94,52 @@ test("Claude-to-Claude passthrough should not alter tool names", () => {
 
   // Claude-to-Claude should preserve tool names
   assert.ok(Array.isArray(result.tools), "tools should be an array");
-  assert.equal(result.tools[0].name, "TodoWrite", "tool name should stay unchanged for Claude-to-Claude");
+  assert.equal(
+    result.tools[0].name,
+    "TodoWrite",
+    "tool name should stay unchanged for Claude-to-Claude"
+  );
+});
+
+test("Claude-to-OpenAI request translator strips internal proxy_ tool prefix", () => {
+  const body = {
+    model: "claude-sonnet-4-6",
+    max_tokens: 64,
+    messages: [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_use",
+            id: "call_1",
+            name: "proxy_read",
+            input: { path: "README.md" },
+          },
+        ],
+      },
+    ],
+    tools: [
+      {
+        name: "proxy_read",
+        description: "Read a file",
+        input_schema: { type: "object", properties: { path: { type: "string" } } },
+      },
+    ],
+    tool_choice: { type: "tool", name: "proxy_read" },
+  };
+
+  const translated = translateRequest(
+    FORMATS.CLAUDE,
+    FORMATS.OPENAI,
+    body.model,
+    structuredClone(body),
+    false,
+    null,
+    null,
+    null
+  );
+
+  assert.equal(translated.tools[0].function.name, "read");
+  assert.equal(translated.messages[0].tool_calls[0].function.name, "read");
+  assert.equal(translated.tool_choice.function.name, "read");
 });

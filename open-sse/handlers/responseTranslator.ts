@@ -20,6 +20,17 @@ function toNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function resolveToolName(rawName: string, toolNameMap?: Map<string, string> | null): string {
+  const mapped = toolNameMap?.get(rawName);
+  if (typeof mapped === "string" && mapped.trim().length > 0) {
+    return mapped;
+  }
+  if (rawName.startsWith("proxy_") && rawName.length > "proxy_".length) {
+    return rawName.slice("proxy_".length);
+  }
+  return rawName;
+}
+
 function extractMessageOutputText(item: JsonRecord): string {
   if (!Array.isArray(item.content)) return "";
   let text = "";
@@ -129,7 +140,7 @@ export function translateNonStreamingResponse(
             : JSON.stringify(itemObj.arguments || {});
         const rawName = toString(itemObj.name);
         // Strip Claude OAuth proxy_ prefix using toolNameMap
-        const resolvedName = toolNameMap?.get(rawName) ?? rawName;
+        const resolvedName = resolveToolName(rawName, toolNameMap);
         toolCalls.push({
           id: callId,
           type: "function",
@@ -330,7 +341,7 @@ export function translateNonStreamingResponse(
           thinkingContent += toString(blockObj.thinking);
         } else if (blockObj.type === "tool_use") {
           const rawName = toString(blockObj.name);
-          const strippedName = toolNameMap?.get(rawName) ?? rawName;
+          const strippedName = resolveToolName(rawName, toolNameMap);
           toolCalls.push({
             id: toString(blockObj.id, `call_${Date.now()}_${toolCalls.length}`),
             type: "function",

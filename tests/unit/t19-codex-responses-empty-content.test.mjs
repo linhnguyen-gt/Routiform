@@ -64,3 +64,30 @@ test("T19: falls back to last message block when all message texts are empty", (
   assert.equal(translated.choices[0].message.content, "");
   assert.equal(translated.choices[0].finish_reason, "stop");
 });
+
+test("T19: strips proxy_ prefix from Responses function_call name without tool map", () => {
+  const responseBody = {
+    object: "response",
+    id: "resp_t19_proxy_tool",
+    model: "gpt-5.2-codex",
+    created_at: 1710000002,
+    output: [
+      {
+        type: "function_call",
+        id: "fc_1",
+        call_id: "call_1",
+        name: "proxy_read",
+        arguments: "{}",
+      },
+    ],
+  };
+
+  const translated = translateNonStreamingResponse(
+    responseBody,
+    FORMATS.OPENAI_RESPONSES,
+    FORMATS.OPENAI
+  );
+
+  assert.equal(translated.choices[0].message.tool_calls[0].function.name, "read");
+  assert.equal(translated.choices[0].finish_reason, "tool_calls");
+});

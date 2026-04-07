@@ -17,6 +17,7 @@ import { selectProvider as selectAutoProvider } from "./autoCombo/engine.ts";
 import { selectWithStrategy } from "./autoCombo/routerStrategy.ts";
 import { DEFAULT_WEIGHTS, scorePool } from "./autoCombo/scoring.ts";
 import { supportsToolCalling } from "./modelCapabilities.ts";
+import { isModelUnavailableError } from "./modelFamilyFallback.ts";
 import { getModelContextLimit } from "../../src/lib/modelsDevSync";
 
 // Status codes that should mark semaphore + record circuit breaker failures
@@ -29,6 +30,9 @@ const COMBO_BAD_REQUEST_FALLBACK_PATTERNS = [
   /no such tool available/i,
   /unsupported content part type/i,
   /tool(?:_call|_use)? .* not (?:available|found)/i,
+  /does not support (?:image|vision|multimodal)/i,
+  /image (?:input|analysis) (?:is )?not supported/i,
+  /unsupported .*image/i,
 ];
 
 const MAX_COMBO_DEPTH = 3;
@@ -388,6 +392,9 @@ function extractPromptForIntent(body) {
 export function shouldFallbackComboBadRequest(status, errorText, providerHint) {
   if (status !== 400 || !errorText) return false;
   const message = String(errorText);
+  if (isModelUnavailableError(status, message)) {
+    return true;
+  }
   if (COMBO_BAD_REQUEST_FALLBACK_PATTERNS.some((pattern) => pattern.test(message))) {
     return true;
   }
@@ -1246,16 +1253,17 @@ export async function handleComboChat({
 
   const status = lastStatus;
   const msg = lastError || "All combo models unavailable";
+  const exhaustedStatus = status === 402 || status === 403 || status === 429 ? 503 : status;
 
   if (earliestRetryAfter) {
     const retryHuman = formatRetryAfter(earliestRetryAfter);
     log.warn("COMBO", `All models failed | ${msg} (${retryHuman})`);
-    return unavailableResponse(status, msg, earliestRetryAfter, retryHuman);
+    return unavailableResponse(exhaustedStatus, msg, earliestRetryAfter, retryHuman);
   }
 
   log.warn("COMBO", `All models failed | ${msg}`);
   return new Response(JSON.stringify({ error: { message: msg } }), {
-    status,
+    status: exhaustedStatus,
     headers: { "Content-Type": "application/json" },
   });
 }
@@ -1588,16 +1596,17 @@ async function handleRoundRobinCombo({
 
   const status = lastStatus;
   const msg = lastError || "All round-robin combo models unavailable";
+  const exhaustedStatus = status === 402 || status === 403 || status === 429 ? 503 : status;
 
   if (earliestRetryAfter) {
     const retryHuman = formatRetryAfter(earliestRetryAfter);
     log.warn("COMBO-RR", `All models failed | ${msg} (${retryHuman})`);
-    return unavailableResponse(status, msg, earliestRetryAfter, retryHuman);
+    return unavailableResponse(exhaustedStatus, msg, earliestRetryAfter, retryHuman);
   }
 
   log.warn("COMBO-RR", `All models failed | ${msg}`);
   return new Response(JSON.stringify({ error: { message: msg } }), {
-    status,
+    status: exhaustedStatus,
     headers: { "Content-Type": "application/json" },
   });
 }

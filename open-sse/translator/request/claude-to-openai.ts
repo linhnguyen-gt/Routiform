@@ -4,6 +4,16 @@ import { adjustMaxTokens } from "../helpers/maxTokensHelper.ts";
 
 type JsonRecord = Record<string, unknown>;
 const TOOL_CHOICE_ANY = ["a", "n", "y"].join("");
+const CLAUDE_OAUTH_TOOL_PREFIX = "proxy_";
+
+function normalizeToolName(name: unknown): string {
+  const raw = typeof name === "string" ? name.trim() : "";
+  if (!raw) return "";
+  if (raw.startsWith(CLAUDE_OAUTH_TOOL_PREFIX) && raw.length > CLAUDE_OAUTH_TOOL_PREFIX.length) {
+    return raw.slice(CLAUDE_OAUTH_TOOL_PREFIX.length);
+  }
+  return raw;
+}
 
 // Convert Claude request to OpenAI format
 export function claudeToOpenAIRequest(model, body, stream) {
@@ -65,7 +75,7 @@ export function claudeToOpenAIRequest(model, body, stream) {
   if (body.tools && Array.isArray(body.tools)) {
     const normalizedTools = body.tools
       .map((tool) => {
-        const name = typeof tool.name === "string" ? tool.name.trim() : "";
+        const name = normalizeToolName(tool.name);
         if (!name) return null; // skip tools with empty/invalid name
 
         return {
@@ -164,18 +174,29 @@ function convertClaudeMessage(msg) {
                 url: `data:${block.source.media_type};base64,${block.source.data}`,
               },
             });
+          } else if (block.source?.type === "url" && typeof block.source.url === "string") {
+            parts.push({
+              type: "image_url",
+              image_url: {
+                url: block.source.url,
+              },
+            });
           }
           break;
 
         case "tool_use":
-          toolCalls.push({
-            id: block.id,
-            type: "function",
-            function: {
-              name: block.name,
-              arguments: JSON.stringify(block.input || {}),
-            },
-          });
+          {
+            const normalizedName = normalizeToolName(block.name);
+            if (!normalizedName) break;
+            toolCalls.push({
+              id: block.id,
+              type: "function",
+              function: {
+                name: normalizedName,
+                arguments: JSON.stringify(block.input || {}),
+              },
+            });
+          }
           break;
 
         case "tool_result":
@@ -248,7 +269,7 @@ function convertToolChoice(choice) {
     case TOOL_CHOICE_ANY:
       return "required";
     case "tool":
-      return { type: "function", function: { name: choice.name } };
+      return { type: "function", function: { name: normalizeToolName(choice.name) } };
     default:
       return "auto";
   }

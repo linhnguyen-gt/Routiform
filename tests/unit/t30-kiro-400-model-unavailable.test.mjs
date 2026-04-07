@@ -17,6 +17,11 @@ test("T30: generic 400 without model-unavailable signal is not treated as unavai
   assert.equal(unavailable, false);
 });
 
+test("T30: requested model not supported 400 is treated as model-unavailable", () => {
+  const unavailable = isModelUnavailableError(400, "The requested model is not supported.");
+  assert.equal(unavailable, true);
+});
+
 test("T30: 404 still maps to model-unavailable", () => {
   const unavailable = isModelUnavailableError(404, "not found");
   assert.equal(unavailable, true);

@@ -44,7 +44,6 @@ export class AntigravityExecutor extends BaseExecutor {
       Authorization: `Bearer ${credentials.accessToken}`,
       "User-Agent": this.config.headers?.["User-Agent"] || "antigravity/1.104.0 darwin/arm64",
       "X-Routiform-Source": "routiform",
-      "X-Routiform-Source": "routiform",
       Accept: "text/event-stream",
     };
   }
@@ -401,6 +400,19 @@ export class AntigravityExecutor extends BaseExecutor {
 
           if (retryMs && retryMs <= LONG_RETRY_THRESHOLD_MS) {
             const effectiveRetryMs = Math.min(retryMs, MAX_RETRY_AFTER_MS);
+            if (stream) {
+              log?.debug?.(
+                "RETRY",
+                `${response.status} with Retry-After: ${Math.ceil(effectiveRetryMs / 1000)}s on stream request, skipping wait and trying fallback`
+              );
+              lastStatus = response.status;
+              if (urlIndex + 1 < fallbackCount) {
+                continue;
+              }
+              // No more fallback nodes left: return upstream response immediately
+              // instead of stalling stream requests on Retry-After waits.
+              return { response, url, headers, transformedBody };
+            }
             log?.debug?.(
               "RETRY",
               `${response.status} with Retry-After: ${Math.ceil(effectiveRetryMs / 1000)}s, waiting...`
@@ -412,6 +424,7 @@ export class AntigravityExecutor extends BaseExecutor {
 
           // Auto retry only for 429 when retryMs is 0 or undefined
           if (
+            !stream &&
             response.status === HTTP_STATUS.RATE_LIMITED &&
             (!retryMs || retryMs === 0) &&
             retryAttemptsByUrl[urlIndex] < MAX_AUTO_RETRIES

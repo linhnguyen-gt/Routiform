@@ -438,12 +438,16 @@ async function handleSingleModelChat(
     );
 
     if (!credentials || credentials.allRateLimited) {
-      if (lastStatus === 429 || lastStatus === 503) {
-        setModelUnavailable(provider, model, 60000, `HTTP ${lastStatus}`);
-        log.info(
-          "AVAILABILITY",
-          `${provider}/${model} marked unavailable — all accounts exhausted (HTTP ${lastStatus})`
-        );
+      if (credentials?.allRateLimited && lastStatus === 429) {
+        const retryAt = credentials.retryAfter ? new Date(credentials.retryAfter).getTime() : 0;
+        const retryMs = retryAt > Date.now() ? Math.min(retryAt - Date.now(), 60_000) : 0;
+        if (retryMs > 0) {
+          setModelUnavailable(provider, model, retryMs, "HTTP 429 all accounts rate-limited");
+          log.info(
+            "AVAILABILITY",
+            `${provider}/${model} marked unavailable for ${Math.ceil(retryMs / 1000)}s (all accounts rate-limited)`
+          );
+        }
       }
       return handleNoCredentials(
         credentials,

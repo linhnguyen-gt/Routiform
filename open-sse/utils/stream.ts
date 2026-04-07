@@ -84,8 +84,20 @@ function getOpenAIIntermediateChunks(value: unknown): unknown[] {
   return Array.isArray(candidate) ? candidate : [];
 }
 
+function resolveToolName(rawName: string, toolNameMap: unknown): string {
+  if (toolNameMap instanceof Map) {
+    const mapped = toolNameMap.get(rawName);
+    if (typeof mapped === "string" && mapped.trim().length > 0) {
+      return mapped;
+    }
+  }
+  if (rawName.startsWith("proxy_") && rawName.length > "proxy_".length) {
+    return rawName.slice("proxy_".length);
+  }
+  return rawName;
+}
+
 function restoreClaudePassthroughToolUseName(parsed: JsonRecord, toolNameMap: unknown): boolean {
-  if (!(toolNameMap instanceof Map)) return false;
   if (!parsed || typeof parsed !== "object") return false;
 
   const block =
@@ -94,7 +106,7 @@ function restoreClaudePassthroughToolUseName(parsed: JsonRecord, toolNameMap: un
       : null;
   if (!block || block.type !== "tool_use" || typeof block.name !== "string") return false;
 
-  const restoredName = toolNameMap.get(block.name) ?? block.name;
+  const restoredName = resolveToolName(block.name, toolNameMap);
   if (restoredName === block.name) return false;
   block.name = restoredName;
   return true;

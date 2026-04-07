@@ -11,6 +11,74 @@ import { isAuthRequired, isAuthenticated } from "@/shared/utils/apiAuth";
 const MAX_UPLOAD_SIZE = 200 * 1024 * 1024; // 200 MB — archive includes DB + JSON
 
 const REQUIRED_TABLES = ["provider_connections", "provider_nodes", "combos", "api_keys"];
+const RUNTIME_HOT_RELOAD_SECRET_KEYS = [
+  "STORAGE_ENCRYPTION_KEY",
+  "STORAGE_ENCRYPTION_KEY_LEGACY",
+  "STORAGE_ENCRYPTION_KEYS",
+  "STORAGE_ENCRYPTION_KEY_VERSION",
+] as const;
+
+const AUTH_SECRET_KEYS = ["JWT_SECRET", "API_KEY_SECRET"] as const;
+
+function parseSimpleEnvFile(filePath: string): Record<string, string> {
+  if (!fs.existsSync(filePath)) return {};
+  const out: Record<string, string> = {};
+  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    const value = trimmed.slice(eq + 1).trim();
+    if (!key || !value) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+function applyImportedServerEnvToRuntime(serverEnvPath: string): {
+  runtimeSecretsReloaded: boolean;
+  runtimeOverrideDetected: boolean;
+  authSecretsChanged: boolean;
+} {
+  const parsed = parseSimpleEnvFile(serverEnvPath);
+  const importedPrimary = parsed.STORAGE_ENCRYPTION_KEY?.trim() || "";
+  const previousPrimary = process.env.STORAGE_ENCRYPTION_KEY?.trim() || "";
+
+  let runtimeSecretsReloaded = false;
+  const runtimeOverrideDetected =
+    !!importedPrimary && !!previousPrimary && importedPrimary !== previousPrimary;
+
+  const authSecretsChanged = AUTH_SECRET_KEYS.some((key) => {
+    const nextVal = parsed[key]?.trim();
+    if (!nextVal) return false;
+    const currentVal = process.env[key]?.trim();
+    return !!currentVal && currentVal !== nextVal;
+  });
+
+  for (const key of RUNTIME_HOT_RELOAD_SECRET_KEYS) {
+    const value = parsed[key]?.trim();
+    if (!value) continue;
+    process.env[key] = value;
+    runtimeSecretsReloaded = true;
+  }
+
+  if (importedPrimary && previousPrimary && importedPrimary !== previousPrimary) {
+    const importedLegacy = parsed.STORAGE_ENCRYPTION_KEY_LEGACY?.trim() || "";
+    const importedMulti = (parsed.STORAGE_ENCRYPTION_KEYS || "")
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+    const importedCandidates = new Set([importedPrimary, importedLegacy, ...importedMulti]);
+    if (!importedCandidates.has(previousPrimary)) {
+      process.env.STORAGE_ENCRYPTION_KEY_LEGACY = previousPrimary;
+      runtimeSecretsReloaded = true;
+    }
+  }
+
+  return { runtimeSecretsReloaded, runtimeOverrideDetected, authSecretsChanged };
+}
 
 function assertPathInsideRoot(filePath: string, root: string): boolean {
   const r = path.resolve(root);
@@ -202,6 +270,9 @@ export async function POST(request: Request) {
       assertPathInsideRoot(p, extractDir!)
     );
     let importedServerEnv = false;
+    let runtimeSecretsReloaded = false;
+    let runtimeOverrideDetected = false;
+    let authSecretsChanged = false;
     if (serverEnvCandidates.length > 1) {
       return NextResponse.json(
         { error: "Multiple server.env files in archive; expected at most one." },
@@ -217,6 +288,10 @@ export async function POST(request: Request) {
       }
       fs.copyFileSync(srcEnv, destEnv);
       importedServerEnv = true;
+      const runtimeApply = applyImportedServerEnvToRuntime(destEnv);
+      runtimeSecretsReloaded = runtimeApply.runtimeSecretsReloaded;
+      runtimeOverrideDetected = runtimeApply.runtimeOverrideDetected;
+      authSecretsChanged = runtimeApply.authSecretsChanged;
     }
 
     backupDbFile("pre-import-all");
@@ -240,8 +315,8 @@ export async function POST(request: Request) {
 
     const db = getDbInstance();
     const connCount =
-      (db.prepare("SELECT COUNT(*) as cnt FROM provider_connections").get() as { cnt: number })?.cnt ||
-      0;
+      (db.prepare("SELECT COUNT(*) as cnt FROM provider_connections").get() as { cnt: number })
+        ?.cnt || 0;
     const nodeCount =
       (db.prepare("SELECT COUNT(*) as cnt FROM provider_nodes").get() as { cnt: number })?.cnt || 0;
     const comboCount =
@@ -250,13 +325,21 @@ export async function POST(request: Request) {
       (db.prepare("SELECT COUNT(*) as cnt FROM api_keys").get() as { cnt: number })?.cnt || 0;
 
     console.log(
-      `[DB] Import-all from ${fileName}: ${connCount} connections, ${nodeCount} nodes, ${comboCount} combos, ${keyCount} API keys; server.env: ${importedServerEnv ? "yes" : "no"}`
+      `[DB] Import-all from ${fileName}: ${connCount} connections, ${nodeCount} nodes, ${comboCount} combos, ${keyCount} API keys; server.env: ${importedServerEnv ? "yes" : "no"}; runtime secrets reloaded: ${runtimeSecretsReloaded ? "yes" : "no"}`
     );
+    if (runtimeOverrideDetected) {
+      console.warn(
+        "[DB] Import-all detected a different STORAGE_ENCRYPTION_KEY in current runtime; switched runtime to imported server.env key and moved previous key to STORAGE_ENCRYPTION_KEY_LEGACY for compatibility."
+      );
+    }
 
     return NextResponse.json({
       imported: true,
       filename: fileName,
       importedServerEnv,
+      runtimeSecretsReloaded,
+      runtimeOverrideDetected,
+      authSecretsChanged,
       connectionCount: connCount,
       nodeCount,
       comboCount,

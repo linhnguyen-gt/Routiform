@@ -82,6 +82,50 @@ export function normalizeContentToString(content: string | unknown[] | null | un
   return "";
 }
 
+function maybeParseJsonString(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) return value;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function maybeConvertMediaToolResultToClaudeContent(
+  content: unknown
+): unknown[] | string | Record<string, unknown> {
+  const parsed = maybeParseJsonString(content);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) return content;
+    if (content && typeof content === "object") return content as Record<string, unknown>;
+    return String(content ?? "");
+  }
+
+  const obj = parsed as Record<string, unknown>;
+  const mimeType =
+    (typeof obj.mimeType === "string" ? obj.mimeType : null) ||
+    (typeof obj.mime_type === "string" ? obj.mime_type : null);
+  const base64Data = typeof obj.data === "string" ? obj.data : null;
+  if (mimeType && base64Data && mimeType.toLowerCase().startsWith("image/")) {
+    return [
+      {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: mimeType,
+          data: base64Data,
+        },
+      },
+    ];
+  }
+
+  return obj;
+}
+
 // Convert OpenAI request to Claude format
 export function openaiToClaudeRequest(model, body, stream) {
   // Check if tool prefix should be disabled (configured per-provider or global)
@@ -361,9 +405,10 @@ function getContentBlocksFromMessage(msg, toolNameMap = new Map(), disableToolPr
 
   if (msg.role === "tool") {
     // T02: Strip empty text blocks from nested tool_result content to avoid Anthropic 400
-    const toolContent = Array.isArray(msg.content)
-      ? stripEmptyTextBlocks(msg.content)
-      : msg.content;
+    const normalizedToolContent = maybeConvertMediaToolResultToClaudeContent(msg.content);
+    const toolContent = Array.isArray(normalizedToolContent)
+      ? stripEmptyTextBlocks(normalizedToolContent)
+      : normalizedToolContent;
     blocks.push({
       type: "tool_result",
       tool_use_id: msg.tool_call_id,
@@ -398,6 +443,11 @@ function getContentBlocksFromMessage(msg, toolNameMap = new Map(), disableToolPr
             blocks.push({
               type: "image",
               source: { type: "base64", media_type: match[1], data: match[2] },
+            });
+          } else if (/^https?:\/\//i.test(url)) {
+            blocks.push({
+              type: "image",
+              source: { type: "url", url },
             });
           }
         } else if (part.type === "image" && part.source) {

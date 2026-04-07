@@ -178,6 +178,11 @@ test("combo bad-request fallback helper: patterns + GitHub opaque Bad Request", 
     true
   );
   assert.equal(shouldFallbackComboBadRequest(400, "bad request"), false);
+  assert.equal(shouldFallbackComboBadRequest(400, "The requested model is not supported."), true);
+  assert.equal(
+    shouldFallbackComboBadRequest(400, "This model does not support image input."),
+    true
+  );
   assert.equal(shouldFallbackComboBadRequest(400, "Bad Request\n", "github"), true);
   assert.equal(shouldFallbackComboBadRequest(400, "Bad Request\n", "gh"), true);
   assert.equal(shouldFallbackComboBadRequest(400, "Bad Request\n", "openai"), false);

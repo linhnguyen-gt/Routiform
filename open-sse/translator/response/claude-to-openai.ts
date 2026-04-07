@@ -28,6 +28,17 @@ function createChunk(state, delta, finishReason = null) {
   };
 }
 
+function resolveToolName(rawName, toolNameMap) {
+  const mapped = toolNameMap?.get?.(rawName);
+  if (typeof mapped === "string" && mapped.trim().length > 0) {
+    return mapped;
+  }
+  if (typeof rawName === "string" && rawName.startsWith("proxy_") && rawName.length > 6) {
+    return rawName.slice(6);
+  }
+  return rawName;
+}
+
 // Convert Claude stream chunk to OpenAI format
 export function claudeToOpenAIResponse(chunk, state) {
   if (!chunk) return null;
@@ -57,7 +68,7 @@ export function claudeToOpenAIResponse(chunk, state) {
       } else if (block?.type === "tool_use") {
         const toolCallIndex = state.toolCallIndex++;
         // Restore original tool name from mapping (Claude OAuth)
-        const toolName = state.toolNameMap?.get(block.name) || block.name;
+        const toolName = resolveToolName(block.name, state.toolNameMap);
         const toolCall = {
           index: toolCallIndex,
           id: block.id,

@@ -105,3 +105,63 @@ test("T15: openaiToClaudeRequest converts system array content into a Claude sys
   // system[0] is the injected Claude prompt; user-provided system content is system[1].
   assert.equal(translated.system[1].text, "System rules A\nSystem rules B");
 });
+
+test("openaiToClaudeRequest keeps https image_url as Claude image url source", () => {
+  const request = {
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "image_url", image_url: { url: "https://example.com/a.png" } },
+          { type: "text", text: "analyze" },
+        ],
+      },
+    ],
+  };
+
+  const translated = openaiToClaudeRequest("claude-sonnet-4", request, false);
+  const firstUser = translated.messages.find((m) => m.role === "user");
+  assert.ok(firstUser);
+  const imageBlock = firstUser.content.find((b) => b.type === "image");
+  assert.deepEqual(imageBlock, {
+    type: "image",
+    source: { type: "url", url: "https://example.com/a.png" },
+  });
+});
+
+test("openaiToClaudeRequest converts filesystem_read_media_file tool JSON into image tool_result", () => {
+  const request = {
+    messages: [
+      { role: "user", content: "analyze local image" },
+      {
+        role: "assistant",
+        content: "",
+        tool_calls: [
+          {
+            id: "call_1",
+            type: "function",
+            function: { name: "filesystem_read_media_file", arguments: "{}" },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        tool_call_id: "call_1",
+        content: JSON.stringify({ mimeType: "image/png", data: "abc123" }),
+      },
+    ],
+  };
+
+  const translated = openaiToClaudeRequest("claude-sonnet-4", request, false);
+  const toolMessage = translated.messages.find(
+    (m) => Array.isArray(m.content) && m.content.some((b) => b.type === "tool_result")
+  );
+  assert.ok(toolMessage);
+  const toolResult = toolMessage.content.find((b) => b.type === "tool_result");
+  assert.deepEqual(toolResult.content, [
+    {
+      type: "image",
+      source: { type: "base64", media_type: "image/png", data: "abc123" },
+    },
+  ]);
+});

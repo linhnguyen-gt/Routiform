@@ -102,6 +102,7 @@ const MODEL_UNAVAILABLE_FRAGMENTS = [
   "this model does not exist",
   "invalid model",
   "model not supported",
+  "model is not supported",
   "does not support",
   "not enabled for",
   "access to model",

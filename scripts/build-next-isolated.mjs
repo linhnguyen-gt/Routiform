@@ -24,6 +24,25 @@ async function exists(targetPath) {
   }
 }
 
+async function movePath(sourcePath, destinationPath) {
+  try {
+    await fs.rename(sourcePath, destinationPath);
+    return;
+  } catch (error) {
+    if (error?.code !== "EXDEV") {
+      throw error;
+    }
+  }
+
+  await fs.cp(sourcePath, destinationPath, {
+    recursive: true,
+    force: false,
+    errorOnExist: true,
+    preserveTimestamps: true,
+  });
+  await fs.rm(sourcePath, { recursive: true, force: true });
+}
+
 function runNextBuild() {
   return new Promise((resolve) => {
     const nextBin = path.join(projectRoot, "node_modules", "next", "dist", "bin", "next");
@@ -57,7 +76,7 @@ async function main() {
 
   try {
     if (await exists(legacyAppDir)) {
-      await fs.rename(legacyAppDir, backupDir);
+      await movePath(legacyAppDir, backupDir);
       moved = true;
     }
 
@@ -69,7 +88,7 @@ async function main() {
   } finally {
     if (moved) {
       try {
-        await fs.rename(backupDir, legacyAppDir);
+        await movePath(backupDir, legacyAppDir);
       } catch (restoreError) {
         console.error(
           `[build-next-isolated] Failed to restore legacy app dir from ${backupDir}:`,

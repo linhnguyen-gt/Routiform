@@ -104,6 +104,8 @@ import {
   isFallbackDecision,
   EMERGENCY_FALLBACK_CONFIG,
 } from "../services/emergencyFallback.ts";
+import { maybeEnforceMediaToolForLocalImage } from "../services/imageToolRouting.ts";
+import { maybeEnforceRequiredToolChoiceForUrlFetch } from "../services/urlToolEnforcement.ts";
 import { resolveStreamFlag, stripMarkdownCodeFence } from "../utils/aiSdkCompat.ts";
 import { generateRequestId } from "@/shared/utils/requestId";
 import { normalizePayloadForLog } from "@/lib/logPayloads";
@@ -504,7 +506,6 @@ export async function handleChatCore({
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": getCorsOrigin(),
           "X-Routiform-Idempotent": "true",
-          "X-Routiform-Idempotent": "true",
         },
       }),
     };
@@ -717,7 +718,6 @@ export async function handleChatCore({
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": getCorsOrigin(),
             "X-Routiform-Cache": "HIT",
-            "X-Routiform-Cache": "HIT",
           },
         }),
       };
@@ -768,6 +768,14 @@ export async function handleChatCore({
       const name = fn?.name ?? tool.name;
       return name && String(name).trim().length > 0;
     });
+  }
+
+  if (maybeEnforceMediaToolForLocalImage(body)) {
+    log?.info?.("TOOLS", "Enforced filesystem_read_media_file for local image analysis request");
+  }
+
+  if (maybeEnforceRequiredToolChoiceForUrlFetch(body)) {
+    log?.info?.("TOOLS", "Enforced tool_choice=required for URL fetch request");
   }
 
   const memorySettings = apiKeyInfo?.id
@@ -2146,7 +2154,6 @@ export async function handleChatCore({
         headers: {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": getCorsOrigin(),
-          "X-Routiform-Cache": "MISS",
           "X-Routiform-Cache": "MISS",
         },
       }),

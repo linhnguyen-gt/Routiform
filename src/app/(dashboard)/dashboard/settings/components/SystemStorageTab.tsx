@@ -42,6 +42,31 @@ export default function SystemStorageTab() {
     lastBackupAt: null,
   });
 
+  const toUiMessage = (value: unknown, fallback: string) => {
+    if (typeof value === "string") {
+      const v = value.trim();
+      return v || fallback;
+    }
+    if (value && typeof value === "object") {
+      const obj = value as Record<string, unknown>;
+      if (typeof obj.message === "string" && obj.message.trim()) {
+        if (typeof obj.code === "string" && obj.code.trim()) {
+          return `${obj.code}: ${obj.message}`;
+        }
+        return obj.message;
+      }
+      if (typeof obj.error === "string" && obj.error.trim()) {
+        return obj.error;
+      }
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return fallback;
+      }
+    }
+    return fallback;
+  };
+
   const loadBackups = async () => {
     setBackupsLoading(true);
     try {
@@ -81,13 +106,16 @@ export default function SystemStorageTab() {
         } else {
           setManualBackupStatus({
             type: "info",
-            message: data.message || t("noChangesSinceBackup"),
+            message: toUiMessage(data.message, t("noChangesSinceBackup")),
           });
         }
         await loadStorageHealth();
         if (backupsExpanded) await loadBackups();
       } else {
-        setManualBackupStatus({ type: "error", message: data.error || t("backupFailed") });
+        setManualBackupStatus({
+          type: "error",
+          message: toUiMessage(data.error, t("backupFailed")),
+        });
       }
     } catch {
       setManualBackupStatus({ type: "error", message: t("errorOccurred") });
@@ -119,7 +147,10 @@ export default function SystemStorageTab() {
         await loadBackups();
         await loadStorageHealth();
       } else {
-        setRestoreStatus({ type: "error", message: data.error || t("restoreFailed") });
+        setRestoreStatus({
+          type: "error",
+          message: toUiMessage(data.error, t("restoreFailed")),
+        });
       }
     } catch {
       setRestoreStatus({ type: "error", message: t("errorDuringRestore") });
@@ -139,7 +170,7 @@ export default function SystemStorageTab() {
       const res = await fetch("/api/db-backups/export");
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || t("exportFailed"));
+        throw new Error(toUiMessage(data.error, t("exportFailed")));
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -238,7 +269,10 @@ export default function SystemStorageTab() {
         await loadStorageHealth();
         if (backupsExpanded) await loadBackups();
       } else {
-        setImportStatus({ type: "error", message: data.error || t("importFailed") });
+        setImportStatus({
+          type: "error",
+          message: toUiMessage(data.error, t("importFailed")),
+        });
       }
     } catch {
       setImportStatus({ type: "error", message: t("errorDuringImport") });
@@ -279,7 +313,10 @@ export default function SystemStorageTab() {
         const envNote = data.importedServerEnv
           ? t("importAllEnvRestored")
           : t("importAllEnvSkipped");
-        const restartNote = data.importedServerEnv ? ` ${t("importAllRestartHint")}` : "";
+        const restartNote =
+          data.importedServerEnv && !data.runtimeSecretsReloaded
+            ? ` ${t("importAllRestartHint")}`
+            : "";
         setImportStatus({
           type: "success",
           message: `${base} ${envNote}${restartNote}`,
@@ -287,7 +324,10 @@ export default function SystemStorageTab() {
         await loadStorageHealth();
         if (backupsExpanded) await loadBackups();
       } else {
-        setImportStatus({ type: "error", message: data.error || t("importFailed") });
+        setImportStatus({
+          type: "error",
+          message: toUiMessage(data.error, t("importFailed")),
+        });
       }
     } catch {
       setImportStatus({ type: "error", message: t("errorDuringImport") });
@@ -626,7 +666,10 @@ export default function SystemStorageTab() {
                 } else {
                   setClearCacheStatus({
                     type: "error",
-                    message: data.error || t("clearCacheFailed") || "Failed to clear cache",
+                    message: toUiMessage(
+                      data.error,
+                      t("clearCacheFailed") || "Failed to clear cache"
+                    ),
                   });
                 }
               } catch {
@@ -661,7 +704,10 @@ export default function SystemStorageTab() {
                 } else {
                   setPurgeLogsStatus({
                     type: "error",
-                    message: data.error || t("purgeLogsFailed") || "Failed to purge logs",
+                    message: toUiMessage(
+                      data.error,
+                      t("purgeLogsFailed") || "Failed to purge logs"
+                    ),
                   });
                 }
               } catch {
