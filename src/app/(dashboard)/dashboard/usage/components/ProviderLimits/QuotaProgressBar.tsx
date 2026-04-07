@@ -3,9 +3,9 @@
 import { cn } from "@/shared/utils/cn";
 import { formatResetTime } from "./utils";
 
-// Calculate color based on remaining percentage
-const getColorClasses = (remainingPercentage) => {
-  if (remainingPercentage > 70) {
+/** Colors from **used** % (consumption) */
+const getColorClasses = (usedPercentage) => {
+  if (usedPercentage < 50) {
     return {
       text: "text-green-500",
       bg: "bg-green-500",
@@ -14,7 +14,7 @@ const getColorClasses = (remainingPercentage) => {
     };
   }
 
-  if (remainingPercentage >= 30) {
+  if (usedPercentage < 80) {
     return {
       text: "text-yellow-500",
       bg: "bg-yellow-500",
@@ -23,7 +23,6 @@ const getColorClasses = (remainingPercentage) => {
     };
   }
 
-  // 0-29% including 0% (out of quota) - show red
   return {
     text: "text-red-500",
     bg: "bg-red-500",
@@ -77,8 +76,7 @@ export default function QuotaProgressBar({
   const countdown = formatResetTime(resetTime);
   const resetDisplay = formatResetTimeDisplay(resetTime);
 
-  // percentage is already remaining percentage (from ProviderLimitCard)
-  const remaining = percentage;
+  const usedPercentage = percentage;
 
   return (
     <div className="space-y-2">
@@ -87,7 +85,7 @@ export default function QuotaProgressBar({
         <span className="font-semibold text-text-primary">{label}</span>
         <div className="flex items-center gap-1.5">
           <span className="text-xs">{colors.emoji}</span>
-          <span className={cn("font-medium", colors.text)}>{remaining}%</span>
+          <span className={cn("font-medium", colors.text)}>{usedPercentage}%</span>
         </div>
       </div>
 
@@ -96,7 +94,7 @@ export default function QuotaProgressBar({
         <div className={cn("h-2 rounded-full overflow-hidden", colors.bgLight)}>
           <div
             className={cn("h-full transition-all duration-300", colors.bg)}
-            style={{ width: `${Math.min(remaining, 100)}%` }}
+            style={{ width: `${Math.min(usedPercentage, 100)}%` }}
           />
         </div>
       )}

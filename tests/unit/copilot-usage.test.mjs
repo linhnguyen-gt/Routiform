@@ -54,6 +54,189 @@ test("github copilot business seats infer business plan and hide unlimited bucke
   }
 });
 
+test("github copilot quota bar uses remaining/total when percent_remaining disagrees", async () => {
+  const originalFetch = globalThis.fetch;
+  const futureResetDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        access_type_sku: "copilot_individual",
+        quota_reset_date: futureResetDate,
+        quota_snapshots: {
+          premium_interactions: {
+            entitlement: 300,
+            remaining: 0,
+            percent_remaining: 100,
+            unlimited: false,
+          },
+        },
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }
+    );
+
+  try {
+    const usage = await usageService.getUsageForProvider({
+      provider: "github",
+      accessToken: "gho_test",
+      providerSpecificData: {},
+    });
+
+    assert.equal(usage.quotas.premium_interactions.remainingPercentage, 0);
+    assert.equal(usage.quotas.premium_interactions.used, 300);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("github copilot resolves chat vs completions when chat key is unlimited and completions capped", async () => {
+  const originalFetch = globalThis.fetch;
+  const futureResetDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        copilot_plan: "free",
+        quota_reset_date: futureResetDate,
+        quota_snapshots: {
+          chat: { unlimited: true },
+          completions: { entitlement: 50, remaining: 0, unlimited: false },
+        },
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }
+    );
+
+  try {
+    const usage = await usageService.getUsageForProvider({
+      provider: "github",
+      accessToken: "gho_test",
+      providerSpecificData: {},
+    });
+
+    assert.equal(usage.quotas.chat.remainingPercentage, 0);
+    assert.equal(usage.quotas.chat.used, 50);
+    assert.equal(usage.quotas.completions.remainingPercentage, 100);
+    assert.equal(usage.quotas.completions.unlimited, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("github copilot assigns Chat to more exhausted bucket (500 full vs 4000 empty keys)", async () => {
+  const originalFetch = globalThis.fetch;
+  const futureResetDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        copilot_plan: "free",
+        quota_reset_date: futureResetDate,
+        quota_snapshots: {
+          chat: { entitlement: 500, remaining: 500, unlimited: false },
+          completions: { entitlement: 4000, remaining: 0, unlimited: false },
+        },
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }
+    );
+
+  try {
+    const usage = await usageService.getUsageForProvider({
+      provider: "github",
+      accessToken: "gho_test",
+      providerSpecificData: {},
+    });
+
+    assert.equal(usage.quotas.chat.remainingPercentage, 0);
+    assert.equal(usage.quotas.chat.used, 4000);
+    assert.equal(usage.quotas.completions.remainingPercentage, 100);
+    assert.equal(usage.quotas.completions.used, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("github copilot resolves inverted entitlements by cap size (free tier)", async () => {
+  const originalFetch = globalThis.fetch;
+  const futureResetDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        copilot_plan: "free",
+        quota_reset_date: futureResetDate,
+        quota_snapshots: {
+          // Mislabeled payload: large bucket under `chat`, small under `completions`
+          chat: { entitlement: 5000, remaining: 5000, unlimited: false },
+          completions: { entitlement: 50, remaining: 0, unlimited: false },
+        },
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }
+    );
+
+  try {
+    const usage = await usageService.getUsageForProvider({
+      provider: "github",
+      accessToken: "gho_test",
+      providerSpecificData: {},
+    });
+
+    assert.equal(usage.quotas.chat.remainingPercentage, 0);
+    assert.equal(usage.quotas.chat.used, 50);
+    assert.equal(usage.quotas.completions.remainingPercentage, 100);
+    assert.equal(usage.quotas.completions.used, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("github copilot maps quota_snapshots chat vs completions to UI labels (canonical API order)", async () => {
+  const originalFetch = globalThis.fetch;
+  const futureResetDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        copilot_plan: "free",
+        quota_reset_date: futureResetDate,
+        quota_snapshots: {
+          chat: { entitlement: 50, remaining: 43, unlimited: false },
+          completions: { entitlement: 5000, remaining: 5000, unlimited: false },
+        },
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }
+    );
+
+  try {
+    const usage = await usageService.getUsageForProvider({
+      provider: "github",
+      accessToken: "gho_test",
+      providerSpecificData: {},
+    });
+
+    assert.equal(usage.quotas.chat.remainingPercentage, 86);
+    assert.equal(usage.quotas.chat.used, 7);
+    assert.equal(usage.quotas.completions.remainingPercentage, 100);
+    assert.equal(usage.quotas.completions.used, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("github copilot individual paid plans no longer normalize as free", async () => {
   const originalFetch = globalThis.fetch;
   const futureResetDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();

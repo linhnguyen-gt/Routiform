@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import {
   getProviderCredentials,
+  hasActiveProviderConnection,
   markAccountUnavailable,
   clearAccountError,
   extractApiKey,
@@ -410,23 +411,30 @@ async function handleSingleModelChat(
 
   const userAgent = request?.headers?.get("user-agent") || "";
 
-  // 3. Credential retry loop
-  let excludeConnectionId = null;
+  // 3. Credential retry loop (accumulate tried IDs so we never ping-pong between exhausted accounts)
+  const triedConnectionIds: string[] = [];
   let lastError = null;
   let lastStatus = null;
 
   while (true) {
+    const credentialOptions =
+      forceLiveComboTest || triedConnectionIds.length > 0
+        ? {
+            ...(forceLiveComboTest
+              ? { allowSuppressedConnections: true, bypassQuotaPolicy: true }
+              : {}),
+            ...(triedConnectionIds.length > 0
+              ? { excludedConnectionIds: [...triedConnectionIds] }
+              : {}),
+          }
+        : undefined;
+
     const credentials = await getProviderCredentials(
       provider,
-      excludeConnectionId,
+      null,
       apiKeyInfo?.allowedConnections ?? null,
       model,
-      forceLiveComboTest
-        ? {
-            allowSuppressedConnections: true,
-            bypassQuotaPolicy: true,
-          }
-        : undefined
+      credentialOptions
     );
 
     if (!credentials || credentials.allRateLimited) {
@@ -439,7 +447,7 @@ async function handleSingleModelChat(
       }
       return handleNoCredentials(
         credentials,
-        excludeConnectionId,
+        triedConnectionIds,
         provider,
         model,
         lastError,
@@ -516,7 +524,12 @@ async function handleSingleModelChat(
         const fallbackModelStr = `${fallbackDecision.provider}/${fallbackDecision.model}`;
         const currentModelStr = `${provider}/${model}`;
 
-        if (fallbackModelStr !== currentModelStr) {
+        if (!(await hasActiveProviderConnection(fallbackDecision.provider))) {
+          log.warn(
+            "EMERGENCY_FALLBACK",
+            `Skip: no active connection for ${fallbackDecision.provider} (configure API key or disable emergency fallback target)`
+          );
+        } else if (fallbackModelStr !== currentModelStr) {
           const fallbackBody = { ...body, model: fallbackModelStr };
 
           // Cap output on emergency fallback to avoid unexpected long responses.
@@ -579,7 +592,7 @@ async function handleSingleModelChat(
 
     if (shouldFallback) {
       log.warn("AUTH", `Account ${accountId}... unavailable (${result.status}), trying fallback`);
-      excludeConnectionId = credentials.connectionId;
+      triedConnectionIds.push(credentials.connectionId);
       lastError = result.error;
       lastStatus = result.status;
       continue;
@@ -787,7 +800,7 @@ async function executeChatWithBreaker({
 
 function handleNoCredentials(
   credentials: any,
-  excludeConnectionId: string | null,
+  triedConnectionIds: string[],
   provider: string,
   model: string,
   lastError: string | null,
@@ -805,7 +818,7 @@ function handleNoCredentials(
       credentials.retryAfterHuman
     );
   }
-  if (!excludeConnectionId) {
+  if (triedConnectionIds.length === 0) {
     log.error("AUTH", `No credentials for provider: ${provider}`);
     return errorResponse(HTTP_STATUS.BAD_REQUEST, `No credentials for provider: ${provider}`);
   }

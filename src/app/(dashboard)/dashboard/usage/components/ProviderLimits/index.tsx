@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Image from "next/image";
 import {
   parseQuotaData,
-  calculatePercentage,
+  resolveUsedDisplayPercentage,
   formatQuotaLabel,
   normalizePlanTier,
   resolvePlanValue,
@@ -50,12 +50,12 @@ const TIER_FILTERS = [
   { key: "unknown", labelKey: "tierUnknown" },
 ];
 
-// Get bar color based on remaining percentage
-function getBarColor(remainingPercentage) {
-  if (remainingPercentage > QUOTA_BAR_GREEN_THRESHOLD) {
+// Bar colors from **used** % (consumption): low = green, high = red
+function getBarColor(usedPercentage) {
+  if (usedPercentage < QUOTA_BAR_GREEN_THRESHOLD) {
     return { bar: "#22c55e", text: "#22c55e", bg: "rgba(34,197,94,0.12)" };
   }
-  if (remainingPercentage > QUOTA_BAR_YELLOW_THRESHOLD) {
+  if (usedPercentage < 100 - QUOTA_BAR_YELLOW_THRESHOLD) {
     return { bar: "#eab308", text: "#eab308", bg: "rgba(234,179,8,0.12)" };
   }
   return { bar: "#ef4444", text: "#ef4444", bg: "rgba(239,68,68,0.12)" };
@@ -664,10 +664,8 @@ export default function ProviderLimits() {
                     ) : quota?.quotas?.length > 0 ? (
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {quota.quotas.map((q, i) => {
-                          const remainingPercentage = q.unlimited
-                            ? 100
-                            : (q.remainingPercentage ?? calculatePercentage(q.used, q.total));
-                          const colors = getBarColor(remainingPercentage);
+                          const usedPercentage = q.unlimited ? 0 : resolveUsedDisplayPercentage(q);
+                          const colors = getBarColor(usedPercentage);
                           const cd = formatCountdown(q.resetAt);
                           const shortName = formatQuotaLabel(q.name);
                           const staleAfterReset = q.staleAfterReset === true;
@@ -689,17 +687,21 @@ export default function ProviderLimits() {
                                   className="shrink-0 tabular-nums text-[11px] font-semibold"
                                   style={{ color: colors.text }}
                                 >
-                                  {remainingPercentage}%
+                                  {usedPercentage}%
                                 </span>
                               </div>
                               <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/[0.06]">
                                 <div
                                   className="h-full rounded-full transition-[width] duration-300 ease-out"
                                   style={{
-                                    width: `${Math.min(remainingPercentage, 100)}%`,
+                                    width: `${Math.min(usedPercentage, 100)}%`,
                                     background: colors.bar,
                                   }}
                                 />
+                              </div>
+                              <div className="mb-2 text-[10px] tabular-nums leading-tight text-text-muted">
+                                {Number(q.used ?? 0).toLocaleString()} /{" "}
+                                {q.total > 0 ? Number(q.total).toLocaleString() : "∞"}
                               </div>
                               <div className="mt-auto text-[10px] leading-tight text-text-muted">
                                 {staleAfterReset ? (

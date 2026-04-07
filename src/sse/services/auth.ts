@@ -64,6 +64,8 @@ interface RecoverableConnectionState {
 interface CredentialSelectionOptions {
   allowSuppressedConnections?: boolean;
   bypassQuotaPolicy?: boolean;
+  /** Exclude these connection IDs (multi-account fallback — avoid retrying the same exhausted account). */
+  excludedConnectionIds?: string[];
 }
 
 const CODEX_QUOTA_THRESHOLD_PERCENT = 90;
@@ -331,6 +333,18 @@ function getProviderSearchPool(provider: string): string[] {
 }
 
 /**
+ * Returns true if there is at least one active DB connection for this provider (or nvidia/nvidia_nim pool).
+ */
+export async function hasActiveProviderConnection(provider: string): Promise<boolean> {
+  const providersToSearch = getProviderSearchPool(provider);
+  for (const p of providersToSearch) {
+    const rows = await getProviderConnections({ provider: p, isActive: true });
+    if (Array.isArray(rows) && rows.length > 0) return true;
+  }
+  return false;
+}
+
+/**
  * Get provider credentials from localDb
  * Filters out unavailable accounts and returns the selected account based on strategy
  * @param {string} provider - Provider name
@@ -355,6 +369,11 @@ export async function getProviderCredentials(
 
     const allowSuppressedConnections = options.allowSuppressedConnections === true;
     const bypassQuotaPolicy = options.bypassQuotaPolicy === true;
+    const excludedIds = new Set<string>();
+    if (excludeConnectionId) excludedIds.add(excludeConnectionId);
+    for (const id of options.excludedConnectionIds ?? []) {
+      if (typeof id === "string" && id.trim().length > 0) excludedIds.add(id);
+    }
 
     // Fix #922: Check for aliases (nvidia/nvidia_nim) to ensure credentials are found
     const providersToSearch = getProviderSearchPool(provider);
@@ -372,7 +391,7 @@ export async function getProviderCredentials(
     }
     log.debug(
       "AUTH",
-      `${provider} | total connections: ${connections.length}, excludeId: ${excludeConnectionId || "none"}`
+      `${provider} | total connections: ${connections.length}, excluded: ${excludedIds.size > 0 ? [...excludedIds].map((id) => id.slice(0, 8)).join(",") : "none"}`
     );
 
     if (connections.length === 0) {
@@ -436,7 +455,7 @@ export async function getProviderCredentials(
 
     // Filter out unavailable accounts and excluded connection
     const availableConnections = connections.filter((c) => {
-      if (excludeConnectionId && c.id === excludeConnectionId) return false;
+      if (excludedIds.has(c.id)) return false;
       if (!allowSuppressedConnections) {
         if (isAccountUnavailable(c.rateLimitedUntil)) return false;
         if (isTerminalConnectionStatus(c)) return false;
@@ -452,7 +471,7 @@ export async function getProviderCredentials(
       `${provider} | available: ${availableConnections.length}/${connections.length}`
     );
     connections.forEach((c) => {
-      const excluded = excludeConnectionId && c.id === excludeConnectionId;
+      const excluded = excludedIds.has(c.id);
       const rateLimited = isAccountUnavailable(c.rateLimitedUntil);
       const terminalStatus = isTerminalConnectionStatus(c);
       const codexScopeLimited = provider === "codex" && isCodexScopeUnavailable(c, requestedModel);
@@ -582,7 +601,7 @@ export async function getProviderCredentials(
 
       // If excluding an account (fallback scenario), skip sticky logic and go straight to LRU
       // This prevents the system from getting stuck on a failed account
-      const isFallbackScenario = excludeConnectionId !== null;
+      const isFallbackScenario = excludedIds.size > 0;
 
       if (!isFallbackScenario) {
         // Sort by lastUsed (most recent first) to find current candidate
@@ -652,7 +671,7 @@ export async function getProviderCredentials(
         connection = sortedByOldest[0];
         log.info(
           "AUTH",
-          `${provider} round-robin: FALLBACK MODE - excluded ${excludeConnectionId?.slice(0, 8)}..., picked LRU ${connection.id?.slice(0, 8)}...`
+          `${provider} round-robin: FALLBACK MODE - excluded ${[...excludedIds].map((id) => id.slice(0, 8)).join(",")}, picked LRU ${connection.id?.slice(0, 8)}...`
         );
 
         // Update lastUsedAt and reset count to 1 (await to ensure persistence)

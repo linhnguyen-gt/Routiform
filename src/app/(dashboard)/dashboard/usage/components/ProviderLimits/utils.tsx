@@ -108,39 +108,62 @@ export function formatResetTime(date) {
 }
 
 /**
- * Get Tailwind color class based on percentage
- * @param {number} percentage - Remaining percentage (0-100)
- * @returns {string} Color name: "green" | "yellow" | "red"
+ * Get Tailwind color class based on **used** percentage (consumption 0–100)
+ * @param {number} usedPercentage - Share of quota already used
  */
-export function getStatusColor(percentage) {
-  if (percentage > 70) return "green";
-  if (percentage >= 30) return "yellow";
-  return "red"; // 0-29% including 0% (out of quota) - show red
+export function getStatusColor(usedPercentage) {
+  if (usedPercentage < 50) return "green";
+  if (usedPercentage < 80) return "yellow";
+  return "red";
 }
 
 /**
- * Get status emoji based on percentage
- * @param {number} percentage - Remaining percentage (0-100)
- * @returns {string} Emoji: "🟢" | "🟡" | "🔴"
+ * Get status emoji based on **used** percentage
  */
-export function getStatusEmoji(percentage) {
-  if (percentage > 70) return "🟢";
-  if (percentage >= 30) return "🟡";
-  return "🔴"; // 0-29% including 0% (out of quota) - show red
+export function getStatusEmoji(usedPercentage) {
+  if (usedPercentage < 50) return "🟢";
+  if (usedPercentage < 80) return "🟡";
+  return "🔴";
 }
 
 /**
- * Calculate remaining percentage
+ * Used (consumption) percentage: 0/1000 → 0%, 1000/1000 → 100%.
  * @param {number} used - Used amount
- * @param {number} total - Total amount
- * @returns {number} Remaining percentage (0-100)
+ * @param {number} total - Total entitlement
+ * @returns {number} Used percentage 0–100
  */
 export function calculatePercentage(used, total) {
   if (!total || total === 0) return 0;
-  if (!used || used < 0) return 100;
-  if (used >= total) return 0;
+  if (!used || used < 0) return 0;
+  if (used >= total) return 100;
 
-  return Math.round(((total - used) / total) * 100);
+  return Math.round((used / total) * 100);
+}
+
+type QuotaLike = {
+  used?: number;
+  total?: number;
+  remainingPercentage?: number;
+  unlimited?: boolean;
+};
+
+/**
+ * Display % = **used** share. Prefers used/total; if only API `remainingPercentage` (remaining),
+ * uses 100 − remaining.
+ */
+export function resolveUsedDisplayPercentage(quota: QuotaLike): number {
+  if (quota.unlimited === true && (!quota.total || quota.total <= 0)) {
+    return 0;
+  }
+  const total = Number(quota.total ?? 0);
+  if (total > 0) {
+    return calculatePercentage(Number(quota.used ?? 0), total);
+  }
+  if (quota.remainingPercentage !== undefined) {
+    const rem = roundPercentageDisplay(safePercentage(quota.remainingPercentage) ?? 0, 1);
+    return Math.round(Math.max(0, Math.min(100, 100 - rem)));
+  }
+  return 0;
 }
 
 function isPastResetWindow(resetAt) {

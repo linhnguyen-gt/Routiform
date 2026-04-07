@@ -232,8 +232,161 @@ function toDisplayLabel(value: string): string {
 
 function shouldDisplayGitHubQuota(quota: UsageQuota | null): quota is UsageQuota {
   if (!quota) return false;
-  if (quota.unlimited && quota.total <= 0) return false;
+  if (quota.unlimited && quota.total <= 0 && quota.remainingPercentage === undefined) {
+    return false;
+  }
   return quota.total > 0 || quota.remainingPercentage !== undefined;
+}
+
+/**
+ * When both caps are similar, prefer smaller entitlement as Chat (message cap) vs larger as
+ * Completions (IDE quota).
+ */
+const GITHUB_CHAT_COMPLETIONS_MIN_RATIO = 2;
+
+const GITHUB_REMAINING_FRAC_EPS = 1e-5;
+
+/** Remaining fraction 0..1; bare unlimited (no counts) = 1 so paired capped bucket sorts as Chat. */
+function githubQuotaRemainingFraction(q: UsageQuota | null): number | null {
+  if (!q) return null;
+  if (q.unlimited === true && q.total <= 0) {
+    return 1;
+  }
+  if (q.total <= 0) {
+    return q.unlimited ? 1 : null;
+  }
+  const rem =
+    q.remaining !== undefined && q.remaining !== null
+      ? Math.max(0, q.remaining)
+      : Math.max(0, q.total - q.used);
+  return Math.min(1, rem / q.total);
+}
+
+/**
+ * Map snapshot keys → UI "Chat" / "Completions". GitHub often swaps keys: Copilot **Chat messages**
+ * tend to run out before IDE **completions**, so the bucket with **lower** remaining fraction is
+ * Chat; the **higher** is Completions. Tie → smaller entitlement = Chat (typical Free tier).
+ */
+function resolveGitHubChatCompletionsQuotas(
+  snapshots: Record<string, unknown>,
+  resetAt: string | null
+): { chat: UsageQuota | null; completions: UsageQuota | null } {
+  const chatQ = formatGitHubQuotaSnapshot(snapshots.chat, resetAt);
+  const compQ = formatGitHubQuotaSnapshot(snapshots.completions, resetAt);
+
+  if (!chatQ && !compQ) return { chat: null, completions: null };
+  if (!chatQ) return { chat: null, completions: compQ };
+  if (!compQ) return { chat: chatQ, completions: null };
+
+  const fChat = githubQuotaRemainingFraction(chatQ);
+  const fComp = githubQuotaRemainingFraction(compQ);
+  if (fChat === null || fComp === null) {
+    return { chat: chatQ, completions: compQ };
+  }
+
+  if (fChat + GITHUB_REMAINING_FRAC_EPS < fComp) {
+    return { chat: chatQ, completions: compQ };
+  }
+  if (fComp + GITHUB_REMAINING_FRAC_EPS < fChat) {
+    return { chat: compQ, completions: chatQ };
+  }
+
+  const chatCap = !chatQ.unlimited && chatQ.total > 0;
+  const compCap = !compQ.unlimited && compQ.total > 0;
+  if (chatQ.unlimited === true && !compQ.unlimited && compCap) {
+    return { chat: compQ, completions: chatQ };
+  }
+  if (!chatQ.unlimited && compQ.unlimited === true && chatCap) {
+    return { chat: chatQ, completions: compQ };
+  }
+
+  if (chatCap && compCap) {
+    const minT = Math.min(chatQ.total, compQ.total);
+    const maxT = Math.max(chatQ.total, compQ.total);
+    if (minT > 0 && maxT >= minT * GITHUB_CHAT_COMPLETIONS_MIN_RATIO) {
+      return chatQ.total <= compQ.total
+        ? { chat: chatQ, completions: compQ }
+        : { chat: compQ, completions: chatQ };
+    }
+  }
+
+  return { chat: chatQ, completions: compQ };
+}
+
+/**
+ * Bare unlimited bucket (no entitlement) should still show ~100% remaining when the paired bucket
+ * has counts. If both are bare-unlimited (Business), leave unset so both stay hidden.
+ */
+function patchGitHubUnlimitedPairForUi(quotas: Record<string, UsageQuota>): void {
+  const chat = quotas.chat;
+  const comp = quotas.completions;
+  if (!chat || !comp) return;
+
+  const chatBare =
+    chat.unlimited === true && chat.total <= 0 && chat.remainingPercentage === undefined;
+  const compBare =
+    comp.unlimited === true && comp.total <= 0 && comp.remainingPercentage === undefined;
+
+  if (chatBare && !compBare) {
+    chat.remainingPercentage = 100;
+  } else if (!chatBare && compBare) {
+    comp.remainingPercentage = 100;
+  }
+}
+
+function resolveGitHubMonthlyChatCompletions(
+  monthlyQuotas: Record<string, unknown>,
+  usedQuotas: Record<string, unknown>
+): { monthly: Record<string, unknown>; used: Record<string, unknown> } {
+  const ct = toNumber(getFieldValue(monthlyQuotas, "chat", "chat"), 0);
+  const cpt = toNumber(getFieldValue(monthlyQuotas, "completions", "completions"), 0);
+  const cu = Math.max(0, toNumber(getFieldValue(usedQuotas, "chat", "chat"), 0));
+  const cpu = Math.max(0, toNumber(getFieldValue(usedQuotas, "completions", "completions"), 0));
+  if (!(ct > 0 && cpt > 0)) {
+    return { monthly: monthlyQuotas, used: usedQuotas };
+  }
+
+  const remChat = (ct - Math.min(cu, ct)) / ct;
+  const remComp = (cpt - Math.min(cpu, cpt)) / cpt;
+
+  if (remChat + GITHUB_REMAINING_FRAC_EPS < remComp) {
+    return { monthly: monthlyQuotas, used: usedQuotas };
+  }
+  if (remComp + GITHUB_REMAINING_FRAC_EPS < remChat) {
+    return {
+      monthly: {
+        ...monthlyQuotas,
+        chat: monthlyQuotas.completions,
+        completions: monthlyQuotas.chat,
+      },
+      used: {
+        ...usedQuotas,
+        chat: usedQuotas.completions,
+        completions: usedQuotas.chat,
+      },
+    };
+  }
+
+  const minT = Math.min(ct, cpt);
+  const maxT = Math.max(ct, cpt);
+  if (minT <= 0 || maxT < minT * GITHUB_CHAT_COMPLETIONS_MIN_RATIO) {
+    return { monthly: monthlyQuotas, used: usedQuotas };
+  }
+  if (ct <= cpt) {
+    return { monthly: monthlyQuotas, used: usedQuotas };
+  }
+  return {
+    monthly: {
+      ...monthlyQuotas,
+      chat: monthlyQuotas.completions,
+      completions: monthlyQuotas.chat,
+    },
+    used: {
+      ...usedQuotas,
+      chat: usedQuotas.completions,
+      completions: usedQuotas.chat,
+    },
+  };
 }
 
 // GLM (Z.AI) quota API config
@@ -407,24 +560,31 @@ async function getGitHubUsage(accessToken, providerSpecificData) {
 
     // Handle different response formats (paid vs free)
     if (dataRecord.quota_snapshots) {
-      // Paid plan format
       const snapshots = toRecord(dataRecord.quota_snapshots);
       const resetAt = parseResetTime(
         getFieldValue(dataRecord, "quota_reset_date", "quotaResetDate")
       );
       const premiumQuota = formatGitHubQuotaSnapshot(snapshots.premium_interactions, resetAt);
-      const chatQuota = formatGitHubQuotaSnapshot(snapshots.chat, resetAt);
-      const completionsQuota = formatGitHubQuotaSnapshot(snapshots.completions, resetAt);
+      const { chat: chatQuota, completions: completionsQuota } = resolveGitHubChatCompletionsQuotas(
+        snapshots,
+        resetAt
+      );
       const quotas: Record<string, UsageQuota> = {};
 
       if (shouldDisplayGitHubQuota(premiumQuota)) {
         quotas.premium_interactions = premiumQuota;
       }
-      if (shouldDisplayGitHubQuota(chatQuota)) {
-        quotas.chat = chatQuota;
+
+      const pair: Record<string, UsageQuota> = {};
+      if (chatQuota) pair.chat = chatQuota;
+      if (completionsQuota) pair.completions = completionsQuota;
+      patchGitHubUnlimitedPairForUi(pair);
+
+      if (pair.chat && shouldDisplayGitHubQuota(pair.chat)) {
+        quotas.chat = pair.chat;
       }
-      if (shouldDisplayGitHubQuota(completionsQuota)) {
-        quotas.completions = completionsQuota;
+      if (pair.completions && shouldDisplayGitHubQuota(pair.completions)) {
+        quotas.completions = pair.completions;
       }
 
       return {
@@ -434,8 +594,10 @@ async function getGitHubUsage(accessToken, providerSpecificData) {
       };
     } else if (dataRecord.monthly_quotas || dataRecord.limited_user_quotas) {
       // Free/limited plan format
-      const monthlyQuotas = toRecord(dataRecord.monthly_quotas);
-      const usedQuotas = toRecord(dataRecord.limited_user_quotas);
+      const { monthly: monthlyQuotas, used: usedQuotas } = resolveGitHubMonthlyChatCompletions(
+        toRecord(dataRecord.monthly_quotas),
+        toRecord(dataRecord.limited_user_quotas)
+      );
       const resetDate = getFieldValue(
         dataRecord,
         "limited_user_reset_date",
@@ -444,12 +606,12 @@ async function getGitHubUsage(accessToken, providerSpecificData) {
       const resetAt = parseResetTime(resetDate);
       const quotas: Record<string, UsageQuota> = {};
 
-      const addLimitedQuota = (name: string) => {
-        const total = toNumber(getFieldValue(monthlyQuotas, name, name), 0);
-        const used = Math.max(0, toNumber(getFieldValue(usedQuotas, name, name), 0));
+      const addLimitedQuota = (apiKey: string, outputKey: string) => {
+        const total = toNumber(getFieldValue(monthlyQuotas, apiKey, apiKey), 0);
+        const used = Math.max(0, toNumber(getFieldValue(usedQuotas, apiKey, apiKey), 0));
         if (total <= 0) return null;
         const clampedUsed = Math.min(used, total);
-        quotas[name] = {
+        quotas[outputKey] = {
           used: clampedUsed,
           total,
           remaining: Math.max(total - clampedUsed, 0),
@@ -457,12 +619,14 @@ async function getGitHubUsage(accessToken, providerSpecificData) {
           unlimited: false,
           resetAt,
         };
-        return quotas[name];
+        return quotas[outputKey];
       };
 
-      const premiumQuota = addLimitedQuota("premium_interactions");
-      addLimitedQuota("chat");
-      addLimitedQuota("completions");
+      const premiumQuota = addLimitedQuota("premium_interactions", "premium_interactions");
+      addLimitedQuota("chat", "chat");
+      addLimitedQuota("completions", "completions");
+
+      patchGitHubUnlimitedPairForUi(quotas);
 
       return {
         plan: inferGitHubPlanName(dataRecord, premiumQuota),
@@ -490,6 +654,31 @@ function formatGitHubQuotaSnapshot(quota, resetAt: string | null = null): UsageQ
     getFieldValue(source, "percent_remaining", "percentRemaining"),
     Number.NaN
   );
+  const percentUsedValue = toNumber(
+    getFieldValue(source, "percent_used", "percentUsed"),
+    Number.NaN
+  );
+
+  // Same as 9router: used = entitlement − remaining; never trust percent_* when counts exist.
+  if (
+    Number.isFinite(entitlement) &&
+    entitlement > 0 &&
+    Number.isFinite(remainingValue) &&
+    remainingValue >= 0
+  ) {
+    const total = Math.max(0, entitlement);
+    const remaining = Math.min(total, Math.max(0, remainingValue));
+    const used = Math.max(0, total - remaining);
+    const remainingPercentage = clampPercentage((remaining / total) * 100);
+    return {
+      used,
+      total,
+      remaining,
+      remainingPercentage,
+      resetAt,
+      unlimited,
+    };
+  }
 
   let total = Number.isFinite(totalValue)
     ? Math.max(0, totalValue)
@@ -498,9 +687,6 @@ function formatGitHubQuotaSnapshot(quota, resetAt: string | null = null): UsageQ
       : 0;
   let remaining = Number.isFinite(remainingValue) ? Math.max(0, remainingValue) : undefined;
   let used = Number.isFinite(usedValue) ? Math.max(0, usedValue) : undefined;
-  let remainingPercentage = Number.isFinite(percentRemainingValue)
-    ? clampPercentage(percentRemainingValue)
-    : undefined;
 
   if (used === undefined && total > 0 && remaining !== undefined) {
     used = Math.max(total - remaining, 0);
@@ -510,14 +696,36 @@ function formatGitHubQuotaSnapshot(quota, resetAt: string | null = null): UsageQ
     remaining = Math.max(total - used, 0);
   }
 
-  if (remainingPercentage === undefined && total > 0 && remaining !== undefined) {
+  let remainingPercentage: number | undefined;
+  if (total > 0 && remaining !== undefined) {
     remainingPercentage = clampPercentage((remaining / total) * 100);
+  } else if (total > 0 && used !== undefined) {
+    remainingPercentage = clampPercentage(((total - used) / total) * 100);
+  } else if (Number.isFinite(percentUsedValue)) {
+    remainingPercentage = clampPercentage(100 - clampPercentage(percentUsedValue));
+  } else if (Number.isFinite(percentRemainingValue)) {
+    let p = percentRemainingValue;
+    if (p > 0 && p <= 1) {
+      p = p * 100;
+    }
+    remainingPercentage = clampPercentage(p);
   }
 
   if (total <= 0 && remainingPercentage !== undefined) {
     total = 100;
     used = 100 - remainingPercentage;
     remaining = remainingPercentage;
+  }
+
+  if (unlimited && total <= 0 && remainingPercentage === undefined) {
+    return {
+      used: 0,
+      total: 0,
+      remaining: undefined,
+      remainingPercentage: undefined,
+      resetAt,
+      unlimited: true,
+    };
   }
 
   return {

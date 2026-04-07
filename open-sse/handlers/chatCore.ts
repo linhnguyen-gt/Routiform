@@ -1806,49 +1806,55 @@ export async function handleChatCore({
         EMERGENCY_FALLBACK_CONFIG
       );
       if (isFallbackDecision(fbDecision)) {
-        log?.info?.("EMERGENCY_FALLBACK", fbDecision.reason);
-        try {
-          // Build a minimal fallback request using the original body but with
-          // the NVIDIA free-tier model and max_tokens capped to avoid overuse.
-          const fbExecutor = getExecutor(fbDecision.provider);
-          const fbResult = await fbExecutor.execute({
-            model: fbDecision.model,
-            body: {
-              ...translatedBody,
+        // Cross-provider fallback (e.g. github → nvidia) requires that provider's credentials.
+        // This layer only has the current request's credentials — do not call another executor with mismatched auth.
+        if (fbDecision.provider !== provider) {
+          log?.warn?.(
+            "EMERGENCY_FALLBACK",
+            `Skip cross-provider emergency fallback (${provider} → ${fbDecision.provider}) — handled in app-layer chat handler when credentials exist`
+          );
+        } else {
+          log?.info?.("EMERGENCY_FALLBACK", fbDecision.reason);
+          try {
+            const fbExecutor = getExecutor(fbDecision.provider);
+            const fbResult = await fbExecutor.execute({
               model: fbDecision.model,
-              max_tokens: Math.min(
-                typeof translatedBody.max_tokens === "number"
-                  ? translatedBody.max_tokens
-                  : fbDecision.maxOutputTokens,
-                fbDecision.maxOutputTokens
-              ),
-            },
-            stream: false,
-            credentials: credentials,
-            signal: streamController.signal,
-            log,
-            extendedContext,
-          });
-          if (fbResult.response.ok) {
-            providerResponse = fbResult.response;
-            providerUrl = fbResult.url;
-            providerHeaders = fbResult.headers;
-            finalBody = fbResult.transformedBody;
-            reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
-            log?.info?.(
-              "EMERGENCY_FALLBACK",
-              `Serving ${fbDecision.provider}/${fbDecision.model} as budget fallback for ${provider}/${model}`
-            );
-            // Fall through to non-streaming handler — providerResponse is now OK
-          } else {
-            log?.warn?.(
-              "EMERGENCY_FALLBACK",
-              `Emergency fallback also failed (${fbResult.response.status})`
-            );
+              body: {
+                ...translatedBody,
+                model: fbDecision.model,
+                max_tokens: Math.min(
+                  typeof translatedBody.max_tokens === "number"
+                    ? translatedBody.max_tokens
+                    : fbDecision.maxOutputTokens,
+                  fbDecision.maxOutputTokens
+                ),
+              },
+              stream: false,
+              credentials: credentials,
+              signal: streamController.signal,
+              log,
+              extendedContext,
+            });
+            if (fbResult.response.ok) {
+              providerResponse = fbResult.response;
+              providerUrl = fbResult.url;
+              providerHeaders = fbResult.headers;
+              finalBody = fbResult.transformedBody;
+              reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
+              log?.info?.(
+                "EMERGENCY_FALLBACK",
+                `Serving ${fbDecision.provider}/${fbDecision.model} as budget fallback for ${provider}/${model}`
+              );
+            } else {
+              log?.warn?.(
+                "EMERGENCY_FALLBACK",
+                `Emergency fallback also failed (${fbResult.response.status})`
+              );
+            }
+          } catch (fbErr) {
+            const errMessage = fbErr instanceof Error ? fbErr.message : String(fbErr);
+            log?.warn?.("EMERGENCY_FALLBACK", `Emergency fallback error: ${errMessage}`);
           }
-        } catch (fbErr) {
-          const errMessage = fbErr instanceof Error ? fbErr.message : String(fbErr);
-          log?.warn?.("EMERGENCY_FALLBACK", `Emergency fallback error: ${errMessage}`);
         }
       }
     }

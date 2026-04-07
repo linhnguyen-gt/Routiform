@@ -151,21 +151,17 @@ test.describe("Combos flow", () => {
     });
 
     await page.goto("/dashboard/combos");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("domcontentloaded");
 
     const redirectedToLogin = page.url().includes("/login");
     test.skip(redirectedToLogin, "Authentication enabled without a login fixture.");
 
-    await page
-      .getByRole("button", { name: /create combo|criar combo/i })
-      .first()
-      .click();
+    await expect(page.getByTestId("combos-header-create")).toBeVisible();
+    await page.getByTestId("combos-header-create").click();
 
     const comboDialog = page.getByRole("dialog").first();
     await expect(comboDialog).toBeVisible();
-    const comboCreateButton = comboDialog
-      .getByRole("button", { name: /create combo|criar combo/i })
-      .last();
+    const comboCreateButton = page.getByTestId("combo-form-submit");
     const readinessPanel = comboDialog.locator('[data-testid="combo-readiness-panel"]');
     const saveBlockers = comboDialog.locator('[data-testid="combo-save-blockers"]');
 
@@ -194,7 +190,8 @@ test.describe("Combos flow", () => {
     await expect(saveBlockers).toHaveCount(0);
     await expect(comboCreateButton).toBeEnabled();
 
-    await comboCreateButton.click();
+    await comboCreateButton.scrollIntoViewIfNeeded();
+    await comboCreateButton.click({ force: true });
     await expect(comboDialog).toBeHidden();
 
     const quickTestButton = page.getByRole("button", { name: /test now|testar agora/i });

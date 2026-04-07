@@ -1,6 +1,6 @@
 "use client";
 
-import { formatResetTime, calculatePercentage } from "./utils";
+import { formatResetTime, resolveUsedDisplayPercentage } from "./utils";
 import { useLocale, useTranslations } from "next-intl";
 
 /**
@@ -36,11 +36,9 @@ function formatResetTimeDisplay(resetTime, locale, t) {
   }
 }
 
-/**
- * Get color classes based on remaining percentage
- */
-function getColorClasses(remainingPercentage) {
-  if (remainingPercentage > 70) {
+/** Color classes from **used** % (consumption): low = green, high = red */
+function getColorClasses(usedPercentage) {
+  if (usedPercentage < 50) {
     return {
       text: "text-green-600 dark:text-green-400",
       bg: "bg-green-500",
@@ -49,7 +47,7 @@ function getColorClasses(remainingPercentage) {
     };
   }
 
-  if (remainingPercentage >= 30) {
+  if (usedPercentage < 80) {
     return {
       text: "text-yellow-600 dark:text-yellow-400",
       bg: "bg-yellow-500",
@@ -58,7 +56,6 @@ function getColorClasses(remainingPercentage) {
     };
   }
 
-  // 0-29% including 0% (out of quota) - show red
   return {
     text: "text-red-600 dark:text-red-400",
     bg: "bg-red-500",
@@ -88,13 +85,10 @@ export default function QuotaTable({ quotas = [] }) {
         </colgroup>
         <tbody>
           {quotas.map((quota, index) => {
-            const remaining =
-              quota.remainingPercentage !== undefined
-                ? Math.round(quota.remainingPercentage)
-                : calculatePercentage(quota.used, quota.total);
+            const usedPct = resolveUsedDisplayPercentage(quota);
             const staleAfterReset = quota.staleAfterReset === true;
 
-            const colors = getColorClasses(remaining);
+            const colors = getColorClasses(usedPct);
             const countdown = formatResetTime(quota.resetAt);
             const resetDisplay = formatResetTimeDisplay(quota.resetAt, locale, t);
 
@@ -117,14 +111,14 @@ export default function QuotaTable({ quotas = [] }) {
                     {/* Progress bar - always show with border for visibility */}
                     <div
                       className={`h-1.5 rounded-full overflow-hidden border ${colors.bgLight} ${
-                        remaining === 0
+                        usedPct === 0
                           ? "border-black/10 dark:border-white/10"
                           : "border-transparent"
                       }`}
                     >
                       <div
                         className={`h-full transition-all duration-300 ${colors.bg}`}
-                        style={{ width: `${Math.min(remaining, 100)}%` }}
+                        style={{ width: `${Math.min(usedPct, 100)}%` }}
                       />
                     </div>
 
@@ -134,7 +128,7 @@ export default function QuotaTable({ quotas = [] }) {
                         {quota.used.toLocaleString()} /{" "}
                         {quota.total > 0 ? quota.total.toLocaleString() : "∞"}
                       </span>
-                      <span className={`font-medium ${colors.text}`}>{remaining}%</span>
+                      <span className={`font-medium ${colors.text}`}>{usedPct}%</span>
                     </div>
                   </div>
                 </td>

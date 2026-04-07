@@ -567,7 +567,11 @@ export default function CombosPage() {
               {getI18nOrFallback(t, "usageGuideShow", "Show guide")}
             </Button>
           )}
-          <Button icon="add" onClick={() => setShowCreateModal(true)}>
+          <Button
+            data-testid="combos-header-create"
+            icon="add"
+            onClick={() => setShowCreateModal(true)}
+          >
             {t("createCombo")}
           </Button>
         </div>
@@ -2269,7 +2273,13 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders }) {
             <Button onClick={onClose} variant="ghost" fullWidth size="sm">
               {tc("cancel")}
             </Button>
-            <Button onClick={handleSave} fullWidth size="sm" disabled={saveBlocked}>
+            <Button
+              data-testid="combo-form-submit"
+              onClick={handleSave}
+              fullWidth
+              size="sm"
+              disabled={saveBlocked}
+            >
               {saving ? t("saving") : isEdit ? tc("save") : t("createCombo")}
             </Button>
           </div>
