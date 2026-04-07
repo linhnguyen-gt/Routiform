@@ -1,0 +1,193 @@
+name: Release Bot
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "package.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-bot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    name: Create GitHub Release From package.json
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Resolve version tag
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v${VERSION}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Resolved release tag: $TAG"
+
+      - name: Check if tag already exists
+        id: tag_check
+        run: |
+          git fetch --tags --force
+          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag ${{ steps.version.outputs.tag }} already exists, skipping release creation."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate GitHub release notes
+        id: generated_notes
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const tagName = "${{ steps.version.outputs.tag }}";
+            const response = await github.rest.repos.generateReleaseNotes({
+              owner,
+              repo,
+              tag_name: tagName,
+              target_commitish: context.sha,
+            });
+
+            core.setOutput("body", response.data.body || "");
+
+      - name: Update CHANGELOG.md with generated notes
+        if: steps.tag_check.outputs.exists == 'false'
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_DATE: ${{ github.event.head_commit.timestamp }}
+          RELEASE_NOTES: ${{ steps.generated_notes.outputs.body }}
+        run: |
+          node -e '
+            const fs = require("fs");
+
+            const changelogPath = "CHANGELOG.md";
+            const version = process.env.RELEASE_VERSION;
+            const timestamp = process.env.RELEASE_DATE || "";
+            const notes = (process.env.RELEASE_NOTES || "").trim();
+
+            if (!version || !fs.existsSync(changelogPath)) {
+              process.exit(0);
+            }
+
+            const content = fs.readFileSync(changelogPath, "utf8");
+            if (content.includes(`## [${version}]`)) {
+              process.exit(0);
+            }
+
+            const date = /^\d{4}-\d{2}-\d{2}/.test(timestamp)
+              ? timestamp.slice(0, 10)
+              : new Date().toISOString().slice(0, 10);
+
+            const header = "# Changelog";
+            const unreleasedHeading = "## [Unreleased]";
+            const nextHeadingMarker = "\n## [";
+
+            const hasHeader = content.startsWith(header);
+            const headerPrefix = hasHeader ? "" : `${header}\n\n`;
+
+            const unreleasedIndex = content.indexOf(unreleasedHeading);
+            if (unreleasedIndex === -1) {
+              const releaseSection = [
+                `## [${version}] — ${date}`,
+                "",
+                notes || "- Auto-generated release notes unavailable.",
+                "",
+                "---",
+                "",
+              ].join("\n");
+              fs.writeFileSync(
+                changelogPath,
+                `${headerPrefix}${unreleasedHeading}\n\n---\n\n${releaseSection}${content}`,
+                "utf8"
+              );
+              process.exit(0);
+            }
+
+            const afterUnreleased = content.slice(unreleasedIndex + unreleasedHeading.length);
+            const nextHeadingInTail = afterUnreleased.indexOf(nextHeadingMarker);
+            const unreleasedBody =
+              nextHeadingInTail >= 0
+                ? afterUnreleased.slice(0, nextHeadingInTail).trim()
+                : afterUnreleased.trim();
+
+            const beforeUnreleased = content.slice(0, unreleasedIndex);
+            const remainder =
+              nextHeadingInTail >= 0 ? afterUnreleased.slice(nextHeadingInTail + 1) : "";
+
+            const normalizedUnreleasedBody = unreleasedBody.replace(/^---\s*/m, "").trim();
+            const sectionParts = [];
+            sectionParts.push(`## [${version}] — ${date}`);
+            sectionParts.push("");
+            if (normalizedUnreleasedBody) {
+              sectionParts.push(normalizedUnreleasedBody);
+              sectionParts.push("");
+            }
+            if (notes) {
+              sectionParts.push("### GitHub Auto-Generated Notes");
+              sectionParts.push("");
+              sectionParts.push(notes);
+              sectionParts.push("");
+            }
+            sectionParts.push("---");
+            sectionParts.push("");
+
+            const updated = [
+              beforeUnreleased.trimEnd(),
+              unreleasedHeading,
+              "",
+              "---",
+              "",
+              sectionParts.join("\n"),
+              remainder.trimStart(),
+            ]
+              .filter(Boolean)
+              .join("\n");
+
+            fs.writeFileSync(changelogPath, `${updated}\n`, "utf8");
+          '
+
+      - name: Commit CHANGELOG update
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          if git diff --quiet -- CHANGELOG.md; then
+            echo "No CHANGELOG update needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "docs(changelog): add ${{ steps.version.outputs.version }} release notes"
+          git push
+
+      - name: Resolve target commit
+        id: target
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ steps.target.outputs.sha }}
+          body: ${{ steps.generated_notes.outputs.body }}
+          draft: false
+          prerelease: false
