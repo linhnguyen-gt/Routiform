@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.6.4](https://github.com/linhnguyen-gt/Routiform/compare/v3.6.3...v3.6.4) (2026-04-07)
+
+
+### Bug Fixes
+
+* **build:** handle EXDEV in isolated Next build ([12764d0](https://github.com/linhnguyen-gt/Routiform/commit/12764d0d58efe9cae6310e53dcef50d9facf29b3))
+* **combo:** harden multimodal routing and retry fallbacks ([3af3420](https://github.com/linhnguyen-gt/Routiform/commit/3af34203d73593a6759b15358a06ddb8b120fbe9))
+* **settings:** stabilize import-all secrets and combo 400 fallback ([54dfb7b](https://github.com/linhnguyen-gt/Routiform/commit/54dfb7b4657e4e581e058741eab796cb1b7b6439))
+
 ### [3.6.3](https://github.com/linhnguyen-gt/Routiform/compare/v3.6.2...v3.6.3) (2026-04-07)
 
 
