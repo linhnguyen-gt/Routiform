@@ -219,22 +219,29 @@ if (existsSync(publicSrc)) {
 // ── Step 8: Compile + copy MITM cert utilities ─────────────
 const mitmSrc = join(ROOT, "src", "mitm");
 const mitmDest = join(APP_DIR, "src", "mitm");
+const mitmOutDir = join(APP_DIR, "src");
 if (existsSync(mitmSrc)) {
   console.log("  🔨 Compiling MITM utilities (TypeScript → JavaScript)...");
   mkdirSync(mitmDest, { recursive: true });
 
   // Write a temporary tsconfig.json targeting the mitm directory
   const mitmTsconfig = {
+    extends: "./tsconfig.json",
     compilerOptions: {
-      target: "ES2020",
-      module: "CommonJS",
-      outDir: mitmDest,
-      rootDir: mitmSrc,
+      target: "ES2022",
+      module: "ESNext",
+      moduleResolution: "Bundler",
+      baseUrl: ".",
+      paths: {
+        "@/*": ["src/*"],
+      },
+      outDir: mitmOutDir,
+      rootDir: join(ROOT, "src"),
       resolveJsonModule: true,
       esModuleInterop: true,
       skipLibCheck: true,
     },
-    include: [mitmSrc + "/**/*"],
+    include: [mitmSrc + "/**/*", join(ROOT, "src", "lib", "dataPaths.ts")],
   };
   const tmpTsconfigPath = join(ROOT, "tsconfig.mitm.tmp.json");
   writeFileSync(tmpTsconfigPath, JSON.stringify(mitmTsconfig, null, 2));

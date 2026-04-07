@@ -43,7 +43,7 @@
   "author": "linhnguyen-gt",
   "repository": {
     "type": "git",
-    "url": "https://github.com/linhnguyen-gt/Routiform"
+    "url": "git+https://github.com/linhnguyen-gt/Routiform.git"
   },
   "homepage": "https://github.com/linhnguyen-gt/Routiform",
   "scripts": {
