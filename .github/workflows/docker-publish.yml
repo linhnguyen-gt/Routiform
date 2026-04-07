@@ -1,9 +1,6 @@
 name: Publish to Docker Hub
 
 on:
-  push:
-    branches:
-      - main
   release:
     types: [published]
   workflow_dispatch:
@@ -63,7 +60,7 @@ jobs:
             VERSION="${GITHUB_REF_NAME}"
             VERSION="${VERSION#v}"
           else
-            # push to main — use app version from package.json (not branch name)
+            # fallback safety path
             VERSION=$(node -p "require('./package.json').version")
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
