@@ -1,6 +1,6 @@
 # 🚀 Routiform — The Free AI Gateway
 
-### Never stop coding. Smart routing to **FREE & low-cost AI models** with automatic fallback.
+### Never stop coding. Smart routing to **FREE & low-cost AI models** with automatic fallback
 
 _Your universal API proxy — one endpoint, 60+ providers, zero downtime. Now with **MCP Server (25 tools)**, **A2A Protocol**, **Memory/Skills Systems** & **Electron Desktop App**._
 
@@ -13,12 +13,12 @@ _Your universal API proxy — one endpoint, 60+ providers, zero downtime. Now wi
 [![npm version](https://img.shields.io/npm/v/routiform?color=cb3837&logo=npm)](https://www.npmjs.com/package/routiform)
 [![Docker Hub](https://img.shields.io/docker/v/linhnguyen0944/routiform?label=Docker%20Hub&logo=docker&color=2496ED)](https://hub.docker.com/r/linhnguyen0944/routiform)
 
-![NPM Downloads](https://img.shields.io/npm/dw/routiform?label=npm%20down%20week&color=red)
-![NPM Downloads](https://img.shields.io/npm/dm/routiform?label=npm%20down%20month&color=red)
+[![NPM Downloads](https://img.shields.io/npm/dw/routiform?label=npm%20downloads%20week&color=red)](https://www.npmjs.com/package/routiform)
+[![NPM Downloads](https://img.shields.io/npm/dm/routiform?label=npm%20downloads%20month&color=red)](https://www.npmjs.com/package/routiform)
 
-![NPM Downloads](https://img.shields.io/npm/d18m/routiform?label=npm%20down%20year&color=red)
-![Docker Pulls](https://img.shields.io/docker/pulls/linhnguyen0944/routiform)
-![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/linhnguyen-gt/Routiform/total?style=flat&label=eletron%20donwloads&color=blue)
+[![NPM Downloads](https://img.shields.io/npm/d18m/routiform?label=npm%20downloads%20year&color=red)](https://www.npmjs.com/package/routiform)
+[![Docker Pulls](https://img.shields.io/docker/pulls/linhnguyen0944/routiform)](https://hub.docker.com/r/linhnguyen0944/routiform)
+[![GitHub Downloads](https://img.shields.io/github/downloads/linhnguyen-gt/Routiform/total?style=flat&label=github%20downloads&color=blue)](https://github.com/linhnguyen-gt/Routiform/releases)
 
 [![stars](https://custom-icon-badges.demolab.com/github/stars/linhnguyen-gt/Routiform?logo=star&style=flat)](https://github.com/linhnguyen-gt/Routiform/stargazers)
 [![open issues](https://custom-icon-badges.demolab.com/github/issues-raw/linhnguyen-gt/Routiform?logo=issue)](https://github.com/linhnguyen-gt/Routiform/issues)
@@ -35,7 +35,6 @@ _Your universal API proxy — one endpoint, 60+ providers, zero downtime. Now wi
 
 [![License](https://img.shields.io/github/license/linhnguyen-gt/Routiform)](https://github.com/linhnguyen-gt/Routiform/blob/main/LICENSE)
 [![Website](https://img.shields.io/badge/Website-github.com/linhnguyen-gt/Routiform-blue?logo=google-chrome&logoColor=white)](https://github.com/linhnguyen-gt/Routiform)
-[![WhatsApp](https://img.shields.io/badge/WhatsApp-Community-25D366?logo=whatsapp&logoColor=white)](https://chat.whatsapp.com/JI7cDQ1GyaiDHhVBpLxf8b?mode=gi_t)
 
 [🌐 Website](https://github.com/linhnguyen-gt/Routiform) • [🚀 Quick Start](#-quick-start) • [💡 Features](#-key-features) • [📖 Docs](#-documentation) • [💰 Pricing](#-pricing-at-a-glance) • [💬 WhatsApp](https://chat.whatsapp.com/JI7cDQ1GyaiDHhVBpLxf8b?mode=gi_t)
 
@@ -867,69 +866,69 @@ export npm_config_fund=false
 export npm_config_audit=false
 
 do_build() {
-	# Determine target CPU arch for node-gyp
-	local _gyp_arch
-	case "$XBPS_TARGET_MACHINE" in
-		aarch64*) _gyp_arch=arm64 ;;
-		armv7*|armv6*) _gyp_arch=arm ;;
-		i686*) _gyp_arch=ia32 ;;
-		*) _gyp_arch=x64 ;;
-	esac
+ # Determine target CPU arch for node-gyp
+ local _gyp_arch
+ case "$XBPS_TARGET_MACHINE" in
+  aarch64*) _gyp_arch=arm64 ;;
+  armv7*|armv6*) _gyp_arch=arm ;;
+  i686*) _gyp_arch=ia32 ;;
+  *) _gyp_arch=x64 ;;
+ esac
 
-	# 1) Install all deps – skip scripts (no network in do_build, native modules
-	#    compiled separately below; better-sqlite3 is serverExternalPackage so
-	#    Next.js does not execute it during next build)
-	NODE_ENV=development npm ci --ignore-scripts
+ # 1) Install all deps – skip scripts (no network in do_build, native modules
+ #    compiled separately below; better-sqlite3 is serverExternalPackage so
+ #    Next.js does not execute it during next build)
+ NODE_ENV=development npm ci --ignore-scripts
 
-	# 2) Build the Next.js standalone bundle
-	npm run build
+ # 2) Build the Next.js standalone bundle
+ npm run build
 
-	# 3) Copy static assets into standalone
-	cp -r .next/static .next/standalone/.next/static
-	[ -d public ] && cp -r public .next/standalone/public || true
+ # 3) Copy static assets into standalone
+ cp -r .next/static .next/standalone/.next/static
+ [ -d public ] && cp -r public .next/standalone/public || true
 
-	# 4) Compile better-sqlite3 native binding for the target architecture.
-	#    Use node-gyp directly so CC/CXX from xbps-src cross-toolchain are used
-	#    without npm altering them.
-	local _node_gyp=/usr/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js
-	(cd node_modules/better-sqlite3 && node "$_node_gyp" rebuild --arch="$_gyp_arch")
+ # 4) Compile better-sqlite3 native binding for the target architecture.
+ #    Use node-gyp directly so CC/CXX from xbps-src cross-toolchain are used
+ #    without npm altering them.
+ local _node_gyp=/usr/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js
+ (cd node_modules/better-sqlite3 && node "$_node_gyp" rebuild --arch="$_gyp_arch")
 
-	# 5) Place the compiled binding into the standalone bundle
-	local _bs3_release=.next/standalone/node_modules/better-sqlite3/build/Release
-	mkdir -p "$_bs3_release"
-	cp node_modules/better-sqlite3/build/Release/better_sqlite3.node "$_bs3_release/"
+ # 5) Place the compiled binding into the standalone bundle
+ local _bs3_release=.next/standalone/node_modules/better-sqlite3/build/Release
+ mkdir -p "$_bs3_release"
+ cp node_modules/better-sqlite3/build/Release/better_sqlite3.node "$_bs3_release/"
 
-	# 6) Remove arch-specific sharp bundles – upstream sets images.unoptimized=true
-	#    so sharp is not used at runtime; x64 .so files would break aarch64 strip
-	rm -rf .next/standalone/node_modules/@img
+ # 6) Remove arch-specific sharp bundles – upstream sets images.unoptimized=true
+ #    so sharp is not used at runtime; x64 .so files would break aarch64 strip
+ rm -rf .next/standalone/node_modules/@img
 
-	# 7) Copy pino runtime deps omitted by Next.js static analysis:
-	#    pino-abstract-transport – required by pino's worker thread
-	#    split2 – dep of pino-abstract-transport
-	#    process-warning – dep of pino itself
-	for _mod in pino-abstract-transport split2 process-warning; do
-		cp -r "node_modules/$_mod" .next/standalone/node_modules/
-	done
+ # 7) Copy pino runtime deps omitted by Next.js static analysis:
+ #    pino-abstract-transport – required by pino's worker thread
+ #    split2 – dep of pino-abstract-transport
+ #    process-warning – dep of pino itself
+ for _mod in pino-abstract-transport split2 process-warning; do
+  cp -r "node_modules/$_mod" .next/standalone/node_modules/
+ done
 }
 
 do_check() {
-	npm run test:unit
+ npm run test:unit
 }
 
 do_install() {
-	vmkdir usr/lib/routiform/.next
+ vmkdir usr/lib/routiform/.next
 
-	vcopy .next/standalone/. usr/lib/routiform/.next/standalone
+ vcopy .next/standalone/. usr/lib/routiform/.next/standalone
 
-	# Prevent removal of empty Next.js app router dirs by the post-install hook
-	for _d in \
-		.next/standalone/.next/server/app/dashboard \
-		.next/standalone/.next/server/app/dashboard/settings \
-		.next/standalone/.next/server/app/dashboard/providers; do
-		touch "${DESTDIR}/usr/lib/routiform/${_d}/.keep"
-	done
+ # Prevent removal of empty Next.js app router dirs by the post-install hook
+ for _d in \
+  .next/standalone/.next/server/app/dashboard \
+  .next/standalone/.next/server/app/dashboard/settings \
+  .next/standalone/.next/server/app/dashboard/providers; do
+  touch "${DESTDIR}/usr/lib/routiform/${_d}/.keep"
+ done
 
-	cat > "${WRKDIR}/routiform" <<'EOF'
+ cat > "${WRKDIR}/routiform" <<'EOF'
 #!/bin/sh
 export PORT="${PORT:-20128}"
 export DATA_DIR="${DATA_DIR:-${XDG_DATA_HOME:-${HOME}/.local/share}/routiform}"
@@ -937,11 +936,11 @@ export LOG_TO_FILE="${LOG_TO_FILE:-false}"
 mkdir -p "${DATA_DIR}"
 exec node /usr/lib/routiform/.next/standalone/server.js "$@"
 EOF
-	vbin "${WRKDIR}/routiform"
+ vbin "${WRKDIR}/routiform"
 }
 
 post_install() {
-	vlicense LICENSE
+ vlicense LICENSE
 }
 ```
 
@@ -2178,7 +2177,6 @@ Routiform has **210+ features planned** across multiple development phases. Here
 
 ### 🔜 Coming Soon
 
-- 🔗 **OpenCode Integration** — Native provider support for the OpenCode AI coding IDE
 - 🔗 **TRAE Integration** — Full support for the TRAE AI development framework
 - 📦 **Batch API** — Asynchronous batch processing for bulk requests
 - 🎯 **Tag-Based Routing** — Route requests based on custom tags and metadata
@@ -2202,13 +2200,6 @@ Routiform has **210+ features planned** across multiple development phases. Here
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
-### Releasing a New Version
-
-```bash
-# Create a release — npm publish happens automatically
-gh release create v2.0.0 --title "v2.0.0" --generate-notes
-```
-
 ---
 
 ## 📊 Star History
@@ -2223,7 +2214,7 @@ Special thanks to **[9router](https://github.com/decolua/9router)** by **[decolu
 
 Special thanks to **[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)** — the original Go implementation that inspired this JavaScript port.
 
-Special thanks to **[Routiform](https://github.com/linhnguyen-gt/Routiform)** — the widely used AI gateway and upstream community project whose ideas, ecosystem, and ongoing work continue to inform Routiform.
+Special thanks to **[OmniRoute](https://github.com/diegosouzapw/OmniRoute)** — the widely used AI gateway and upstream community project whose ideas, ecosystem, and ongoing work continue to inform Routiform.
 
 ---
 
