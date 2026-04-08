@@ -1,347 +1,516 @@
 /**
  * OpenAI to Kiro Request Translator
- * Converts OpenAI Chat Completions format to Kiro/AWS CodeWhisperer format
+ * Converts OpenAI Chat Completions format to Kiro/AWS CodeWhisperer format.
  */
 import { register } from "../registry.ts";
 import { FORMATS } from "../formats.ts";
 import { v4 as uuidv4 } from "uuid";
 
-/**
- * Convert OpenAI messages to Kiro format
- * Rules: system/tool/user -> user role, merge consecutive same roles
- */
-function convertMessages(messages, tools, model) {
-  let history = [];
-  let currentMessage = null;
+type JsonRecord = Record<string, unknown>;
 
-  let pendingUserContent = [];
-  let pendingAssistantContent = [];
-  let pendingToolResults = [];
-  let pendingImages = [];
-  let currentRole = null;
+type OpenAIImagePart = {
+  type?: string;
+  image_url?: { url?: string };
+  source?: { type?: string; media_type?: string; data?: string };
+  text?: string;
+};
 
-  // Image support is pre-filtered by caps in translateRequest before reaching here
-  const supportsImages = true;
+type OpenAIMessage = {
+  role?: string;
+  content?: string | OpenAIImagePart[] | null;
+  tool_calls?: Array<{
+    id?: string;
+    type?: string;
+    function?: { name?: string; arguments?: unknown };
+  }>;
+  tool_call_id?: string;
+  name?: string;
+};
 
-  const flushPending = () => {
-    if (currentRole === "user") {
-      const content = pendingUserContent.join("\n\n").trim() || "continue";
-      const userMsg = {
-        userInputMessage: {
-          content: content,
-          modelId: "",
-        },
-      };
+type OpenAITool = {
+  function?: {
+    name?: string;
+    description?: string;
+    parameters?: unknown;
+  };
+  name?: string;
+  description?: string;
+  parameters?: unknown;
+  input_schema?: unknown;
+};
 
-      // Attach images if present (Kiro API supports images field)
-      if (pendingImages.length > 0) {
-        userMsg.userInputMessage.images = pendingImages;
+type KiroImage = {
+  format: string;
+  source: { bytes: string };
+};
+
+type KiroToolResult = {
+  toolUseId: string;
+  status: "success";
+  content: Array<{ text: string }>;
+};
+
+type KiroToolUse = {
+  toolUseId: string;
+  name: string;
+  input: unknown;
+};
+
+type KiroToolSpec = {
+  toolSpecification: {
+    name: string;
+    description: string;
+    inputSchema: { json: JsonRecord };
+  };
+};
+
+type KiroToolContext = {
+  toolResults?: KiroToolResult[];
+  tools?: KiroToolSpec[];
+};
+
+type KiroUserInputMessage = {
+  content: string;
+  modelId: string;
+  images?: KiroImage[];
+  userInputMessageContext?: KiroToolContext;
+  origin?: string;
+};
+
+type KiroHistoryItem = {
+  userInputMessage?: KiroUserInputMessage;
+  assistantResponseMessage?: {
+    content: string;
+    toolUses?: KiroToolUse[];
+  };
+};
+
+type CanonicalUserTurn = {
+  textParts: string[];
+  images: KiroImage[];
+  toolResults: KiroToolResult[];
+};
+
+type CanonicalAssistantTurn = {
+  textParts: string[];
+  toolUses: KiroToolUse[];
+};
+
+type KiroPayload = {
+  conversationState: {
+    chatTriggerType: "MANUAL";
+    conversationId: string;
+    currentMessage: {
+      userInputMessage: KiroUserInputMessage;
+    };
+    history: KiroHistoryItem[];
+  };
+  profileArn?: string;
+  inferenceConfig?: {
+    maxTokens?: number;
+    temperature?: unknown;
+    topP?: unknown;
+  };
+};
+
+function toNonEmptyString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function ensureObject(value: unknown): JsonRecord {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
+}
+
+function normalizeSchema(schema: unknown): JsonRecord {
+  const raw = ensureObject(schema);
+  const properties = ensureObject(raw.properties);
+  const required = Array.isArray(raw.required)
+    ? raw.required.filter((item): item is string => typeof item === "string")
+    : [];
+
+  return {
+    ...raw,
+    type: typeof raw.type === "string" ? raw.type : "object",
+    properties,
+    required,
+  };
+}
+
+function parseToolInput(argumentsValue: unknown): unknown {
+  if (typeof argumentsValue !== "string") {
+    return argumentsValue ?? {};
+  }
+
+  const trimmed = argumentsValue.trim();
+  if (!trimmed) return {};
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return { raw: trimmed };
+  }
+}
+
+function normalizeToolResultContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return content == null ? "" : JSON.stringify(content);
+
+  return content
+    .map((item) => {
+      if (typeof item === "string") return item;
+      const record = ensureObject(item);
+      return typeof record.text === "string" ? record.text : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function createEmptyUserTurn(): CanonicalUserTurn {
+  return { textParts: [], images: [], toolResults: [] };
+}
+
+function createEmptyAssistantTurn(): CanonicalAssistantTurn {
+  return { textParts: [], toolUses: [] };
+}
+
+function extractUserContentParts(content: OpenAIMessage["content"]): {
+  textParts: string[];
+  images: KiroImage[];
+  toolResults: KiroToolResult[];
+} {
+  if (typeof content === "string") {
+    return { textParts: content ? [content] : [], images: [], toolResults: [] };
+  }
+
+  if (!Array.isArray(content)) {
+    return { textParts: [], images: [], toolResults: [] };
+  }
+
+  const textParts: string[] = [];
+  const images: KiroImage[] = [];
+  const toolResults: KiroToolResult[] = [];
+
+  for (const part of content) {
+    const type = typeof part?.type === "string" ? part.type : "";
+
+    if (type === "tool_result") {
+      const block = part as OpenAIImagePart & { tool_use_id?: string; content?: unknown };
+      const toolUseId = toNonEmptyString(block.tool_use_id);
+      if (!toolUseId) continue;
+      toolResults.push({
+        toolUseId,
+        status: "success",
+        content: [{ text: normalizeToolResultContent(block.content) }],
+      });
+      continue;
+    }
+
+    if (type === "image_url") {
+      const url = typeof part.image_url?.url === "string" ? part.image_url.url : "";
+      const base64Match = url.match(/^data:([^;]+);base64,(.+)$/);
+      if (base64Match) {
+        const mediaType = base64Match[1];
+        images.push({
+          format: mediaType.split("/")[1] || mediaType,
+          source: { bytes: base64Match[2] },
+        });
+      } else if (url.startsWith("http://") || url.startsWith("https://")) {
+        textParts.push(`[Image: ${url}]`);
       }
+      continue;
+    }
 
-      if (pendingToolResults.length > 0) {
-        userMsg.userInputMessage.userInputMessageContext = {
-          toolResults: pendingToolResults,
-        };
+    if (
+      type === "image" &&
+      part.source?.type === "base64" &&
+      typeof part.source.data === "string"
+    ) {
+      const mediaType =
+        typeof part.source.media_type === "string" ? part.source.media_type : "image/png";
+      images.push({
+        format: mediaType.split("/")[1] || mediaType,
+        source: { bytes: part.source.data },
+      });
+      continue;
+    }
+
+    const text = typeof part.text === "string" ? part.text : "";
+    if (text) textParts.push(text);
+  }
+
+  return { textParts, images, toolResults };
+}
+
+function extractAssistantTurn(message: OpenAIMessage): CanonicalAssistantTurn {
+  const turn = createEmptyAssistantTurn();
+
+  if (typeof message.content === "string") {
+    if (message.content.trim()) turn.textParts.push(message.content.trim());
+  } else if (Array.isArray(message.content)) {
+    for (const part of message.content) {
+      if (part?.type === "text" && typeof part.text === "string" && part.text.trim()) {
+        turn.textParts.push(part.text.trim());
       }
-
-      // Add tools to first user message
-      if (tools && tools.length > 0 && history.length === 0) {
-        if (!userMsg.userInputMessage.userInputMessageContext) {
-          userMsg.userInputMessage.userInputMessageContext = {};
-        }
-        userMsg.userInputMessage.userInputMessageContext.tools = tools.map((t) => {
-          const name = t.function?.name || t.name;
-          let description = t.function?.description || t.description || "";
-
-          if (!description.trim()) {
-            description = `Tool: ${name}`;
-          }
-
-          const schema = t.function?.parameters || t.parameters || t.input_schema || {};
-          // Normalize schema: Kiro requires required[] and proper type/properties
-          const normalizedSchema =
-            Object.keys(schema).length === 0
-              ? { type: "object", properties: {}, required: [] }
-              : { ...schema, required: schema.required ?? [] };
-
-          return {
-            toolSpecification: {
-              name,
-              description,
-              inputSchema: { json: normalizedSchema },
-            },
-          };
+      if (part?.type === "tool_use") {
+        const block = part as OpenAIImagePart & { id?: string; name?: string; input?: unknown };
+        const name = toNonEmptyString(block.name);
+        if (!name) continue;
+        turn.toolUses.push({
+          toolUseId: toNonEmptyString(block.id) || uuidv4(),
+          name,
+          input: block.input ?? {},
         });
       }
+    }
+  }
 
-      history.push(userMsg);
-      currentMessage = userMsg;
-      pendingUserContent = [];
-      pendingToolResults = [];
-      pendingImages = [];
-    } else if (currentRole === "assistant") {
-      const content = pendingAssistantContent.join("\n\n").trim() || "...";
-      const assistantMsg = {
-        assistantResponseMessage: {
-          content: content,
+  if (Array.isArray(message.tool_calls)) {
+    for (const toolCall of message.tool_calls) {
+      const name = toNonEmptyString(toolCall.function?.name);
+      if (!name) continue;
+      turn.toolUses.push({
+        toolUseId: toNonEmptyString(toolCall.id) || uuidv4(),
+        name,
+        input: parseToolInput(toolCall.function?.arguments),
+      });
+    }
+  }
+
+  return turn;
+}
+
+function buildToolSpecs(tools: unknown): KiroToolSpec[] {
+  if (!Array.isArray(tools)) return [];
+
+  return tools
+    .map((tool) => {
+      const typedTool = tool as OpenAITool;
+      const name = toNonEmptyString(typedTool.function?.name || typedTool.name);
+      if (!name) return null;
+
+      const description =
+        toNonEmptyString(typedTool.function?.description || typedTool.description) ||
+        `Tool: ${name}`;
+      const schema = normalizeSchema(
+        typedTool.function?.parameters ?? typedTool.parameters ?? typedTool.input_schema ?? {}
+      );
+
+      return {
+        toolSpecification: {
+          name,
+          description,
+          inputSchema: { json: schema },
         },
       };
-      history.push(assistantMsg);
-      pendingAssistantContent = [];
-    }
+    })
+    .filter((tool): tool is KiroToolSpec => Boolean(tool));
+}
+
+function finalizeUserMessage(turn: CanonicalUserTurn, model: string): KiroUserInputMessage {
+  const text = turn.textParts.join("\n\n").trim() || "continue";
+  const message: KiroUserInputMessage = {
+    content: text,
+    modelId: model,
   };
 
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-    let role = msg.role;
+  if (turn.images.length > 0) {
+    message.images = turn.images;
+  }
 
-    // Normalize: system/tool -> user
-    if (role === "system" || role === "tool") {
-      role = "user";
-    }
+  if (turn.toolResults.length > 0) {
+    message.userInputMessageContext = {
+      toolResults: turn.toolResults,
+    };
+  }
 
-    // If role changes, flush pending
-    if (role !== currentRole && currentRole !== null) {
-      flushPending();
-    }
-    currentRole = role;
+  return message;
+}
 
-    if (role === "user") {
-      // Extract content
-      let content = "";
-      if (typeof msg.content === "string") {
-        content = msg.content;
-      } else if (Array.isArray(msg.content)) {
-        const textParts = [];
-        for (const c of msg.content) {
-          if (c.type === "text" || c.text) {
-            textParts.push(c.text || "");
-          } else if (supportsImages && c.type === "image_url") {
-            // OpenAI format: image_url.url with data URI
-            const url = c.image_url?.url || "";
-            const base64Match = url.match(/^data:([^;]+);base64,(.+)$/);
-            if (base64Match) {
-              const mediaType = base64Match[1];
-              const format = mediaType.split("/")[1] || mediaType;
-              pendingImages.push({ format, source: { bytes: base64Match[2] } });
-            } else if (url.startsWith("http://") || url.startsWith("https://")) {
-              // Kiro only supports base64 — fallback to URL text
-              textParts.push(`[Image: ${url}]`);
-            }
-          } else if (supportsImages && c.type === "image") {
-            // Claude format: source.type = "base64", source.media_type, source.data
-            if (c.source?.type === "base64" && c.source?.data) {
-              const mediaType = c.source.media_type || "image/png";
-              const format = mediaType.split("/")[1] || mediaType;
-              pendingImages.push({ format, source: { bytes: c.source.data } });
-            }
-          }
-        }
-        content = textParts.join("\n");
+function finalizeAssistantMessage(turn: CanonicalAssistantTurn): KiroHistoryItem | null {
+  const content = turn.textParts.join("\n\n").trim() || (turn.toolUses.length > 0 ? "..." : "");
+  if (!content && turn.toolUses.length === 0) return null;
 
-        // Check for tool_result blocks
-        const toolResultBlocks = msg.content.filter((c) => c.type === "tool_result");
-        if (toolResultBlocks.length > 0) {
-          toolResultBlocks.forEach((block) => {
-            const text = Array.isArray(block.content)
-              ? block.content.map((c) => c.text || "").join("\n")
-              : typeof block.content === "string"
-                ? block.content
-                : "";
+  return {
+    assistantResponseMessage: {
+      content,
+      ...(turn.toolUses.length > 0 ? { toolUses: turn.toolUses } : {}),
+    },
+  };
+}
 
-            pendingToolResults.push({
-              toolUseId: block.tool_use_id,
-              status: "success",
-              content: [{ text: text }],
-            });
-          });
-        }
+function validateKiroPayload(payload: KiroPayload): KiroPayload {
+  const currentUserInput = payload.conversationState.currentMessage.userInputMessage;
+  currentUserInput.content = currentUserInput.content.trim() || "continue";
+  currentUserInput.modelId = currentUserInput.modelId || "unknown";
+
+  if (
+    currentUserInput.userInputMessageContext &&
+    Object.keys(currentUserInput.userInputMessageContext).length === 0
+  ) {
+    delete currentUserInput.userInputMessageContext;
+  }
+
+  payload.conversationState.history = payload.conversationState.history.filter((item) => {
+    if (item.userInputMessage) {
+      item.userInputMessage.modelId = item.userInputMessage.modelId || currentUserInput.modelId;
+      item.userInputMessage.content = item.userInputMessage.content.trim() || "continue";
+
+      if (item.userInputMessage.userInputMessageContext?.tools) {
+        delete item.userInputMessage.userInputMessageContext.tools;
       }
 
-      // Handle tool role (from normalized)
-      if (msg.role === "tool") {
-        const toolContent = typeof msg.content === "string" ? msg.content : "";
-        pendingToolResults.push({
-          toolUseId: msg.tool_call_id,
+      if (
+        item.userInputMessage.userInputMessageContext &&
+        Object.keys(item.userInputMessage.userInputMessageContext).length === 0
+      ) {
+        delete item.userInputMessage.userInputMessageContext;
+      }
+
+      return true;
+    }
+
+    if (item.assistantResponseMessage) {
+      item.assistantResponseMessage.content = item.assistantResponseMessage.content.trim() || "...";
+      return true;
+    }
+
+    return false;
+  });
+
+  return payload;
+}
+
+function convertMessages(messages: unknown, tools: unknown, model: string) {
+  const history: KiroHistoryItem[] = [];
+  let activeUserTurn: CanonicalUserTurn | null = null;
+  let activeAssistantTurn: CanonicalAssistantTurn | null = null;
+
+  const flushUserTurn = () => {
+    if (!activeUserTurn) return;
+    history.push({ userInputMessage: finalizeUserMessage(activeUserTurn, model) });
+    activeUserTurn = null;
+  };
+
+  const flushAssistantTurn = () => {
+    if (!activeAssistantTurn) return;
+    const assistantMessage = finalizeAssistantMessage(activeAssistantTurn);
+    if (assistantMessage) history.push(assistantMessage);
+    activeAssistantTurn = null;
+  };
+
+  const typedMessages = Array.isArray(messages) ? (messages as OpenAIMessage[]) : [];
+
+  for (const message of typedMessages) {
+    const role = typeof message.role === "string" ? message.role : "user";
+
+    if (role === "assistant") {
+      flushUserTurn();
+      if (!activeAssistantTurn) activeAssistantTurn = createEmptyAssistantTurn();
+      const extracted = extractAssistantTurn(message);
+      activeAssistantTurn.textParts.push(...extracted.textParts);
+      activeAssistantTurn.toolUses.push(...extracted.toolUses);
+      continue;
+    }
+
+    flushAssistantTurn();
+    if (!activeUserTurn) activeUserTurn = createEmptyUserTurn();
+
+    if (role === "tool") {
+      const toolCallId = toNonEmptyString(message.tool_call_id);
+      if (toolCallId) {
+        activeUserTurn.toolResults.push({
+          toolUseId: toolCallId,
           status: "success",
-          content: [{ text: toolContent }],
+          content: [{ text: typeof message.content === "string" ? message.content : "" }],
         });
-      } else if (content) {
-        pendingUserContent.push(content);
       }
-    } else if (role === "assistant") {
-      // Extract text content and tool uses
-      let textContent = "";
-      let toolUses = [];
-
-      if (Array.isArray(msg.content)) {
-        const textBlocks = msg.content.filter((c) => c.type === "text");
-        textContent = textBlocks
-          .map((b) => b.text)
-          .join("\n")
-          .trim();
-
-        const toolUseBlocks = msg.content.filter((c) => c.type === "tool_use");
-        toolUses = toolUseBlocks;
-      } else if (typeof msg.content === "string") {
-        textContent = msg.content.trim();
-      }
-
-      if (msg.tool_calls && msg.tool_calls.length > 0) {
-        toolUses = msg.tool_calls;
-      }
-
-      if (textContent) {
-        pendingAssistantContent.push(textContent);
-      }
-
-      // Store tool uses in last assistant message
-      if (toolUses.length > 0) {
-        if (pendingAssistantContent.length === 0) {
-          // pendingAssistantContent.push("Call tools");
-        }
-
-        // Flush to create assistant message with toolUses
-        flushPending();
-
-        const lastMsg = history[history.length - 1];
-        if (lastMsg?.assistantResponseMessage) {
-          lastMsg.assistantResponseMessage.toolUses = toolUses.map((tc) => {
-            if (tc.function) {
-              return {
-                toolUseId: tc.id || uuidv4(),
-                name: tc.function.name,
-                input:
-                  typeof tc.function.arguments === "string"
-                    ? JSON.parse(tc.function.arguments)
-                    : (tc.function.arguments ?? {}),
-              };
-            }
-            return {
-              toolUseId: tc.id || uuidv4(),
-              name: tc.name,
-              input: tc.input || {},
-            };
-          });
-        }
-
-        currentRole = null;
-      }
+      continue;
     }
+
+    const extracted = extractUserContentParts(message.content);
+    activeUserTurn.textParts.push(...extracted.textParts);
+    activeUserTurn.images.push(...extracted.images);
+    activeUserTurn.toolResults.push(...extracted.toolResults);
   }
 
-  // Flush remaining
-  if (currentRole !== null) {
-    flushPending();
-  }
+  flushAssistantTurn();
+  flushUserTurn();
 
-  // Pop last userInputMessage as currentMessage (search from end, skip trailing assistant messages)
-  for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i].userInputMessage) {
-      currentMessage = history.splice(i, 1)[0];
+  let currentMessage: KiroHistoryItem | null = null;
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    if (history[index].userInputMessage) {
+      currentMessage = history.splice(index, 1)[0];
       break;
     }
   }
 
-  // Grab tools from first history item BEFORE cleanup removes them
-  const firstHistoryTools = history[0]?.userInputMessage?.userInputMessageContext?.tools;
-
-  // Clean up history for Kiro API compatibility
-  history.forEach((item) => {
-    if (item.userInputMessage?.userInputMessageContext?.tools) {
-      delete item.userInputMessage.userInputMessageContext.tools;
-    }
-    if (
-      item.userInputMessage?.userInputMessageContext &&
-      Object.keys(item.userInputMessage.userInputMessageContext).length === 0
-    ) {
-      delete item.userInputMessage.userInputMessageContext;
-    }
-    if (item.userInputMessage && !item.userInputMessage.modelId) {
-      item.userInputMessage.modelId = model;
-    }
-  });
-
-  // Merge consecutive user messages (Kiro requires alternating user/assistant)
-  const mergedHistory = [];
-  for (let i = 0; i < history.length; i++) {
-    const current = history[i];
-    if (
-      current.userInputMessage &&
-      mergedHistory.length > 0 &&
-      mergedHistory[mergedHistory.length - 1].userInputMessage
-    ) {
-      const prev = mergedHistory[mergedHistory.length - 1];
-      prev.userInputMessage.content += "\n\n" + current.userInputMessage.content;
-    } else {
-      mergedHistory.push(current);
-    }
+  if (!currentMessage?.userInputMessage) {
+    currentMessage = {
+      userInputMessage: {
+        content: "continue",
+        modelId: model,
+      },
+    };
   }
 
-  // Inject tools into currentMessage AFTER cleanup
-  if (
-    firstHistoryTools &&
-    currentMessage?.userInputMessage &&
-    !currentMessage.userInputMessage.userInputMessageContext?.tools
-  ) {
-    if (!currentMessage.userInputMessage.userInputMessageContext) {
-      currentMessage.userInputMessage.userInputMessageContext = {};
-    }
-    currentMessage.userInputMessage.userInputMessageContext.tools = firstHistoryTools;
+  const toolSpecs = buildToolSpecs(tools);
+  if (toolSpecs.length > 0) {
+    currentMessage.userInputMessage.userInputMessageContext = {
+      ...(currentMessage.userInputMessage.userInputMessageContext ?? {}),
+      tools: toolSpecs,
+    };
   }
 
-  return { history: mergedHistory, currentMessage };
+  return { history, currentMessage };
 }
 
-/**
- * Build Kiro payload from OpenAI format
- */
-export function buildKiroPayload(model, body, stream, credentials) {
+export function buildKiroPayload(
+  model: string,
+  body: Record<string, unknown>,
+  stream: boolean,
+  credentials?: { providerSpecificData?: { profileArn?: string } }
+): KiroPayload {
   void stream;
-  const messages = body.messages || [];
-  const tools = body.tools || [];
-  const maxTokens = 32000;
-  const temperature = body.temperature;
-  const topP = body.top_p;
 
+  const messages = body.messages;
+  const tools = body.tools;
   const { history, currentMessage } = convertMessages(messages, tools, model);
-
-  const profileArn = credentials?.providerSpecificData?.profileArn || "";
-
-  let finalContent = currentMessage?.userInputMessage?.content || "";
   const timestamp = new Date().toISOString();
-  finalContent = `[Context: Current time is ${timestamp}]\n\n${finalContent}`;
+  const finalContent = `[Context: Current time is ${timestamp}]\n\n${currentMessage.userInputMessage.content}`;
 
-  const payload = {
+  const payload: KiroPayload = {
     conversationState: {
       chatTriggerType: "MANUAL",
       conversationId: uuidv4(),
       currentMessage: {
         userInputMessage: {
+          ...currentMessage.userInputMessage,
           content: finalContent,
-          modelId: model,
           origin: "AI_EDITOR",
-          ...(currentMessage?.userInputMessage?.userInputMessageContext && {
-            userInputMessageContext: currentMessage.userInputMessage.userInputMessageContext,
-          }),
         },
       },
-      history: history,
+      history,
     },
   };
 
+  const profileArn = credentials?.providerSpecificData?.profileArn;
   if (profileArn) {
     payload.profileArn = profileArn;
   }
 
-  if (maxTokens || temperature !== undefined || topP !== undefined) {
-    payload.inferenceConfig = {};
-    if (maxTokens) payload.inferenceConfig.maxTokens = maxTokens;
-    if (temperature !== undefined) payload.inferenceConfig.temperature = temperature;
-    if (topP !== undefined) payload.inferenceConfig.topP = topP;
+  payload.inferenceConfig = {
+    maxTokens: 32000,
+  };
+
+  if (body.temperature !== undefined) {
+    payload.inferenceConfig.temperature = body.temperature;
   }
 
-  return payload;
+  if (body.top_p !== undefined) {
+    payload.inferenceConfig.topP = body.top_p;
+  }
+
+  return validateKiroPayload(payload);
 }
 
 register(FORMATS.OPENAI, FORMATS.KIRO, buildKiroPayload, null);
