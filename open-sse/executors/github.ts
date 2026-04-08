@@ -2,6 +2,26 @@ import { BaseExecutor, ExecuteInput } from "./base.ts";
 import { PROVIDERS, OAUTH_ENDPOINTS } from "../config/constants.ts";
 import { getModelTargetFormat } from "../config/providerModels.ts";
 
+type JsonObject = Record<string, unknown>;
+
+type ResponseFormat = {
+  type?: "json_object" | "json_schema" | string;
+  json_schema?: { schema?: unknown };
+};
+
+type ChatMessagePart = {
+  type?: string;
+  text?: string;
+  content?: unknown;
+  [key: string]: unknown;
+};
+
+type ChatMessage = {
+  role?: string;
+  content?: string | ChatMessagePart[] | null;
+  [key: string]: unknown;
+};
+
 export class GithubExecutor extends BaseExecutor {
   constructor() {
     super("github", PROVIDERS.github);
@@ -32,7 +52,7 @@ export class GithubExecutor extends BaseExecutor {
     return this.config.baseUrl;
   }
 
-  injectResponseFormat(messages: any[], responseFormat: any) {
+  injectResponseFormat(messages: ChatMessage[], responseFormat: ResponseFormat) {
     if (!responseFormat) return messages;
 
     let formatInstruction = "";
@@ -49,9 +69,9 @@ export class GithubExecutor extends BaseExecutor {
 
     if (!formatInstruction) return messages;
 
-    const systemIdx = messages.findIndex((m: any) => m.role === "system");
+    const systemIdx = messages.findIndex((m) => m.role === "system");
     if (systemIdx >= 0) {
-      return messages.map((m: any, i: number) =>
+      return messages.map((m, i: number) =>
         i === systemIdx ? { ...m, content: `${m.content}\n\n${formatInstruction}` } : m
       );
     }
@@ -65,21 +85,24 @@ export class GithubExecutor extends BaseExecutor {
    * or other part types that Copilot rejects with HTTP 400. Align with 9router:
    * coerce unknown parts to `text` (see open-sse/executors/github.js sanitizeMessagesForChatCompletions).
    */
-  sanitizeMessagesForGitHubChatCompletions(body: any): any {
-    if (!body?.messages || !Array.isArray(body.messages)) return body;
-    const out = { ...body };
-    out.messages = body.messages.map((msg: any) => {
+  sanitizeMessagesForGitHubChatCompletions(body: unknown): unknown {
+    if (!body || typeof body !== "object") return body;
+    const bodyWithMessages = body as { messages?: unknown };
+    if (!Array.isArray(bodyWithMessages.messages)) return body;
+    const bodyObj = body as JsonObject & { messages: ChatMessage[] };
+    const out = { ...bodyObj };
+    out.messages = bodyObj.messages.map((msg) => {
       if (!msg.content) return msg;
       if (typeof msg.content === "string") return msg;
       if (Array.isArray(msg.content)) {
         const cleanContent = msg.content
-          .map((part: any) => {
+          .map((part) => {
             if (part.type === "text") return part;
             if (part.type === "image_url") return part;
             const text = part.text ?? part.content ?? JSON.stringify(part);
             return { type: "text", text: typeof text === "string" ? text : JSON.stringify(text) };
           })
-          .filter((part: any) => part.text !== "");
+          .filter((part) => part.text !== "");
         return { ...msg, content: cleanContent.length > 0 ? cleanContent : null };
       }
       return msg;
@@ -91,9 +114,9 @@ export class GithubExecutor extends BaseExecutor {
    * OpenCode / Claude Code often send multiple consecutive `system` messages.
    * Copilot is happier with a single merged system block (fewer validation edge cases).
    */
-  mergeConsecutiveSystemMessages(messages: any[] | undefined): any[] {
+  mergeConsecutiveSystemMessages(messages: ChatMessage[] | undefined): ChatMessage[] {
     if (!Array.isArray(messages) || messages.length === 0) return messages;
-    const out: any[] = [];
+    const out: ChatMessage[] = [];
     for (const msg of messages) {
       if (msg.role !== "system") {
         out.push(msg);
@@ -113,8 +136,17 @@ export class GithubExecutor extends BaseExecutor {
     return out;
   }
 
-  transformRequest(model: string, body: any, stream: boolean, credentials: any): any {
-    const modifiedBody = JSON.parse(JSON.stringify(body));
+  transformRequest(model: string, body: unknown, stream: boolean, credentials: unknown): unknown {
+    void stream;
+    void credentials;
+    const modifiedBody = JSON.parse(JSON.stringify(body)) as JsonObject & {
+      messages?: ChatMessage[];
+      response_format?: ResponseFormat;
+      stream_options?: unknown;
+      parallel_tool_calls?: unknown;
+      metadata?: unknown;
+      user?: unknown;
+    };
 
     if (Array.isArray(modifiedBody.messages)) {
       modifiedBody.messages = this.mergeConsecutiveSystemMessages(modifiedBody.messages);

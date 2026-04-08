@@ -208,13 +208,21 @@ interface RequestMessage {
   content?: unknown;
 }
 
+type ContentPart = {
+  type?: string;
+  text?: string;
+};
+
 function extractText(content: unknown): string {
   if (typeof content === "string") return content.toLowerCase();
   if (Array.isArray(content)) {
     return content
-      .map((part: any) =>
-        typeof part === "string" ? part.toLowerCase() : part?.text?.toLowerCase() || ""
-      )
+      .map((part: unknown) => {
+        const typedPart = part as ContentPart | string;
+        return typeof typedPart === "string"
+          ? typedPart.toLowerCase()
+          : typedPart?.text?.toLowerCase() || "";
+      })
       .join(" ");
   }
   return "";
@@ -223,7 +231,7 @@ function extractText(content: unknown): string {
 function hasImages(messages: RequestMessage[]): boolean {
   for (const msg of messages) {
     if (Array.isArray(msg.content)) {
-      for (const part of msg.content as any[]) {
+      for (const part of msg.content as ContentPart[]) {
         if (part?.type === "image_url" || part?.type === "image") return true;
       }
     }
@@ -235,13 +243,14 @@ function hasImages(messages: RequestMessage[]): boolean {
  * Detect the task type for a given request body.
  * Returns 'chat' (no-op) if nothing specific is detected.
  */
-export function detectTaskType(body: any): TaskType {
+export function detectTaskType(body: unknown): TaskType {
   if (!body || typeof body !== "object") return "chat";
+  const requestBody = body as { messages?: unknown; input?: unknown };
 
-  const messages: RequestMessage[] = Array.isArray(body.messages)
-    ? body.messages
-    : Array.isArray(body.input)
-      ? body.input
+  const messages: RequestMessage[] = Array.isArray(requestBody.messages)
+    ? requestBody.messages
+    : Array.isArray(requestBody.input)
+      ? requestBody.input
       : [];
 
   if (messages.length === 0) return "chat";
@@ -297,7 +306,7 @@ export function detectTaskType(body: any): TaskType {
  */
 export function applyTaskAwareRouting(
   originalModel: string,
-  body: any
+  body: unknown
 ): { model: string; taskType: TaskType; wasRouted: boolean } {
   if (!_config.enabled || !_config.detectionEnabled) {
     return { model: originalModel, taskType: "chat", wasRouted: false };

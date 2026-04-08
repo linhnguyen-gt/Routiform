@@ -3,23 +3,14 @@ import crypto from "crypto";
 
 const DEFAULT_TIMEOUT_MS = 45_000;
 const DEFAULT_MAX_TURNS = "1";
-const QODER_DEFAULT_MODEL = "qoder-rome-30ba3b";
+const QODER_DEFAULT_MODEL = "qwen-coder-qoder-1.0";
 
 export const QODER_STATIC_MODELS = [
-  { id: "qoder-rome-30ba3b", name: "Qoder ROME" },
-  { id: "qwen3-coder-plus", name: "Qwen3 Coder Plus" },
-  { id: "qwen3-max", name: "Qwen3 Max" },
-  { id: "qwen3-vl-plus", name: "Qwen3 Vision Plus" },
-  { id: "kimi-k2-0905", name: "Kimi K2 0905" },
-  { id: "qwen3-max-preview", name: "Qwen3 Max Preview" },
-  { id: "kimi-k2", name: "Kimi K2" },
-  { id: "deepseek-v3.2", name: "DeepSeek V3.2" },
-  { id: "deepseek-r1", name: "DeepSeek R1" },
-  { id: "deepseek-v3", name: "DeepSeek V3" },
-  { id: "qwen3-32b", name: "Qwen3 32B" },
-  { id: "qwen3-235b-a22b-thinking-2507", name: "Qwen3 235B A22B Thinking 2507" },
-  { id: "qwen3-235b-a22b-instruct", name: "Qwen3 235B A22B Instruct" },
-  { id: "qwen3-235b", name: "Qwen3 235B" },
+  { id: "qwen-coder-qoder-1.0", name: "Qwen-Coder-Qoder-1.0" },
+  { id: "qwen3.5-plus", name: "Qwen3.5-Plus" },
+  { id: "glm-5", name: "GLM-5" },
+  { id: "kimi-k2.5", name: "Kimi-K2.5" },
+  { id: "minimax-m2.5", name: "MiniMax-M2.5" },
 ];
 
 type JsonRecord = Record<string, unknown>;
@@ -97,11 +88,11 @@ export function mapQoderModelToLevel(model: string | null | undefined): string |
     .trim()
     .toLowerCase();
   if (!normalized) return null;
-  if (normalized.includes("deepseek-r1")) return "ultimate";
-  if (normalized.includes("qwen3-max")) return "performance";
-  if (normalized.includes("kimi-k2")) return "kmodel";
-  if (normalized.includes("qwen3-coder")) return "qmodel";
-  if (normalized.includes("qoder-rome")) return "qmodel";
+  if (normalized.includes("qwen-coder-qoder")) return "qmodel";
+  if (normalized.includes("qwen3.5-plus")) return "performance";
+  if (normalized.includes("glm-5")) return "ultimate";
+  if (normalized.includes("kimi-k2.5")) return "kmodel";
+  if (normalized.includes("minimax-m2.5")) return "performance";
   return "auto";
 }
 
@@ -435,7 +426,8 @@ export async function validateQoderCliPat({
       return { valid: false, error: `HTTP ${res.status}: ${await res.text()}`, unsupported: false };
     }
     return { valid: true, error: null, unsupported: false };
-  } catch (e: any) {
-    return { valid: false, error: e.message, unsupported: false };
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    return { valid: false, error: message, unsupported: false };
   }
 }

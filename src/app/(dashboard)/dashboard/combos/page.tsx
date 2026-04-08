@@ -1296,7 +1296,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [config, setConfig] = useState(combo?.config || {});
   const [showStrategyNudge, setShowStrategyNudge] = useState(false);
-  const strategyChangeMountedRef = useRef(false);
+  const strategyNudgeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Agent features (#399 / #401 / #454)
   const [agentSystemMessage, setAgentSystemMessage] = useState<string>(combo?.system_message || "");
   const [agentToolFilter, setAgentToolFilter] = useState<string>(combo?.tool_filter_regex || "");
@@ -1459,19 +1459,24 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders }) {
     setShowStrategyNudge(false);
     setDragIndex(null);
     setDragOverIndex(null);
-    strategyChangeMountedRef.current = false;
   }, [initialFormState, isOpen]);
 
-  useEffect(() => {
-    if (!strategyChangeMountedRef.current) {
-      strategyChangeMountedRef.current = true;
-      return;
-    }
-
+  const triggerStrategyNudge = useCallback(() => {
     setShowStrategyNudge(true);
-    const timeoutId = setTimeout(() => setShowStrategyNudge(false), 2600);
-    return () => clearTimeout(timeoutId);
-  }, [strategy]);
+    if (strategyNudgeTimeoutRef.current) {
+      clearTimeout(strategyNudgeTimeoutRef.current);
+    }
+    strategyNudgeTimeoutRef.current = setTimeout(() => setShowStrategyNudge(false), 2600);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (strategyNudgeTimeoutRef.current) {
+        clearTimeout(strategyNudgeTimeoutRef.current);
+      }
+    },
+    []
+  );
 
   const validateName = (value) => {
     if (!value.trim()) {
@@ -1801,7 +1806,13 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders }) {
               {STRATEGY_OPTIONS.map((s) => (
                 <button
                   key={s.value}
-                  onClick={() => setStrategy(s.value)}
+                  onClick={() => {
+                    if (strategy === s.value) {
+                      return;
+                    }
+                    setStrategy(s.value);
+                    triggerStrategyNudge();
+                  }}
                   data-testid={`strategy-option-${s.value}`}
                   title={t(s.descKey)}
                   aria-label={`${getStrategyLabel(t, s.value)}. ${t(s.descKey)}`}

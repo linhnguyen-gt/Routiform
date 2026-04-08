@@ -7,6 +7,17 @@ import {
 import { PROVIDERS } from "../config/constants.ts";
 
 function getAuthToken(credentials: ProviderCredentials): string {
+  // For OAuth connections (authType: "oauth"), prioritize accessToken
+  if (credentials.authType === "oauth") {
+    if (typeof credentials.accessToken === "string" && credentials.accessToken.trim()) {
+      return credentials.accessToken.trim();
+    }
+    if (typeof credentials.refreshToken === "string" && credentials.refreshToken.trim()) {
+      return credentials.refreshToken.trim();
+    }
+  }
+
+  // For API key connections or fallback
   if (typeof credentials.apiKey === "string" && credentials.apiKey.trim()) {
     return credentials.apiKey.trim();
   }

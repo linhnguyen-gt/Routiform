@@ -1,5 +1,6 @@
 import { BaseExecutor } from "./base.ts";
 import { PROVIDERS } from "../config/constants.ts";
+import type { ProviderCredentials } from "./base.ts";
 
 /**
  * CloudflareAIExecutor — handles dynamic URL construction with accountId.
@@ -18,11 +19,16 @@ export class CloudflareAIExecutor extends BaseExecutor {
     super("cloudflare-ai", PROVIDERS["cloudflare-ai"] || { format: "openai" });
   }
 
-  buildUrl(_model: string, _stream: boolean, _urlIndex = 0, credentials: any = null): string {
+  buildUrl(
+    _model: string,
+    _stream: boolean,
+    _urlIndex = 0,
+    credentials: ProviderCredentials | null = null
+  ): string {
     // Account ID can be stored in providerSpecificData or at top level credentials
     const accountId =
       credentials?.providerSpecificData?.accountId ||
-      credentials?.accountId ||
+      (credentials as { accountId?: string } | null)?.accountId ||
       process.env.CLOUDFLARE_ACCOUNT_ID;
 
     if (!accountId) {
@@ -36,7 +42,7 @@ export class CloudflareAIExecutor extends BaseExecutor {
     return `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`;
   }
 
-  buildHeaders(credentials: any, stream = true): Record<string, string> {
+  buildHeaders(credentials: ProviderCredentials, stream = true): Record<string, string> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Authorization: `Bearer ${credentials.apiKey || credentials.accessToken}`,
@@ -49,7 +55,12 @@ export class CloudflareAIExecutor extends BaseExecutor {
     return headers;
   }
 
-  transformRequest(_model: string, body: any, _stream: boolean, _credentials: any): any {
+  transformRequest(
+    _model: string,
+    body: unknown,
+    _stream: boolean,
+    _credentials: ProviderCredentials
+  ): unknown {
     // Cloudflare uses full model paths like @cf/meta/llama-3.3-70b-instruct
     // No transformation needed — user sends the full Cloudflare model path.
     return body;

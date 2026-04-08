@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, Button, Badge, Modal, Input, ModelSelectModal } from "@/shared/components";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
@@ -32,14 +32,7 @@ export default function AntigravityToolCard({
     }
   }, [apiKeys, selectedApiKey]);
 
-  useEffect(() => {
-    if (isExpanded && !status) {
-      fetchStatus();
-      loadSavedMappings();
-    }
-  }, [isExpanded, status]);
-
-  const loadSavedMappings = async () => {
+  const loadSavedMappings = useCallback(async () => {
     try {
       const res = await fetch(`/api/cli-tools/antigravity-mitm/alias?tool=${tool.id}`);
       if (res.ok) {
@@ -53,7 +46,14 @@ export default function AntigravityToolCard({
     } catch (error) {
       console.log("Error loading saved mappings:", error);
     }
-  };
+  }, [tool.id]);
+
+  useEffect(() => {
+    if (isExpanded && !status) {
+      fetchStatus();
+      loadSavedMappings();
+    }
+  }, [isExpanded, status, loadSavedMappings]);
 
   const fetchStatus = async () => {
     try {

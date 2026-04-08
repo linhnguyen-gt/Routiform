@@ -328,14 +328,17 @@ export default function AppearanceTab() {
                   maxLength={2000}
                 />
                 {(settings.customLogoUrl || settings.customLogoBase64) && (
-                  <img
-                    src={settings.customLogoBase64 || settings.customLogoUrl}
-                    alt="Logo preview"
-                    className="h-10 w-10 rounded border border-border object-contain bg-surface"
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
-                  />
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={settings.customLogoBase64 || settings.customLogoUrl}
+                      alt="Logo preview"
+                      className="h-10 w-10 rounded border border-border object-contain bg-surface"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                    />
+                  </>
                 )}
               </div>
             </div>
@@ -398,6 +401,7 @@ export default function AppearanceTab() {
               {(settings.customLogoBase64 || settings.customLogoUrl) && (
                 <div className="mt-2 p-3 bg-black/5 dark:bg-white/5 rounded-lg">
                   <p className="text-xs text-text-muted mb-2">{t("logoPreview")}</p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={settings.customLogoBase64 || settings.customLogoUrl}
                     alt="Logo preview"
@@ -422,14 +426,17 @@ export default function AppearanceTab() {
                   maxLength={2000}
                 />
                 {(settings.customFaviconUrl || settings.customFaviconBase64) && (
-                  <img
-                    src={settings.customFaviconBase64 || settings.customFaviconUrl}
-                    alt="Favicon preview"
-                    className="h-10 w-10 rounded border border-border object-contain bg-surface"
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
-                  />
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={settings.customFaviconBase64 || settings.customFaviconUrl}
+                      alt="Favicon preview"
+                      className="h-10 w-10 rounded border border-border object-contain bg-surface"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                    />
+                  </>
                 )}
               </div>
             </div>
@@ -494,6 +501,7 @@ export default function AppearanceTab() {
               {(settings.customFaviconBase64 || settings.customFaviconUrl) && (
                 <div className="mt-2 p-3 bg-black/5 dark:bg-white/5 rounded-lg">
                   <p className="text-xs text-text-muted mb-2">{t("faviconPreview")}</p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={settings.customFaviconBase64 || settings.customFaviconUrl}
                     alt="Favicon preview"

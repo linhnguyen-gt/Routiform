@@ -87,6 +87,10 @@ const OAUTH_TEST_CONFIG = {
     checkExpiry: true,
     refreshable: true,
   },
+  qoder: {
+    checkExpiry: true,
+    refreshable: true,
+  },
 };
 
 const CLI_RUNTIME_PROVIDER_MAP = {

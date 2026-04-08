@@ -115,13 +115,7 @@ export default function ApiManagerPageClient() {
 
   const { copied, copy } = useCopyToClipboard();
 
-  useEffect(() => {
-    fetchData();
-    fetchModels();
-    fetchConnections();
-  }, []);
-
-  const fetchModels = async () => {
+  const fetchModels = useCallback(async () => {
     try {
       const res = await fetch("/v1/models");
       if (res.ok) {
@@ -131,9 +125,9 @@ export default function ApiManagerPageClient() {
     } catch (error) {
       console.log("Error fetching models:", error);
     }
-  };
+  }, []);
 
-  const fetchConnections = async () => {
+  const fetchConnections = useCallback(async () => {
     try {
       const res = await fetch("/api/providers");
       if (res.ok) {
@@ -143,27 +137,9 @@ export default function ApiManagerPageClient() {
     } catch (error) {
       console.log("Error fetching connections:", error);
     }
-  };
+  }, []);
 
-  const fetchData = async () => {
-    try {
-      const res = await fetch("/api/keys");
-      if (res.ok) {
-        const data = await res.json();
-        setKeys(data.keys || []);
-        setAllowKeyReveal(data.allowKeyReveal === true);
-        // Fetch usage stats after keys are loaded
-        fetchUsageStats(data.keys || []);
-        fetchSessionCounts(data.keys || []);
-      }
-    } catch (error) {
-      console.log("Error fetching keys:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchUsageStats = async (apiKeys: ApiKey[]) => {
+  const fetchUsageStats = useCallback(async (apiKeys: ApiKey[]) => {
     if (apiKeys.length === 0) return;
     try {
       const res = await fetch("/api/usage/call-logs?limit=1000");
@@ -190,9 +166,9 @@ export default function ApiManagerPageClient() {
     } catch (e) {
       console.log("Error fetching usage stats:", e);
     }
-  };
+  }, []);
 
-  const fetchSessionCounts = async (apiKeys: ApiKey[]) => {
+  const fetchSessionCounts = useCallback(async (apiKeys: ApiKey[]) => {
     if (apiKeys.length === 0) {
       setSessionCounts({});
       return;
@@ -215,7 +191,31 @@ export default function ApiManagerPageClient() {
     } catch (error) {
       console.log("Error fetching session counts:", error);
     }
-  };
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch("/api/keys");
+      if (res.ok) {
+        const data = await res.json();
+        setKeys(data.keys || []);
+        setAllowKeyReveal(data.allowKeyReveal === true);
+        // Fetch usage stats after keys are loaded
+        fetchUsageStats(data.keys || []);
+        fetchSessionCounts(data.keys || []);
+      }
+    } catch (error) {
+      console.log("Error fetching keys:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchUsageStats, fetchSessionCounts]);
+
+  useEffect(() => {
+    fetchData();
+    fetchModels();
+    fetchConnections();
+  }, [fetchData, fetchModels, fetchConnections]);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -392,7 +392,7 @@ export default function ApiManagerPageClient() {
       grouped[provider].push(model);
     }
     return Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [allModels]);
+  }, [allModels, t]);
 
   // Filter models based on debounced search
   const filteredModelsByProvider = useMemo((): ProviderGroup[] => {

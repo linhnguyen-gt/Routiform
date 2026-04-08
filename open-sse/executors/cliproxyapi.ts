@@ -1,4 +1,10 @@
-import { BaseExecutor, mergeUpstreamExtraHeaders, mergeAbortSignals } from "./base.ts";
+import {
+  BaseExecutor,
+  type ExecutorLog,
+  type ProviderCredentials,
+  mergeUpstreamExtraHeaders,
+  mergeAbortSignals,
+} from "./base.ts";
 import { HTTP_STATUS, FETCH_TIMEOUT_MS } from "../config/constants.ts";
 
 const DEFAULT_PORT = 8317;
@@ -29,7 +35,7 @@ export class CliproxyapiExecutor extends BaseExecutor {
     return `${this.upstreamBaseUrl}/v1/chat/completions`;
   }
 
-  buildHeaders(credentials: any, stream = true): Record<string, string> {
+  buildHeaders(credentials: ProviderCredentials, stream = true): Record<string, string> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -46,9 +52,17 @@ export class CliproxyapiExecutor extends BaseExecutor {
     return headers;
   }
 
-  transformRequest(model: string, body: any, _stream: boolean, _credentials: any): any {
-    if (body && typeof body === "object" && body.model !== model) {
-      return { ...body, model };
+  transformRequest(
+    model: string,
+    body: unknown,
+    _stream: boolean,
+    _credentials: ProviderCredentials
+  ): unknown {
+    if (body && typeof body === "object") {
+      const typedBody = body as Record<string, unknown>;
+      if (typedBody.model !== model) {
+        return { ...typedBody, model };
+      }
     }
     return body;
   }
@@ -57,9 +71,9 @@ export class CliproxyapiExecutor extends BaseExecutor {
     model: string;
     body: unknown;
     stream: boolean;
-    credentials: any;
+    credentials: ProviderCredentials;
     signal?: AbortSignal | null;
-    log?: any;
+    log?: ExecutorLog | null;
     upstreamExtraHeaders?: Record<string, string> | null;
   }) {
     const url = this.buildUrl(input.model, input.stream);

@@ -231,11 +231,14 @@ export default function Sidebar({
           >
             <div className="flex items-center justify-center size-9 rounded-lg bg-linear-to-br from-[#A78BFA] to-[#6366F1] shrink-0">
               {customLogo ? (
-                <img
-                  src={customLogo}
-                  alt={customAppName || APP_CONFIG.name}
-                  className="size-5 object-contain"
-                />
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={customLogo}
+                    alt={customAppName || APP_CONFIG.name}
+                    className="size-5 object-contain"
+                  />
+                </>
               ) : (
                 <RoutiformLogo size={20} className="text-white" />
               )}

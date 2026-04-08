@@ -1,5 +1,6 @@
 import { BaseExecutor } from "./base.ts";
 import { PROVIDERS } from "../config/constants.ts";
+import type { ProviderCredentials } from "./base.ts";
 
 /**
  * PollinationsExecutor — handles optional API key auth.
@@ -18,7 +19,7 @@ export class PollinationsExecutor extends BaseExecutor {
     return "https://text.pollinations.ai/openai/chat/completions";
   }
 
-  buildHeaders(credentials: any, stream = true): Record<string, string> {
+  buildHeaders(credentials: ProviderCredentials, stream = true): Record<string, string> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -36,7 +37,12 @@ export class PollinationsExecutor extends BaseExecutor {
     return headers;
   }
 
-  transformRequest(model: string, body: any, _stream: boolean, _credentials: any): any {
+  transformRequest(
+    model: string,
+    body: unknown,
+    _stream: boolean,
+    _credentials: ProviderCredentials
+  ): unknown {
     // Pollinations uses model names directly like "openai", "claude", "deepseek", etc.
     // No transformation needed — the model name is already the Pollinations alias.
     return body;

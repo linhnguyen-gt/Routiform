@@ -18,41 +18,48 @@ export type { ValidationResult } from "./helpers";
 
 // ──── Provider Schemas ────
 
-export const createProviderSchema = z.object({
-  provider: z.string().min(1).max(100),
-  apiKey: z.string().min(1).max(10000),
-  name: z.string().min(1).max(200),
-  priority: z.number().int().min(1).max(100).optional(),
-  globalPriority: z.number().int().min(1).max(100).nullable().optional(),
-  defaultModel: z.string().max(200).nullable().optional(),
-  testStatus: z.string().max(50).optional(),
-  providerSpecificData: z
-    .record(z.string(), z.unknown())
-    .optional()
-    .superRefine((data, ctx) => {
-      if (!data) return;
-      const baseUrl = data.baseUrl;
-      if (baseUrl !== undefined && (typeof baseUrl !== "string" || !isHttpUrl(baseUrl))) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "providerSpecificData.baseUrl must be a valid http(s) URL",
-          path: ["baseUrl"],
-        });
-      }
-      const customUserAgent = data.customUserAgent;
-      if (
-        customUserAgent !== undefined &&
-        customUserAgent !== null &&
-        (typeof customUserAgent !== "string" || customUserAgent.length > 500)
-      ) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "providerSpecificData.customUserAgent must be a string up to 500 chars",
+export const createProviderSchema = z
+  .object({
+    provider: z.string().min(1).max(100),
+    apiKey: z.string().min(1).max(10000).optional(),
+    accessToken: z.string().min(1).max(10000).optional(),
+    authType: z.enum(["apikey", "oauth"]).optional(),
+    name: z.string().min(1).max(200),
+    priority: z.number().int().min(1).max(100).optional(),
+    globalPriority: z.number().int().min(1).max(100).nullable().optional(),
+    defaultModel: z.string().max(200).nullable().optional(),
+    testStatus: z.string().max(50).optional(),
+    providerSpecificData: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .superRefine((data, ctx) => {
+        if (!data) return;
+        const baseUrl = data.baseUrl;
+        if (baseUrl !== undefined && (typeof baseUrl !== "string" || !isHttpUrl(baseUrl))) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "providerSpecificData.baseUrl must be a valid http(s) URL",
+            path: ["baseUrl"],
+          });
+        }
+        const customUserAgent = data.customUserAgent;
+        if (
+          customUserAgent !== undefined &&
+          customUserAgent !== null &&
+          (typeof customUserAgent !== "string" || customUserAgent.length > 500)
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "providerSpecificData.customUserAgent must be a string up to 500 chars",
           path: ["customUserAgent"],
         });
       }
     }),
-});
+  })
+  .refine((data) => data.apiKey || data.accessToken, {
+    message: "Either apiKey or accessToken must be provided",
+    path: ["apiKey"],
+  });
 
 // ──── API Key Schemas ────
 

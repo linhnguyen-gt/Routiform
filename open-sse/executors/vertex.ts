@@ -1,5 +1,5 @@
 import { SignJWT, importPKCS8 } from "jose";
-import { BaseExecutor, ExecuteInput } from "./base.ts";
+import { BaseExecutor, ExecuteInput, type ProviderCredentials } from "./base.ts";
 import { PROVIDERS } from "../config/constants.ts";
 
 interface ServiceAccount {
@@ -110,15 +110,21 @@ export class VertexExecutor extends BaseExecutor {
       try {
         const sa = parseSAFromApiKey(credentials.apiKey);
         credentials.accessToken = await getAccessToken(sa);
-      } catch (err: any) {
-        log?.error?.("VERTEX", `Failed to generate JWT token: ${err.message}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        log?.error?.("VERTEX", `Failed to generate JWT token: ${message}`);
         throw err;
       }
     }
     return super.execute(input);
   }
 
-  buildUrl(model: string, stream: boolean, urlIndex = 0, credentials: any = null) {
+  buildUrl(
+    model: string,
+    stream: boolean,
+    urlIndex = 0,
+    credentials: ProviderCredentials | null = null
+  ) {
     const region = credentials?.providerSpecificData?.region || "us-central1";
     let project = "unknown-project";
 
@@ -137,7 +143,7 @@ export class VertexExecutor extends BaseExecutor {
     return `https://aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/publishers/google/models/${model}:${stream ? "streamGenerateContent?alt=sse" : "generateContent"}`;
   }
 
-  buildHeaders(credentials: any, stream = true) {
+  buildHeaders(credentials: ProviderCredentials, stream = true) {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (credentials.accessToken) {
       headers["Authorization"] = `Bearer ${credentials.accessToken}`;

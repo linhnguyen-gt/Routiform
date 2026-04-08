@@ -84,10 +84,20 @@ interface SearchHandlerOptions {
   };
   strictFilters?: boolean;
   providerOptions?: Record<string, unknown>;
-  credentials: Record<string, any>;
+  credentials: Record<string, unknown>;
   alternateProvider?: string;
-  alternateCredentials?: Record<string, any> | null;
-  log?: any;
+  alternateCredentials?: Record<string, unknown> | null;
+  log?: {
+    info?: (tag: string, message: string) => void;
+    warn?: (tag: string, message: string) => void;
+    error?: (tag: string, message: string) => void;
+  };
+}
+
+type JsonRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): JsonRecord {
+  return value && typeof value === "object" ? (value as JsonRecord) : {};
 }
 
 // ── Constants ────────────────────────────────────────────────────────────
@@ -158,65 +168,89 @@ function makeResult(
 }
 
 function normalizeSerperResponse(
-  data: any,
+  data: unknown,
   _query: string,
   searchType: string
 ): { results: SearchResult[]; totalResults: number | null } {
   const now = new Date().toISOString();
-  const items = searchType === "news" ? data.news : data.organic;
+  const payload = asRecord(data);
+  const items = searchType === "news" ? payload.news : payload.organic;
   if (!Array.isArray(items)) return { results: [], totalResults: null };
 
-  const results = items.map((item: any, idx: number) =>
-    makeResult(
+  const results = items.map((item: unknown, idx: number) => {
+    const entry = asRecord(item);
+    return makeResult(
       "serper-search",
       {
-        title: item.title,
-        url: item.link,
-        snippet: item.snippet || item.description,
-        published_at: item.date,
+        title: typeof entry.title === "string" ? entry.title : undefined,
+        url: typeof entry.link === "string" ? entry.link : undefined,
+        snippet:
+          typeof entry.snippet === "string"
+            ? entry.snippet
+            : typeof entry.description === "string"
+              ? entry.description
+              : undefined,
+        published_at: typeof entry.date === "string" ? entry.date : undefined,
       },
       idx,
       now
-    )
-  );
+    );
+  });
+
+  const searchParameters = asRecord(payload.searchParameters);
+  const totalResultsRaw = searchParameters.totalResults;
 
   return {
     results,
-    totalResults:
-      typeof data.searchParameters?.totalResults === "number"
-        ? data.searchParameters.totalResults
-        : null,
+    totalResults: typeof totalResultsRaw === "number" ? totalResultsRaw : null,
   };
 }
 
 function normalizeBraveResponse(
-  data: any,
+  data: unknown,
   _query: string,
   searchType: string
 ): { results: SearchResult[]; totalResults: number | null } {
   const now = new Date().toISOString();
+  const payload = asRecord(data);
   // Brave news endpoint returns { results: [...] } directly,
   // while web endpoint returns { web: { results: [...] } }
-  const container = searchType === "news" ? data.news || data : data.web;
-  const items = container?.results;
+  const container =
+    searchType === "news" ? asRecord(payload.news || payload) : asRecord(payload.web);
+  const items = container.results;
   if (!Array.isArray(items)) return { results: [], totalResults: null };
 
-  const results = items.map((item: any, idx: number) =>
-    makeResult(
+  const results = items.map((item: unknown, idx: number) => {
+    const entry = asRecord(item);
+    const metaUrl = asRecord(entry.meta_url);
+    return makeResult(
       "brave-search",
       {
-        title: item.title,
-        url: item.url,
-        snippet: item.description,
-        published_at: item.page_age || item.age,
-        favicon_url: item.meta_url?.favicon || item.favicon,
+        title: typeof entry.title === "string" ? entry.title : undefined,
+        url: typeof entry.url === "string" ? entry.url : undefined,
+        snippet: typeof entry.description === "string" ? entry.description : undefined,
+        published_at:
+          typeof entry.page_age === "string"
+            ? entry.page_age
+            : typeof entry.age === "string"
+              ? entry.age
+              : undefined,
+        favicon_url:
+          typeof metaUrl.favicon === "string"
+            ? metaUrl.favicon
+            : typeof entry.favicon === "string"
+              ? entry.favicon
+              : undefined,
       },
       idx,
       now
-    )
-  );
+    );
+  });
 
-  return { results, totalResults: container?.totalCount ?? null };
+  return {
+    results,
+    totalResults: typeof container.totalCount === "number" ? container.totalCount : null,
+  };
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -369,92 +403,106 @@ function buildRequest(
 }
 
 function normalizePerplexityResponse(
-  data: any,
+  data: unknown,
   _query: string,
   _searchType: string
 ): { results: SearchResult[]; totalResults: number | null } {
   const now = new Date().toISOString();
-  const items = data.results;
+  const payload = asRecord(data);
+  const items = payload.results;
   if (!Array.isArray(items)) return { results: [], totalResults: null };
 
-  const results = items.map((item: any, idx: number) =>
-    makeResult(
+  const results = items.map((item: unknown, idx: number) => {
+    const entry = asRecord(item);
+    return makeResult(
       "perplexity-search",
       {
-        title: item.title,
-        url: item.url,
-        snippet: item.snippet,
-        published_at: item.date || item.last_updated,
+        title: typeof entry.title === "string" ? entry.title : undefined,
+        url: typeof entry.url === "string" ? entry.url : undefined,
+        snippet: typeof entry.snippet === "string" ? entry.snippet : undefined,
+        published_at:
+          typeof entry.date === "string"
+            ? entry.date
+            : typeof entry.last_updated === "string"
+              ? entry.last_updated
+              : undefined,
       },
       idx,
       now
-    )
-  );
+    );
+  });
   return { results, totalResults: results.length };
 }
 
 function normalizeExaResponse(
-  data: any,
+  data: unknown,
   _query: string,
   _searchType: string
 ): { results: SearchResult[]; totalResults: number | null } {
   const now = new Date().toISOString();
-  const items = data.results;
+  const payload = asRecord(data);
+  const items = payload.results;
   if (!Array.isArray(items)) return { results: [], totalResults: null };
 
-  const results = items.map((item: any, idx: number) =>
-    makeResult(
+  const results = items.map((item: unknown, idx: number) => {
+    const entry = asRecord(item);
+    const highlights = Array.isArray(entry.highlights) ? entry.highlights : [];
+    const firstHighlight = typeof highlights[0] === "string" ? highlights[0] : undefined;
+    const text = typeof entry.text === "string" ? entry.text : undefined;
+    return makeResult(
       "exa-search",
       {
-        title: item.title,
-        url: item.url,
-        snippet: item.highlights?.[0] || item.text?.slice(0, 300) || "",
-        score: item.score,
-        published_at: item.publishedDate,
-        favicon_url: item.favicon,
-        author: item.author,
-        image_url: item.image,
-        full_text: item.text,
+        title: typeof entry.title === "string" ? entry.title : undefined,
+        url: typeof entry.url === "string" ? entry.url : undefined,
+        snippet: firstHighlight || text?.slice(0, 300) || "",
+        score: typeof entry.score === "number" ? entry.score : undefined,
+        published_at: typeof entry.publishedDate === "string" ? entry.publishedDate : undefined,
+        favicon_url: typeof entry.favicon === "string" ? entry.favicon : undefined,
+        author: typeof entry.author === "string" ? entry.author : undefined,
+        image_url: typeof entry.image === "string" ? entry.image : undefined,
+        full_text: text,
         text_format: "text",
       },
       idx,
       now
-    )
-  );
+    );
+  });
   return { results, totalResults: results.length };
 }
 
 function normalizeTavilyResponse(
-  data: any,
+  data: unknown,
   _query: string,
   _searchType: string
 ): { results: SearchResult[]; totalResults: number | null } {
   const now = new Date().toISOString();
-  const items = data.results;
+  const payload = asRecord(data);
+  const items = payload.results;
   if (!Array.isArray(items)) return { results: [], totalResults: null };
 
-  const results = items.map((item: any, idx: number) =>
-    makeResult(
+  const results = items.map((item: unknown, idx: number) => {
+    const entry = asRecord(item);
+    return makeResult(
       "tavily-search",
       {
-        title: item.title,
-        url: item.url,
-        snippet: item.content || "",
-        score: item.score,
-        published_at: item.published_date,
-        full_text: item.raw_content,
+        title: typeof entry.title === "string" ? entry.title : undefined,
+        url: typeof entry.url === "string" ? entry.url : undefined,
+        snippet: typeof entry.content === "string" ? entry.content : "",
+        score: typeof entry.score === "number" ? entry.score : undefined,
+        published_at: typeof entry.published_date === "string" ? entry.published_date : undefined,
+        full_text: typeof entry.raw_content === "string" ? entry.raw_content : undefined,
         text_format: "text",
       },
       idx,
       now
-    )
-  );
+    );
+  });
   return { results, totalResults: results.length };
 }
 
 function normalizeResponse(
   providerId: string,
-  data: any,
+  data: unknown,
   query: string,
   searchType: string
 ): { results: SearchResult[]; totalResults: number | null } {
@@ -549,12 +597,23 @@ export async function handleSearch(options: SearchHandlerOptions): Promise<Searc
 async function tryProvider(
   config: SearchProviderConfig,
   params: Omit<SearchRequestParams, "token">,
-  credentials: Record<string, any>,
+  credentials: Record<string, unknown>,
   globalStartTime: number,
-  log?: any
+  log?: {
+    info?: (tag: string, message: string) => void;
+    warn?: (tag: string, message: string) => void;
+    error?: (tag: string, message: string) => void;
+  }
 ): Promise<SearchHandlerResult> {
   const startTime = Date.now();
-  const token = credentials.apiKey || credentials.accessToken;
+  const apiKey = credentials.apiKey;
+  const accessToken = credentials.accessToken;
+  const token =
+    typeof apiKey === "string" && apiKey.length > 0
+      ? apiKey
+      : typeof accessToken === "string" && accessToken.length > 0
+        ? accessToken
+        : "";
 
   if (!token) {
     return {
@@ -650,12 +709,14 @@ async function tryProvider(
         errors: [],
       },
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     clearTimeout(timer);
 
-    const isTimeout = err.name === "AbortError";
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const isAbortError = err instanceof Error ? err.name === "AbortError" : false;
+    const isTimeout = isAbortError;
     if (log) {
-      log.error("SEARCH", `${config.id} ${isTimeout ? "timeout" : "fetch error"}: ${err.message}`);
+      log.error("SEARCH", `${config.id} ${isTimeout ? "timeout" : "fetch error"}: ${errorMessage}`);
     }
 
     saveCallLog({
@@ -666,7 +727,7 @@ async function tryProvider(
       provider: config.id,
       duration: Date.now() - startTime,
       requestType: "search",
-      error: err.message,
+      error: errorMessage,
       requestBody: { query: query.slice(0, 200), search_type: searchType, max_results: maxResults },
     }).catch(() => {
       /* non-critical — logging must not block search response */
@@ -675,7 +736,7 @@ async function tryProvider(
     return {
       success: false,
       status: isTimeout ? 504 : 502,
-      error: `Search provider ${isTimeout ? "timeout" : "error"}: ${err.message}`,
+      error: `Search provider ${isTimeout ? "timeout" : "error"}: ${errorMessage}`,
     };
   }
 }

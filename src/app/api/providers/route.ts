@@ -53,6 +53,8 @@ export async function POST(request: Request) {
     const {
       provider,
       apiKey,
+      accessToken,
+      authType,
       name,
       priority,
       globalPriority,
@@ -146,9 +148,10 @@ export async function POST(request: Request) {
 
     const newConnection = await createProviderConnection({
       provider,
-      authType: "apikey",
+      authType: authType || "apikey",
       name,
-      apiKey,
+      apiKey: apiKey || null,
+      accessToken: accessToken || null,
       priority: priority || 1,
       globalPriority: globalPriority || null,
       defaultModel: defaultModel || null,
@@ -162,6 +165,7 @@ export async function POST(request: Request) {
     // Hide sensitive fields
     const result: Record<string, any> = { ...newConnection };
     delete result.apiKey;
+    delete result.accessToken;
 
     // Auto sync to Cloud if enabled
     await syncToCloudIfEnabled();

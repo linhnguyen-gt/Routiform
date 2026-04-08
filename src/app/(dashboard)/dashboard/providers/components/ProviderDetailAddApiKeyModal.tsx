@@ -77,8 +77,26 @@ export function ProviderDetailAddApiKeyModal({
         if (checked.error) return setSaveError(checked.error);
         validatedBailianBaseUrl = checked.value;
       }
-      const isValid = await validateKey();
-      if (!isValid) return setSaveError(t("apiKeyValidationFailed"));
+
+      // Detect Qoder OAuth token (starts with 'pt-') and skip validation
+      const trimmedApiKey = formData.apiKey.trim();
+      const isQoderOAuthToken = isQoder && trimmedApiKey.startsWith("pt-");
+
+      console.log('[Qoder Debug]', {
+        provider,
+        isQoder,
+        trimmedApiKey: trimmedApiKey.substring(0, 10) + '...',
+        startsWithPt: trimmedApiKey.startsWith("pt-"),
+        isQoderOAuthToken
+      });
+
+      if (!isQoderOAuthToken) {
+        const isValid = await validateKey();
+        if (!isValid) return setSaveError(t("apiKeyValidationFailed"));
+      } else {
+        console.log('[Qoder Debug] Skipping validation for OAuth token');
+      }
+
       const providerSpecificData: Record<string, unknown> = {};
       if (formData.customUserAgent.trim()) {
         providerSpecificData.customUserAgent = formData.customUserAgent.trim();
@@ -86,14 +104,23 @@ export function ProviderDetailAddApiKeyModal({
       if (isBailian) providerSpecificData.baseUrl = validatedBailianBaseUrl;
       else if (isVertex) providerSpecificData.region = formData.region;
       else if (isGlm) providerSpecificData.apiRegion = formData.apiRegion;
-      const payload = {
+
+      const payload: any = {
         name: formData.name,
-        apiKey: formData.apiKey,
+        apiKey: trimmedApiKey,
         priority: formData.priority,
         testStatus: "active",
         providerSpecificData:
           Object.keys(providerSpecificData).length > 0 ? providerSpecificData : undefined,
       };
+
+      // For Qoder OAuth tokens, set authType to 'oauth' and use accessToken field
+      if (isQoderOAuthToken) {
+        payload.authType = "oauth";
+        payload.accessToken = trimmedApiKey;
+        delete payload.apiKey;
+      }
+
       const error = await onSave(payload);
       if (error) setSaveError(typeof error === "string" ? error : t("failedSaveConnection"));
     } finally {
@@ -127,12 +154,12 @@ export function ProviderDetailAddApiKeyModal({
               isVertex
                 ? "Cole o Service Account JSON aqui"
                 : isQoder
-                  ? "Paste your Qoder Personal Access Token"
+                  ? "Paste your Qoder PAT or OAuth token (pt-...)"
                   : undefined
             }
             hint={
               isQoder
-                ? "Supported path: PAT via qodercli. Browser OAuth remains experimental."
+                ? "OAuth tokens (pt-...) are auto-detected and skip validation. PAT tokens are validated via qodercli."
                 : undefined
             }
           />

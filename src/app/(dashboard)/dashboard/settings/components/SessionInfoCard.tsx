@@ -70,7 +70,7 @@ export default function SessionInfoCard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   const handleLogout = async () => {
     try {

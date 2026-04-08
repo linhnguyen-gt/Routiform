@@ -116,7 +116,6 @@ export function useProviderDetailModels({
     }
 
     let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOpencodeLiveCatalog((prev) =>
       prev.status === "ready" && prev.models.length > 0
         ? { ...prev, status: "loading" }
@@ -132,7 +131,6 @@ export function useProviderDetailModels({
         if (cancelled) return;
         if (!res.ok) {
           const msg = typeof data?.error === "string" ? data.error : `HTTP ${res.status}`;
-          // eslint-disable-next-line react-hooks/set-state-in-effect
           setOpencodeLiveCatalog({ status: "error", models: [], errorMessage: msg });
           return;
         }
@@ -148,11 +146,9 @@ export function useProviderDetailModels({
             return row;
           })
           .filter((x): x is { id: string; name: string; contextLength?: number } => x !== null);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setOpencodeLiveCatalog({ status: "ready", models: normalized, errorMessage: "" });
       } catch (e) {
         if (cancelled) return;
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setOpencodeLiveCatalog({
           status: "error",
           models: [],
@@ -164,7 +160,6 @@ export function useProviderDetailModels({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [providerId, loading, isSearchProvider, sortedConnectionIds, isLiveCatalogProvider]);
 
   useEffect(() => {

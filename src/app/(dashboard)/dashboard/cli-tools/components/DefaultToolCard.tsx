@@ -102,7 +102,7 @@ export default function DefaultToolCard({
       .then((res) => res.json())
       .then((data) => setRuntimeStatus(data))
       .catch((error) => setRuntimeStatus({ error: error?.message || t("runtimeCheckFailed") }));
-  }, [isExpanded, runtimeStatus, toolId]);
+  }, [isExpanded, runtimeStatus, toolId, t]);
 
   useEffect(() => {
     if (!isExpanded) return;

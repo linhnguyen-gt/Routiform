@@ -112,7 +112,7 @@ export function useProviderDetailOrchestrator() {
   const [qoderBrowserOAuthEnabled] = useState<boolean>(false);
   const [retestingId, setRetestingId] = useState<string | null>(null);
   const [batchTesting, setBatchTesting] = useState(false);
-  const [headerImgError, setHeaderImgError] = useState(false);
+  const [headerImgErrorProviderId, setHeaderImgErrorProviderId] = useState<string | null>(null);
   const [proxyTarget, setProxyTarget] = useState<any>(null);
   const [proxyConfig, setProxyConfig] = useState<any>(null);
   const [connProxyMap, setConnProxyMap] = useState<
@@ -171,11 +171,13 @@ export function useProviderDetailOrchestrator() {
   const providerStorageAlias = isCompatible ? providerId : providerAlias;
   const providerDisplayAlias = isCompatible ? providerNode?.prefix || providerId : providerAlias;
 
-  // Reset header image error on provider change
-  useEffect(() => {
-    setHeaderImgError(false);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-  }, [providerId]);
+  const headerImgError = headerImgErrorProviderId === providerId;
+  const setHeaderImgError = useCallback(
+    (hasError: boolean) => {
+      setHeaderImgErrorProviderId(hasError ? providerId : null);
+    },
+    [providerId]
+  );
 
   // Load proxy config
   useEffect(() => {
@@ -211,9 +213,11 @@ export function useProviderDetailOrchestrator() {
 
   useEffect(() => {
     if (!loading && connections.length > 0) {
-      void loadConnProxies(connections);
+      const timeoutId = setTimeout(() => {
+        void loadConnProxies(connections);
+      }, 0);
+      return () => clearTimeout(timeoutId);
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [loading, connections, loadConnProxies]);
 
   return {
