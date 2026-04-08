@@ -35,6 +35,13 @@ import { logTranslationEvent } from "../../lib/translatorEvents";
 import { sanitizeRequest } from "../../shared/utils/inputSanitizer";
 import { getGlobalFallbackStatusCodes } from "@/lib/globalComboFallback";
 
+type ComboRecord = {
+  name: string;
+  models: unknown[];
+  strategy?: string | null;
+  context_length?: number;
+};
+
 // Pipeline integration — wired modules
 import { getCircuitBreaker, CircuitBreakerOpenError } from "../../shared/utils/circuitBreaker";
 import {
@@ -226,7 +233,7 @@ export async function handleChat(request: any, clientRawRequest: any = null) {
 
   // Check if model is a combo (has multiple models with fallback)
   telemetry.startPhase("resolve");
-  const combo = await getComboForModel(resolvedModelStr);
+  const combo = (await getComboForModel(resolvedModelStr)) as ComboRecord | null;
   if (combo) {
     log.info(
       "CHAT",
@@ -282,11 +289,12 @@ export async function handleChat(request: any, clientRawRequest: any = null) {
             sessionId,
             forceLiveComboTest: isComboLiveTest,
           },
-          combo.strategy,
-          true
+          combo.strategy || null,
+          true,
+          combo
         ),
       isModelAvailable: checkModelAvailable,
-      log,
+      log: log as any,
       settings,
       allCombos,
     });
@@ -386,7 +394,8 @@ async function handleSingleModelChat(
     sessionId?: string | null;
   } = {},
   comboStrategy: string | null = null,
-  isCombo: boolean = false
+  isCombo: boolean = false,
+  combo: ComboRecord | null = null
 ) {
   // 1. Resolve model → provider/model
   const resolved = await resolveModelOrError(modelStr, body, clientRawRequest?.endpoint);
@@ -487,6 +496,7 @@ async function handleSingleModelChat(
       comboName,
       comboStrategy,
       isCombo,
+      combo,
       extendedContext,
     });
     if (telemetry) telemetry.endPhase();
@@ -713,6 +723,7 @@ async function executeChatWithBreaker({
   comboName,
   comboStrategy,
   isCombo,
+  combo,
   extendedContext,
 }: any): Promise<{ result: any; tlsFingerprintUsed: boolean }> {
   let tlsFingerprintUsed = false;
@@ -732,6 +743,7 @@ async function executeChatWithBreaker({
           comboName,
           comboStrategy,
           isCombo,
+          combo,
           onCredentialsRefreshed: async (newCreds: any) => {
             await updateProviderCredentials(credentials.connectionId, {
               accessToken: newCreds.accessToken,

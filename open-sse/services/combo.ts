@@ -340,16 +340,29 @@ function sortModelsByUsage(models, comboName) {
 /**
  * Sort models by context window size (largest first) for context-optimized strategy.
  * Uses models.dev synced capabilities to get context limits.
+ * Respects combo.context_length as a cap when provided.
  * @param {Array<string>} models - Model strings in "provider/model" format
+ * @param {object} combo - Optional combo object with context_length
  * @returns {Array<string>} Sorted model strings (largest context first)
  */
-function sortModelsByContextSize(models) {
+function sortModelsByContextSize(models, combo = null) {
+  const comboCap =
+    combo && typeof combo.context_length === "number" && combo.context_length > 0
+      ? combo.context_length
+      : null;
+
   const withContext = models.map((modelStr) => {
     const parsed = parseModel(modelStr);
     const provider = parsed.provider || parsed.providerAlias || "unknown";
     const model = parsed.model || modelStr;
-    const limit = getModelContextLimit(provider, model);
-    return { modelStr, context: limit ?? 0 };
+    let limit = getModelContextLimit(provider, model) ?? 0;
+
+    // Cap at combo.context_length if specified
+    if (comboCap && limit > comboCap) {
+      limit = comboCap;
+    }
+
+    return { modelStr, context: limit };
   });
   withContext.sort((a, b) => b.context - a.context);
   return withContext.map((e) => e.modelStr);
@@ -981,7 +994,7 @@ export async function handleComboChat({
     orderedModels = await sortModelsByCost(orderedModels);
     log.info("COMBO", `Cost-optimized ordering: cheapest first (${orderedModels[0]})`);
   } else if (strategy === "context-optimized") {
-    orderedModels = sortModelsByContextSize(orderedModels);
+    orderedModels = sortModelsByContextSize(orderedModels, combo);
     log.info("COMBO", `Context-optimized ordering: largest first (${orderedModels[0]})`);
   }
 

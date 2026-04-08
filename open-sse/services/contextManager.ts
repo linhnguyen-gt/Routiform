@@ -87,6 +87,72 @@ export function getTokenLimit(provider, model = null) {
 }
 
 /**
+ * Get effective context limit for a request
+ * Priority: Env override > Combo context_length > Model-specific > Provider default > Hard-coded
+ */
+export function getEffectiveContextLimit(provider, model = null, combo = null) {
+  // 1. Check environment variable override first (highest priority)
+  const envOverride = getEnvOverride(provider);
+  if (envOverride) return envOverride;
+
+  // 2. Check combo's context_length if this is a combo request
+  if (combo && typeof combo.context_length === "number" && combo.context_length > 0) {
+    return combo.context_length;
+  }
+
+  // 3. Fall back to standard token limit logic
+  return getTokenLimit(provider, model);
+}
+
+/**
+ * Estimate total tokens in a request body (messages + system + tools)
+ */
+export function estimateRequestTokens(body) {
+  if (!body || typeof body !== "object") return 0;
+
+  let total = 0;
+
+  // Estimate messages
+  if (Array.isArray(body.messages)) {
+    total += estimateTokens(JSON.stringify(body.messages));
+  }
+
+  // Estimate system message
+  if (body.system) {
+    total += estimateTokens(body.system);
+  }
+
+  // Estimate tools
+  if (Array.isArray(body.tools)) {
+    total += estimateTokens(JSON.stringify(body.tools));
+  }
+
+  // Estimate input (for embeddings/other formats)
+  if (body.input) {
+    total += estimateTokens(body.input);
+  }
+
+  return total;
+}
+
+/**
+ * Validate if request fits within context limit
+ * @returns {{ valid: boolean, estimatedTokens: number, limit: number, exceeded: number }}
+ */
+export function validateContextLimit(body, provider, model = null, combo = null) {
+  const estimatedTokens = estimateRequestTokens(body);
+  const limit = getEffectiveContextLimit(provider, model, combo);
+  const exceeded = Math.max(0, estimatedTokens - limit);
+
+  return {
+    valid: estimatedTokens <= limit,
+    estimatedTokens,
+    limit,
+    exceeded,
+  };
+}
+
+/**
  * Apply context compression to request body.
  * Operates in 3 layers of increasing aggressiveness:
  *

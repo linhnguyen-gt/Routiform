@@ -128,6 +128,12 @@ import {
   isClaudeCodeCompatibleProvider,
   resolveClaudeCodeCompatibleSessionId,
 } from "../services/claudeCodeCompatible.ts";
+import {
+  compressContext,
+  validateContextLimit,
+  getEffectiveContextLimit,
+  estimateRequestTokens,
+} from "../services/contextManager.ts";
 
 export function shouldUseNativeCodexPassthrough({
   provider,
@@ -416,6 +422,7 @@ export async function handleChatCore({
   comboName,
   comboStrategy = null,
   isCombo = false,
+  combo = null,
 }) {
   let { provider, model, extendedContext } = modelInfo;
   const requestedModel =
@@ -858,6 +865,49 @@ export async function handleChatCore({
       log?.debug?.(
         "MEMORY",
         `Memory injection skipped: ${memErr instanceof Error ? memErr.message : String(memErr)}`
+      );
+    }
+  }
+
+  // ── Phase 1 & 2: Context Validation & Compression ──
+  // Validate context window BEFORE translation to catch oversized requests early
+  const validation = validateContextLimit(body, provider, model, combo);
+  if (!validation.valid) {
+    log?.warn?.(
+      "CONTEXT",
+      `Request exceeds context limit: ${validation.estimatedTokens} > ${validation.limit} (exceeded by ${validation.exceeded} tokens)`
+    );
+
+    // Try compression
+    const compressionResult = compressContext(body, {
+      provider,
+      model,
+      maxTokens: validation.limit,
+    });
+
+    if (compressionResult.compressed) {
+      body = compressionResult.body;
+      const newValidation = validateContextLimit(body, provider, model, combo);
+
+      if (newValidation.valid) {
+        log?.info?.(
+          "CONTEXT",
+          `Compressed: ${compressionResult.stats.original} → ${compressionResult.stats.final} tokens (limit=${validation.limit})`
+        );
+      } else {
+        // Still oversized after compression
+        persistFailureUsage(HTTP_STATUS.BAD_REQUEST, "context_length_exceeded");
+        return createErrorResult(
+          HTTP_STATUS.BAD_REQUEST,
+          `Request exceeds context limit even after compression: ${newValidation.estimatedTokens} > ${validation.limit} tokens. Please reduce message history or input size.`
+        );
+      }
+    } else {
+      // Compression didn't help or wasn't applicable
+      persistFailureUsage(HTTP_STATUS.BAD_REQUEST, "context_length_exceeded");
+      return createErrorResult(
+        HTTP_STATUS.BAD_REQUEST,
+        `Request exceeds context limit: ${validation.estimatedTokens} > ${validation.limit} tokens. Please reduce message history or input size.`
       );
     }
   }
