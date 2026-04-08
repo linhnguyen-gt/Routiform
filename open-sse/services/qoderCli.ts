@@ -6,6 +6,9 @@ const DEFAULT_MAX_TURNS = "1";
 const QODER_DEFAULT_MODEL = "qwen-coder-qoder-1.0";
 
 export const QODER_STATIC_MODELS = [
+  { id: "qoder-rome-30ba3b", name: "Qoder Rome" },
+  { id: "deepseek-r1", name: "DeepSeek-R1" },
+  { id: "qwen3-max", name: "Qwen3-Max" },
   { id: "qwen-coder-qoder-1.0", name: "Qwen-Coder-Qoder-1.0" },
   { id: "qwen3.5-plus", name: "Qwen3.5-Plus" },
   { id: "glm-5", name: "GLM-5" },
@@ -88,6 +91,9 @@ export function mapQoderModelToLevel(model: string | null | undefined): string |
     .trim()
     .toLowerCase();
   if (!normalized) return null;
+  if (normalized.includes("qoder-rome")) return "qmodel";
+  if (normalized.includes("deepseek-r1")) return "ultimate";
+  if (normalized.includes("qwen3-max")) return "performance";
   if (normalized.includes("qwen-coder-qoder")) return "qmodel";
   if (normalized.includes("qwen3.5-plus")) return "performance";
   if (normalized.includes("glm-5")) return "ultimate";
