@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import PropTypes from "prop-types";
 import { useTranslations } from "next-intl";
 import Modal from "./Modal";
@@ -63,6 +63,9 @@ export default function ModelSelectModal({
   const [combos, setCombos] = useState<any[]>([]);
   const [providerNodes, setProviderNodes] = useState<any[]>([]);
   const [customModels, setCustomModels] = useState<Record<string, any>>({});
+  const [liveModelsByProvider, setLiveModelsByProvider] = useState<
+    Record<string, Array<{ id: string; name: string }>>
+  >({});
   /** OpenRouter catalog (public list); merged in standard provider branch when providerId is openrouter. */
   const [openrouterCatalog, setOpenrouterCatalog] = useState<{ id: string; name?: string }[]>([]);
 
@@ -113,6 +116,66 @@ export default function ModelSelectModal({
   useEffect(() => {
     if (isOpen) fetchCustomModels();
   }, [isOpen]);
+
+  const fetchLiveProviderModels = useCallback(async () => {
+    try {
+      const grouped = new Map<string, any[]>();
+      for (const conn of activeProviders) {
+        const providerId = typeof conn?.provider === "string" ? conn.provider : "";
+        if (!providerId) continue;
+        const list = grouped.get(providerId) || [];
+        list.push(conn);
+        grouped.set(providerId, list);
+      }
+
+      const firstConnections = Array.from(grouped.entries())
+        .map(([providerId, conns]) => {
+          const sorted = [...conns].sort(
+            (a, b) => Number(a?.priority || 0) - Number(b?.priority || 0)
+          );
+          return { providerId, connectionId: sorted[0]?.id };
+        })
+        .filter((row) => typeof row.connectionId === "string" && row.connectionId.length > 0);
+
+      const entries = await Promise.all(
+        firstConnections.map(async ({ providerId, connectionId }) => {
+          try {
+            const res = await fetch(`/api/providers/${encodeURIComponent(connectionId)}/models`, {
+              cache: "no-store",
+            });
+            if (!res.ok) return [providerId, []] as const;
+            const data = await res.json().catch(() => ({}));
+            const raw = Array.isArray(data?.models) ? data.models : [];
+            const models = raw
+              .map((m: any) => {
+                const id = String(m?.id ?? m?.name ?? "").trim();
+                if (!id) return null;
+                return {
+                  id,
+                  name: String(m?.name ?? m?.display_name ?? m?.displayName ?? id).trim() || id,
+                };
+              })
+              .filter(Boolean) as Array<{ id: string; name: string }>;
+            return [providerId, models] as const;
+          } catch {
+            return [providerId, []] as const;
+          }
+        })
+      );
+
+      setLiveModelsByProvider(
+        Object.fromEntries(
+          entries.filter(([, models]) => Array.isArray(models) && models.length > 0)
+        )
+      );
+    } catch {
+      setLiveModelsByProvider({});
+    }
+  }, [activeProviders]);
+
+  useEffect(() => {
+    if (isOpen) fetchLiveProviderModels();
+  }, [isOpen, fetchLiveProviderModels]);
 
   const fetchOpenrouterCatalog = async () => {
     const normalize = (raw: unknown[]) =>
@@ -207,6 +270,8 @@ export default function ModelSelectModal({
       const providerInfo = allProviders[providerId] || { name: providerId, color: "#666" };
       const isCustomProvider =
         isOpenAICompatibleProvider(providerId) || isAnthropicCompatibleProvider(providerId);
+      const liveProviderModels =
+        liveModelsByProvider[rawProviderId] || liveModelsByProvider[providerId] || [];
 
       // Get user-added custom models for this provider (if any)
       const providerCustomModels = customModels[providerId] || customModels[rawProviderId] || [];
@@ -256,6 +321,12 @@ export default function ModelSelectModal({
           isCustom: true,
         }));
 
+        const liveEntries = liveProviderModels.map((m) => ({
+          id: m.id,
+          name: m.name || m.id,
+          value: `${nodePrefix}/${m.id}`,
+        }));
+
         // Legacy fallback for older data where compatible provider models lived in aliases.
         const legacyAliasEntries =
           syncedEntries.length === 0
@@ -276,7 +347,11 @@ export default function ModelSelectModal({
                 })
             : [];
 
-        const allModels = dedupeModelsById([...syncedEntries, ...legacyAliasEntries]);
+        const allModels = dedupeModelsById([
+          ...liveEntries,
+          ...syncedEntries,
+          ...legacyAliasEntries,
+        ]);
 
         if (allModels.length > 0) {
           groups[providerId] = {
@@ -290,6 +365,12 @@ export default function ModelSelectModal({
         }
       } else {
         const systemModels = getModelsByProviderId(providerId);
+
+        const liveEntries = liveProviderModels.map((m) => ({
+          id: m.id,
+          name: m.name || m.id,
+          value: `${alias}/${m.id}`,
+        }));
 
         const systemEntries = systemModels.map((m) => ({
           id: m.id,
@@ -323,7 +404,10 @@ export default function ModelSelectModal({
             }));
         }
 
-        const allModels = dedupeModelsById([...systemEntries, ...customEntries, ...catalogEntries]);
+        const allModels =
+          liveEntries.length > 0
+            ? dedupeModelsById([...liveEntries, ...customEntries])
+            : dedupeModelsById([...systemEntries, ...customEntries, ...catalogEntries]);
 
         if (allModels.length > 0) {
           groups[providerId] = {
@@ -337,7 +421,15 @@ export default function ModelSelectModal({
     });
 
     return groups;
-  }, [activeProviders, modelAliases, allProviders, providerNodes, customModels, openrouterCatalog]);
+  }, [
+    activeProviders,
+    modelAliases,
+    allProviders,
+    providerNodes,
+    customModels,
+    openrouterCatalog,
+    liveModelsByProvider,
+  ]);
 
   // Filter combos by search query
   const filteredCombos = useMemo(() => {

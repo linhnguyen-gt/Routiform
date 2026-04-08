@@ -22,6 +22,62 @@ function getProviderBaseUrl(providerSpecificData: unknown): string | null {
   return typeof baseUrl === "string" && baseUrl.trim().length > 0 ? baseUrl : null;
 }
 
+const DEFAULT_CODEX_MODELS_BASE_URL = "https://chatgpt.com/backend-api/codex";
+const DEFAULT_CODEX_CLIENT_VERSION = "0.92.0";
+const DISABLED_CODEX_MODEL_IDS = new Set(["gpt-oss-120b", "gpt-oss-20b"]);
+
+export function normalizeCodexModelsBaseUrl(baseUrl: string | null): string {
+  let normalized = (baseUrl || DEFAULT_CODEX_MODELS_BASE_URL).trim().replace(/\/$/, "");
+  if (normalized.endsWith("/responses")) {
+    normalized = normalized.slice(0, -10);
+  }
+  return normalized;
+}
+
+export function buildCodexModelsEndpoints(baseUrl: string): string[] {
+  const endpoints = [`${baseUrl}/models`, `${baseUrl}/v1/models`, `${baseUrl}/api/codex/models`];
+  return [...new Set(endpoints)];
+}
+
+export function mapCodexModelsFromApi(data: unknown, includeHidden: boolean): Array<JsonRecord> {
+  const record = asRecord(data);
+  const rawModels = Array.isArray(record.models)
+    ? record.models
+    : Array.isArray(record.data)
+      ? record.data
+      : [];
+
+  const mapped = rawModels
+    .map((item) => {
+      const model = asRecord(item);
+      const id = String(model.id || model.slug || model.model || "").trim();
+      if (!id) return null;
+
+      const visibility = typeof model.visibility === "string" ? model.visibility : null;
+      const hidden = visibility !== null ? visibility !== "list" : Boolean(model.hidden);
+
+      return {
+        ...model,
+        id,
+        name:
+          (typeof model.name === "string" && model.name) ||
+          (typeof model.display_name === "string" && model.display_name) ||
+          (typeof model.displayName === "string" && model.displayName) ||
+          id,
+        hidden,
+        owned_by: "codex",
+      };
+    })
+    .filter((model) => model !== null) as Array<JsonRecord>;
+
+  const withoutDisabled = mapped.filter((model) => {
+    const id = typeof model.id === "string" ? model.id : "";
+    return !DISABLED_CODEX_MODEL_IDS.has(id);
+  });
+
+  return includeHidden ? withoutDisabled : withoutDisabled.filter((model) => model.hidden !== true);
+}
+
 const GLM_MODELS_URLS = {
   international: "https://api.z.ai/api/coding/paas/v4/models",
   china: "https://open.bigmodel.cn/api/coding/paas/v4/models",
@@ -445,6 +501,91 @@ export async function GET(
     const connectionId = typeof connection.id === "string" ? connection.id : id;
     const apiKey = typeof connection.apiKey === "string" ? connection.apiKey : "";
     const accessToken = typeof connection.accessToken === "string" ? connection.accessToken : "";
+
+    if (provider === "codex") {
+      const token = accessToken || apiKey;
+      if (!token) {
+        return NextResponse.json(
+          { error: "No access token for Codex. Please reconnect OAuth." },
+          { status: 400 }
+        );
+      }
+
+      const psd = asRecord(connection.providerSpecificData);
+      const configuredBaseUrl =
+        typeof psd.codexModelsBaseUrl === "string"
+          ? psd.codexModelsBaseUrl
+          : getProviderBaseUrl(connection.providerSpecificData);
+      const baseUrl = normalizeCodexModelsBaseUrl(configuredBaseUrl);
+      const endpoints = buildCodexModelsEndpoints(baseUrl);
+      const clientVersion =
+        typeof psd.codexClientVersion === "string" && psd.codexClientVersion.trim().length > 0
+          ? psd.codexClientVersion.trim()
+          : DEFAULT_CODEX_CLIENT_VERSION;
+
+      let models: Array<JsonRecord> | null = null;
+      let apiErrorStatus: number | null = null;
+
+      for (const endpoint of endpoints) {
+        const url = `${endpoint}${endpoint.includes("?") ? "&" : "?"}client_version=${encodeURIComponent(clientVersion)}`;
+        const response = await runWithProxyContext(proxy, () =>
+          fetch(url, {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              Version: clientVersion,
+              "Openai-Beta": "responses=experimental",
+              "User-Agent": `codex-cli/${clientVersion}`,
+            },
+            signal: AbortSignal.timeout(10_000),
+          })
+        ).catch(() => null);
+
+        if (!response) continue;
+        if (response.ok) {
+          const payload = await response.json();
+          models = mapCodexModelsFromApi(payload, !excludeHidden);
+          break;
+        }
+
+        if (response.status === 401 || response.status === 403) {
+          apiErrorStatus = response.status;
+          break;
+        }
+      }
+
+      if (!models) {
+        if (apiErrorStatus === 401 || apiErrorStatus === 403) {
+          return NextResponse.json(
+            { error: `Auth failed: ${apiErrorStatus}` },
+            { status: apiErrorStatus }
+          );
+        }
+
+        const fallback = (PROVIDER_MODELS.codex || []).map((m: any) => ({
+          id: m.id,
+          name: m.name || m.id,
+          owned_by: "codex",
+        }));
+
+        return buildResponse({
+          provider,
+          connectionId,
+          models: fallback,
+          source: "local_catalog",
+          warning: "Codex API unavailable — using local catalog",
+        });
+      }
+
+      return buildResponse({
+        provider,
+        connectionId,
+        models,
+        source: "api",
+      });
+    }
 
     if (isOpenAICompatibleProvider(provider)) {
       const baseUrl = getProviderBaseUrl(connection.providerSpecificData);

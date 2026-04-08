@@ -931,7 +931,8 @@ export default function ProviderDetailPage() {
 
   const registryModels = useMemo(() => getModelsByProviderId(providerId), [providerId]);
   /** Live catalog providers use connection-specific /models instead of static registry models. */
-  const isLiveCatalogProvider = providerId === "opencode-zen" || providerId === "kilocode";
+  const isLiveCatalogProvider =
+    providerId === "opencode-zen" || providerId === "kilocode" || providerId === "codex";
   const syncedModels = useMemo(
     () =>
       (modelMeta.customModels || [])
@@ -942,8 +943,11 @@ export default function ProviderDetailPage() {
   // Gemini: synced DB list. Live catalog providers: remote list via connection API.
   const models = useMemo(() => {
     if (providerId === "gemini") return syncedAvailableModels;
-    if (isLiveCatalogProvider && opencodeLiveCatalog.status === "ready") {
-      return opencodeLiveCatalog.models;
+    if (isLiveCatalogProvider) {
+      if (opencodeLiveCatalog.status === "ready" && opencodeLiveCatalog.models.length > 0) {
+        return opencodeLiveCatalog.models;
+      }
+      return registryModels;
     }
     if (syncedModels.length > 0) return syncedModels;
     return registryModels;
@@ -1013,7 +1017,7 @@ export default function ProviderDetailPage() {
   }, [providerId, loading, isSearchProvider, sortedConnectionIds, isLiveCatalogProvider]);
 
   useEffect(() => {
-    if (providerId !== "opencode-zen" && providerId !== "kilocode") {
+    if (providerId !== "opencode-zen" && providerId !== "kilocode" && providerId !== "codex") {
       setOpencodeLiveCatalog({ status: "idle", models: [], errorMessage: "" });
     }
   }, [providerId]);
