@@ -5,10 +5,11 @@
 import { v4 as uuidv4 } from "uuid";
 import { getDbInstance } from "./core";
 import { backupDbFile } from "./backup";
+import { CONTEXT_CONFIG } from "../../shared/constants/context";
 
 type JsonRecord = Record<string, unknown>;
 
-const DEFAULT_COMBO_CONTEXT_LENGTH = 200000;
+const DEFAULT_COMBO_CONTEXT_LENGTH = CONTEXT_CONFIG.defaultLimit;
 
 function asRecord(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};

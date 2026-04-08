@@ -75,8 +75,6 @@ export function ProviderDetailPageClientImpl() {
   const [loading, setLoading] = useState(true);
   const [providerNode, setProviderNode] = useState(null);
   const [showOAuthModal, setShowOAuthModal] = useState(false);
-  /** Server-backed: Qoder browser OAuth only when QODER_OAUTH_* is fully configured */
-  const [qoderBrowserOAuthEnabled, setQoderBrowserOAuthEnabled] = useState<null | boolean>(null);
   const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditNodeModal, setShowEditNodeModal] = useState(false);
@@ -157,7 +155,7 @@ export function ProviderDetailPageClientImpl() {
     !!(FREE_PROVIDERS as any)[providerId] || !!(OAUTH_PROVIDERS as any)[providerId];
   const providerSupportsPat = supportsApiKeyOnFreeProvider(providerId);
   const isOAuth = providerSupportsOAuth && !providerSupportsPat;
-  const allowQoderOAuthUi = providerId !== "qoder" || qoderBrowserOAuthEnabled === true;
+  const allowQoderOAuthUi = providerId !== "qoder";
   const providerAlias = getProviderAlias(providerId);
   const isManagedAvailableModelsProvider = isCompatible || providerId === "openrouter";
   const isSearchProvider = providerId.endsWith("-search");
@@ -392,36 +390,6 @@ export function ProviderDetailPageClientImpl() {
       .then((c) => setProxyConfig(c))
       .catch(() => {});
   }, [fetchConnections, fetchAliases]);
-
-  useEffect(() => {
-    if (providerId !== "qoder") {
-      setQoderBrowserOAuthEnabled(null);
-      return;
-    }
-    let cancelled = false;
-    void fetch("/api/oauth/feature-flags", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled) return;
-        if (data && typeof data.qoderBrowserOAuthEnabled === "boolean") {
-          setQoderBrowserOAuthEnabled(data.qoderBrowserOAuthEnabled);
-        } else {
-          setQoderBrowserOAuthEnabled(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setQoderBrowserOAuthEnabled(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [providerId]);
-
-  useEffect(() => {
-    if (providerId === "qoder" && qoderBrowserOAuthEnabled === false && showOAuthModal) {
-      setShowOAuthModal(false);
-    }
-  }, [providerId, qoderBrowserOAuthEnabled, showOAuthModal]);
 
   const loadConnProxies = useCallback(async (conns: { id?: string }[]) => {
     if (!conns.length) return;
@@ -1761,11 +1729,6 @@ export function ProviderDetailPageClientImpl() {
                 <Button size="sm" icon="add" onClick={openPrimaryAddFlow}>
                   {providerSupportsPat ? "Add PAT" : t("add")}
                 </Button>
-                {providerId === "qoder" && qoderBrowserOAuthEnabled === true && (
-                  <Button size="sm" variant="secondary" onClick={() => setShowOAuthModal(true)}>
-                    Browser OAuth
-                  </Button>
-                )}
               </>
             ) : (
               connections.length === 0 && (
@@ -1823,11 +1786,6 @@ export function ProviderDetailPageClientImpl() {
                 <Button icon="add" onClick={openPrimaryAddFlow}>
                   {providerSupportsPat ? "Add PAT" : t("addConnection")}
                 </Button>
-                {providerId === "qoder" && qoderBrowserOAuthEnabled === true && (
-                  <Button variant="secondary" onClick={() => setShowOAuthModal(true)}>
-                    Browser OAuth
-                  </Button>
-                )}
               </div>
             )}
           </div>
@@ -2117,7 +2075,7 @@ export function ProviderDetailPageClientImpl() {
         />
       ) : (
         <OAuthModal
-          isOpen={showOAuthModal && (providerId !== "qoder" || qoderBrowserOAuthEnabled === true)}
+          isOpen={showOAuthModal}
           provider={providerId}
           providerInfo={providerInfo}
           onSuccess={handleOAuthSuccess}

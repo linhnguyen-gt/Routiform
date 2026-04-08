@@ -103,3 +103,43 @@ test("enforces media tool when prior read-image flow produced unsupported-image 
     function: { name: "filesystem_read_media_file" },
   });
 });
+
+test("does not re-enforce media tool after filesystem_read_media_file was already called", () => {
+  const body = {
+    messages: [
+      {
+        role: "user",
+        content: "Analyze /Users/linh/Documents/GitHub/Routiform/public/providers/qoder.png",
+      },
+      {
+        role: "assistant",
+        content: "",
+        tool_calls: [
+          {
+            id: "media-1",
+            type: "function",
+            function: {
+              name: "filesystem_read_media_file",
+              arguments:
+                '{"path":"/Users/linh/Documents/GitHub/Routiform/public/providers/qoder.png"}',
+            },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        tool_call_id: "media-1",
+        content: '{"mimeType":"image/png","data":"..."}',
+      },
+      {
+        role: "user",
+        content: "continue",
+      },
+    ],
+    tools: [{ type: "function", function: { name: "filesystem_read_media_file", parameters: {} } }],
+  };
+
+  const changed = maybeEnforceMediaToolForLocalImage(body);
+  assert.equal(changed, false);
+  assert.equal("tool_choice" in body, false);
+});

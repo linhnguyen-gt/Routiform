@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 
 const { compressContext, estimateTokens, getTokenLimit } =
   await import("../../open-sse/services/contextManager.ts");
+const { CONTEXT_CONFIG } = await import("../../src/shared/constants/context.ts");
 
 // ─── estimateTokens ─────────────────────────────────────────────────────────
 
 test("estimateTokens: estimates from string", () => {
   assert.equal(estimateTokens("hello"), 2); // 5/4 = 2
-  assert.ok(estimateTokens("a".repeat(100)) === 25);
+  assert.equal(estimateTokens("a".repeat(100)), Math.ceil(100 / 3.5));
 });
 
 test("estimateTokens: handles null", () => {
@@ -27,7 +28,7 @@ test("getTokenLimit: detects gemini", () => {
 });
 
 test("getTokenLimit: default fallback", () => {
-  assert.equal(getTokenLimit("unknown"), 128000);
+  assert.equal(getTokenLimit("unknown"), CONTEXT_CONFIG.defaultLimit);
 });
 
 // ─── compressContext ────────────────────────────────────────────────────────

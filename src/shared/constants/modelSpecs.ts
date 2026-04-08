@@ -4,6 +4,8 @@
  * when clients request more than the model supports.
  */
 
+import { CONTEXT_CONFIG } from "./context";
+
 export interface ModelSpec {
   maxOutputTokens: number;
   contextWindow?: number;
@@ -58,7 +60,7 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
   // ── Claude Opus 4.5 ─────────────────────────────────────────────
   "claude-opus-4-5": {
     maxOutputTokens: 32768,
-    contextWindow: 200000,
+    contextWindow: CONTEXT_CONFIG.defaultLimit,
     defaultThinkingBudget: 10000,
     thinkingBudgetCap: 32000,
     supportsThinking: true,

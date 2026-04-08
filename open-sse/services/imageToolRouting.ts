@@ -62,6 +62,27 @@ function hasMediaTool(body: JsonRecord): boolean {
   return false;
 }
 
+function hasFilesystemMediaToolCall(body: JsonRecord): boolean {
+  if (!Array.isArray(body.messages)) return false;
+  for (const rawMsg of body.messages) {
+    if (!rawMsg || typeof rawMsg !== "object") continue;
+    const msg = rawMsg as JsonRecord;
+    if (!Array.isArray(msg.tool_calls)) continue;
+    for (const tc of msg.tool_calls) {
+      if (!tc || typeof tc !== "object") continue;
+      const call = tc as JsonRecord;
+      const fn =
+        call.function && typeof call.function === "object" ? (call.function as JsonRecord) : null;
+      const rawName =
+        typeof fn?.name === "string" ? fn.name : typeof call.name === "string" ? call.name : "";
+      if (normalizeToolName(rawName) === "filesystem_read_media_file") {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function hasReadImageFailureFlow(body: JsonRecord): boolean {
   if (!Array.isArray(body.messages)) return false;
 
@@ -122,6 +143,7 @@ export function maybeEnforceMediaToolForLocalImage(body: JsonRecord): boolean {
   if (!body || typeof body !== "object") return false;
   if (hasStructuredImageInput(body)) return false;
   if (!hasMediaTool(body)) return false;
+  if (hasFilesystemMediaToolCall(body)) return false;
 
   if (hasReadImageFailureFlow(body)) {
     body.tool_choice = {

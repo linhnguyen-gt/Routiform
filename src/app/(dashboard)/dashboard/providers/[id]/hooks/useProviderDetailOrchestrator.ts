@@ -109,7 +109,7 @@ export function useProviderDetailOrchestrator() {
   } = useProviderDetailModals();
 
   // Additional state
-  const [qoderBrowserOAuthEnabled, setQoderBrowserOAuthEnabled] = useState<null | boolean>(null);
+  const [qoderBrowserOAuthEnabled] = useState<boolean>(false);
   const [retestingId, setRetestingId] = useState<string | null>(null);
   const [batchTesting, setBatchTesting] = useState(false);
   const [headerImgError, setHeaderImgError] = useState(false);
@@ -165,7 +165,7 @@ export function useProviderDetailOrchestrator() {
     !!(FREE_PROVIDERS as any)[providerId] || !!(OAUTH_PROVIDERS as any)[providerId];
   const providerSupportsPat = supportsApiKeyOnFreeProvider(providerId);
   const isOAuth = providerSupportsOAuth && !providerSupportsPat;
-  const allowQoderOAuthUi = providerId !== "qoder" || qoderBrowserOAuthEnabled === true;
+  const allowQoderOAuthUi = providerId !== "qoder";
   const isManagedAvailableModelsProvider = isCompatible || providerId === "openrouter";
   const supportsAutoSync = supportsProviderModelAutoSync(providerId);
   const providerStorageAlias = isCompatible ? providerId : providerAlias;
@@ -184,40 +184,6 @@ export function useProviderDetailOrchestrator() {
       .then((c) => setProxyConfig(c))
       .catch(() => {});
   }, []);
-
-  // Qoder OAuth feature flag
-  useEffect(() => {
-    if (providerId !== "qoder") {
-      setQoderBrowserOAuthEnabled(null);
-      return;
-    }
-    let cancelled = false;
-    void fetch("/api/oauth/feature-flags", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled) return;
-        if (data && typeof data.qoderBrowserOAuthEnabled === "boolean") {
-          setQoderBrowserOAuthEnabled(data.qoderBrowserOAuthEnabled);
-        } else {
-          setQoderBrowserOAuthEnabled(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setQoderBrowserOAuthEnabled(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-  }, [providerId]);
-
-  // Close OAuth modal if Qoder OAuth disabled
-  useEffect(() => {
-    if (providerId === "qoder" && qoderBrowserOAuthEnabled === false && showOAuthModal) {
-      setShowOAuthModal(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
-  }, [providerId, qoderBrowserOAuthEnabled, showOAuthModal]);
 
   // Load per-connection proxies
   const loadConnProxies = useCallback(async (conns: { id?: string }[]) => {

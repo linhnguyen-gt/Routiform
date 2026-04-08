@@ -904,11 +904,30 @@ export async function handleChatCore({
             compressionResult.stats.final
           );
         }
+        // Log successful context compression to reqLogger for dashboard visibility
+        reqLogger?.logContextValidation({
+          originalTokens: validation.estimatedTokens,
+          limit: validation.limit,
+          exceeded: validation.exceeded,
+          compressed: true,
+          finalTokens: newValidation.estimatedTokens,
+          layers: compressionResult.stats.layers?.map((l) => l.name) || [],
+          rejected: false,
+        });
       } else {
         // Still oversized after compression - track rejection
         if (comboName) {
           recordContextRejection(comboName, `${provider}/${model}`);
         }
+        // Log context rejection to reqLogger for dashboard visibility
+        reqLogger?.logContextValidation({
+          originalTokens: validation.estimatedTokens,
+          limit: validation.limit,
+          exceeded: validation.exceeded,
+          compressed: true,
+          finalTokens: newValidation.estimatedTokens,
+          rejected: true,
+        });
         persistFailureUsage(HTTP_STATUS.BAD_REQUEST, "context_length_exceeded");
         return createErrorResult(
           HTTP_STATUS.BAD_REQUEST,
@@ -1797,6 +1816,13 @@ export async function handleChatCore({
       log?.warn?.(
         "GITHUB",
         `chat/completions 400 — ${message}${upstreamErrorBody != null ? ` | response=${JSON.stringify(upstreamErrorBody).slice(0, 800)}` : ""}`
+      );
+    }
+
+    if (provider === "kiro" && statusCode === HTTP_STATUS.BAD_REQUEST) {
+      log?.warn?.(
+        "KIRO",
+        `400 malformed — ${message}${upstreamErrorBody != null ? ` | response=${JSON.stringify(upstreamErrorBody).slice(0, 800)}` : ""}`
       );
     }
 

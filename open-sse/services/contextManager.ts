@@ -7,6 +7,7 @@
 
 import { REGISTRY } from "../config/providerRegistry.ts";
 import { getModelContextLimit } from "../../src/lib/modelsDevSync";
+import { CONTEXT_CONFIG } from "../../src/shared/constants/context";
 
 // Default token limits per provider (fallbacks when not in registry)
 const DEFAULT_LIMITS: Record<string, number> = {
@@ -14,7 +15,7 @@ const DEFAULT_LIMITS: Record<string, number> = {
   openai: 128000,
   gemini: 1000000,
   codex: 400000,
-  default: 128000,
+  default: CONTEXT_CONFIG.defaultLimit, // Use unified constant
 };
 
 // Environment variable overrides (highest priority)
@@ -34,16 +35,39 @@ function getEnvOverride(provider: string): number | null {
   return null;
 }
 
-// Rough chars-per-token ratio for quick estimation
-const CHARS_PER_TOKEN = 4;
+// Token estimation ratios based on common LLM tokenizers (cl100k_base, p50k_base)
+// English text: ~4 chars/token, code: ~3-3.5 chars/token
+// Using conservative estimate to be safe (3.5 chars/token average)
+const CHARS_PER_TOKEN_AVG = 3.5;
+
+// Safety margin multiplier - reduces effective limit to account for:
+// - Formatting overhead (roles, timestamps, formatting)
+// - Tool/function descriptions
+// - System prompt overhead
+// - JSON structure overhead
+const SAFETY_MARGIN = 0.9; // Use 90% of limit as effective threshold
 
 /**
- * Estimate token count from text length
+ * Estimate token count from text length using provider-specific ratios
+ * @param {string|object} text - Text or object to estimate
+ * @param {number} [ratio] - Chars per token ratio (default: 3.5)
+ * @returns {number}
  */
-export function estimateTokens(text) {
+export function estimateTokens(text, ratio = CHARS_PER_TOKEN_AVG) {
   if (!text) return 0;
   const str = typeof text === "string" ? text : JSON.stringify(text);
-  return Math.ceil(str.length / CHARS_PER_TOKEN);
+  return Math.ceil(str.length / ratio);
+}
+
+/**
+ * Calculate effective context limit with safety margin
+ * This accounts for formatting overhead that tokenizers include but we can't see
+ * @param {number} limit - Original limit from provider/combo
+ * @param {number} [margin] - Safety margin (0.9 = 90% of limit)
+ * @returns {number}
+ */
+function getSafeLimit(limit, margin = SAFETY_MARGIN) {
+  return Math.floor(limit * margin);
 }
 
 /**
@@ -61,25 +85,16 @@ export function getTokenLimit(provider, model = null) {
     if (dbLimit && dbLimit > 0) return dbLimit;
   }
 
-  // 3. Check registry for provider default
+  // 3. Check if model name hints at a known limit (do this BEFORE provider default)
+  if (model) {
+    const limit = detectContextLimitFromModelName(model);
+    if (limit) return limit;
+  }
+
+  // 4. Check registry for provider default
   const registryEntry = REGISTRY[provider];
   if (registryEntry?.defaultContextLength) {
     return registryEntry.defaultContextLength;
-  }
-
-  // 4. Check if model name hints at a known limit
-  if (model) {
-    const lower = model.toLowerCase();
-    if (lower.includes("claude")) return DEFAULT_LIMITS.claude;
-    if (lower.includes("gemini")) return DEFAULT_LIMITS.gemini;
-    if (
-      lower.includes("gpt") ||
-      lower.includes("o1") ||
-      lower.includes("o3") ||
-      lower.includes("o4") ||
-      lower.includes("codex")
-    )
-      return DEFAULT_LIMITS.codex;
   }
 
   // 5. Fallback to DEFAULT_LIMITS or default
@@ -87,21 +102,141 @@ export function getTokenLimit(provider, model = null) {
 }
 
 /**
+ * Detect context limit from model name patterns
+ * This helps override provider defaults for models with known limits
+ *
+ * PRIORITY: More specific patterns first, then general patterns
+ */
+function detectContextLimitFromModelName(model: string): number | null {
+  const lower = model.toLowerCase();
+
+  // === HIGH-PRIORITY: Specific model families (checked first) ===
+
+  // Kimi models (128k standard)
+  if (lower.includes("kimi")) {
+    return 128000;
+  }
+
+  // Qwen2.5 series (128k)
+  if (lower.includes("qwen2.5")) {
+    return 128000;
+  }
+
+  // CodeLLaMA (128k context)
+  if (lower.includes("codellama")) {
+    return 128000;
+  }
+
+  // LLaMA 3.1, 3.2, 3.3 (128k)
+  if (lower.includes("llama3.1") || lower.includes("llama3.2") || lower.includes("llama3.3")) {
+    return 128000;
+  }
+
+  // LLaMA 3 (32k) - base version (checked AFTER specific 128k versions)
+  if (lower.includes("llama3") && !lower.includes("llama3.")) {
+    return 32000;
+  }
+
+  // Mistral Large / 8x22B (128k)
+  if (lower.includes("mistral") && (lower.includes("large") || lower.includes("8x22b"))) {
+    return 128000;
+  }
+
+  // Gemma 3 (128k)
+  if (lower.includes("gemma3")) {
+    return 128000;
+  }
+
+  // === 256K MODELS ===
+  if (
+    lower.includes("qwen3") ||
+    lower.includes("qwen2-72b") ||
+    lower.includes("deepseek-v3") ||
+    lower.includes("llama3.4")
+  ) {
+    return 256000;
+  }
+
+  // === OPENAI MODELS (128k standard) ===
+  // These should be checked BEFORE the generic "gpt" pattern
+  if (
+    lower === "gpt-4" ||
+    lower.startsWith("gpt-4-") ||
+    lower.startsWith("gpt-4o") ||
+    lower.startsWith("gpt-3.5") ||
+    lower.includes("gpt-4-turbo") ||
+    lower.includes("gpt-4o-mini")
+  ) {
+    return DEFAULT_LIMITS.openai || 128000;
+  }
+
+  // === CLAUDE MODELS (200k) ===
+  // Check specific Claude instant first (16k)
+  if (lower.includes("claude-instant")) {
+    return 16384;
+  }
+  if (lower.includes("claude")) {
+    return DEFAULT_LIMITS.claude;
+  }
+
+  // === GEMINI MODELS (1M) ===
+  if (lower.includes("gemini")) {
+    return DEFAULT_LIMITS.gemini;
+  }
+
+  // === CODEX MODELS (400k) ===
+  // Must come AFTER specific "gpt-4" check above
+  if (
+    lower.includes("codex") ||
+    lower.includes("o1") ||
+    lower.includes("o3") ||
+    lower.includes("o4")
+  ) {
+    return DEFAULT_LIMITS.codex || 400000;
+  }
+
+  // Generic "gpt-" fallback (assume 128k for safety)
+  if (lower.includes("gpt-")) {
+    return DEFAULT_LIMITS.openai || 128000;
+  }
+
+  return null;
+}
+
+/**
  * Get effective context limit for a request
- * Priority: Env override > Combo context_length > Model-specific > Provider default > Hard-coded
+ * Priority: Env override > MIN(Provider limit, Combo ceiling) > Model-specific > Provider default > Hard-coded
+ *
+ * Design principle:
+ * - Provider limit = maximum tokens that model actually supports (e.g., 128k for OpenAI)
+ * - Combo context_length = maximum tokens we're willing to send through this combo (configurable ceiling)
+ * - The effective limit = the stricter of the two (smaller value)
+ * - Compression triggers when request exceeds effective limit
+ *
+ * @example
+ *   Provider supports 128k, Combo ceiling = 200k → Effective = 128k (use provider limit)
+ *   Provider supports 200k, Combo ceiling = 128k → Effective = 128k (use combo ceiling)
+ *   Request with 150k tokens + 128k limit → 22k exceeded → compression triggers
  */
 export function getEffectiveContextLimit(provider, model = null, combo = null) {
-  // 1. Check environment variable override first (highest priority)
+  // 1. Check environment variable override first (highest priority for global debug)
   const envOverride = getEnvOverride(provider);
   if (envOverride) return envOverride;
 
-  // 2. Check combo's context_length if this is a combo request
+  // 2. Get the actual provider/model limit (the hard constraint)
+  const providerLimit = getTokenLimit(provider, model);
+
+  // 3. Combo context_length is a CEILING, not an override
+  //    It limits how much we're willing to send, but cannot exceed provider limits
   if (combo && typeof combo.context_length === "number" && combo.context_length > 0) {
-    return combo.context_length;
+    // Return the STRicter of the two:
+    // - Provider limit: what the model actually supports
+    // - Combo ceiling: what we want to limit for this combo
+    return Math.min(providerLimit, combo.context_length);
   }
 
-  // 3. Fall back to standard token limit logic
-  return getTokenLimit(provider, model);
+  // 4. No combo ceiling, just use provider limit
+  return providerLimit;
 }
 
 /**
@@ -137,11 +272,14 @@ export function estimateRequestTokens(body) {
 
 /**
  * Validate if request fits within context limit
- * @returns {{ valid: boolean, estimatedTokens: number, limit: number, exceeded: number }}
+ * Uses safety margin to account for formatting overhead (roles, JSON structure, etc.)
+ * @returns {{ valid: boolean, estimatedTokens: number, limit: number, exceeded: number, rawLimit: number }}
  */
 export function validateContextLimit(body, provider, model = null, combo = null) {
   const estimatedTokens = estimateRequestTokens(body);
-  const limit = getEffectiveContextLimit(provider, model, combo);
+  const rawLimit = getEffectiveContextLimit(provider, model, combo);
+  // Apply safety margin to account for formatting overhead
+  const limit = getSafeLimit(rawLimit);
   const exceeded = Math.max(0, estimatedTokens - limit);
 
   return {
@@ -149,6 +287,7 @@ export function validateContextLimit(body, provider, model = null, combo = null)
     estimatedTokens,
     limit,
     exceeded,
+    rawLimit,
   };
 }
 
@@ -174,11 +313,13 @@ export function compressContext(
 
   const provider = options.provider || "default";
   const maxTokens = options.maxTokens || getTokenLimit(provider, body.model || options.model);
-  const reserveTokens = options.reserveTokens || 16000; // Reserve for response
+  const reserveTokens = options.reserveTokens || CONTEXT_CONFIG.reserveTokens;
   const targetTokens = maxTokens - reserveTokens;
 
   let messages = [...body.messages];
-  let currentTokens = estimateTokens(JSON.stringify(messages));
+  let tools = Array.isArray(body.tools) ? [...body.tools] : body.tools;
+  const buildWorkingBody = () => ({ ...body, messages, tools });
+  let currentTokens = estimateRequestTokens(buildWorkingBody());
   const stats = { original: currentTokens, layers: [] };
 
   // Already fits
@@ -186,9 +327,23 @@ export function compressContext(
     return { body, compressed: false, stats: { original: currentTokens, final: currentTokens } };
   }
 
+  // Layer 0: Compact tool definitions (large tool registries can dominate context budget)
+  if (Array.isArray(tools) && tools.length > 0) {
+    tools = compactToolDefinitions(tools, messages, 32);
+    currentTokens = estimateRequestTokens(buildWorkingBody());
+    stats.layers.push({ name: "compact_tools", tokens: currentTokens });
+    if (currentTokens <= targetTokens) {
+      return {
+        body: buildWorkingBody(),
+        compressed: true,
+        stats: { ...stats, final: currentTokens },
+      };
+    }
+  }
+
   // Layer 1: Trim tool_result/tool messages
   messages = trimToolMessages(messages, 2000); // Max 2000 chars per tool result
-  currentTokens = estimateTokens(JSON.stringify(messages));
+  currentTokens = estimateRequestTokens(buildWorkingBody());
   stats.layers.push({ name: "trim_tools", tokens: currentTokens });
 
   if (currentTokens <= targetTokens) {
@@ -201,7 +356,7 @@ export function compressContext(
 
   // Layer 2: Compress thinking blocks (remove from non-last assistant messages)
   messages = compressThinking(messages);
-  currentTokens = estimateTokens(JSON.stringify(messages));
+  currentTokens = estimateRequestTokens(buildWorkingBody());
   stats.layers.push({ name: "compress_thinking", tokens: currentTokens });
 
   if (currentTokens <= targetTokens) {
@@ -214,14 +369,70 @@ export function compressContext(
 
   // Layer 3: Aggressive purification — drop oldest messages keeping system + last N pairs
   messages = purifyHistory(messages, targetTokens);
-  currentTokens = estimateTokens(JSON.stringify(messages));
+  currentTokens = estimateRequestTokens(buildWorkingBody());
   stats.layers.push({ name: "purify_history", tokens: currentTokens });
 
   return {
-    body: { ...body, messages },
+    body: buildWorkingBody(),
     compressed: true,
     stats: { ...stats, final: currentTokens },
   };
+}
+
+function compactToolDefinitions(tools, messages, maxTools = 48) {
+  const preferredToolNames = new Set([
+    "read",
+    "glob",
+    "grep",
+    "bash",
+    "write",
+    "edit",
+    "apply_patch",
+    "question",
+    "task",
+    "playwright_browser_navigate",
+    "playwright_browser_snapshot",
+    "playwright_browser_click",
+    "playwright_browser_type",
+    "filesystem_read_text_file",
+    "filesystem_list_directory",
+    "filesystem_search_files",
+  ]);
+
+  const calledToolNames = new Set<string>();
+  for (const msg of messages) {
+    if (!msg || typeof msg !== "object") continue;
+    if (!Array.isArray(msg.tool_calls)) continue;
+    for (const tc of msg.tool_calls) {
+      const name = tc?.function?.name || tc?.name;
+      if (typeof name === "string" && name.trim()) {
+        calledToolNames.add(name.trim());
+      }
+    }
+  }
+
+  const ordered = [...tools].sort((a, b) => {
+    const aName = a?.function?.name || a?.name || "";
+    const bName = b?.function?.name || b?.name || "";
+    const aUsed = calledToolNames.has(String(aName)) ? 1 : 0;
+    const bUsed = calledToolNames.has(String(bName)) ? 1 : 0;
+    if (aUsed !== bUsed) return bUsed - aUsed;
+    const aPreferred = preferredToolNames.has(String(aName)) ? 1 : 0;
+    const bPreferred = preferredToolNames.has(String(bName)) ? 1 : 0;
+    return bPreferred - aPreferred;
+  });
+
+  return ordered.slice(0, maxTools).map((tool) => {
+    const next = { ...tool };
+    if (next.function && typeof next.function === "object") {
+      const fn = { ...next.function };
+      if (typeof fn.description === "string" && fn.description.length > 300) {
+        fn.description = `${fn.description.slice(0, 300)}...`;
+      }
+      next.function = fn;
+    }
+    return next;
+  });
 }
 
 // ─── Layer 1: Trim Tool Messages ────────────────────────────────────────────

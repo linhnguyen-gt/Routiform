@@ -19,6 +19,16 @@ export type RequestPipelinePayloads = {
     openai?: string[];
     client?: string[];
   };
+  contextValidation?: {
+    originalTokens: number;
+    limit: number;
+    exceeded: number;
+    compressed?: boolean;
+    finalTokens?: number;
+    layers?: string[];
+    rejected?: boolean;
+    timestamp: string;
+  };
 };
 
 type RequestLogger = {
@@ -36,6 +46,15 @@ type RequestLogger = {
   appendOpenAIChunk: (chunk: string) => void;
   logConvertedResponse: (body: unknown) => void;
   appendConvertedChunk: (chunk: string) => void;
+  logContextValidation: (validation: {
+    originalTokens: number;
+    limit: number;
+    exceeded: number;
+    compressed?: boolean;
+    finalTokens?: number;
+    layers?: string[];
+    rejected?: boolean;
+  }) => void;
   logError: (error: unknown, requestBody?: unknown) => void;
   getPipelinePayloads: () => RequestPipelinePayloads | null;
 };
@@ -120,6 +139,7 @@ function createNoOpLogger(): RequestLogger {
     appendOpenAIChunk() {},
     logConvertedResponse() {},
     appendConvertedChunk() {},
+    logContextValidation() {},
     logError() {},
     getPipelinePayloads() {
       return null;
@@ -206,6 +226,13 @@ export async function createRequestLogger(
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
         requestBody,
+      };
+    },
+
+    logContextValidation(validation) {
+      payloads.contextValidation = {
+        ...validation,
+        timestamp: new Date().toISOString(),
       };
     },
 

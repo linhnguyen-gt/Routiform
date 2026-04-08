@@ -94,13 +94,45 @@ describe("Context Validation & Compression", () => {
   });
 
   describe("getEffectiveContextLimit", () => {
-    it("should use combo context_length when provided", async () => {
+    it("should use combo context_length as ceiling when lower than provider limit", async () => {
       const { getEffectiveContextLimit } =
         await import("../../open-sse/services/contextManager.ts");
 
+      // Combo ceiling (50k) is lower than OpenAI limit (128k)
+      // Should use combo ceiling
       const combo = { context_length: 50000 };
       const limit = getEffectiveContextLimit("openai", "gpt-4", combo);
-      assert.strictEqual(limit, 50000, "Should use combo context_length");
+      assert.strictEqual(limit, 50000, "Should use combo ceiling when it's stricter");
+    });
+
+    it("should use provider limit when combo ceiling is higher", async () => {
+      const { getEffectiveContextLimit } =
+        await import("../../open-sse/services/contextManager.ts");
+
+      // Combo ceiling (500k) is higher than OpenAI limit (128k)
+      // Should use provider limit, not combo ceiling
+      const combo = { context_length: 500000 };
+      const limit = getEffectiveContextLimit("openai", "gpt-4", combo);
+      assert.strictEqual(
+        limit,
+        128000,
+        "Should use provider limit (128k) when combo ceiling (500k) is higher"
+      );
+    });
+
+    it("should use provider limit when combo ceiling would allow oversized requests", async () => {
+      const { getEffectiveContextLimit } =
+        await import("../../open-sse/services/contextManager.ts");
+
+      // This is the bug scenario: combo has 200k ceiling, OpenAI supports 128k
+      // Should return 128k, NOT 200k - otherwise 150k requests get through
+      const combo = { context_length: 200000 };
+      const limit = getEffectiveContextLimit("openai", "gpt-4", combo);
+      assert.strictEqual(
+        limit,
+        128000,
+        "Combo ceiling should not exceed provider limit - this prevents oversized requests"
+      );
     });
 
     it("should fall back to model limit when no combo", async () => {
@@ -112,7 +144,7 @@ describe("Context Validation & Compression", () => {
       assert.ok(limit >= 128000, "GPT-4 should have at least 128k context");
     });
 
-    it("should prioritize env override over combo", async () => {
+    it("should prioritize env override over everything", async () => {
       const { getEffectiveContextLimit } =
         await import("../../open-sse/services/contextManager.ts");
 

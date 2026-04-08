@@ -7,6 +7,7 @@
  */
 
 import { platform, arch } from "os";
+import { CONTEXT_CONFIG } from "../../src/shared/constants/context";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -141,7 +142,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     urlSuffix: "?beta=true",
     authType: "oauth",
     authHeader: "x-api-key",
-    defaultContextLength: 200000,
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     headers: {
       "Anthropic-Version": "2023-06-01",
       "Anthropic-Beta":
@@ -277,6 +278,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://chat.qwen.ai/api/v1/services/aigc/text-generation/generation",
     authType: "oauth",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     headers: {
       "User-Agent": "QwenCode/0.12.3 (linux; x64)",
       "X-Dashscope-AuthType": "qwen-oauth",
@@ -315,6 +317,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.qoder.com/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     headers: {
       "User-Agent": "Qoder-Cli",
     },
@@ -360,6 +363,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     },
     authType: "oauth",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     headers: {
       "User-Agent": `antigravity/1.107.0 ${platform()}/${arch()}`,
     },
@@ -438,7 +442,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://codewhisperer.us-east-1.amazonaws.com/generateAssistantResponse",
     authType: "oauth",
     authHeader: "bearer",
-    defaultContextLength: 200000,
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     headers: {
       "Content-Type": "application/json",
       Accept: "application/vnd.amazon.eventstream",
@@ -465,7 +469,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     chatPath: "/aiserver.v1.ChatService/StreamUnifiedChatWithTools",
     authType: "oauth",
     authHeader: "bearer",
-    defaultContextLength: 200000,
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     headers: {
       "connect-accept-encoding": "gzip",
       "connect-protocol-version": "1",
@@ -522,7 +526,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     urlSuffix: "?beta=true",
     authType: "apikey",
     authHeader: "x-api-key",
-    defaultContextLength: 200000,
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     headers: {
       "Anthropic-Version": "2023-06-01",
     },
@@ -548,7 +552,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     authType: "apikey",
     authHeader: "Authorization",
     authPrefix: "Bearer",
-    defaultContextLength: 200000,
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "glm-5", name: "GLM-5" },
       { id: "kimi-k2.5", name: "Kimi K2.5" },
@@ -569,10 +573,10 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     authType: "apikey",
     authHeader: "Authorization",
     authPrefix: "Bearer",
-    defaultContextLength: 200000,
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "minimax-m2.5-free", name: "MiniMax M2.5 Free", contextLength: 204800 },
-      { id: "big-pickle", name: "Big Pickle", contextLength: 200000 },
+      { id: "big-pickle", name: "Big Pickle", contextLength: CONTEXT_CONFIG.defaultLimit },
       { id: "gpt-5-nano", name: "GPT 5 Nano", contextLength: 400000 },
       { id: "mimo-v2-omni-free", name: "MiMo V2 Omni Free", contextLength: 262144 },
       { id: "mimo-v2-pro-free", name: "MiMo V2 Pro Free", contextLength: 1048576 },
@@ -604,7 +608,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     format: "claude",
     executor: "default",
     baseUrl: "https://api.z.ai/api/anthropic/v1/messages",
-    defaultContextLength: 200000,
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     urlSuffix: "?beta=true",
     authType: "apikey",
     authHeader: "x-api-key",
@@ -636,6 +640,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     urlSuffix: "?beta=true",
     authType: "apikey",
     authHeader: "x-api-key",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     headers: {
       "Anthropic-Version": "2023-06-01",
       "Anthropic-Beta": "claude-code-20250219,interleaved-thinking-2025-05-14",
@@ -661,6 +666,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     urlSuffix: "?beta=true",
     authType: "apikey",
     authHeader: "x-api-key",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     headers: {
       "Anthropic-Version": "2023-06-01",
       "Anthropic-Beta": "claude-code-20250219,interleaved-thinking-2025-05-14",
@@ -679,6 +685,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.moonshot.ai/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "kimi-k2.5", name: "Kimi K2.5" },
       { id: "kimi-k2.5-thinking", name: "Kimi K2.5 Thinking" },
@@ -693,6 +700,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     ...KIMI_CODING_SHARED,
     urlSuffix: "?beta=true",
     authType: "oauth",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     oauth: {
       clientIdEnv: "KIMI_CODING_OAUTH_CLIENT_ID",
       clientIdDefault: "17e5f671-d194-4dfb-9706-5516cb48c098",
@@ -707,6 +715,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     alias: "kmca",
     ...KIMI_CODING_SHARED,
     authType: "apikey",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
   },
 
   kilocode: {
@@ -719,6 +728,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     authType: "oauth",
     authHeader: "Authorization",
     authPrefix: "Bearer ",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     oauth: {
       initiateUrl: "https://api.kilo.ai/api/device-auth/codes",
       pollUrlBase: "https://api.kilo.ai/api/device-auth/codes",
@@ -763,6 +773,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     authType: "oauth",
     authHeader: "Authorization",
     authPrefix: "Bearer ",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     oauth: {
       tokenUrl: "https://api.cline.bot/api/v1/auth/token",
       refreshUrl: "https://api.cline.bot/api/v1/auth/refresh",
@@ -793,6 +804,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     urlSuffix: "?beta=true",
     authType: "apikey",
     authHeader: "x-api-key",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     headers: {
       "Anthropic-Version": "2023-06-01",
       "Anthropic-Beta": "claude-code-20250219,interleaved-thinking-2025-05-14",
@@ -817,6 +829,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     urlSuffix: "?beta=true",
     authType: "apikey",
     authHeader: "x-api-key",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     headers: {
       "Anthropic-Version": "2023-06-01",
       "Anthropic-Beta": "claude-code-20250219,interleaved-thinking-2025-05-14",
@@ -840,6 +853,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://coding.dashscope.aliyuncs.com/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "qwen3.5-plus", name: "Qwen3.5 Plus" },
       { id: "kimi-k2.5", name: "Kimi K2.5" },
@@ -860,6 +874,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "qwen3.5-plus", name: "Qwen3.5 Plus" },
       { id: "kimi-k2.5", name: "Kimi K2.5" },
@@ -880,6 +895,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.deepseek.com/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "deepseek-chat", name: "DeepSeek V3.2 Chat" },
       { id: "deepseek-reasoner", name: "DeepSeek V3.2 Reasoner" },
@@ -894,6 +910,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.groq.com/openai/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B" },
       { id: "meta-llama/llama-4-maverick-17b-128e-instruct", name: "Llama 4 Maverick" },
@@ -911,6 +928,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     modelsUrl: "https://api.blackbox.ai/v1/models",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "gpt-4o", name: "GPT-4o" },
       { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
@@ -929,6 +947,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.x.ai/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "grok-4-fast-non-reasoning", name: "Grok 4 Fast" },
       { id: "grok-4-fast-reasoning", name: "Grok 4 Fast Reasoning" },
@@ -949,6 +968,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.mistral.ai/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "mistral-large-latest", name: "Mistral Large 3" },
       { id: "codestral-latest", name: "Codestral" },
@@ -964,6 +984,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.perplexity.ai/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "sonar-pro", name: "Sonar Pro" },
       { id: "sonar", name: "Sonar" },
@@ -978,6 +999,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.together.xyz/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free", name: "Llama 3.3 70B Turbo (🆓 Free)" },
       { id: "meta-llama/Llama-Vision-Free", name: "Llama Vision (🆓 Free)" },
@@ -1000,6 +1022,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.fireworks.ai/inference/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "accounts/fireworks/models/deepseek-v3p1", name: "DeepSeek V3.1" },
       { id: "accounts/fireworks/models/llama-v3p3-70b-instruct", name: "Llama 3.3 70B" },
@@ -1015,6 +1038,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.cerebras.ai/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "gpt-oss-120b", name: "GPT OSS 120B" },
       { id: "zai-glm-4.7", name: "ZAI GLM 4.7" },
@@ -1034,6 +1058,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     modelsUrl: "https://ollama.com/api/tags",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     // Note: rate limits vary by plan (free = "Light usage", Pro = more, Max = 5x Pro).
     // Users can generate API keys at https://ollama.com/settings/api-keys
     models: [
@@ -1056,6 +1081,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.cohere.com/v2/chat",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "command-r-plus-08-2024", name: "Command R+ (Aug 2024)" },
       { id: "command-r-08-2024", name: "Command R (Aug 2024)" },
@@ -1071,6 +1097,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://integrate.api.nvidia.com/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "gpt-oss-120b", name: "GPT OSS 120B", toolCalling: false },
       { id: "openai/gpt-oss-120b", name: "GPT OSS 120B (OpenAI Prefix)", toolCalling: false },
@@ -1094,6 +1121,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.tokenfactory.nebius.com/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [{ id: "meta-llama/Llama-3.3-70B-Instruct", name: "Llama 3.3 70B Instruct" }],
   },
 
@@ -1105,6 +1133,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.siliconflow.com/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "deepseek-ai/DeepSeek-V3.2", name: "DeepSeek V3.2" },
       { id: "deepseek-ai/DeepSeek-V3.1", name: "DeepSeek V3.1" },
@@ -1127,6 +1156,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.hyperbolic.xyz/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "Qwen/QwQ-32B", name: "QwQ 32B" },
       { id: "deepseek-ai/DeepSeek-R1", name: "DeepSeek R1" },
@@ -1151,6 +1181,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
       "https://router.huggingface.co/hf-inference/models/meta-llama/Meta-Llama-3.1-70B-Instruct/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "meta-llama/Meta-Llama-3.1-70B-Instruct", name: "Llama 3.1 70B Instruct" },
       { id: "meta-llama/Meta-Llama-3.1-8B-Instruct", name: "Llama 3.1 8B Instruct" },
@@ -1169,6 +1200,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     modelsUrl: "https://api.synthetic.new/openai/v1/models",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "hf:nvidia/Kimi-K2.5-NVFP4", name: "Kimi K2.5 (NVFP4)" },
       { id: "hf:MiniMaxAI/MiniMax-M2.5", name: "MiniMax M2.5" },
@@ -1189,6 +1221,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     modelsUrl: "https://api.kilo.ai/api/gateway/models",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "kilo-auto/frontier", name: "Kilo Auto Frontier" },
       { id: "kilo-auto/balanced", name: "Kilo Auto Balanced" },
@@ -1218,6 +1251,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     },
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro Preview (Vertex)" },
       { id: "gemini-3.1-flash-lite-preview", name: "Gemini 3.1 Flash Lite Preview (Vertex)" },
@@ -1246,6 +1280,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     modelsUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "qwen-max", name: "Qwen Max" },
       { id: "qwen-max-2025-01-25", name: "Qwen Max (2025-01-25)" },
@@ -1274,6 +1309,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     authType: "apikey",
     authHeader: "Authorization",
     authPrefix: "Bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     // Free tier: 50M tokens/day (Flash-Lite) + 500K/day (Chat/Thinking) — 100% free while public beta
     models: [
       { id: "LongCat-Flash-Lite", name: "LongCat Flash-Lite (50M tok/day 🆓)" },
@@ -1293,6 +1329,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://text.pollinations.ai/openai/chat/completions",
     authType: "apikey", // Optional — works without one too
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "openai", name: "GPT-5 via Pollinations (🆓)" },
       { id: "claude", name: "Claude via Pollinations (🆓)" },
@@ -1316,6 +1353,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.puter.com/puterai/openai/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       // OpenAI — use bare IDs
       { id: "gpt-4o-mini", name: "GPT-4o Mini (🆓 Puter)" },
@@ -1374,6 +1412,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.cloudflare.com/client/v4/accounts",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     // 10K Neurons/day free: ~150 LLM responses or 500s Whisper audio — global edge
     models: [
       { id: "@cf/meta/llama-3.3-70b-instruct", name: "Llama 3.3 70B (🆓 ~150 resp/day)" },
@@ -1393,6 +1432,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.scaleway.ai/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     // 1M tokens free for new accounts — EU/GDPR (Paris), no credit card needed under limit
     models: [
       { id: "qwen3-235b-a22b-instruct-2507", name: "Qwen3 235B A22B (1M free tok 🆓)" },
@@ -1412,6 +1452,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     baseUrl: "https://api.aimlapi.com/v1/chat/completions",
     authType: "apikey",
     authHeader: "bearer",
+    defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     // $0.025/day free credits — 200+ models via single aggregator endpoint
     models: [
       { id: "gpt-4o", name: "GPT-4o (via AI/ML API)" },

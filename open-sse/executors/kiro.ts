@@ -8,6 +8,7 @@ import {
 import { PROVIDERS } from "../config/constants.ts";
 import { v4 as uuidv4 } from "uuid";
 import { refreshKiroToken } from "../services/tokenRefresh.ts";
+import { CONTEXT_CONFIG } from "../../src/shared/constants/context";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -400,7 +401,7 @@ export class KiroExecutor extends BaseExecutor {
               // Kiro models typically have 200k context window
               const estimatedInputTokens =
                 state.contextUsagePercentage > 0
-                  ? Math.floor((state.contextUsagePercentage * 200000) / 100)
+                  ? Math.floor((state.contextUsagePercentage * CONTEXT_CONFIG.defaultLimit) / 100)
                   : 0;
 
               state.usage = {
