@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.8.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.8.1...v3.8.2) (2026-04-09)
+
+
+### Bug Fixes
+
+* **kiro:** improve translator robustness and image handling ([3efd63c](https://github.com/linhnguyen-gt/Routiform/commit/3efd63cec9e14ea7806d899706221a36aecaf68a))
+
 ### [3.8.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.8.0...v3.8.1) (2026-04-08)
 
 
