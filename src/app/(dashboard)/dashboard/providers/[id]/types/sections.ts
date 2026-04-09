@@ -3,6 +3,8 @@ import type { CompatModelRow } from "./compat";
 export interface ModelRowProps {
   model: { id: string };
   fullModel: string;
+  displayModel?: string;
+  copyModel?: string;
   copied?: string;
   onCopy: (text: string, key: string) => void;
   t: (key: string, values?: Record<string, unknown>) => string;

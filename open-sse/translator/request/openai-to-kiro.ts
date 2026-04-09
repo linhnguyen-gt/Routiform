@@ -91,6 +91,11 @@ type CanonicalUserTurn = {
   toolResults: KiroToolResult[];
 };
 
+type NormalizedToolResult = {
+  text: string;
+  images: KiroImage[];
+};
+
 type CanonicalAssistantTurn = {
   textParts: string[];
   toolUses: KiroToolUse[];
@@ -151,6 +156,63 @@ function parseToolInput(argumentsValue: unknown): unknown {
   }
 }
 
+function maybeParseJsonString(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) return value;
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function normalizeToolResultPayload(content: unknown): NormalizedToolResult {
+  const parsed = maybeParseJsonString(content);
+
+  if (Array.isArray(content)) {
+    return {
+      text: normalizeToolResultContent(content),
+      images: [],
+    };
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return {
+      text: typeof content === "string" ? content : content == null ? "" : JSON.stringify(content),
+      images: [],
+    };
+  }
+
+  const obj = parsed as Record<string, unknown>;
+  const mimeType =
+    (typeof obj.mimeType === "string" ? obj.mimeType : null) ||
+    (typeof obj.mime_type === "string" ? obj.mime_type : null);
+  const base64Data = typeof obj.data === "string" ? obj.data : null;
+
+  if (mimeType && base64Data && mimeType.toLowerCase().startsWith("image/")) {
+    return {
+      text:
+        typeof obj.text === "string" && obj.text.trim()
+          ? obj.text
+          : "[Image attached from tool result]",
+      images: [
+        {
+          format: mimeType.split("/")[1] || mimeType,
+          source: { bytes: base64Data },
+        },
+      ],
+    };
+  }
+
+  return {
+    text: JSON.stringify(obj),
+    images: [],
+  };
+}
+
 function normalizeToolResultContent(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return content == null ? "" : JSON.stringify(content);
@@ -197,10 +259,12 @@ function extractUserContentParts(content: OpenAIMessage["content"]): {
       const block = part as OpenAIImagePart & { tool_use_id?: string; content?: unknown };
       const toolUseId = toNonEmptyString(block.tool_use_id);
       if (!toolUseId) continue;
+      const normalized = normalizeToolResultPayload(block.content);
+      images.push(...normalized.images);
       toolResults.push({
         toolUseId,
         status: "success",
-        content: [{ text: normalizeToolResultContent(block.content) }],
+        content: [{ text: normalized.text }],
       });
       continue;
     }
@@ -418,10 +482,12 @@ function convertMessages(messages: unknown, tools: unknown, model: string) {
     if (role === "tool") {
       const toolCallId = toNonEmptyString(message.tool_call_id);
       if (toolCallId) {
+        const normalized = normalizeToolResultPayload(message.content);
+        activeUserTurn.images.push(...normalized.images);
         activeUserTurn.toolResults.push({
           toolUseId: toolCallId,
           status: "success",
-          content: [{ text: typeof message.content === "string" ? message.content : "" }],
+          content: [{ text: normalized.text }],
         });
       }
       continue;

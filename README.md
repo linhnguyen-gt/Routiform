@@ -980,16 +980,27 @@ Routiform is available as a public Docker image on [Docker Hub](https://hub.dock
 **Pull and run** (`cli` image — API on **20128**, dashboard on **20129** when using split ports):
 
 ```bash
-# Copy and edit .env first (secrets, `NEXT_PUBLIC_BASE_URL`, etc.)
-cp .env.example .env
-
 docker pull linhnguyen0944/routiform:cli
 
 docker run --rm -p 20128:20128 -p 20129:20129 \
-  -e DATA_DIR=/app/data -v routiform-data:/app/data \
-  --env-file .env \
+  -e DATA_DIR=/app/data \
+  -e INITIAL_PASSWORD="change-this-password" \
+  -v routiform-data:/app/data \
   linhnguyen0944/routiform:cli
 ```
+
+**For Kiro provider (AWS SSO cache auto-import)**, mount your AWS config:
+
+```bash
+docker run --rm -p 20128:20128 -p 20129:20129 \
+  -e DATA_DIR=/app/data \
+  -e INITIAL_PASSWORD="change-this-password" \
+  -v routiform-data:/app/data \
+  -v ~/.aws:/root/.aws:ro \
+  linhnguyen0944/routiform:cli
+```
+
+If you prefer a full `.env` file instead, copy `.env.example`, edit it, and add `--env-file .env` to the command above.
 
 Use `-d --name routiform --restart unless-stopped --stop-timeout 40` instead of `--rm` if you want a long-running detached container.
 

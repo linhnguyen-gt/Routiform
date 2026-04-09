@@ -20,6 +20,28 @@ export interface ModelSpec {
 }
 
 export const MODEL_SPECS: Record<string, ModelSpec> = {
+  // ── GPT-5 / Codex multimodal series ──────────────────────────────
+  "gpt-5.4": {
+    maxOutputTokens: 32768,
+    supportsTools: true,
+    supportsVision: true,
+  },
+  "gpt-5.4-mini": {
+    maxOutputTokens: 32768,
+    supportsTools: true,
+    supportsVision: true,
+  },
+  "gpt-5.3-codex": {
+    maxOutputTokens: 32768,
+    supportsTools: true,
+    supportsVision: true,
+  },
+  "gpt-5.2": {
+    maxOutputTokens: 32768,
+    supportsTools: true,
+    supportsVision: true,
+  },
+
   // ── Gemini 3 Flash series ───────────────────────────────────────
   "gemini-3-flash": {
     maxOutputTokens: 65536,

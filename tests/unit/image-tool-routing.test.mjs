@@ -26,6 +26,20 @@ test("enforces media-file tool for local image analysis prompt", () => {
   });
 });
 
+test("enforces media-file tool when read is unavailable", () => {
+  const body = {
+    messages: [{ role: "user", content: "Analyze /Users/linh/Downloads/example.png" }],
+    tools: [{ type: "function", function: { name: "filesystem_read_media_file", parameters: {} } }],
+  };
+
+  const changed = maybeEnforceMediaToolForLocalImage(body);
+  assert.equal(changed, true);
+  assert.deepEqual(body.tool_choice, {
+    type: "function",
+    function: { name: "filesystem_read_media_file" },
+  });
+});
+
 test("does not override explicit function tool_choice", () => {
   const body = {
     messages: [{ role: "user", content: "Analyze /tmp/img.png" }],

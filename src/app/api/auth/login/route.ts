@@ -5,17 +5,24 @@ import { SignJWT } from "jose";
 import { cookies } from "next/headers";
 import { loginSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { getJwtSecret } from "@/shared/utils/jwtSecret";
 
 // SECURITY: No hardcoded fallback — JWT_SECRET must be configured.
 if (!process.env.JWT_SECRET) {
   console.error("[SECURITY] FATAL: JWT_SECRET is not set. Login authentication is disabled.");
 }
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "");
-
 export async function POST(request) {
   try {
     // Fail-fast if JWT_SECRET is not configured
     if (!process.env.JWT_SECRET) {
+      return NextResponse.json(
+        { error: "Server misconfigured: JWT_SECRET not set. Contact administrator." },
+        { status: 500 }
+      );
+    }
+
+    const secret = getJwtSecret();
+    if (!secret) {
       return NextResponse.json(
         { error: "Server misconfigured: JWT_SECRET not set. Contact administrator." },
         { status: 500 }
@@ -62,7 +69,7 @@ export async function POST(request) {
       const token = await new SignJWT({ authenticated: true })
         .setProtectedHeader({ alg: "HS256" })
         .setExpirationTime("30d")
-        .sign(SECRET);
+        .sign(secret);
 
       const cookieStore = await cookies();
       cookieStore.set("auth_token", token, {

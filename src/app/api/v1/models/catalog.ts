@@ -37,6 +37,10 @@ const FALLBACK_ALIAS_TO_PROVIDER = {
 };
 
 const VISION_MODEL_KEYWORDS = [
+  "gpt-5.4",
+  "gpt-5.4-mini",
+  "gpt-5.3-codex",
+  "gpt-5.2",
   "gpt-4o",
   "gpt-4.1",
   "gpt-4-vision",
@@ -72,8 +76,14 @@ function getVisionCapabilityFields(modelId: string) {
   if (!isVisionModelId(modelId)) return null;
   return {
     capabilities: { vision: true },
+    supports_vision: true,
+    supports_image_input: true,
     input_modalities: ["text", "image"],
     output_modalities: ["text"],
+    modalities: {
+      input: ["text", "image"],
+      output: ["text"],
+    },
   };
 }
 

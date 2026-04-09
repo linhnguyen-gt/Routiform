@@ -167,6 +167,10 @@ function ensureApiKeysColumns(db: ApiKeysDbLike) {
   try {
     const columns = db.prepare<ApiKeyRow>("PRAGMA table_info(api_keys)").all();
     const columnNames = new Set(columns.map((column) => String(column.name ?? "")));
+    if (!columnNames.has("machine_id")) {
+      db.exec("ALTER TABLE api_keys ADD COLUMN machine_id TEXT");
+      console.log("[DB] Added api_keys.machine_id column");
+    }
     if (!columnNames.has("allowed_models")) {
       db.exec("ALTER TABLE api_keys ADD COLUMN allowed_models TEXT");
       console.log("[DB] Added api_keys.allowed_models column");
@@ -174,6 +178,11 @@ function ensureApiKeysColumns(db: ApiKeysDbLike) {
     if (!columnNames.has("no_log")) {
       db.exec("ALTER TABLE api_keys ADD COLUMN no_log INTEGER NOT NULL DEFAULT 0");
       console.log("[DB] Added api_keys.no_log column");
+    }
+    if (!columnNames.has("created_at")) {
+      db.exec("ALTER TABLE api_keys ADD COLUMN created_at TEXT");
+      db.exec("UPDATE api_keys SET created_at = datetime('now') WHERE created_at IS NULL");
+      console.log("[DB] Added api_keys.created_at column");
     }
     if (!columnNames.has("allowed_connections")) {
       db.exec("ALTER TABLE api_keys ADD COLUMN allowed_connections TEXT");

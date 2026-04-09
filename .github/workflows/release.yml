@@ -178,13 +178,7 @@ jobs:
             }
 
             const section = lines.slice(start + 1, end).join("\n").trim();
-            const notes = section
-              .replace(/^###\s+/gm, "")
-              .replace(/^\*\s+/gm, "")
-              .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-              .trim();
-
-            fs.writeFileSync(".release-notes.md", notes ? `${notes}\n` : "");
+            fs.writeFileSync(".release-notes.md", section ? `${section}\n` : "");
           '
 
           if [ -s .release-notes.md ]; then

@@ -25,6 +25,48 @@ function getProviderBaseUrl(providerSpecificData: unknown): string | null {
 const DEFAULT_CODEX_MODELS_BASE_URL = "https://chatgpt.com/backend-api/codex";
 const DEFAULT_CODEX_CLIENT_VERSION = "0.92.0";
 const DISABLED_CODEX_MODEL_IDS = new Set(["gpt-oss-120b", "gpt-oss-20b"]);
+const CODEX_ALLOWED_MODELS = ["gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex", "gpt-5.2"] as const;
+const CODEX_ALLOWED_MODEL_IDS = new Set<string>(CODEX_ALLOWED_MODELS);
+const CODEX_MODEL_DISPLAY_NAMES: Record<(typeof CODEX_ALLOWED_MODELS)[number], string> = {
+  "gpt-5.4": "gpt-5.4",
+  "gpt-5.4-mini": "gpt-5.4-mini",
+  "gpt-5.3-codex": "gpt-5.3-codex",
+  "gpt-5.2": "gpt-5.2",
+};
+
+function getDefaultCodexModels(): Array<JsonRecord> {
+  return CODEX_ALLOWED_MODELS.map((id) => ({
+    id,
+    name: CODEX_MODEL_DISPLAY_NAMES[id],
+    hidden: false,
+    owned_by: "codex",
+  }));
+}
+
+function mergeCodexModels(models: Array<JsonRecord>): Array<JsonRecord> {
+  const mergedById = new Map<string, JsonRecord>();
+
+  for (const model of getDefaultCodexModels()) {
+    mergedById.set(String(model.id), model);
+  }
+
+  for (const model of models) {
+    const id = typeof model.id === "string" ? model.id : "";
+    if (!CODEX_ALLOWED_MODEL_IDS.has(id)) continue;
+    mergedById.set(id, {
+      ...mergedById.get(id),
+      ...model,
+      id,
+      name: CODEX_MODEL_DISPLAY_NAMES[id as (typeof CODEX_ALLOWED_MODELS)[number]],
+      hidden: false,
+      owned_by: "codex",
+    });
+  }
+
+  return CODEX_ALLOWED_MODELS.map((id) => mergedById.get(id)).filter((m): m is JsonRecord =>
+    Boolean(m)
+  );
+}
 
 export function normalizeCodexModelsBaseUrl(baseUrl: string | null): string {
   let normalized = (baseUrl || DEFAULT_CODEX_MODELS_BASE_URL).trim().replace(/\/$/, "");
@@ -72,10 +114,13 @@ export function mapCodexModelsFromApi(data: unknown, includeHidden: boolean): Ar
 
   const withoutDisabled = mapped.filter((model) => {
     const id = typeof model.id === "string" ? model.id : "";
-    return !DISABLED_CODEX_MODEL_IDS.has(id);
+    return !DISABLED_CODEX_MODEL_IDS.has(id) && CODEX_ALLOWED_MODEL_IDS.has(id);
   });
+  const visible = includeHidden
+    ? withoutDisabled
+    : withoutDisabled.filter((model) => model.hidden !== true);
 
-  return includeHidden ? withoutDisabled : withoutDisabled.filter((model) => model.hidden !== true);
+  return mergeCodexModels(visible);
 }
 
 const GLM_MODELS_URLS = {
@@ -564,11 +609,13 @@ export async function GET(
           );
         }
 
-        const fallback = (PROVIDER_MODELS.codex || []).map((m: any) => ({
-          id: m.id,
-          name: m.name || m.id,
-          owned_by: "codex",
-        }));
+        const fallback = mergeCodexModels(
+          (PROVIDER_MODELS.codex || []).map((m: any) => ({
+            id: m.id,
+            name: m.name || m.id,
+            owned_by: "codex",
+          }))
+        );
 
         return buildResponse({
           provider,

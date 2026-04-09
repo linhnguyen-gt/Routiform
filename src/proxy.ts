@@ -6,8 +6,7 @@ import { isPublicRoute, verifyAuth, isAuthRequired } from "./shared/utils/apiAut
 import { checkBodySize, getBodySizeLimit } from "./shared/middleware/bodySizeGuard";
 import { isDraining } from "./lib/gracefulShutdown";
 import { isModelSyncInternalRequest } from "./shared/services/modelSyncScheduler";
-
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "");
+import { getJwtSecret } from "./shared/utils/jwtSecret";
 
 export async function proxy(request: any) {
   const { pathname } = request.nextUrl;
@@ -85,7 +84,11 @@ export async function proxy(request: any) {
 
     if (token) {
       try {
-        const { payload } = await jwtVerify(token, SECRET);
+        const secret = getJwtSecret();
+        if (!secret) {
+          throw new Error("JWT_SECRET is not configured");
+        }
+        const { payload } = await jwtVerify(token, secret);
 
         // Auto-refresh: if token expires within 7 days, issue a fresh 30-day token
         const exp = payload.exp as number;
@@ -96,7 +99,7 @@ export async function proxy(request: any) {
             const freshToken = await new SignJWT({ authenticated: true })
               .setProtectedHeader({ alg: "HS256" })
               .setExpirationTime("30d")
-              .sign(SECRET);
+              .sign(secret);
 
             // Detect secure context
             const fwdProto = (request.headers.get("x-forwarded-proto") || "")
@@ -129,7 +132,16 @@ export async function proxy(request: any) {
           tokenPresent: true,
           requestId,
         });
-        return NextResponse.redirect(new URL("/login", request.url));
+
+        const redirectResponse = NextResponse.redirect(new URL("/login", request.url));
+        redirectResponse.cookies.set("auth_token", "", {
+          httpOnly: true,
+          secure: process.env.AUTH_COOKIE_SECURE === "true",
+          sameSite: "lax",
+          path: "/",
+          expires: new Date(0),
+        });
+        return redirectResponse;
       }
     }
 

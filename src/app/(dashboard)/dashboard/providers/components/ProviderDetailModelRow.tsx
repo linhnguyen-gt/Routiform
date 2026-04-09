@@ -8,6 +8,8 @@ import { ModelCompatPopover } from "./ModelCompatPopover";
 export function ModelRow({
   model,
   fullModel,
+  displayModel,
+  copyModel,
   copied,
   onCopy,
   t,
@@ -21,6 +23,8 @@ export function ModelRow({
   onTest,
   isTesting,
 }: ModelRowProps) {
+  const renderedModel = displayModel || fullModel;
+  const copiedModel = copyModel || fullModel;
   const borderColor =
     testStatus === "ok"
       ? "border-green-500/40"
@@ -48,7 +52,7 @@ export function ModelRow({
             {statusIcon}
           </span>
           <code className="min-w-0 break-all rounded-md bg-sidebar/80 px-2 py-1.5 font-mono text-[11px] leading-snug text-text-main sm:text-xs">
-            {fullModel}
+            {renderedModel}
           </code>
         </div>
         <div className="shrink-0 pt-0.5">
@@ -90,7 +94,7 @@ export function ModelRow({
         )}
         <button
           type="button"
-          onClick={() => onCopy(fullModel, `model-${model.id}`)}
+          onClick={() => onCopy(copiedModel, `model-${model.id}`)}
           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-text-muted transition-colors hover:bg-sidebar hover:text-primary"
           title={t("copyModel")}
         >

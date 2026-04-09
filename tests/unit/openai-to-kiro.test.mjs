@@ -124,3 +124,41 @@ test("buildKiroPayload normalizes empty tool schemas and preserves provider prof
     { type: "object", properties: {}, required: [] }
   );
 });
+
+test("buildKiroPayload attaches image bytes from media tool results so Kiro can inspect them", () => {
+  const body = {
+    messages: [
+      { role: "user", content: "Compare screenshot with implementation" },
+      {
+        role: "assistant",
+        content: "",
+        tool_calls: [
+          {
+            id: "call_img",
+            type: "function",
+            function: {
+              name: "filesystem_read_media_file",
+              arguments: '{"path":"/tmp/design.png"}',
+            },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        tool_call_id: "call_img",
+        content: JSON.stringify({ mimeType: "image/png", data: "abc123" }),
+      },
+      { role: "user", content: "What's different?" },
+    ],
+  };
+
+  const payload = buildKiroPayload("claude-sonnet-4.5", body, true, null);
+  const current = payload.conversationState.currentMessage.userInputMessage;
+
+  assert.equal(current.images.length, 1);
+  assert.deepEqual(current.images[0], { format: "png", source: { bytes: "abc123" } });
+  assert.equal(
+    current.userInputMessageContext.toolResults[0].content[0].text.includes("Image attached"),
+    true
+  );
+});

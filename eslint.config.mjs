@@ -53,6 +53,8 @@ const eslintConfig = [
       "app/.next/**",
       // CLI package copy directory
       "clipr/**",
+      // Test coverage output
+      "coverage/**",
     ],
   },
 ];

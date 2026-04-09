@@ -18,16 +18,33 @@ export async function GET(request: Request) {
   }
 
   try {
-    const cachePath = join(homedir(), ".aws/sso/cache");
+    const dataDir = process.env.DATA_DIR || join(homedir(), ".routiform");
+    const candidatePaths = [
+      join(homedir(), ".aws/sso/cache"),
+      join(dataDir, ".aws/sso/cache"),
+      process.env.AWS_SSO_CACHE_PATH,
+      "/root/.aws/sso/cache",
+      "/app/.aws/sso/cache",
+    ].filter((p): p is string => Boolean(p));
 
-    // Try to read cache directory
-    let files;
-    try {
-      files = await readdir(cachePath);
-    } catch (error) {
+    let cachePath: string | null = null;
+    let files: string[] = [];
+
+    for (const candidate of candidatePaths) {
+      try {
+        files = await readdir(candidate);
+        cachePath = candidate;
+        break;
+      } catch {
+        continue;
+      }
+    }
+
+    if (!cachePath || files.length === 0) {
       return NextResponse.json({
         found: false,
-        error: "AWS SSO cache not found. Please login to Kiro IDE first.",
+        error:
+          "AWS SSO cache not found. Please login to Kiro IDE first or mount ~/.aws/sso/cache into the container.",
       });
     }
 
