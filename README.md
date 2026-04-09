@@ -161,7 +161,7 @@ _Connect any AI-powered IDE or CLI tool through Routiform — free API gateway f
 - **GitHub**: [github.com/linhnguyen-gt/Routiform](https://github.com/linhnguyen-gt/Routiform)
 - **Issues**: [github.com/linhnguyen-gt/Routiform/issues](https://github.com/linhnguyen-gt/Routiform/issues)
 - **Contributing**: See [CONTRIBUTING.md](CONTRIBUTING.md), open a PR, or pick a `good first issue`
-- **Original Project**: [9router by decolua](https://github.com/decolua/9router)
+- **Original Projects**: [9router by decolua](https://github.com/decolua/9router), [OmniRoute by diegosouzapw](https://github.com/diegosouzapw/OmniRoute)
 
 ### 🐛 Reporting a Bug?
 

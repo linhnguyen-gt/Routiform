@@ -318,7 +318,7 @@ export type CompressContextStats = {
 export function compressContext(
   body,
   options: { provider?: string; model?: string; maxTokens?: number; reserveTokens?: number } = {}
-): { body: any; compressed: boolean; stats: CompressContextStats } {
+): { body: unknown; compressed: boolean; stats: CompressContextStats } {
   if (!body || !body.messages || !Array.isArray(body.messages)) {
     const t = estimateRequestTokens(body);
     return {
