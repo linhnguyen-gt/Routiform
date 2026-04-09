@@ -64,6 +64,13 @@ function applyImportedServerEnvToRuntime(serverEnvPath: string): {
     runtimeSecretsReloaded = true;
   }
 
+  for (const key of AUTH_SECRET_KEYS) {
+    const value = parsed[key]?.trim();
+    if (!value) continue;
+    process.env[key] = value;
+    runtimeSecretsReloaded = true;
+  }
+
   if (importedPrimary && previousPrimary && importedPrimary !== previousPrimary) {
     const importedLegacy = parsed.STORAGE_ENCRYPTION_KEY_LEGACY?.trim() || "";
     const importedMulti = (parsed.STORAGE_ENCRYPTION_KEYS || "")
