@@ -51,6 +51,14 @@ export async function proxy(request: any) {
       return response;
     }
 
+    // Allow settings API for initial password configuration when no password exists
+    if (pathname === "/api/settings") {
+      const settings = await getSettings();
+      if (!settings.password && !process.env.INITIAL_PASSWORD) {
+        return response;
+      }
+    }
+
     // Check if auth is required at all (respects requireLogin setting)
     const authRequired = await isAuthRequired();
     if (!authRequired) {
@@ -155,6 +163,15 @@ export async function proxy(request: any) {
       // Skip auth ONLY for fresh installs (before onboarding) where no password exists yet.
       // Once setupComplete is true, always require auth — prevents bypass if password row is lost (#151)
       if (!settings.setupComplete && !settings.password && !process.env.INITIAL_PASSWORD) {
+        return response;
+      }
+      // Allow access to settings security tab to configure initial password
+      // when setup is complete but no password exists yet
+      if (
+        pathname.startsWith("/dashboard/settings") &&
+        !settings.password &&
+        !process.env.INITIAL_PASSWORD
+      ) {
         return response;
       }
     } catch (err) {
