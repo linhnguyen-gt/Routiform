@@ -42,6 +42,95 @@ const COLUMNS = [
 
 const DEFAULT_VISIBLE = Object.fromEntries(COLUMNS.map((c) => [c.key, true]));
 
+function sanitizeFilenamePart(value) {
+  return String(value || "log")
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80);
+}
+
+function toPrettyJson(payload) {
+  if (payload === null || payload === undefined) return null;
+  try {
+    return JSON.stringify(payload, null, 2);
+  } catch {
+    return String(payload);
+  }
+}
+
+function titleCaseFromKey(key) {
+  return String(key || "Payload")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function buildExportText(log, detail) {
+  const resolved = detail || {};
+  const sections = [
+    "# Routiform Request Log Export",
+    "",
+    `[Log ID] ${log.id}`,
+    `[Timestamp] ${log.timestamp || resolved.timestamp || "-"}`,
+    `[Status] ${log.status ?? resolved.status ?? "-"}`,
+    `[Provider] ${log.provider || resolved.provider || "-"}`,
+    `[Protocol] ${log.sourceFormat || resolved.sourceFormat || "-"}`,
+    `[Model] ${log.model || resolved.model || "-"}`,
+    `[Requested Model] ${resolved.requestedModel || log.requestedModel || "-"}`,
+    `[Account] ${resolved.account || log.account || "-"}`,
+    `[API Key] ${formatApiKeyLabel(resolved.apiKeyName || log.apiKeyName, resolved.apiKeyId || log.apiKeyId)}`,
+    `[Combo] ${resolved.comboName || log.comboName || "-"}`,
+    `[Method] ${log.method || resolved.method || "-"}`,
+    `[Path] ${log.path || resolved.path || "-"}`,
+    `[Duration Ms] ${log.duration ?? resolved.duration ?? "-"}`,
+    `[Tokens In] ${resolved.tokens?.in ?? log.tokens?.in ?? 0}`,
+    `[Tokens Out] ${resolved.tokens?.out ?? log.tokens?.out ?? 0}`,
+    `[Cache Read] ${resolved.tokens?.cacheRead ?? log.tokens?.cacheRead ?? "-"}`,
+    `[Cache Write] ${resolved.tokens?.cacheCreation ?? log.tokens?.cacheCreation ?? "-"}`,
+    `[Reasoning Tokens] ${resolved.tokens?.reasoning ?? log.tokens?.reasoning ?? "-"}`,
+    `[Detail Loaded] ${detail ? "yes" : "no"}`,
+  ];
+
+  if (!detail) {
+    sections.push(
+      "",
+      "## Export Notice",
+      "Detailed payload fetch was unavailable. This export contains summary row data only."
+    );
+  }
+
+  if (resolved.error || log.error) {
+    sections.push(
+      "",
+      "## Error",
+      toPrettyJson(resolved.error || log.error) || String(resolved.error || log.error)
+    );
+  }
+
+  const pipelinePayloads = resolved.pipelinePayloads || null;
+  const payloadSections = pipelinePayloads
+    ? Object.entries(pipelinePayloads)
+        .map(([key, value]) => ({ title: titleCaseFromKey(key), json: toPrettyJson(value) }))
+        .filter((section) => section.json)
+    : [];
+
+  for (const section of payloadSections) {
+    sections.push("", `## ${section.title}`, section.json);
+  }
+
+  const requestJson = payloadSections.length === 0 ? toPrettyJson(resolved.requestBody) : null;
+  const responseJson = payloadSections.length === 0 ? toPrettyJson(resolved.responseBody) : null;
+  if (requestJson) sections.push("", "## Request Payload", requestJson);
+  if (responseJson) sections.push("", "## Response Payload", responseJson);
+
+  sections.push("", "## Raw Detail JSON", toPrettyJson(resolved) || "{}");
+  return sections.join("\n");
+}
+
 /**
  * Get a friendly display label for compatible providers.
  * Converts long IDs like "openai-compatible-chat-02669115-2545-4896-b003-cb4dac09d441"
@@ -98,6 +187,7 @@ export default function RequestLoggerV2() {
   const intervalRef = useRef(null);
   const hasLoadedRef = useRef(false);
   const [providerNodes, setProviderNodes] = useState([]);
+  const [exportingLogIds, setExportingLogIds] = useState(() => new Set());
 
   // Column visibility with localStorage persistence
   const [visibleColumns, setVisibleColumns] = useState(() => {
@@ -245,6 +335,37 @@ export default function RequestLoggerV2() {
   const closeDetail = () => {
     setSelectedLog(null);
     setDetailData(null);
+  };
+
+  const exportLog = async (logEntry) => {
+    if (exportingLogIds.has(logEntry.id)) return;
+    setExportingLogIds((current) => new Set(current).add(logEntry.id));
+    try {
+      let detail = null;
+      const res = await fetch(`/api/usage/call-logs/${logEntry.id}`);
+      if (res.ok) {
+        detail = await res.json();
+      }
+
+      const text = buildExportText(logEntry, detail);
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${sanitizeFilenamePart(logEntry.model || logEntry.provider)}-${sanitizeFilenamePart(logEntry.id)}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to export request log:", error);
+    } finally {
+      setExportingLogIds((current) => {
+        const next = new Set(current);
+        next.delete(logEntry.id);
+        return next;
+      });
+    }
   };
 
   const toggleDetailLogging = async () => {
@@ -615,6 +736,9 @@ export default function RequestLoggerV2() {
                       Time
                     </th>
                   )}
+                  <th className="px-3 py-2.5 font-semibold text-text-muted uppercase tracking-wider text-[10px] text-right">
+                    Export
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/30">
@@ -749,6 +873,22 @@ export default function RequestLoggerV2() {
                           {formatTime(log.timestamp)}
                         </td>
                       )}
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            exportLog(log);
+                          }}
+                          className="inline-flex items-center gap-1 rounded border border-border bg-bg-subtle px-2 py-1 text-[11px] text-text-muted transition-colors hover:border-primary hover:text-text-primary"
+                          title="Export log as txt"
+                        >
+                          <span className="material-symbols-outlined text-[13px]">
+                            {exportingLogIds.has(log.id) ? "progress_activity" : "download"}
+                          </span>
+                          Export
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}

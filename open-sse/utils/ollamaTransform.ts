@@ -36,7 +36,12 @@ export function transformToOllama(response, model) {
         try {
           const parsed = JSON.parse(data);
           const delta = parsed.choices?.[0]?.delta || {};
-          const content = delta.content || "";
+          const content =
+            typeof delta.content === "string" && delta.content.length > 0
+              ? delta.content
+              : typeof delta.reasoning_content === "string" && delta.reasoning_content.length > 0
+                ? delta.reasoning_content
+                : "";
           const toolCalls = delta.tool_calls;
 
           if (toolCalls) {
@@ -96,6 +101,13 @@ export function transformToOllama(response, model) {
       }
     },
     flush(controller) {
+      // Warn if stream ended with unparsed data (incomplete response)
+      if (buffer.trim()) {
+        console.warn(
+          `[ollamaTransform] Stream ended with unparsed buffer (${buffer.length} chars):`,
+          buffer.slice(0, 200)
+        );
+      }
       const ollamaEnd =
         JSON.stringify({ model, message: { role: "assistant", content: "" }, done: true }) + "\n";
       controller.enqueue(new TextEncoder().encode(ollamaEnd));

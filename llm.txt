@@ -1,6 +1,6 @@
 # Routiform
 
-> Routiform is a free, open-source AI Gateway that acts as a universal API proxy for multi-provider LLMs. It provides smart routing, automatic fallback, load balancing, and format translation across 60+ AI providers — all through a single OpenAI-compatible endpoint. Includes a built-in MCP Server (25 tools), A2A v0.3 protocol, Memory/Skills systems, and an Electron desktop app.
+> Routiform is a free, open-source AI Gateway that acts as a universal API proxy for multi-provider LLMs. It provides smart routing, automatic fallback, load balancing, and format translation across 60+ AI providers — all through a single OpenAI-compatible endpoint. Includes a built-in MCP Server (25 tools), A2A v0.3 protocol, and Memory/Skills systems.
 
 ## Overview
 
@@ -23,7 +23,6 @@ Routiform solves the problem of managing multiple AI provider subscriptions, quo
 - **Streaming:** Server-Sent Events (SSE) for real-time proxy responses
 - **Proxy engine:** Custom pipeline with format translation, circuit breaker, rate limiting, auto-combo engine
 - **i18n:** next-intl with 30 languages
-- **Desktop:** Electron (cross-platform: Windows, macOS, Linux)
 - **Package:** Published on npm (`routiform`) and Docker Hub (`linhnguyen0944/routiform`)
 
 ## Project Structure
@@ -247,10 +246,6 @@ Routiform solves the problem of managing multiple AI provider subscriptions, quo
 │   │   ├── helpers/              # Translation helpers
 │   │   └── image/                # Image format translation
 │   └── utils/                    # 22 utility modules (stream, TLS, proxy, logging, etc.)
-├── electron/                     # Electron desktop app (cross-platform)
-│   ├── main.js                   # Electron main process
-│   ├── preload.js                # Preload script (IPC bridge)
-│   └── assets/                   # App icons and assets
 ├── tests/                        # Test suites
 │   ├── unit/                     # 122 unit test files
 │   ├── integration/              # Integration tests
@@ -442,11 +437,9 @@ Routiform solves the problem of managing multiple AI provider subscriptions, quo
 
 10. **Docker:** Dockerfile has two targets: `runner-base` and `runner-cli`. `docker-compose.yml` for dev (3 profiles), `docker-compose.prod.yml` for production (port 20130).
 
-11. **Electron desktop app** in `electron/` with main.js and preload.js. Build with `npm run electron:build` (supports Windows, macOS, Linux).
+11. **Pricing data** syncs from LiteLLM via `src/lib/pricingSync.ts`. Use `sync_pricing` MCP tool or API endpoint.
 
-12. **Pricing data** syncs from LiteLLM via `src/lib/pricingSync.ts`. Use `sync_pricing` MCP tool or API endpoint.
-
-13. **Memory system** in `src/lib/memory/` provides extraction, injection, retrieval, summarization, and persistent store. Exposed via MCP memory tools and `/api/memory/ API.
+12. **Memory system** in `src/lib/memory/` provides extraction, injection, retrieval, summarization, and persistent store. Exposed via MCP memory tools and `/api/memory/ API.
 
 14. **Skills system** in `src/lib/skills/` provides registry, executor, sandbox isolation, built-in skills, custom skill support, request interception, and context injection. Exposed via MCP skill tools and `/api/skills/` API.
 

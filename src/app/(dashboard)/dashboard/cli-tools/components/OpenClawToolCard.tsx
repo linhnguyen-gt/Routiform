@@ -1,12 +1,36 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Card, Button, ModelSelectModal, ManualConfigModal } from "@/shared/components";
 import Image from "next/image";
 import CliStatusBadge from "./CliStatusBadge";
 import { useTranslations } from "next-intl";
 
 const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
+
+function parseModelList(value) {
+  return Array.from(
+    new Set(
+      String(value || "")
+        .split(/\r?\n|,/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function formatModelList(models) {
+  return Array.isArray(models) ? models.join("\n") : "";
+}
+
+function normalizeModelItems(value) {
+  if (Array.isArray(value)) {
+    return Array.from(
+      new Set(value.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean))
+    );
+  }
+  return parseModelList(value);
+}
 
 export default function OpenClawToolCard({
   tool,
@@ -27,12 +51,12 @@ export default function OpenClawToolCard({
   const [restoring, setRestoring] = useState(false);
   const [message, setMessage] = useState(null);
   const [selectedApiKey, setSelectedApiKey] = useState("");
-  const [selectedModel, setSelectedModel] = useState("");
+  const [selectedModels, setSelectedModels] = useState([]);
+  const [modelDraft, setModelDraft] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [modelAliases, setModelAliases] = useState({});
   const [showManualConfigModal, setShowManualConfigModal] = useState(false);
   const [customBaseUrl, setCustomBaseUrl] = useState("");
-  const hasInitializedModel = useRef(false);
   // Backups state
   const [backups, setBackups] = useState([]);
   const [showBackups, setShowBackups] = useState(false);
@@ -81,21 +105,43 @@ export default function OpenClawToolCard({
   };
 
   useEffect(() => {
-    if (openclawStatus?.installed && !hasInitializedModel.current) {
-      hasInitializedModel.current = true;
+    if (openclawStatus?.installed) {
       const provider = openclawStatus.settings?.models?.providers?.["routiform"];
       if (provider) {
+        const configuredModels = Array.isArray(provider.models)
+          ? provider.models
+              .map((item) => (typeof item?.id === "string" ? item.id.trim() : ""))
+              .filter(Boolean)
+          : [];
         const primaryModel = openclawStatus.settings?.agents?.defaults?.model?.primary;
-        if (primaryModel) {
+        if (configuredModels.length > 0) {
+          setSelectedModels(normalizeModelItems(configuredModels));
+        } else if (primaryModel) {
           const modelId = primaryModel.replace("routiform/", "");
-          setSelectedModel(modelId);
+          setSelectedModels([modelId]);
         }
         if (provider.apiKey && apiKeys?.some((k) => k.key === provider.apiKey)) {
           setSelectedApiKey(provider.apiKey);
         }
+      } else {
+        setSelectedModels([]);
+        setModelDraft("");
       }
     }
   }, [openclawStatus, apiKeys]);
+
+  const commitDraftModels = (rawValue) => {
+    const nextModels = normalizeModelItems([
+      ...(selectedModels || []),
+      ...parseModelList(rawValue),
+    ]);
+    setSelectedModels(nextModels);
+    setModelDraft("");
+  };
+
+  const removeModel = (modelId) => {
+    setSelectedModels((current) => current.filter((item) => item !== modelId));
+  };
 
   const checkOpenclawStatus = async () => {
     setCheckingOpenclaw(true);
@@ -135,7 +181,8 @@ export default function OpenClawToolCard({
         body: JSON.stringify({
           baseUrl: getEffectiveBaseUrl(),
           apiKey: keyToUse,
-          model: selectedModel,
+          model: selectedModels[0] || "",
+          models: selectedModels,
         }),
       });
       const data = await res.json();
@@ -160,7 +207,8 @@ export default function OpenClawToolCard({
       const data = await res.json();
       if (res.ok) {
         setMessage({ type: "success", text: t("settingsReset") });
-        setSelectedModel("");
+        setSelectedModels([]);
+        setModelDraft("");
         setSelectedApiKey("");
         checkOpenclawStatus();
       } else {
@@ -174,8 +222,11 @@ export default function OpenClawToolCard({
   };
 
   const handleModelSelect = (model) => {
-    setSelectedModel(model.value);
-    setModalOpen(false);
+    setSelectedModels((current) =>
+      current.includes(model.value)
+        ? current.filter((item) => item !== model.value)
+        : normalizeModelItems([...current, model.value])
+    );
   };
 
   // ── Backups ──
@@ -221,11 +272,12 @@ export default function OpenClawToolCard({
           ? "sk_routiform"
           : "<API_KEY_FROM_DASHBOARD>";
 
+    const primaryModel = selectedModels[0] || "provider/model-id";
     const settingsContent = {
       agents: {
         defaults: {
           model: {
-            primary: `routiform/${selectedModel || "provider/model-id"}`,
+            primary: `routiform/${primaryModel}`,
           },
         },
       },
@@ -235,12 +287,17 @@ export default function OpenClawToolCard({
             baseUrl: getEffectiveBaseUrl(),
             apiKey: keyToUse,
             api: "openai-completions",
-            models: [
-              {
-                id: selectedModel || "provider/model-id",
-                name: (selectedModel || "provider/model-id").split("/").pop(),
-              },
-            ],
+            models: selectedModels.length
+              ? selectedModels.map((modelId) => ({
+                  id: modelId,
+                  name: modelId.split("/").pop(),
+                }))
+              : [
+                  {
+                    id: primaryModel,
+                    name: primaryModel.split("/").pop(),
+                  },
+                ],
           },
         },
       },
@@ -399,13 +456,46 @@ export default function OpenClawToolCard({
                   <span className="material-symbols-outlined text-text-muted text-[14px]">
                     arrow_forward
                   </span>
-                  <input
-                    type="text"
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    placeholder={t("providerModelPlaceholder")}
-                    className="flex-1 px-2 py-1.5 bg-surface rounded border border-border text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  />
+                  <div className="flex-1 rounded-xl border border-border bg-surface px-2 py-2 focus-within:ring-1 focus-within:ring-primary/50">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {selectedModels.map((modelId, index) => (
+                        <button
+                          key={modelId}
+                          type="button"
+                          onClick={() => removeModel(modelId)}
+                          className={`inline-flex max-w-full items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition-colors ${index === 0 ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-black/5 text-text-main dark:bg-white/5"}`}
+                          title={index === 0 ? "Primary model" : t("clear")}
+                        >
+                          <span className="truncate max-w-[220px]">{modelId}</span>
+                          <span className="material-symbols-outlined text-[12px]">close</span>
+                        </button>
+                      ))}
+                      <input
+                        type="text"
+                        value={modelDraft}
+                        onChange={(e) => setModelDraft(e.target.value)}
+                        onBlur={() => {
+                          if (modelDraft.trim()) commitDraftModels(modelDraft);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === ",") {
+                            e.preventDefault();
+                            commitDraftModels(modelDraft);
+                          }
+                          if (e.key === "Backspace" && !modelDraft && selectedModels.length > 0) {
+                            e.preventDefault();
+                            removeModel(selectedModels[selectedModels.length - 1]);
+                          }
+                        }}
+                        placeholder={
+                          selectedModels.length === 0
+                            ? `${t("providerModelPlaceholder")} + Enter`
+                            : "Add model"
+                        }
+                        className="min-w-[180px] flex-1 bg-transparent px-1 py-1 text-xs outline-none placeholder:text-text-muted"
+                      />
+                    </div>
+                  </div>
                   <button
                     onClick={() => setModalOpen(true)}
                     disabled={!hasActiveProviders}
@@ -413,9 +503,12 @@ export default function OpenClawToolCard({
                   >
                     {t("selectModel")}
                   </button>
-                  {selectedModel && (
+                  {(selectedModels.length > 0 || modelDraft.trim()) && (
                     <button
-                      onClick={() => setSelectedModel("")}
+                      onClick={() => {
+                        setSelectedModels([]);
+                        setModelDraft("");
+                      }}
                       className="p-1 text-text-muted hover:text-red-500 rounded transition-colors"
                       title={t("clear")}
                     >
@@ -423,6 +516,17 @@ export default function OpenClawToolCard({
                     </button>
                   )}
                 </div>
+                {selectedModels.length > 0 && (
+                  <div className="flex items-start gap-2">
+                    <span className="w-32 shrink-0 text-sm font-semibold text-text-main text-right"></span>
+                    <span className="material-symbols-outlined text-transparent text-[14px]">
+                      arrow_forward
+                    </span>
+                    <div className="flex-1 text-[11px] text-text-muted">
+                      {`Primary: ${selectedModels[0]}`}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {message && (
@@ -441,7 +545,7 @@ export default function OpenClawToolCard({
                   variant="primary"
                   size="sm"
                   onClick={handleApplySettings}
-                  disabled={!selectedModel}
+                  disabled={selectedModels.length === 0}
                   loading={applying}
                 >
                   <span className="material-symbols-outlined text-[14px] mr-1">save</span>
@@ -522,7 +626,9 @@ export default function OpenClawToolCard({
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         onSelect={handleModelSelect}
-        selectedModel={selectedModel}
+        selectedModel={selectedModels[0] || ""}
+        addedModelValues={selectedModels}
+        multiSelect
         activeProviders={activeProviders}
         modelAliases={modelAliases}
         title={t("selectModelForTool", { tool: "Open Claw" })}

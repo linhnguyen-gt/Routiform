@@ -118,6 +118,8 @@ type KiroPayload = {
   };
 };
 
+const KIRO_TOOL_ONLY_PLACEHOLDER = "I used tools.";
+
 function toNonEmptyString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -391,7 +393,9 @@ function finalizeUserMessage(turn: CanonicalUserTurn, model: string): KiroUserIn
 }
 
 function finalizeAssistantMessage(turn: CanonicalAssistantTurn): KiroHistoryItem | null {
-  const content = turn.textParts.join("\n\n").trim() || (turn.toolUses.length > 0 ? "..." : "");
+  const content =
+    turn.textParts.join("\n\n").trim() ||
+    (turn.toolUses.length > 0 ? KIRO_TOOL_ONLY_PLACEHOLDER : "");
   if (!content && turn.toolUses.length === 0) return null;
 
   return {
@@ -434,7 +438,8 @@ function validateKiroPayload(payload: KiroPayload): KiroPayload {
     }
 
     if (item.assistantResponseMessage) {
-      item.assistantResponseMessage.content = item.assistantResponseMessage.content.trim() || "...";
+      item.assistantResponseMessage.content =
+        item.assistantResponseMessage.content.trim() || KIRO_TOOL_ONLY_PLACEHOLDER;
       return true;
     }
 

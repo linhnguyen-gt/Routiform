@@ -75,6 +75,7 @@ export const PROVIDER_MAX_TOKENS: Record<string, number> = {
   openai: 16384, // GPT-4/4o standard
   anthropic: 65536, // Claude models
   gemini: 65536, // Gemini Studio
+  "ollama-cloud": 65536, // Ollama Cloud API (supports large context models like Kimi K2.5)
   // OpenCode / many clients default max_tokens≈32k; Sonnet/Opus/GPT Copilot models generally accept it.
   // (#711) Only cap in chatCore when above this — avoids cutting completions so short the model feels “dumb”.
   github: DEFAULT_MIN_TOKENS,

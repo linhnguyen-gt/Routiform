@@ -5,7 +5,10 @@ import os from "os";
 import { getRuntimePorts } from "@/lib/runtime/ports";
 import { getOpenCodeConfigPath } from "@/shared/services/cliRuntime";
 import { mergeOpenCodeConfig } from "@/shared/services/opencodeConfig";
-import { guideSettingsSaveSchema } from "@/shared/validation/schemas";
+import {
+  guideSettingsSaveSchema,
+  opencodeGuideSettingsSaveSchema,
+} from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 
 /**
@@ -31,11 +34,16 @@ export async function POST(request, { params }) {
   }
 
   const { toolId } = await params;
-  const validation = validateBody(guideSettingsSaveSchema, rawBody);
+  const schema = toolId === "opencode" ? opencodeGuideSettingsSaveSchema : guideSettingsSaveSchema;
+  const validation = validateBody(schema, rawBody);
   if (isValidationFailure(validation)) {
     return NextResponse.json({ error: validation.error }, { status: 400 });
   }
   const { baseUrl, apiKey, model } = validation.data;
+  const models =
+    toolId === "opencode" && Array.isArray((validation.data as { models?: string[] }).models)
+      ? (validation.data as { models?: string[] }).models
+      : undefined;
 
   try {
     switch (toolId) {
@@ -43,7 +51,7 @@ export async function POST(request, { params }) {
         return await saveContinueConfig({ baseUrl, apiKey, model });
       case "opencode":
         // OpenCode reads opencode.json (see getOpenCodeConfigPath); merge provider.routiform + top-level model.
-        return await saveOpenCodeConfig({ baseUrl, apiKey, model });
+        return await saveOpenCodeConfig({ baseUrl, apiKey, model, models });
       default:
         return NextResponse.json(
           { error: `Direct config save not supported for: ${toolId}` },
@@ -140,7 +148,7 @@ async function saveContinueConfig({ baseUrl, apiKey, model }) {
  *
  * (#524) OpenCode was silently failing because this handler was missing.
  */
-async function saveOpenCodeConfig({ baseUrl, apiKey, model }) {
+async function saveOpenCodeConfig({ baseUrl, apiKey, model, models }) {
   const configPath = getOpenCodeConfigPath();
   const configDir = path.dirname(configPath);
 
@@ -164,6 +172,7 @@ async function saveOpenCodeConfig({ baseUrl, apiKey, model }) {
     baseUrl: normalizedBaseUrl,
     apiKey,
     model,
+    models,
   });
 
   await fs.writeFile(configPath, JSON.stringify(nextConfig, null, 2), "utf-8");

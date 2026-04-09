@@ -6,6 +6,26 @@ import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { copyToClipboard } from "@/shared/utils/clipboard";
 
+function parseModelList(value) {
+  return Array.from(
+    new Set(
+      String(value || "")
+        .split(/\r?\n|,/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function normalizeModelItems(value) {
+  if (Array.isArray(value)) {
+    return Array.from(
+      new Set(value.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean))
+    );
+  }
+  return parseModelList(value);
+}
+
 export default function DefaultToolCard({
   toolId,
   tool,
@@ -32,6 +52,8 @@ export default function DefaultToolCard({
   const [copiedField, setCopiedField] = useState(null);
   const [showModelModal, setShowModelModal] = useState(false);
   const [modelValue, setModelValue] = useState("");
+  const [modelValues, setModelValues] = useState<string[]>([]);
+  const [modelDraft, setModelDraft] = useState("");
   const [modelAliases, setModelAliases] = useState({});
   const [runtimeStatus, setRuntimeStatus] = useState(null);
   const [message, setMessage] = useState(null);
@@ -44,6 +66,8 @@ export default function DefaultToolCard({
   );
 
   /** Values for ICU placeholders ({baseUrl}, etc.) and legacy {{baseUrl}} replaceVars */
+  const isOpenCode = toolId === "opencode";
+  const primaryModelValue = isOpenCode ? modelValues[0] || "" : modelValue;
   const substitutionVars = useMemo(() => {
     const keyToUse =
       selectedApiKey && selectedApiKey.trim()
@@ -58,15 +82,18 @@ export default function DefaultToolCard({
     return {
       baseUrl: baseUrlWithV1,
       apiKey: keyToUse,
-      model: modelValue || t("modelPlaceholder"),
+      model: primaryModelValue || t("modelPlaceholder"),
     };
-  }, [selectedApiKey, cloudEnabled, baseUrl, modelValue, t]);
+  }, [selectedApiKey, cloudEnabled, baseUrl, primaryModelValue, t]);
 
   // Persist and restore model selection per tool via localStorage
   useEffect(() => {
     const legacyModel = localStorage.getItem(`routiform-cli-model-${toolId}`);
     const savedModel = localStorage.getItem(`routiform-cli-model-${toolId}`) || legacyModel;
-    if (savedModel) setModelValue(savedModel);
+    if (savedModel) {
+      setModelValue(savedModel);
+      if (toolId === "opencode") setModelValues(normalizeModelItems(savedModel));
+    }
     const legacyKey = localStorage.getItem(`routiform-cli-key-${toolId}`);
     const savedKey = localStorage.getItem(`routiform-cli-key-${toolId}`) || legacyKey;
     if (savedKey && apiKeys?.some((k) => k.key === savedKey)) setSelectedApiKey(savedKey);
@@ -77,6 +104,21 @@ export default function DefaultToolCard({
       setModelValue(value);
       if (value) {
         localStorage.setItem(`routiform-cli-model-${toolId}`, value);
+      } else {
+        localStorage.removeItem(`routiform-cli-model-${toolId}`);
+      }
+    },
+    [toolId]
+  );
+
+  const handleModelValuesChange = useCallback(
+    (values) => {
+      const normalized = normalizeModelItems(values);
+      setModelValues(normalized);
+      const joined = normalized.join("\n");
+      setModelValue(normalized[0] || "");
+      if (joined) {
+        localStorage.setItem(`routiform-cli-model-${toolId}`, joined);
       } else {
         localStorage.removeItem(`routiform-cli-model-${toolId}`);
       }
@@ -139,6 +181,14 @@ export default function DefaultToolCard({
   };
 
   const handleSelectModel = (model) => {
+    if (isOpenCode) {
+      handleModelValuesChange(
+        modelValues.includes(model.value)
+          ? modelValues.filter((item) => item !== model.value)
+          : [...modelValues, model.value]
+      );
+      return;
+    }
     handleModelChange(model.value);
   };
 
@@ -168,7 +218,8 @@ export default function DefaultToolCard({
         body: JSON.stringify({
           baseUrl: baseUrlWithV1,
           apiKey: keyToUse,
-          model: modelValue,
+          model: isOpenCode ? modelValues[0] || "" : modelValue,
+          ...(isOpenCode ? { models: modelValues } : {}),
         }),
       });
       const data = await res.json();
@@ -222,6 +273,79 @@ export default function DefaultToolCard({
   };
 
   const renderModelSelector = () => {
+    if (isOpenCode) {
+      return (
+        <div className="mt-2 flex items-center gap-2">
+          <div className="flex-1 rounded-xl border border-border bg-bg-secondary px-2 py-2 focus-within:ring-1 focus-within:ring-primary/50">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {modelValues.map((modelId, index) => (
+                <button
+                  key={modelId}
+                  type="button"
+                  onClick={() =>
+                    handleModelValuesChange(modelValues.filter((item) => item !== modelId))
+                  }
+                  className={`inline-flex max-w-full items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition-colors ${index === 0 ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-black/5 text-text-main dark:bg-white/5"}`}
+                  title={index === 0 ? "Primary model" : t("clear")}
+                >
+                  <span className="truncate max-w-[220px]">{modelId}</span>
+                  <span className="material-symbols-outlined text-[12px]">close</span>
+                </button>
+              ))}
+              <input
+                type="text"
+                value={modelDraft}
+                onChange={(e) => setModelDraft(e.target.value)}
+                onBlur={() => {
+                  if (modelDraft.trim()) {
+                    handleModelValuesChange([...modelValues, ...parseModelList(modelDraft)]);
+                    setModelDraft("");
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") {
+                    e.preventDefault();
+                    handleModelValuesChange([...modelValues, ...parseModelList(modelDraft)]);
+                    setModelDraft("");
+                  }
+                  if (e.key === "Backspace" && !modelDraft && modelValues.length > 0) {
+                    e.preventDefault();
+                    handleModelValuesChange(modelValues.slice(0, -1));
+                  }
+                }}
+                placeholder={
+                  modelValues.length === 0 ? `${t("modelPlaceholder")} + Enter` : "Add model"
+                }
+                className="min-w-[180px] flex-1 bg-transparent px-1 py-1 text-xs outline-none placeholder:text-text-muted"
+              />
+            </div>
+          </div>
+          <button
+            onClick={() => setShowModelModal(true)}
+            disabled={!hasActiveProviders}
+            className={`shrink-0 px-3 py-2 rounded-lg border text-sm transition-colors ${
+              hasActiveProviders
+                ? "bg-bg-secondary border-border text-text-main hover:border-primary cursor-pointer"
+                : "opacity-50 cursor-not-allowed border-border"
+            }`}
+          >
+            {t("selectModel")}
+          </button>
+          {(modelValues.length > 0 || modelDraft.trim()) && (
+            <button
+              onClick={() => {
+                handleModelValuesChange([]);
+                setModelDraft("");
+              }}
+              className="p-2 text-text-muted hover:text-red-500 rounded transition-colors"
+              title={t("clear")}
+            >
+              <span className="material-symbols-outlined text-lg">close</span>
+            </button>
+          )}
+        </div>
+      );
+    }
     return (
       <div className="mt-2 flex items-center gap-2">
         <input
@@ -463,7 +587,7 @@ export default function DefaultToolCard({
                   variant="primary"
                   size="sm"
                   onClick={handleSaveConfig}
-                  disabled={!modelValue}
+                  disabled={isOpenCode ? modelValues.length === 0 : !modelValue}
                   loading={saving}
                 >
                   <span className="material-symbols-outlined text-[14px] mr-1">save</span>
@@ -482,7 +606,7 @@ export default function DefaultToolCard({
                   {copiedField === "codeblock" ? t("copied") : t("copyConfig")}
                 </Button>
               )}
-              {modelValue && (
+              {(isOpenCode ? modelValues.length > 0 : !!modelValue) && (
                 <span className="text-xs text-text-muted flex items-center gap-1">
                   <span className="material-symbols-outlined text-[14px] text-green-500">
                     check_circle
@@ -606,7 +730,9 @@ export default function DefaultToolCard({
         isOpen={showModelModal}
         onClose={() => setShowModelModal(false)}
         onSelect={handleSelectModel}
-        selectedModel={modelValue}
+        selectedModel={isOpenCode ? modelValues[0] || "" : modelValue}
+        addedModelValues={isOpenCode ? modelValues : []}
+        multiSelect={isOpenCode}
         activeProviders={activeProviders}
         modelAliases={modelAliases}
         title={t("selectModel")}

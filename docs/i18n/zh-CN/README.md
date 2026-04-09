@@ -6,7 +6,7 @@
 
 ### Never stop coding. Smart routing to **FREE & low-cost AI models** with automatic fallback.
 
-_Your universal API proxy — one endpoint, 60+ providers, zero downtime. Now with **MCP Server (25 tools)**, **A2A Protocol**, **Memory/Skills Systems** & **Electron Desktop App**._
+_Your universal API proxy — one endpoint, 60+ providers, zero downtime. Now with **MCP Server (25 tools)**, **A2A Protocol**, and **Memory/Skills Systems**._
 
 **Chat Completions • Embeddings • Image Generation • Video • Music • Audio • Reranking • **Web Search** • MCP Server • A2A Protocol • 100% TypeScript**
 
@@ -39,7 +39,6 @@ _Your universal API proxy — one endpoint, 60+ providers, zero downtime. Now wi
 
 [![License](https://img.shields.io/github/license/linhnguyen-gt/Routiform)](https://github.com/linhnguyen-gt/Routiform/blob/main/LICENSE)
 [![Website](https://img.shields.io/badge/Website-routiform.online-blue?logo=google-chrome&logoColor=white)](https://routiform.online)
-
 
 </div>
 
@@ -180,7 +179,6 @@ _Connect any AI-powered IDE or CLI tool through Routiform — free API gateway f
 ---
 
 ## 📧 Support
-
 
 - **Website**: [routiform.online](https://routiform.online)
 - **GitHub**: [github.com/linhnguyen-gt/Routiform](https://github.com/linhnguyen-gt/Routiform)
@@ -403,7 +401,6 @@ Installing, configuring, and maintaining an AI proxy across different environmen
 - **npm global install** — `npm install -g routiform && routiform` — done
 - **Docker Multi-Platform** — AMD64 + ARM64 native (Apple Silicon, AWS Graviton, Raspberry Pi)
 - **Docker Compose Profiles** — `base` (no CLI tools) and `cli` (with Claude Code, Codex, OpenClaw)
-- **Electron Desktop App** — Native app for Windows/macOS/Linux with system tray, auto-start, offline mode
 - **Split-Port Mode** — API and Dashboard on separate ports for advanced scenarios (reverse proxy, container networking)
 - **Cloud Sync** — Config synchronization across devices via Cloudflare Workers
 - **DB Backups** — Automatic backup, restore, export and import of all settings, with `DISABLE_SQLITE_AUTO_BACKUP` for externally managed backups
@@ -1061,43 +1058,6 @@ volumes:
 
 ---
 
-## 🖥️ Desktop App — Offline & Always-On
-
-> 🆕 **NEW!** Routiform is now available as a **native desktop application** for Windows, macOS, and Linux.
-
-Run Routiform as a standalone desktop app — no terminal, no browser, no internet required for local models. The Electron-based app includes:
-
-- 🖥️ **Native Window** — Dedicated app window with system tray integration
-- 🔄 **Auto-Start** — Launch Routiform on system login
-- 🔔 **Native Notifications** — Get alerts for quota exhaustion or provider issues
-- ⚡ **One-Click Install** — NSIS (Windows), DMG (macOS), AppImage (Linux)
-- 🌐 **Offline Mode** — Works fully offline with bundled server
-
-### 快速开始
-
-```bash
-# Development mode
-npm run electron:dev
-
-# Build for your platform
-npm run electron:build         # Current platform
-npm run electron:build:win     # Windows (.exe)
-npm run electron:build:mac     # macOS (.dmg) — x64 & arm64
-npm run electron:build:linux   # Linux (.AppImage)
-```
-
-### System Tray
-
-When minimized, Routiform lives in your system tray with quick actions:
-
-- Open dashboard
-- Change server port
-- Quit application
-
-📖 Full documentation: [`electron/README.md`](electron/README.md)
-
----
-
 ## 💰 Pricing at a Glance
 
 | Tier                | Provider                    | Cost                      | Quota Reset      | Best For                          |
@@ -1329,7 +1289,6 @@ Routiform v2.0 is built as an operational platform, not just a relay proxy.
 | 🤖 **ACP Agents Dashboard**                | Debug › Agents page — grid of 14 agents with install status, version, custom agent form for any CLI tool. **OpenCode** users get a "Download opencode.json" button that auto-generates a ready-to-use config with all available models. |
 | 🔧 **Custom Model `apiFormat` Routing**    | Custom models with `apiFormat: "responses"` now correctly route to the Responses API translator                                                                                                                                         |
 | 🏢 **Codex Workspace Isolation**           | Multiple Codex workspaces per email — OAuth correctly separates connections by workspace ID                                                                                                                                             |
-| 🔄 **Electron Auto-Update**                | Desktop app checks for updates + auto-install on restart                                                                                                                                                                                |
 
 ### 🤖 Agent & Protocol Operations (v2.0)
 

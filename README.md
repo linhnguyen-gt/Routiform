@@ -2,7 +2,7 @@
 
 ### Never stop coding. Smart routing to **FREE & low-cost AI models** with automatic fallback
 
-_Your universal API proxy — one endpoint, 60+ providers, zero downtime. Now with **MCP Server (25 tools)**, **A2A Protocol**, **Memory/Skills Systems** & **Electron Desktop App**._
+_Your universal API proxy — one endpoint, 60+ providers, zero downtime. Now with **MCP Server (25 tools)**, **A2A Protocol**, and **Memory/Skills Systems**._
 
 **Chat Completions • Embeddings • Image Generation • Video • Music • Audio • Reranking • **Web Search** • MCP Server • A2A Protocol • 100% TypeScript**
 
@@ -378,7 +378,6 @@ Installing, configuring, and maintaining an AI proxy across different environmen
 - **npm global install** — `npm install -g routiform && routiform` — done
 - **Docker Multi-Platform** — AMD64 + ARM64 native (Apple Silicon, AWS Graviton, Raspberry Pi)
 - **Docker Compose Profiles** — `base` (no CLI tools) and `cli` (with Claude Code, Codex, OpenClaw)
-- **Electron Desktop App** — Native app for Windows/macOS/Linux with system tray, auto-start, offline mode
 - **Split-Port Mode** — API and Dashboard on separate ports for advanced scenarios (reverse proxy, container networking)
 - **Cloud Sync** — Config synchronization across devices via Cloudflare Workers
 - **DB Backups** — Automatic backup, restore, export and import of all settings, with `DISABLE_SQLITE_AUTO_BACKUP` for externally managed backups
@@ -982,27 +981,49 @@ Routiform is available as a public Docker image on [Docker Hub](https://hub.dock
 ```bash
 docker pull linhnguyen0944/routiform:cli
 
-docker run --rm -p 20128:20128 -p 20129:20129 \
+docker run -d \
+  --name routiform \
+  --restart unless-stopped \
+  --stop-timeout 40 \
+  -p 20128:20128 \
+  -p 20129:20129 \
   -e DATA_DIR=/app/data \
   -e INITIAL_PASSWORD="change-this-password" \
   -v routiform-data:/app/data \
+  -v "$HOME/.claude:/root/.claude" \
+  -v "$HOME/.openclaw:/root/.openclaw" \
+  -v "$HOME/.config/opencode:/root/.config/opencode" \
+  -v "$HOME/.continue:/root/.continue" \
   linhnguyen0944/routiform:cli
 ```
+
+This keeps the container running after reboot and lets **Dashboard -> CLI Tools -> Apply** write to the
+same config files your host CLIs actually use.
+
+If you do **not** mount those folders, Routiform will update files inside the container filesystem
+only (for example `/root/.claude/settings.json`), not `~/.claude/settings.json` on your host.
 
 **For Kiro provider (AWS SSO cache auto-import)**, mount your AWS config:
 
 ```bash
-docker run --rm -p 20128:20128 -p 20129:20129 \
+docker run -d \
+  --name routiform \
+  --restart unless-stopped \
+  --stop-timeout 40 \
+  -p 20128:20128 \
+  -p 20129:20129 \
   -e DATA_DIR=/app/data \
   -e INITIAL_PASSWORD="change-this-password" \
   -v routiform-data:/app/data \
+  -v "$HOME/.claude:/root/.claude" \
+  -v "$HOME/.openclaw:/root/.openclaw" \
+  -v "$HOME/.config/opencode:/root/.config/opencode" \
+  -v "$HOME/.continue:/root/.continue" \
   -v ~/.aws:/root/.aws:ro \
   linhnguyen0944/routiform:cli
 ```
 
 If you prefer a full `.env` file instead, copy `.env.example`, edit it, and add `--env-file .env` to the command above.
-
-Use `-d --name routiform --restart unless-stopped --stop-timeout 40` instead of `--rm` if you want a long-running detached container.
 
 **Using Docker Compose:**
 
@@ -1059,43 +1080,6 @@ volumes:
 | Image                      | Tag   | Description                                |
 | -------------------------- | ----- | ------------------------------------------ |
 | `linhnguyen0944/routiform` | `cli` | Recommended — includes CLI tooling profile |
-
----
-
-## 🖥️ Desktop App — Offline & Always-On
-
-> 🆕 **NEW!** Routiform is now available as a **native desktop application** for Windows, macOS, and Linux.
-
-Run Routiform as a standalone desktop app — no terminal, no browser, no internet required for local models. The Electron-based app includes:
-
-- 🖥️ **Native Window** — Dedicated app window with system tray integration
-- 🔄 **Auto-Start** — Launch Routiform on system login
-- 🔔 **Native Notifications** — Get alerts for quota exhaustion or provider issues
-- ⚡ **One-Click Install** — NSIS (Windows), DMG (macOS), AppImage (Linux)
-- 🌐 **Offline Mode** — Works fully offline with bundled server
-
-### Quick Start
-
-```bash
-# Development mode
-npm run electron:dev
-
-# Build for your platform
-npm run electron:build         # Current platform
-npm run electron:build:win     # Windows (.exe)
-npm run electron:build:mac     # macOS (.dmg) — x64 & arm64
-npm run electron:build:linux   # Linux (.AppImage)
-```
-
-### System Tray
-
-When minimized, Routiform lives in your system tray with quick actions:
-
-- Open dashboard
-- Change server port
-- Quit application
-
-📖 Full documentation: [`electron/README.md`](electron/README.md)
 
 ---
 
@@ -1330,7 +1314,6 @@ Routiform v2.0 is built as an operational platform, not just a relay proxy.
 | 🤖 **ACP Agents Dashboard**                | Debug › Agents page — grid of 14 agents with install status, version, custom agent form for any CLI tool. **OpenCode** users get a "Download opencode.json" button that auto-generates a ready-to-use config with all available models. |
 | 🔧 **Custom Model `apiFormat` Routing**    | Custom models with `apiFormat: "responses"` now correctly route to the Responses API translator                                                                                                                                         |
 | 🏢 **Codex Workspace Isolation**           | Multiple Codex workspaces per email — OAuth correctly separates connections by workspace ID                                                                                                                                             |
-| 🔄 **Electron Auto-Update**                | Desktop app checks for updates + auto-install on restart                                                                                                                                                                                |
 
 ### 🤖 Agent & Protocol Operations (v2.0)
 
@@ -1819,6 +1802,9 @@ Settings → Models → Advanced:
 
 Use the **CLI Tools** page in the dashboard for one-click configuration, or edit `~/.claude/settings.json` manually.
 
+> **Docker note:** if Routiform runs in Docker and you want **Apply** to update the host Claude config,
+> mount `~/.claude` into the container, for example `-v "$HOME/.claude:/root/.claude"`.
+
 ### Codex CLI
 
 ```bash
@@ -1853,6 +1839,9 @@ Dashboard → CLI Tools → OpenClaw → Select Model → Apply
 ```
 
 > **Note:** OpenClaw only works with local Routiform. Use `127.0.0.1` instead of `localhost` to avoid IPv6 resolution issues.
+>
+> **Docker note:** mount `~/.openclaw` into the container if you want the dashboard to edit the host
+> `~/.openclaw/openclaw.json` instead of the container copy.
 
 ### Cline / Continue / RooCode
 
@@ -1874,7 +1863,10 @@ opencode
 # Select "Other" → Enter ID: "routiform" → Enter your Routiform API key
 ```
 
-**Step 2:** Create/edit `opencode.json` in your project root:
+**Step 2:** Create/edit OpenCode config:
+
+- Linux/macOS default: `~/.config/opencode/opencode.json`
+- Windows default: `%APPDATA%\\opencode\\opencode.json`
 
 ```json
 {
@@ -1904,6 +1896,9 @@ opencode
 ```
 
 > **Tip:** Add any model available in your Routiform `/v1/models` endpoint to the `models` section. Use the format `provider/model-id` from your Routiform dashboard.
+>
+> **Docker note:** mount your OpenCode config directory into the container if you want **Save Config**
+> to update the host config. Linux/macOS default example: `-v "$HOME/.config/opencode:/root/.config/opencode"`.
 
 </details>
 

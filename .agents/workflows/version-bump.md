@@ -140,8 +140,8 @@ VERSION=$(node -p "require('./package.json').version")
 sed -i "s/  version: .*/  version: $VERSION/" docs/openapi.yaml
 echo "✓ docs/openapi.yaml → $VERSION"
 
-# Update workspace packages (open-sse, electron)
-for dir in electron open-sse; do
+# Update workspace packages (open-sse)
+for dir in open-sse; do
   if [ -d "$dir" ] && [ -f "$dir/package.json" ]; then
     (cd "$dir" && npm version "$VERSION" --no-git-tag-version --allow-same-version > /dev/null)
     echo "✓ $dir/package.json → $VERSION"
@@ -265,9 +265,6 @@ grep '"version"' package.json | head -1
 echo "--- open-sse/package.json ---"
 grep '"version"' open-sse/package.json | head -1
 
-echo "--- electron/package.json ---"
-[ -f electron/package.json ] && grep '"version"' electron/package.json | head -1
-
 echo "--- docs/openapi.yaml ---"
 grep "  version:" docs/openapi.yaml | head -1
 
@@ -321,7 +318,6 @@ git commit -m "chore(release): bump to v$VERSION — changelog, docs, version sy
 | ----------------------- | ----------------------------------------------------------- |
 | `package.json`          | `"version": "X.Y.Z"`                                        |
 | `open-sse/package.json` | `"version": "X.Y.Z"`                                        |
-| `electron/package.json` | `"version": "X.Y.Z"`                                        |
 | `docs/openapi.yaml`     | `version: X.Y.Z`                                            |
 | `llm.txt`               | `**Current version:** X.Y.Z` and `## Key Features (vX.Y.Z)` |
 | `CHANGELOG.md`          | `## [X.Y.Z] — YYYY-MM-DD`                                   |

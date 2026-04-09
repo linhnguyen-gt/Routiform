@@ -48,23 +48,26 @@ test("T40: OpenCode config generator includes endpoint and selected API key", ()
     baseUrl: "http://localhost:20128/v1/",
     apiKey: "sk_test_opencode",
     model: "claude-sonnet-4-5-thinking",
+    models: ["openai/gpt-5.4", "claude-sonnet-4-5-thinking"],
   });
   assert.equal(providerConfig.options.baseURL, "http://localhost:20128/v1");
   assert.equal(providerConfig.options.apiKey, "sk_test_opencode");
   assert.ok(providerConfig.models["claude-sonnet-4-5-thinking"]);
+  assert.ok(providerConfig.models["openai/gpt-5.4"]);
 
   const mergedConfig = mergeOpenCodeConfig(
     { provider: { custom: { name: "Custom Provider" } } },
     {
       baseUrl: "http://localhost:20128/v1",
       apiKey: "sk_test_opencode",
-      model: "claude-sonnet-4-5-thinking",
+      models: ["openai/gpt-5.4", "claude-sonnet-4-5-thinking"],
     }
   );
   assert.ok(mergedConfig.provider.custom);
   assert.equal(mergedConfig.provider.routiform.options.baseURL, "http://localhost:20128/v1");
   assert.equal(mergedConfig.provider.routiform.options.apiKey, "sk_test_opencode");
-  assert.equal(mergedConfig.model, "routiform/claude-sonnet-4-5-thinking");
+  assert.equal(mergedConfig.model, "routiform/openai/gpt-5.4");
+  assert.ok(mergedConfig.provider.routiform.models["claude-sonnet-4-5-thinking"]);
   assert.ok(mergedConfig.$schema);
 });
 

@@ -51,10 +51,10 @@ export const createProviderSchema = z
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: "providerSpecificData.customUserAgent must be a string up to 500 chars",
-          path: ["customUserAgent"],
-        });
-      }
-    }),
+            path: ["customUserAgent"],
+          });
+        }
+      }),
   })
   .refine((data) => data.apiKey || data.accessToken, {
     message: "Either apiKey or accessToken must be provided",
@@ -1210,11 +1210,13 @@ export const cliSettingsEnvSchema = z.object({
     .refine((value) => Object.keys(value).length > 0, "env must contain at least one key"),
 });
 
-export const cliModelConfigSchema = z.object({
-  baseUrl: z.string().trim().min(1, "baseUrl and model are required"),
-  apiKey: z.string().optional(),
-  model: z.string().trim().min(1, "baseUrl and model are required"),
-});
+export const cliModelConfigSchema = z
+  .object({
+    baseUrl: z.string().trim().min(1, "baseUrl and model are required"),
+    apiKey: z.string().optional(),
+    model: z.string().trim().min(1, "baseUrl and model are required"),
+  })
+  .strict();
 
 export const codexProfileNameSchema = z.object({
   name: z.string().trim().min(1, "Profile name is required"),
@@ -1229,6 +1231,23 @@ export const guideSettingsSaveSchema = z.object({
   apiKey: z.string().optional(),
   model: z.string().trim().min(1, "Model is required"),
 });
+
+export const opencodeGuideSettingsSaveSchema = z
+  .object({
+    baseUrl: z.string().trim().min(1).optional(),
+    apiKey: z.string().optional(),
+    model: z.string().trim().min(1, "Model is required").optional(),
+    models: z.array(z.string().trim().min(1)).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.model && (!Array.isArray(value.models) || value.models.length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "At least one model is required",
+        path: ["models"],
+      });
+    }
+  });
 
 // ── Search Schemas ─────────────────────────────────────────────────────
 // Unified search request/response schemas. Final contract — all fields optional

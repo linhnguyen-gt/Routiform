@@ -119,7 +119,7 @@ VERSION=$(node -p "require('./package.json').version")
 sed -i "s/  version: .*/  version: $VERSION/" docs/openapi.yaml
 echo "✓ openapi.yaml → $VERSION"
 
-for dir in electron open-sse; do
+for dir in open-sse; do
   if [ -d "$dir" ] && [ -f "$dir/package.json" ]; then
     (cd "$dir" && npm version "$VERSION" --no-git-tag-version --allow-same-version > /dev/null)
     echo "✓ $dir/package.json → $VERSION"
@@ -275,5 +275,4 @@ git branch -d release/v2.x.y
 | ------------------------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------- |
 | `[docs-sync] FAIL - OpenAPI version differs from package.json`            | Skipped step 5 — `docs/openapi.yaml` version not updated | Run step 5 (`sed -i ...`) and commit                                   |
 | `[docs-sync] FAIL - CHANGELOG.md first section must be "## [Unreleased]"` | `## [Unreleased]` missing or not at top of CHANGELOG     | Add `## [Unreleased]\n\n---\n` before the first versioned `## [x.y.z]` |
-| Electron Linux `.deb` build fails (`FpmTarget` error)                     | `fpm` Ruby gem not installed on `ubuntu-latest` runner   | Already fixed in `electron-release.yml` (`gem install fpm` step)       |
 | Docker Hub `502 error writing layer blob`                                 | Transient Docker Hub network error during ARM64 push     | Re-run the Docker publish workflow; no code change needed              |

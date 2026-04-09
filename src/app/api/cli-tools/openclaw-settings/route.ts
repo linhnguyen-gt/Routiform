@@ -10,12 +10,28 @@ import {
 } from "@/shared/services/cliRuntime";
 import { createBackup } from "@/shared/services/backupService";
 import { saveCliToolLastConfigured, deleteCliToolLastConfigured } from "@/lib/db/cliToolState";
-import { cliModelConfigSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { getApiKeyById } from "@/lib/localDb";
+import { z } from "zod";
 
 const getOpenClawSettingsPath = () => getCliPrimaryConfigPath("openclaw");
 const getOpenClawDir = () => path.dirname(getOpenClawSettingsPath());
+const openClawSettingsSchema = z
+  .object({
+    baseUrl: z.string().trim().min(1, "baseUrl and model are required"),
+    apiKey: z.string().optional(),
+    model: z.string().trim().min(1, "baseUrl and model are required").optional(),
+    models: z.array(z.string().trim().min(1)).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.model && (!Array.isArray(value.models) || value.models.length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "At least one model is required",
+        path: ["models"],
+      });
+    }
+  });
 
 // Read current settings.json
 const readSettings = async () => {
@@ -99,11 +115,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: writeGuard }, { status: 403 });
     }
 
-    const validation = validateBody(cliModelConfigSchema, rawBody);
+    const validation = validateBody(openClawSettingsSchema, rawBody);
     if (isValidationFailure(validation)) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-    let { baseUrl, apiKey, model } = validation.data;
+    let { baseUrl, apiKey, model, models } = validation.data;
+
+    const normalizedModels = Array.from(
+      new Set(
+        (Array.isArray(models) ? models : [])
+          .map((item) => (typeof item === "string" ? item.trim() : ""))
+          .filter(Boolean)
+      )
+    );
+    if (normalizedModels.length === 0 && typeof model === "string" && model.trim()) {
+      normalizedModels.push(model.trim());
+    }
+    if (normalizedModels.length === 0) {
+      return NextResponse.json({ error: "At least one model is required" }, { status: 400 });
+    }
+    model = normalizedModels[0];
 
     // (#526) Resolve real key from DB if keyId was provided
     const keyId = typeof rawBody?.keyId === "string" ? rawBody.keyId.trim() : null;
@@ -153,12 +184,10 @@ export async function POST(request: Request) {
       baseUrl: normalizedBaseUrl,
       apiKey: apiKey || "your_api_key",
       api: "openai-completions",
-      models: [
-        {
-          id: model,
-          name: model.split("/").pop() || model,
-        },
-      ],
+      models: normalizedModels.map((modelId) => ({
+        id: modelId,
+        name: modelId.split("/").pop() || modelId,
+      })),
     };
 
     // Write settings

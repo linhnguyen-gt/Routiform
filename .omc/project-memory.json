@@ -63,11 +63,6 @@
       "build:cli": "node scripts/prepublish.mjs",
       "start": "node scripts/run-next.mjs start",
       "lint": "eslint .",
-      "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:20128 && cd electron && npm run dev\"",
-      "electron:build": "npm run build && cd electron && npm run build",
-      "electron:build:win": "npm run build && cd electron && npm run build:win",
-      "electron:build:mac": "npm run build && cd electron && npm run build:mac",
-      "electron:build:linux": "npm run build && cd electron && npm run build:linux",
       "test": "node --import tsx/esm --test tests/unit/*.test.mjs",
       "test:unit": "node --import tsx/esm --test tests/unit/*.test.mjs",
       "test:plan3": "node --import tsx/esm --test tests/unit/plan3-p0.test.mjs",
@@ -133,13 +128,6 @@
         "CLI-TOOLS.md"
       ]
     },
-    "electron": {
-      "path": "electron",
-      "purpose": null,
-      "fileCount": 5,
-      "lastAccessed": 1775016362431,
-      "keyFiles": ["README.md", "main.js", "package.json", "preload.js", "types.d.ts"]
-    },
     "images": {
       "path": "images",
       "purpose": null,
@@ -194,13 +182,6 @@
       "fileCount": 0,
       "lastAccessed": 1775016362435,
       "keyFiles": []
-    },
-    "electron/assets": {
-      "path": "electron/assets",
-      "purpose": "Static assets",
-      "fileCount": 4,
-      "lastAccessed": 1775016362436,
-      "keyFiles": ["icon.icns", "icon.ico", "icon.png"]
     },
     "open-sse/config": {
       "path": "open-sse/config",

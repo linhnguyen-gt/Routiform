@@ -72,6 +72,7 @@ test("buildKiroPayload converts tool calls and tool results into adjacent Kiro t
   const toolResultTurn = payload.conversationState.currentMessage;
 
   assert.ok(assistantTurn?.assistantResponseMessage);
+  assert.equal(assistantTurn.assistantResponseMessage.content, "I used tools.");
   assert.equal(assistantTurn.assistantResponseMessage.toolUses[0].name, "bash");
   assert.deepEqual(assistantTurn.assistantResponseMessage.toolUses[0].input, { command: "pwd" });
   assert.ok(toolResultTurn?.userInputMessage);

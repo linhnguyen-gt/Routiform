@@ -174,6 +174,18 @@ test("combo falls through provider-scoped 400s and reaches the next model", asyn
 test("combo bad-request fallback helper: patterns + GitHub opaque Bad Request", () => {
   assert.equal(shouldFallbackComboBadRequest(400, "request blocked by Gemini API"), true);
   assert.equal(
+    shouldFallbackComboBadRequest(
+      400,
+      "[400]: Request contains an invalid argument.",
+      "antigravity"
+    ),
+    true
+  );
+  assert.equal(
+    shouldFallbackComboBadRequest(400, "[400]: Request contains an invalid argument.", "openai"),
+    false
+  );
+  assert.equal(
     shouldFallbackComboBadRequest(400, "One or more of the provided message roles is not valid"),
     true
   );
@@ -187,4 +199,33 @@ test("combo bad-request fallback helper: patterns + GitHub opaque Bad Request", 
   assert.equal(shouldFallbackComboBadRequest(400, "Bad Request\n", "gh"), true);
   assert.equal(shouldFallbackComboBadRequest(400, "Bad Request\n", "openai"), false);
   assert.equal(shouldFallbackComboBadRequest(422, "request blocked by Gemini API"), false);
+});
+
+test("round-robin combo falls through invalid-argument 400s and reaches the next model", async () => {
+  const log = createLog();
+
+  const result = await handleComboChat({
+    body: {},
+    combo: {
+      name: "t24-rr-invalid-argument-400",
+      strategy: "round-robin",
+      config: { maxRetries: 0 },
+      models: [
+        { model: "antigravity/model-a", weight: 0 },
+        { model: "antigravity/model-b", weight: 0 },
+      ],
+    },
+    handleSingleModel: createStatusSequenceHandler([
+      { status: 400, message: "[400]: Request contains an invalid argument." },
+      { status: 200 },
+    ]),
+    isModelAvailable: () => true,
+    log,
+    settings: null,
+    allCombos: null,
+  });
+
+  assert.equal(result.ok, true);
+  const badRequestLog = log.entries.find((entry) => entry.msg.includes("provider-scoped 400"));
+  assert.ok(badRequestLog);
 });

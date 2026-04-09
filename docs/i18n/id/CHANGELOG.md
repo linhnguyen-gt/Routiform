@@ -359,7 +359,6 @@
 ### 🐛 Bug Fixes
 
 - **Codex & Claude Compatibility:** Fixed UI fallbacks, patched Codex non-streaming integration issues, and resolved CLI runtime detection on Windows.
-- **Release Automation:** Expanded permissions required for the Electron App build in GitHub Actions.
 - **Cloudflare Runtime:** Addressed correct runtime isolation exit codes for Cloudflared tunnel components.
 
 ### 🧪 Tests
@@ -1109,7 +1108,6 @@ Full media generation playground at `/dashboard/media`: Image Generation, Video,
 | -------- | --------------- | -------------------------------------------------------------------- |
 | **#587** | @k0valik        | fix(sse): revert resolveDataDir import for Cloudflare Workers compat |
 | **#582** | @jay77721       | feat(proxy): model name prefix stripping option                      |
-| **#581** | @jay77721       | fix(npm): link electron-release to npm-publish workflow              |
 | **#578** | @hijak          | feat: configurable context length in model metadata                  |
 | **#575** | @zhangqiang8vip | feat: per-model upstream headers, compat PATCH, chat alignment       |
 | **#562** | @coobabm        | fix: MCP session management, Claude passthrough, detectFormat        |
@@ -1292,7 +1290,6 @@ docker pull linhnguyen0944/routiform:3.0.0
 
 ### 🔧 Bug Fixes
 
-- **#509 / #508** — Electron build regression: downgraded Next.js from `16.1.x` to `16.0.10` to eliminate Turbopack module-hashing instability that caused blank screens in the Electron desktop bundle.
 - **Unit test fixes** — Corrected two stale test assertions (`nanobanana-image-handler` aspect ratio/resolution, `thinking-budget` Gemini `thinkingConfig` field mapping) that had drifted after recent implementation changes.
 - **#541** — Responded to user feedback about installation complexity; no code changes required.
 
@@ -1658,7 +1655,6 @@ Routiform now automatically refreshes model lists for connected providers every 
 ### Triaged Issues
 
 - **#510** — Windows CLI healthcheck_failed: requested PATH/version info
-- **#509** — Turbopack Electron regression: upstream Next.js bug, documented workarounds
 - **#508** — macOS black screen: suggested `--disable-gpu` workaround
 
 ---
@@ -1696,7 +1692,6 @@ Routiform now automatically refreshes model lists for connected providers every 
 - **#466** — Windows login failure (same root cause as #506)
 - **#504** — MITM inactive (expected behavior)
 - **#462** — Gemini CLI PSA (resolved)
-- **#434** — Electron app crash (duplicate of #402)
 
 ## [2.8.9] — 2026-03-20
 
@@ -2348,12 +2343,9 @@ Routiform now automatically refreshes model lists for connected providers every 
 
 ## [2.5.5] - 2026-03-15
 
-> Model list dedup fix, Electron standalone build hardening, and Kiro credit tracking.
-
 ### 🐛 Bug Fixes
 
 - **fix(models) #380**: `GET /api/models` now includes provider aliases when building the active-provider filter — models for `claude` (alias `cc`) and `github` (alias `gh`) were always shown regardless of whether a connection was configured, because `PROVIDER_MODELS` keys are aliases but DB connections are stored under provider IDs. Fixed by expanding each active provider ID to also include its alias via `PROVIDER_ID_TO_ALIAS`. Closes #353.
-- **fix(electron) #379**: New `scripts/prepare-electron-standalone.mjs` stages a dedicated `/.next/electron-standalone` bundle before Electron packaging. Aborts with a clear error if `node_modules` is a symlink (electron-builder would ship a runtime dependency on the build machine). Cross-platform path sanitization via `path.basename`. By @kfiramar.
 
 ### ✨ New Features
 
@@ -2371,7 +2363,6 @@ Routiform now automatically refreshes model lists for connected providers every 
 
 ### 🔧 CI & Infrastructure
 
-- **ESLint OOM fix**: `eslint.config.mjs` now ignores `vscode-extension/**`, `electron/**`, `docs/**`, `app/.next/**`, and `clipr/**` — ESLint was crashing with a JS heap OOM by scanning VS Code binary blobs and compiled chunks.
 - **Unit test fix**: Removed stale `ALTER TABLE provider_connections ADD COLUMN "group"` from 2 test files — column is now part of the base schema (added in #373), causing `SQLITE_ERROR: duplicate column name` on every CI run.
 - **Pre-commit hook**: Added `npm run test:unit` to `.husky/pre-commit` — unit tests now block broken commits before they reach CI.
 
@@ -2384,13 +2375,10 @@ Routiform now automatically refreshes model lists for connected providers every 
 - **fix(db) #373**: Add `provider_connections.group` column to base schema + backfill migration for existing databases — column was used in all queries but missing from schema definition
 - **fix(i18n) #371**: Replace non-existent `t("deleteConnection")` key with existing `providers.delete` key — fixes `MISSING_MESSAGE: providers.deleteConnection` runtime error on provider detail page
 - **fix(auth) #372**: Clear stale error metadata (`errorCode`, `lastErrorType`, `lastErrorSource`) from provider accounts after genuine recovery — previously, recovered accounts kept appearing as failed
-- **fix(startup) #369**: Unify env loading across `npm run start`, `run-standalone.mjs`, and Electron to respect `DATA_DIR/.env → ~/.routiform/.env → ./.env` priority — prevents generating a new `STORAGE_ENCRYPTION_KEY` over an existing encrypted database
 
 ### 🔧 Code Quality
 
 - Documented `result.success` vs `response?.ok` patterns in `auth.ts` (both intentional, now explained)
-- Normalized `overridePath?.trim()` in `electron/main.js` to match `bootstrap-env.mjs`
-- Added `preferredEnv` merge order comment in Electron startup
 
 > Codex account quota policy with auto-rotation, fast tier toggle, gpt-5.4 model, and analytics label fix.
 
@@ -2537,7 +2525,6 @@ Routiform now automatically refreshes model lists for connected providers every 
 - **Qoder OAuth (#339)**: Restored the valid default `clientSecret` — was previously an empty string, causing "Bad client credentials" on every connect attempt. The public credential is now the default fallback (overridable via `QODER_OAUTH_CLIENT_SECRET` env var).
 - **MITM server not found (#335)**: `prepublish.mjs` now compiles `src/mitm/*.ts` to JavaScript using `tsc` before copying to the npm bundle. Previously only raw `.ts` files were copied — meaning `server.js` never existed in npm/Volta global installs.
 - **GeminiCLI missing projectId (#338)**: Instead of throwing a hard 500 error when `projectId` is missing from stored credentials (e.g. after Docker restart), Routiform now logs a warning and attempts the request — returning a meaningful provider-side error instead of an Routiform crash.
-- **Electron version mismatch (#323)**: Synced `electron/package.json` version to `2.3.13` (was `2.0.13`) so the desktop binary version matches the npm package.
 
 ### ✨ New Models (#334)
 

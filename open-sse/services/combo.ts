@@ -409,17 +409,20 @@ function extractPromptForIntent(body) {
 export function shouldFallbackComboBadRequest(status, errorText, providerHint) {
   if (status !== 400 || !errorText) return false;
   const message = String(errorText);
+  const pid =
+    typeof providerHint === "string" && providerHint.length > 0
+      ? resolveProviderAlias(providerHint)
+      : "";
   if (isModelUnavailableError(status, message)) {
     return true;
+  }
+  if (/request contains an invalid argument/i.test(message)) {
+    return pid === "gemini" || pid === "vertex" || pid === "antigravity";
   }
   if (COMBO_BAD_REQUEST_FALLBACK_PATTERNS.some((pattern) => pattern.test(message))) {
     return true;
   }
   // GitHub Copilot often returns plain text "Bad Request\n" with no JSON — try next combo model.
-  const pid =
-    typeof providerHint === "string" && providerHint.length > 0
-      ? resolveProviderAlias(providerHint)
-      : "";
   if (pid === "github" && /^\s*Bad Request\s*$/i.test(message.trim())) {
     return true;
   }

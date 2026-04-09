@@ -214,8 +214,6 @@ open-sse/                   # @routiform/open-sse workspace
 ├── transformer/            # Responses API transformer
 └── utils/                  # 22 utility modules (stream, TLS, proxy, logging)
 
-electron/                   # Electron desktop app (cross-platform)
-
 tests/
 ├── unit/                   # Node.js test runner (122 test files)
 ├── integration/            # Integration tests

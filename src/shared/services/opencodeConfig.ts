@@ -2,6 +2,7 @@ type OpenCodeConfigInput = {
   baseUrl?: string;
   apiKey?: string;
   model?: string;
+  models?: string[];
 };
 
 const OPENCODE_DEFAULT_MODELS = [
@@ -33,13 +34,19 @@ export const buildOpenCodeProviderConfig = ({
   baseUrl,
   apiKey,
   model,
+  models,
 }: OpenCodeConfigInput): Record<string, any> => {
   const normalizedBaseUrl = String(baseUrl || "")
     .trim()
     .replace(/\/+$/, "");
   const normalizedModel = normalizeValue(model);
+  const normalizedModels = Array.isArray(models)
+    ? models.map((item) => normalizeValue(item)).filter(Boolean)
+    : [];
 
-  const uniqueModels = [...new Set([normalizedModel, ...OPENCODE_DEFAULT_MODELS].filter(Boolean))];
+  const uniqueModels = [
+    ...new Set([normalizedModel, ...normalizedModels, ...OPENCODE_DEFAULT_MODELS].filter(Boolean)),
+  ];
 
   const modelsRecord: Record<string, { name: string }> = {};
   for (const m of uniqueModels) {
@@ -68,7 +75,12 @@ export const mergeOpenCodeConfig = (
       ? existingConfig
       : {};
 
-  const modelRef = toOpenCodeModelRef(input.model);
+  const primaryModel =
+    normalizeValue(input.model) ||
+    (Array.isArray(input.models)
+      ? input.models.map((item) => normalizeValue(item)).find(Boolean)
+      : "");
+  const modelRef = toOpenCodeModelRef(primaryModel);
   const providerEntry = buildOpenCodeProviderConfig(input);
 
   const next: Record<string, any> = {

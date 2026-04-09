@@ -125,19 +125,3 @@ Create, scope, and revoke API keys. Each key can be restricted to specific model
 Administrative action tracking with filtering by action type, actor, target, IP address, and timestamp. Full security event history.
 
 ---
-
-## 🖥️ Desktop Application
-
-Native Electron desktop app for Windows, macOS, and Linux. Run Routiform as a standalone application with system tray integration, offline support, auto-update, and one-click install.
-
-Key features:
-
-- Server readiness polling (no blank screen on cold start)
-- System tray with port management
-- Content Security Policy
-- Single-instance lock
-- Auto-update on restart
-- Platform-conditional UI (macOS traffic lights, Windows/Linux default titlebar)
-- Hardened Electron build packaging — symlinked `node_modules` in the standalone bundle is detected and rejected before packaging, preventing runtime dependency on the build machine (v2.5.5+)
-
-📖 See [`electron/README.md`](../electron/README.md) for full documentation.

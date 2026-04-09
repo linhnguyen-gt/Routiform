@@ -307,7 +307,7 @@ if (existsSync(swcHelpersSrc) && !existsSync(swcHelpersDst)) {
 // ── Step 10.6: Remove large binaries from standalone build ──
 // These directories contain platform-native binaries (.node, .asar) that
 // trigger Z_DATA_ERROR during npm pack. They are not needed in the npm package.
-const binaryDirsToRemove = ["vscode-extension", "electron", "logs"];
+const binaryDirsToRemove = ["vscode-extension", "logs"];
 for (const dir of binaryDirsToRemove) {
   const targetDir = join(APP_DIR, dir);
   if (existsSync(targetDir)) {
