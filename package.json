@@ -12,6 +12,7 @@
     "app/",
     "open-sse/mcp-server/",
     "src/shared/contracts/",
+    "scripts/bootstrap-env.mjs",
     "scripts/postinstall.mjs",
     "scripts/native-binary-compat.mjs",
     "README.md",

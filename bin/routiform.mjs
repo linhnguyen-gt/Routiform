@@ -19,6 +19,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir, platform } from "node:os";
 import { isNativeBinaryCompatible } from "../scripts/native-binary-compat.mjs";
+import { bootstrapEnv } from "../scripts/bootstrap-env.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -77,6 +78,12 @@ function loadEnvFile() {
 }
 
 loadEnvFile();
+
+// ── Bootstrap environment (load server.env, auto-generate secrets) ──
+// This matches Docker's run-standalone.mjs behavior. Without it,
+// server.env (containing JWT_SECRET, STORAGE_ENCRYPTION_KEY) is never
+// loaded after backup imports, causing stuck /login redirects.
+const bootstrappedEnv = bootstrapEnv({ quiet: false });
 
 // ── Parse args ─────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -242,7 +249,7 @@ const memoryLimit =
   Number.isFinite(rawMemory) && rawMemory >= 64 && rawMemory <= 16384 ? rawMemory : 512;
 
 const env = {
-  ...process.env,
+  ...bootstrappedEnv,
   ROUTIFORM_PORT: String(port),
   PORT: String(dashboardPort),
   DASHBOARD_PORT: String(dashboardPort),
