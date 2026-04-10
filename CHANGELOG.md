@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.8.9](https://github.com/linhnguyen-gt/Routiform/compare/v3.8.7...v3.8.9) (2026-04-10)
+
+
+### Bug Fixes
+
+* **claude:** harden /v1/messages compatibility and ordering ([0336ca1](https://github.com/linhnguyen-gt/Routiform/commit/0336ca180319f63681b254bf7068fbec0fa3a740))
+* **context:** harden compression fit checks ([e6dc35d](https://github.com/linhnguyen-gt/Routiform/commit/e6dc35d393106a20c943c0c28b49ec29e42b098e))
+* **openai:** align chat completions compatibility handling ([f2a2a41](https://github.com/linhnguyen-gt/Routiform/commit/f2a2a41f681d51f666de328a71a781df77b85cf4))
+* **stream:** emit final usage chunk for include_usage ([4e3620b](https://github.com/linhnguyen-gt/Routiform/commit/4e3620b10ad5f7ffaf6a1123a8334e55b762914b))
+
 ### [3.8.8](https://github.com/linhnguyen-gt/Routiform/compare/v3.8.7...v3.8.8) (2026-04-10)
 
 
