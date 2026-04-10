@@ -73,6 +73,47 @@ test("model sync route skips success log when fetched models do not change store
   }
 });
 
+test("model sync route dedupes fetched models by id before persistence", async () => {
+  await resetStorage();
+
+  const connection = await providersDb.createProviderConnection({
+    provider: "nvidia",
+    authType: "apikey",
+    name: "NVIDIA Main",
+    apiKey: "test-key",
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    assert.equal(String(url), `http://localhost/api/providers/${connection.id}/models`);
+    return Response.json({
+      models: [
+        { id: "nvidia/nemotron-3-super-120b-a12b", name: "Nemotron 3 Super" },
+        { id: "nvidia/nemotron-3-super-120b-a12b", name: "Nemotron 3 Super Duplicate" },
+      ],
+    });
+  };
+
+  try {
+    const response = await modelSyncRoute.POST(
+      new Request(`http://localhost/api/providers/${connection.id}/sync-models`, {
+        method: "POST",
+        headers: scheduler.buildModelSyncInternalHeaders(),
+      }),
+      { params: { id: connection.id } }
+    );
+
+    assert.equal(response.status, 200);
+    const stored = await modelsDb.getCustomModels("nvidia");
+    const synced = stored.filter((model) => model.source === "auto-sync");
+    assert.equal(synced.length, 1);
+    assert.equal(synced[0].id, "nvidia/nemotron-3-super-120b-a12b");
+    assert.equal(synced[0].name, "Nemotron 3 Super");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("model sync route stores the real provider while keeping the account label", async () => {
   await resetStorage();
 

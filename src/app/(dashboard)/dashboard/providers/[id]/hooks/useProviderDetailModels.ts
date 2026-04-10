@@ -27,6 +27,15 @@ export interface UseProviderDetailModelsReturn {
   fetchProviderModelMeta: () => Promise<void>;
 }
 
+function dedupeModelsById<T extends { id: string; name: string }>(models: T[]): T[] {
+  const seen = new Set<string>();
+  return models.filter((model) => {
+    if (!model.id || seen.has(model.id)) return false;
+    seen.add(model.id);
+    return true;
+  });
+}
+
 export function useProviderDetailModels({
   providerId,
   isSearchProvider,
@@ -49,22 +58,24 @@ export function useProviderDetailModels({
 
   const syncedModels = useMemo(
     () =>
-      (modelMeta.customModels || [])
-        .filter((m) => m?.id && (m.source || "manual") !== "manual")
-        .map((m) => ({ id: m.id as string, name: (m.name as string) || (m.id as string) })),
+      dedupeModelsById(
+        (modelMeta.customModels || [])
+          .filter((m) => m?.id && (m.source || "manual") !== "manual")
+          .map((m) => ({ id: m.id as string, name: (m.name as string) || (m.id as string) }))
+      ),
     [modelMeta.customModels]
   );
 
   const models = useMemo(() => {
-    if (providerId === "gemini") return syncedAvailableModels;
+    if (providerId === "gemini") return dedupeModelsById(syncedAvailableModels);
     if (isLiveCatalogProvider) {
       if (opencodeLiveCatalog.status === "ready" && opencodeLiveCatalog.models.length > 0) {
-        return opencodeLiveCatalog.models;
+        return dedupeModelsById(opencodeLiveCatalog.models);
       }
-      return registryModels;
+      return dedupeModelsById(registryModels);
     }
     if (syncedModels.length > 0) return syncedModels;
-    return registryModels;
+    return dedupeModelsById(registryModels);
   }, [
     providerId,
     syncedAvailableModels,

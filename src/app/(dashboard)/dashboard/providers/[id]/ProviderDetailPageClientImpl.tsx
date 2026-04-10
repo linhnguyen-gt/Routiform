@@ -1745,13 +1745,23 @@ export function ProviderDetailPageClientImpl() {
             )}
             {!isCompatible ? (
               <>
-                <Button size="sm" icon="add" onClick={openPrimaryAddFlow}>
+                <Button
+                  size="sm"
+                  icon="add"
+                  onClick={openPrimaryAddFlow}
+                  className="h-8 rounded-lg px-3 text-xs"
+                >
                   {providerSupportsPat ? "Add PAT" : t("add")}
                 </Button>
               </>
             ) : (
               connections.length === 0 && (
-                <Button size="sm" icon="add" onClick={() => setShowAddApiKeyModal(true)}>
+                <Button
+                  size="sm"
+                  icon="add"
+                  onClick={() => setShowAddApiKeyModal(true)}
+                  className="h-8 rounded-lg px-3 text-xs"
+                >
                   {t("add")}
                 </Button>
               )

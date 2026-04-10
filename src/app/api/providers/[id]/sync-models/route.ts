@@ -81,6 +81,15 @@ function normalizeModelForComparison(model: unknown) {
   };
 }
 
+function dedupeModelsById<T extends { id: string }>(models: T[]): T[] {
+  const seen = new Set<string>();
+  return models.filter((model) => {
+    if (!model.id || seen.has(model.id)) return false;
+    seen.add(model.id);
+    return true;
+  });
+}
+
 function summarizeModelChanges(previousModels: unknown, nextModels: unknown) {
   const previousList = Array.isArray(previousModels) ? previousModels : [];
   const nextList = Array.isArray(nextModels) ? nextModels : [];
@@ -216,26 +225,30 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const registryIds = new Set(getModelsByProviderId(logProvider).map((m: any) => m.id));
 
     // Replace the full model list
-    const models = fetchedModels
-      .map((m: any) => {
-        const clineMeta = normalizeClineMeta(m.clineMeta);
-        return {
-          id: m.id || m.name || m.model,
-          name: m.name || m.displayName || m.id || m.model,
-          source: "auto-sync",
-          ...(Array.isArray(m.supportedEndpoints) && m.supportedEndpoints.length > 0
-            ? { supportedEndpoints: m.supportedEndpoints }
-            : {}),
-          ...(typeof m.inputTokenLimit === "number" ? { inputTokenLimit: m.inputTokenLimit } : {}),
-          ...(typeof m.outputTokenLimit === "number"
-            ? { outputTokenLimit: m.outputTokenLimit }
-            : {}),
-          ...(typeof m.description === "string" ? { description: m.description } : {}),
-          ...(m.supportsThinking === true ? { supportsThinking: true } : {}),
-          ...(clineMeta ? { clineMeta } : {}),
-        };
-      })
-      .filter((m: any) => m.id && !registryIds.has(m.id));
+    const models = dedupeModelsById(
+      fetchedModels
+        .map((m: any) => {
+          const clineMeta = normalizeClineMeta(m.clineMeta);
+          return {
+            id: m.id || m.name || m.model,
+            name: m.name || m.displayName || m.id || m.model,
+            source: "auto-sync",
+            ...(Array.isArray(m.supportedEndpoints) && m.supportedEndpoints.length > 0
+              ? { supportedEndpoints: m.supportedEndpoints }
+              : {}),
+            ...(typeof m.inputTokenLimit === "number"
+              ? { inputTokenLimit: m.inputTokenLimit }
+              : {}),
+            ...(typeof m.outputTokenLimit === "number"
+              ? { outputTokenLimit: m.outputTokenLimit }
+              : {}),
+            ...(typeof m.description === "string" ? { description: m.description } : {}),
+            ...(m.supportsThinking === true ? { supportsThinking: true } : {}),
+            ...(clineMeta ? { clineMeta } : {}),
+          };
+        })
+        .filter((m: any) => m.id && !registryIds.has(m.id))
+    );
 
     const previousModels = await getCustomModels(logProvider);
     const replaced = await replaceCustomModels(logProvider, models);

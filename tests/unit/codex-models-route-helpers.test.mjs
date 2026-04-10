@@ -1,8 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { normalizeCodexModelsBaseUrl, buildCodexModelsEndpoints, mapCodexModelsFromApi } =
-  await import("../../src/app/api/providers/[id]/models/route.ts");
+const {
+  normalizeCodexModelsBaseUrl,
+  buildCodexModelsEndpoints,
+  mapCodexModelsFromApi,
+  buildNvidiaModelsUrl,
+} = await import("../../src/app/api/providers/[id]/models/route.ts");
 
 test("codex models helper normalizes responses base url", () => {
   assert.equal(
@@ -22,6 +26,25 @@ test("codex models helper builds unique endpoint candidates", () => {
     "https://chatgpt.com/backend-api/codex/v1/models",
     "https://chatgpt.com/backend-api/codex/api/codex/models",
   ]);
+});
+
+test("nvidia models helper builds canonical /v1/models endpoint", () => {
+  assert.equal(
+    buildNvidiaModelsUrl("https://integrate.api.nvidia.com/v1/chat/completions"),
+    "https://integrate.api.nvidia.com/v1/models"
+  );
+  assert.equal(
+    buildNvidiaModelsUrl("https://nim.example.com/v1/chat/completions"),
+    "https://nim.example.com/v1/models"
+  );
+  assert.equal(
+    buildNvidiaModelsUrl("https://nim.example.com/v1"),
+    "https://nim.example.com/v1/models"
+  );
+  assert.equal(
+    buildNvidiaModelsUrl("https://nim.example.com"),
+    "https://nim.example.com/v1/models"
+  );
 });
 
 test("codex models helper maps API payload and hides non-list entries", () => {

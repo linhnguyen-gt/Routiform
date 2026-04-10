@@ -1,7 +1,7 @@
 "use client";
 
-import type { HTMLAttributes } from "react";
 import { cn } from "@/shared/utils/cn";
+import type { HTMLAttributes } from "react";
 
 type SpinnerSize = "sm" | "md" | "lg" | "xl";
 type LoadingType = "spinner" | "page" | "skeleton" | "card";
@@ -36,30 +36,78 @@ interface LoadingProps extends HTMLAttributes<HTMLDivElement> {
   label?: string;
 }
 
-// Spinner loading
+// Modern Spinner with CSS animation
 export function Spinner({ size = "md", className, label = "Loading" }: SpinnerProps) {
+  const sizeClasses: Record<SpinnerSize, string> = {
+    sm: "size-4",
+    md: "size-6",
+    lg: "size-8",
+    xl: "size-12",
+  };
+
+  const strokeWidths: Record<SpinnerSize, string> = {
+    sm: "3",
+    md: "3",
+    lg: "3",
+    xl: "2",
+  };
+
   return (
     <span
       role="status"
       aria-live="polite"
       aria-label={label}
-      className={cn("inline-flex", className)}
+      className={cn("inline-flex items-center justify-center", className)}
     >
       <span className="sr-only">{label}</span>
-      <span
+      <svg
         aria-hidden="true"
-        className={cn(
-          "material-symbols-outlined text-primary animate-spin motion-reduce:animate-none",
-          spinnerSizes[size]
-        )}
+        className={cn("text-primary", sizeClasses[size])}
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
       >
-        progress_activity
-      </span>
+        {/* Background track */}
+        <circle
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          strokeWidth={strokeWidths[size]}
+          strokeLinecap="round"
+          className="opacity-20"
+        />
+        {/* Animated spinner arc - chỉ phần này quay */}
+        <circle
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          strokeWidth={strokeWidths[size]}
+          strokeLinecap="round"
+          fill="none"
+          style={{
+            transformOrigin: "center",
+            strokeDasharray: "40 100",
+            animation: "spinner-rotate 1s linear infinite",
+          }}
+        />
+      </svg>
+      <style jsx>{`
+        @keyframes spinner-rotate {
+          0% {
+            transform: rotate(0deg);
+          }
+          100% {
+            transform: rotate(360deg);
+          }
+        }
+      `}</style>
     </span>
   );
 }
 
-// Full page loading
+// Full page loading with modern design
 export function PageLoading({ message = "Loading...", className }: PageLoadingProps) {
   return (
     <div
@@ -71,8 +119,13 @@ export function PageLoading({ message = "Loading...", className }: PageLoadingPr
       aria-live="polite"
       aria-busy="true"
     >
-      <Spinner size="xl" />
-      <p className="mt-4 text-text-muted text-center">{message}</p>
+      <div className="relative">
+        <Spinner size="xl" />
+        <div className="absolute inset-0 -z-10 blur-xl">
+          <Spinner size="xl" className="opacity-50 text-primary/50" />
+        </div>
+      </div>
+      <p className="mt-6 text-text-muted text-center animate-pulse">{message}</p>
     </div>
   );
 }

@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Card from "@/shared/components/Card";
 import Badge from "@/shared/components/Badge";
+import Card from "@/shared/components/Card";
 import { Skeleton, Spinner } from "@/shared/components/Loading";
 import TimeRangeSelector from "@/shared/components/analytics/TimeRangeSelector";
 import type {
@@ -10,7 +9,7 @@ import type {
   ComboHealthResponse,
   UtilizationTimeRange,
 } from "@/shared/types/utilization";
-import { cn } from "@/shared/utils/cn";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 function formatPercent(value: number, digits = 0) {
   return `${value.toFixed(digits)}%`;
@@ -436,10 +435,7 @@ export default function ComboHealthTab() {
       {!loading && !error && combos.length > 0 ? (
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-2 text-sm text-text-muted">
-            <Spinner
-              size="sm"
-              className={cn("text-primary", "[&_.material-symbols-outlined]:text-[16px]")}
-            />
+            <Spinner size="sm" className="text-primary" />
             Tracking {combos.length} combos for {range}
           </div>
           {combos.map((combo) => (
