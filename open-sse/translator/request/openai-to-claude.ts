@@ -28,6 +28,41 @@ type ClaudeTool = {
   defer_loading?: boolean;
 };
 
+function cloneClaudeNativeBlock(part: Record<string, unknown>): ClaudeContentBlock {
+  return JSON.parse(JSON.stringify(part));
+}
+
+function buildClaudeTextBlock(part: Record<string, unknown>): ClaudeContentBlock | null {
+  if (!part.text) return null;
+  const block: ClaudeContentBlock = {
+    type: "text",
+    text: part.text,
+  };
+  if (Array.isArray(part.citations)) {
+    block.citations = cloneClaudeNativeBlock({ citations: part.citations }).citations;
+  }
+  if (part.cache_control && typeof part.cache_control === "object") {
+    block.cache_control = cloneClaudeNativeBlock({
+      cache_control: part.cache_control,
+    }).cache_control;
+  }
+  return block;
+}
+
+function isClaudeNativeUserContentBlock(part: Record<string, unknown>): boolean {
+  if (part.type === "document") return true;
+  if (part.type === "text" && Array.isArray(part.citations)) return true;
+  return false;
+}
+
+function isClaudeNativeAssistantContentBlock(part: Record<string, unknown>): boolean {
+  return (
+    part.type === "server_tool_use" ||
+    part.type === "web_search_tool_result" ||
+    part.type === "web_fetch_tool_result"
+  );
+}
+
 /**
  * T02: Recursively strips empty text blocks from content arrays.
  * Anthropic returns 400 "text content blocks must be non-empty" when a
@@ -449,7 +484,10 @@ function getContentBlocksFromMessage(msg, toolNameMap = new Map(), disableToolPr
     } else if (Array.isArray(msg.content)) {
       for (const part of msg.content) {
         if (part.type === "text" && part.text) {
-          blocks.push({ type: "text", text: part.text });
+          const textBlock = buildClaudeTextBlock(part);
+          if (textBlock) {
+            blocks.push(textBlock);
+          }
         } else if (part.type === "tool_result") {
           // Skip tool_result with no tool_use_id (would be useless and may cause errors)
           if (!part.tool_use_id) continue;
@@ -479,6 +517,8 @@ function getContentBlocksFromMessage(msg, toolNameMap = new Map(), disableToolPr
           }
         } else if (part.type === "image" && part.source) {
           blocks.push({ type: "image", source: part.source });
+        } else if (isClaudeNativeUserContentBlock(part)) {
+          blocks.push(cloneClaudeNativeBlock(part));
         }
       }
     }
@@ -513,6 +553,8 @@ function getContentBlocksFromMessage(msg, toolNameMap = new Map(), disableToolPr
               input: part.input,
             });
           }
+        } else if (isClaudeNativeAssistantContentBlock(part)) {
+          blocks.push(cloneClaudeNativeBlock(part));
         }
       }
     } else if (msg.content) {

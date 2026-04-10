@@ -271,6 +271,31 @@ export function resolveClaudeCodeCompatibleMaxTokens(
   return CLAUDE_CODE_COMPATIBLE_DEFAULT_MAX_TOKENS;
 }
 
+type ClaudeCodeCompatibleMessage = {
+  role: "user" | "assistant";
+  content: Array<Record<string, unknown>>;
+};
+
+function isPlainAssistantPrefillBlock(block: Record<string, unknown>) {
+  const type = String(block.type || "text");
+  return type === "text" || type === "thinking" || type === "redacted_thinking";
+}
+
+function trimTrailingAssistantPrefillBlocks(message: ClaudeCodeCompatibleMessage) {
+  const content = [...message.content];
+  while (content.length > 0 && isPlainAssistantPrefillBlock(content[content.length - 1])) {
+    content.pop();
+  }
+  return {
+    ...message,
+    content,
+  };
+}
+
+function isPlainAssistantPrefillMessage(message: ClaudeCodeCompatibleMessage) {
+  return message.role === "assistant" && message.content.every(isPlainAssistantPrefillBlock);
+}
+
 function buildClaudeCodeCompatibleMessages(messages: MessageLike[]) {
   const converted = messages
     .map((message) => convertClaudeCodeCompatibleMessage(message))
@@ -292,10 +317,13 @@ function buildClaudeCodeCompatibleMessages(messages: MessageLike[]) {
     merged.push({ role: message.role, content: [...message.content] });
   }
 
-  // CC-compatible sites we tested reject assistant-prefill shaped requests even
-  // when Anthropic would normally allow them. Keep assistant/model history, but
-  // drop trailing assistant turns so the upstream request ends on a user turn.
+  // CC-compatible sites we tested reject plain assistant-prefill shaped requests.
+  // Trim trailing text/thinking prefill from the final assistant turn, then drop it if empty.
   while (merged.length > 0 && merged[merged.length - 1].role === "assistant") {
+    merged[merged.length - 1] = trimTrailingAssistantPrefillBlocks(merged[merged.length - 1]);
+    if (!isPlainAssistantPrefillMessage(merged[merged.length - 1])) {
+      break;
+    }
     merged.pop();
   }
 
@@ -347,6 +375,10 @@ function buildClaudeCodeCompatibleMessagesFromClaude(
   }
 
   while (merged.length > 0 && merged[merged.length - 1].role === "assistant") {
+    merged[merged.length - 1] = trimTrailingAssistantPrefillBlocks(merged[merged.length - 1]);
+    if (!isPlainAssistantPrefillMessage(merged[merged.length - 1])) {
+      break;
+    }
     merged.pop();
   }
 
@@ -411,7 +443,7 @@ function buildClaudeCodeCompatibleSystemBlocks({
   ];
 
   for (const systemBlock of customSystemBlocks) {
-    const preparedBlock = { ...systemBlock };
+    const preparedBlock: Record<string, unknown> = { ...systemBlock };
     if (!preserveCacheControl) {
       delete preparedBlock.cache_control;
     }
@@ -421,9 +453,11 @@ function buildClaudeCodeCompatibleSystemBlocks({
   return blocks;
 }
 
-function convertClaudeCodeCompatibleMessage(message: MessageLike | null | undefined) {
+function convertClaudeCodeCompatibleMessage(
+  message: MessageLike | null | undefined
+): ClaudeCodeCompatibleMessage | null {
   const rawRole = String(message?.role || "").toLowerCase();
-  const role =
+  const role: ClaudeCodeCompatibleMessage["role"] | null =
     rawRole === "user"
       ? "user"
       : rawRole === "assistant" || rawRole === "model"
@@ -573,7 +607,7 @@ function normalizeClaudeMessageInput(messages: unknown) {
         content: normalizeClaudeContentInput(record.content),
       };
     })
-    .filter((message): message is Record<string, unknown> => !!message);
+    .filter(Boolean);
 }
 
 function normalizeClaudeToolInput(tools: unknown) {

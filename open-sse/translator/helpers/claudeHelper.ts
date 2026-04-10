@@ -1,16 +1,29 @@
 // Claude helper functions for translator
 import { DEFAULT_THINKING_CLAUDE_SIGNATURE } from "../../config/defaultThinkingSignature.ts";
 
+function isAssistantActionBlock(block) {
+  return (
+    block?.type === "tool_use" ||
+    block?.type === "server_tool_use" ||
+    block?.type === "web_search_tool_result" ||
+    block?.type === "web_fetch_tool_result"
+  );
+}
+
+function isValidClaudeContentBlock(block) {
+  return (
+    (block?.type === "text" && block.text?.trim()) ||
+    block?.type === "tool_result" ||
+    block?.type === "document" ||
+    isAssistantActionBlock(block)
+  );
+}
+
 // Check if message has valid non-empty content
 export function hasValidContent(msg) {
   if (typeof msg.content === "string" && msg.content.trim()) return true;
   if (Array.isArray(msg.content)) {
-    return msg.content.some(
-      (block) =>
-        (block.type === "text" && block.text?.trim()) ||
-        block.type === "tool_use" ||
-        block.type === "tool_result"
-    );
+    return msg.content.some((block) => isValidClaudeContentBlock(block));
   }
   return false;
 }
@@ -19,28 +32,27 @@ export function hasValidContent(msg) {
 // 1. Assistant message with tool_use: remove text AFTER tool_use (Claude doesn't allow)
 // 2. Merge consecutive same-role messages
 export function fixToolUseOrdering(messages) {
-  if (messages.length <= 1) return messages;
-
-  // Pass 1: Fix assistant messages with tool_use - remove text after tool_use
+  // Pass 1: Fix assistant messages with action blocks - remove text after first action block
   for (const msg of messages) {
     if (msg.role === "assistant" && Array.isArray(msg.content)) {
-      const hasToolUse = msg.content.some((b) => b.type === "tool_use");
-      if (hasToolUse) {
-        // Keep only: thinking blocks + tool_use blocks (remove text blocks after tool_use)
+      const hasAssistantAction = msg.content.some((block) => isAssistantActionBlock(block));
+      if (hasAssistantAction) {
         const newContent = [];
-        let foundToolUse = false;
+        let foundAssistantAction = false;
 
         for (const block of msg.content) {
-          if (block.type === "tool_use") {
-            foundToolUse = true;
+          if (isAssistantActionBlock(block)) {
+            foundAssistantAction = true;
             newContent.push(block);
-          } else if (block.type === "thinking" || block.type === "redacted_thinking") {
+            continue;
+          }
+          if (block.type === "thinking" || block.type === "redacted_thinking") {
             newContent.push(block);
-          } else if (!foundToolUse) {
-            // Keep text blocks BEFORE tool_use
+            continue;
+          }
+          if (!foundAssistantAction) {
             newContent.push(block);
           }
-          // Skip text blocks AFTER tool_use
         }
 
         msg.content = newContent;
@@ -63,17 +75,15 @@ export function fixToolUseOrdering(messages) {
         ? msg.content
         : [{ type: "text", text: msg.content }];
 
-      // Put tool_result first, then other content
-      const toolResults = [
-        ...lastContent.filter((b) => b.type === "tool_result"),
-        ...msgContent.filter((b) => b.type === "tool_result"),
+      // Put user tool_result blocks first, then other content.
+      // Native assistant runtime/result blocks must keep relative order with action blocks.
+      const isToolResultBlock = (block) => block.type === "tool_result";
+      last.content = [
+        ...lastContent.filter((block) => isToolResultBlock(block)),
+        ...msgContent.filter((block) => isToolResultBlock(block)),
+        ...lastContent.filter((block) => !isToolResultBlock(block)),
+        ...msgContent.filter((block) => !isToolResultBlock(block)),
       ];
-      const otherContent = [
-        ...lastContent.filter((b) => b.type !== "tool_result"),
-        ...msgContent.filter((b) => b.type !== "tool_result"),
-      ];
-
-      last.content = [...toolResults, ...otherContent];
     } else {
       // Ensure content is array
       const content = Array.isArray(msg.content)
@@ -81,6 +91,31 @@ export function fixToolUseOrdering(messages) {
         : [{ type: "text", text: msg.content }];
       merged.push({ role: msg.role, content: [...content] });
     }
+  }
+
+  for (const msg of merged) {
+    if (msg.role !== "assistant" || !Array.isArray(msg.content)) {
+      continue;
+    }
+    const normalizedContent = [];
+    let foundAssistantAction = false;
+
+    for (const block of msg.content) {
+      if (isAssistantActionBlock(block)) {
+        foundAssistantAction = true;
+        normalizedContent.push(block);
+        continue;
+      }
+      if (block.type === "thinking" || block.type === "redacted_thinking") {
+        normalizedContent.push(block);
+        continue;
+      }
+      if (!foundAssistantAction) {
+        normalizedContent.push(block);
+      }
+    }
+
+    msg.content = normalizedContent;
   }
 
   return merged;
@@ -95,7 +130,7 @@ function ensureMessageContentArray(msg) {
   return [];
 }
 
-function markMessageCacheControl(msg, ttl) {
+function markMessageCacheControl(msg, ttl = undefined) {
   const content = ensureMessageContentArray(msg);
   if (content.length === 0) return false;
   const lastIndex = content.length - 1;
