@@ -2029,57 +2029,338 @@ components:
         messages:
           type: array
           items:
-            type: object
-            required: [role, content]
-            properties:
-              role:
-                type: string
-                enum: [system, user, assistant]
-              content:
-                type: string
+            $ref: "#/components/schemas/ChatCompletionMessageParam"
         stream:
           type: boolean
           default: false
+        stream_options:
+          type: object
+          properties:
+            include_usage:
+              type: boolean
+        response_format:
+          $ref: "#/components/schemas/ChatCompletionResponseFormat"
+        tools:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatCompletionTool"
+        tool_choice:
+          $ref: "#/components/schemas/ChatCompletionToolChoice"
+        parallel_tool_calls:
+          type: boolean
         temperature:
           type: number
           minimum: 0
           maximum: 2
+        top_p:
+          type: number
+        n:
+          type: integer
+        stop:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
         max_tokens:
           type: integer
+        max_completion_tokens:
+          type: integer
+        frequency_penalty:
+          type: number
+        presence_penalty:
+          type: number
+        logit_bias:
+          type: object
+          additionalProperties:
+            type: number
+        logprobs:
+          type: boolean
+        top_logprobs:
+          type: integer
+        seed:
+          type: integer
+        service_tier:
+          type: string
+          enum: [auto, default, flex, scale, priority]
+        store:
+          type: boolean
+        metadata:
+          type: object
+          additionalProperties: true
+        user:
+          type: string
+        reasoning_effort:
+          type: string
+          enum: [low, medium, high, max]
+        verbosity:
+          type: string
+        modalities:
+          type: array
+          items:
+            type: string
+        audio:
+          type: object
+          additionalProperties: true
+        prediction:
+          type: object
+          additionalProperties: true
+        functions:
+          type: array
+          description: Legacy function-calling format.
+          items:
+            type: object
+            additionalProperties: true
+        function_call:
+          description: Legacy function-calling selector.
+          oneOf:
+            - type: string
+            - type: object
+              additionalProperties: true
 
     ChatCompletionResponse:
       type: object
+      required: [id, object, created, model, choices]
       properties:
         id:
           type: string
         object:
           type: string
           example: chat.completion
+        created:
+          type: integer
+        model:
+          type: string
         choices:
           type: array
           items:
-            type: object
-            properties:
-              index:
-                type: integer
-              message:
-                type: object
-                properties:
-                  role:
-                    type: string
-                  content:
-                    type: string
-              finish_reason:
-                type: string
+            $ref: "#/components/schemas/ChatCompletionChoice"
         usage:
+          $ref: "#/components/schemas/ChatCompletionUsage"
+        system_fingerprint:
+          type: string
+        service_tier:
+          type: string
+        warnings:
+          type: array
+          items:
+            type: string
+
+    ChatCompletionMessageParam:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [developer, system, user, assistant, tool]
+        content:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+                additionalProperties: true
+        name:
+          type: string
+        tool_call_id:
+          type: string
+        tool_calls:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatCompletionToolCall"
+        function_call:
+          type: object
+          additionalProperties: true
+        refusal:
+          type: string
+        reasoning_content:
+          type: string
+
+    ChatCompletionMessage:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [assistant]
+        content:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+                additionalProperties: true
+        refusal:
+          type: string
+        tool_calls:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatCompletionToolCall"
+        function_call:
+          type: object
+          additionalProperties: true
+        reasoning_content:
+          type: string
+
+    ChatCompletionChoice:
+      type: object
+      properties:
+        index:
+          type: integer
+        message:
+          $ref: "#/components/schemas/ChatCompletionMessage"
+        logprobs:
+          nullable: true
+        finish_reason:
+          type: string
+          enum: [stop, length, tool_calls, content_filter, function_call]
+
+    ChatCompletionChunk:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          example: chat.completion.chunk
+        created:
+          type: integer
+        model:
+          type: string
+        choices:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatCompletionChunkChoice"
+        usage:
+          $ref: "#/components/schemas/ChatCompletionUsage"
+        system_fingerprint:
+          type: string
+        service_tier:
+          type: string
+
+    ChatCompletionChunkChoice:
+      type: object
+      properties:
+        index:
+          type: integer
+        delta:
           type: object
           properties:
-            prompt_tokens:
-              type: integer
-            completion_tokens:
-              type: integer
-            total_tokens:
-              type: integer
+            role:
+              type: string
+            content:
+              oneOf:
+                - type: string
+                - type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+            refusal:
+              type: string
+            reasoning_content:
+              type: string
+            tool_calls:
+              type: array
+              items:
+                $ref: "#/components/schemas/ChatCompletionToolCall"
+            function_call:
+              type: object
+              additionalProperties: true
+        logprobs:
+          nullable: true
+        finish_reason:
+          type: string
+          enum: [stop, length, tool_calls, content_filter, function_call]
+
+    ChatCompletionTool:
+      type: object
+      required: [type, function]
+      properties:
+        type:
+          type: string
+          enum: [function]
+        function:
+          type: object
+          required: [name]
+          properties:
+            name:
+              type: string
+            description:
+              type: string
+            parameters:
+              type: object
+              additionalProperties: true
+
+    ChatCompletionToolChoice:
+      oneOf:
+        - type: string
+          enum: [none, auto, required]
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [function]
+            function:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+
+    ChatCompletionToolCall:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [function]
+        function:
+          type: object
+          properties:
+            name:
+              type: string
+            arguments:
+              type: string
+
+    ChatCompletionResponseFormat:
+      oneOf:
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [text, json_object]
+        - type: object
+          required: [type, json_schema]
+          properties:
+            type:
+              type: string
+              enum: [json_schema]
+            json_schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                strict:
+                  type: boolean
+                schema:
+                  type: object
+                  additionalProperties: true
+
+    ChatCompletionUsage:
+      type: object
+      properties:
+        prompt_tokens:
+          type: integer
+        completion_tokens:
+          type: integer
+        total_tokens:
+          type: integer
+        prompt_tokens_details:
+          type: object
+          additionalProperties: true
+        completion_tokens_details:
+          type: object
+          additionalProperties: true
 
     MessagesRequest:
       type: object

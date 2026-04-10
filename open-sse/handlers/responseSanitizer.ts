@@ -4,11 +4,11 @@ import { unwrapOpenAIChatCompletionRoot } from "../utils/chatCompletionEnvelope.
  * Response Sanitizer — Normalizes LLM responses to strict OpenAI SDK format.
  *
  * Fixes Issues:
- * 1. Strips non-standard fields (x_groq, usage_breakdown, service_tier) that
- *    break OpenAI Python SDK v1.83+ Pydantic validation (returns str instead of object)
+ * 1. Strips non-standard fields (for example x_groq, usage_breakdown) that
+ *    break strict OpenAI SDK validation
  * 2. Extracts <think> tags from thinking models into reasoning_content
  * 3. Normalizes response id, object, and usage fields
- * 4. Converts developer role → system for non-OpenAI providers
+ * 4. Preserves official OpenAI chat-completions fields like service_tier
  */
 
 const ALLOWED_USAGE_FIELDS = new Set([
@@ -112,6 +112,11 @@ export function sanitizeOpenAIResponse(body: unknown): unknown {
   // Keep system_fingerprint if present (it's a valid OpenAI field)
   if (root.system_fingerprint) {
     sanitized.system_fingerprint = root.system_fingerprint;
+  }
+
+  // Keep service_tier if present (official OpenAI field)
+  if (root.service_tier !== undefined) {
+    sanitized.service_tier = root.service_tier;
   }
 
   return sanitized;
@@ -343,6 +348,7 @@ export function sanitizeStreamingChunk(parsed: unknown): unknown {
               delta.reasoning_content = parts.join("");
             }
           }
+          if (deltaRecord.refusal !== undefined) delta.refusal = deltaRecord.refusal;
           if (deltaRecord.tool_calls !== undefined) delta.tool_calls = deltaRecord.tool_calls;
           if (deltaRecord.function_call !== undefined)
             delta.function_call = deltaRecord.function_call;
@@ -366,6 +372,11 @@ export function sanitizeStreamingChunk(parsed: unknown): unknown {
   // Keep system_fingerprint if present
   if (parsedRecord.system_fingerprint) {
     sanitized.system_fingerprint = parsedRecord.system_fingerprint;
+  }
+
+  // Keep service_tier if present (official OpenAI field)
+  if (parsedRecord.service_tier !== undefined) {
+    sanitized.service_tier = parsedRecord.service_tier;
   }
 
   return sanitized;

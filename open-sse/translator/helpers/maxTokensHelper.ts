@@ -6,7 +6,8 @@ import { DEFAULT_MAX_TOKENS, DEFAULT_MIN_TOKENS } from "../../config/constants.t
  * @returns {number} Adjusted max_tokens
  */
 export function adjustMaxTokens(body) {
-  let maxTokens = body.max_tokens || DEFAULT_MAX_TOKENS;
+  const requestedMaxTokens = body.max_completion_tokens ?? body.max_tokens;
+  let maxTokens = requestedMaxTokens || DEFAULT_MAX_TOKENS;
 
   // Auto-increase for tool calling to prevent truncated arguments
   // Tool calls with large content (like writing files) need more tokens

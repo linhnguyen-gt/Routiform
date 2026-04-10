@@ -17,6 +17,16 @@ describe("adjustMaxTokens - negative values", () => {
     expect(result).toBe(4096);
   });
 
+  it("prefers max_completion_tokens when present", () => {
+    const result = adjustMaxTokens({ max_tokens: 4096, max_completion_tokens: 2048 });
+    expect(result).toBe(2048);
+  });
+
+  it("clamps negative max_completion_tokens to 1", () => {
+    const result = adjustMaxTokens({ max_completion_tokens: -1 });
+    expect(result).toBe(1);
+  });
+
   it("uses DEFAULT_MAX_TOKENS when max_tokens is 0 or undefined", () => {
     const result = adjustMaxTokens({});
     expect(result).toBeGreaterThan(0);

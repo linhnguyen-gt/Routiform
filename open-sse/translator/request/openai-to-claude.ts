@@ -151,6 +151,18 @@ export function openaiToClaudeRequest(model, body, stream) {
     messages: [],
   };
 
+  const normalizedTools = Array.isArray(body.tools)
+    ? body.tools
+    : Array.isArray(body.functions)
+      ? body.functions.map((fn) => ({ type: "function", function: fn }))
+      : undefined;
+  const normalizedToolChoice =
+    body.tool_choice !== undefined
+      ? body.tool_choice
+      : body.function_call !== undefined
+        ? convertLegacyFunctionCall(body.function_call)
+        : undefined;
+
   // Temperature
   if (body.temperature !== undefined) {
     result.temperature = body.temperature;
@@ -160,17 +172,19 @@ export function openaiToClaudeRequest(model, body, stream) {
   const systemParts = [];
 
   if (body.messages && Array.isArray(body.messages)) {
-    // Extract system messages (T15: handle both string and array content)
+    // Extract system/developer messages (T15: handle both string and array content)
     for (const msg of body.messages) {
-      if (msg.role === "system") {
+      if (msg.role === "system" || msg.role === "developer") {
         systemParts.push(
           typeof msg.content === "string" ? msg.content : normalizeContentToString(msg.content)
         );
       }
     }
 
-    // Filter out system messages for separate processing
-    const nonSystemMessages = body.messages.filter((m) => m.role !== "system");
+    // Filter out system/developer messages for separate processing
+    const nonSystemMessages = body.messages.filter(
+      (m) => m.role !== "system" && m.role !== "developer"
+    );
 
     // Process messages with merging logic
     // CRITICAL: tool_result must be in separate message immediately after tool_use
@@ -290,8 +304,8 @@ export function openaiToClaudeRequest(model, body, stream) {
   }
 
   // Tools - convert from OpenAI format to Claude format with prefix for OAuth
-  if (body.tools && Array.isArray(body.tools)) {
-    result.tools = body.tools
+  if (normalizedTools && Array.isArray(normalizedTools)) {
+    result.tools = normalizedTools
       .map((tool) => {
         const toolData = tool.type === "function" && tool.function ? tool.function : tool;
         const originalName = typeof toolData.name === "string" ? toolData.name.trim() : "";
@@ -337,8 +351,8 @@ export function openaiToClaudeRequest(model, body, stream) {
   }
 
   // Tool choice
-  if (body.tool_choice) {
-    result.tool_choice = convertOpenAIToolChoice(body.tool_choice);
+  if (normalizedToolChoice !== undefined) {
+    result.tool_choice = convertOpenAIToolChoice(normalizedToolChoice);
   }
 
   // response_format: inject JSON structured output instruction into system prompt.
@@ -415,6 +429,16 @@ function getContentBlocksFromMessage(msg, toolNameMap = new Map(), disableToolPr
     blocks.push({
       type: "tool_result",
       tool_use_id: msg.tool_call_id,
+      content: toolContent,
+    });
+  } else if (msg.role === "function") {
+    const normalizedToolContent = maybeConvertMediaToolResultToClaudeContent(msg.content);
+    const toolContent = Array.isArray(normalizedToolContent)
+      ? stripEmptyTextBlocks(normalizedToolContent)
+      : normalizedToolContent;
+    blocks.push({
+      type: "tool_result",
+      tool_use_id: `call_${String(msg.name || "function")}`,
       content: toolContent,
     });
   } else if (msg.role === "user") {
@@ -515,15 +539,36 @@ function getContentBlocksFromMessage(msg, toolNameMap = new Map(), disableToolPr
           });
         }
       }
+    } else if (msg.function_call?.name) {
+      const fnName = String(msg.function_call.name);
+      const toolName = disableToolPrefix ? fnName : CLAUDE_OAUTH_TOOL_PREFIX + fnName;
+      blocks.push({
+        type: "tool_use",
+        id: sanitizeToolId(`call_${fnName}`),
+        name: toolName,
+        input: tryParseJSON(msg.function_call.arguments),
+      });
     }
   }
 
   return blocks;
 }
 
+function convertLegacyFunctionCall(functionCall) {
+  if (functionCall === undefined || functionCall === null) return undefined;
+  if (functionCall === "auto" || functionCall === "none") return functionCall;
+  if (typeof functionCall === "object" && functionCall.name) {
+    return { type: "function", function: { name: functionCall.name } };
+  }
+  return functionCall;
+}
+
 // Convert OpenAI tool choice to Claude format
 function convertOpenAIToolChoice(choice) {
   if (!choice) return { type: "auto" };
+  if (typeof choice === "object" && choice.type === "function" && choice.function) {
+    return { type: "tool", name: choice.function.name };
+  }
   if (typeof choice === "object" && choice.type) return choice;
   if (choice === "auto" || choice === "none") return { type: "auto" };
   if (choice === "required") return { type: CLAUDE_TOOL_CHOICE_REQUIRED };

@@ -32,7 +32,7 @@ const inflight = new Map<string, Promise<unknown>>();
 
 /**
  * Compute a deterministic hash for a request body.
- * Includes: model, messages, temperature, tools, tool_choice, max_tokens, response_format
+ * Includes behavior-shaping request fields and response-shape flags.
  * Excludes: stream, user, metadata (don't affect LLM output)
  */
 export function computeRequestHash(requestBody: unknown): string {
@@ -42,9 +42,15 @@ export function computeRequestHash(requestBody: unknown): string {
     messages: body.messages ?? null,
     temperature: typeof body.temperature === "number" ? body.temperature : 1.0,
     tools: body.tools ?? null,
+    functions: body.functions ?? null,
     tool_choice: body.tool_choice ?? null,
+    function_call: body.function_call ?? null,
+    parallel_tool_calls: body.parallel_tool_calls ?? null,
     max_tokens: body.max_tokens ?? null,
+    max_completion_tokens: body.max_completion_tokens ?? null,
     response_format: body.response_format ?? null,
+    logprobs: body.logprobs ?? null,
+    top_logprobs: body.top_logprobs ?? null,
     top_p: body.top_p ?? null,
     frequency_penalty: body.frequency_penalty ?? null,
     presence_penalty: body.presence_penalty ?? null,

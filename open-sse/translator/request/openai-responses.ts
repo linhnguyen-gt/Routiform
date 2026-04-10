@@ -299,7 +299,7 @@ export function openaiToOpenAIResponsesRequest(
 
   const input = result.input as JsonRecord[];
 
-  // System messages → instructions (merge all system turns — OpenCode/Claude Code often send 2+)
+  // System/developer messages → instructions (merge all top-level instruction turns)
   let hasSystemMessage = false;
   const messages = toArray(root.messages);
 
@@ -307,7 +307,7 @@ export function openaiToOpenAIResponsesRequest(
     const msg = toRecord(messageValue);
     const role = toString(msg.role);
 
-    if (role === "system") {
+    if (role === "system" || role === "developer") {
       const text =
         typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content ?? "");
       if (!hasSystemMessage) {
@@ -494,8 +494,14 @@ export function openaiToOpenAIResponsesRequest(
   }
 
   // Convert tools format
-  if (Array.isArray(root.tools)) {
-    result.tools = root.tools.map((toolValue) => {
+  const requestTools = Array.isArray(root.tools)
+    ? root.tools
+    : Array.isArray(root.functions)
+      ? root.functions.map((fn) => ({ type: "function", function: fn }))
+      : undefined;
+
+  if (Array.isArray(requestTools)) {
+    result.tools = requestTools.map((toolValue) => {
       const tool = toRecord(toolValue);
       if (tool.type === "function") {
         const fn = toRecord(tool.function);
@@ -512,19 +518,28 @@ export function openaiToOpenAIResponsesRequest(
   }
 
   // Translate tool_choice: Chat {type,function:{name}} → Responses {type,name}
-  if (root.tool_choice !== undefined) {
-    if (typeof root.tool_choice === "string") {
-      result.tool_choice = root.tool_choice;
-    } else if (typeof root.tool_choice === "object" && !Array.isArray(root.tool_choice)) {
-      const tc = toRecord(root.tool_choice);
+  const requestToolChoice =
+    root.tool_choice !== undefined
+      ? root.tool_choice
+      : root.function_call !== undefined
+        ? root.function_call
+        : undefined;
+
+  if (requestToolChoice !== undefined) {
+    if (typeof requestToolChoice === "string") {
+      result.tool_choice = requestToolChoice;
+    } else if (typeof requestToolChoice === "object" && !Array.isArray(requestToolChoice)) {
+      const tc = toRecord(requestToolChoice);
       if (tc.type === "function" && tc.function) {
         const fn = toRecord(tc.function);
         result.tool_choice = { type: "function", name: fn.name };
+      } else if (tc.name) {
+        result.tool_choice = { type: "function", name: tc.name };
       } else {
-        result.tool_choice = root.tool_choice;
+        result.tool_choice = requestToolChoice;
       }
     } else {
-      result.tool_choice = root.tool_choice;
+      result.tool_choice = requestToolChoice;
     }
   }
 
@@ -532,6 +547,9 @@ export function openaiToOpenAIResponsesRequest(
   if (root.service_tier !== undefined) result.service_tier = root.service_tier;
   if (root.temperature !== undefined) result.temperature = root.temperature;
   if (root.max_tokens !== undefined) result.max_tokens = root.max_tokens;
+  if (root.max_completion_tokens !== undefined) {
+    result.max_completion_tokens = root.max_completion_tokens;
+  }
   if (root.top_p !== undefined) result.top_p = root.top_p;
 
   return result;

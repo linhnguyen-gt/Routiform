@@ -2371,8 +2371,8 @@ export async function handleChatCore({
     }
 
     // Sanitize response for OpenAI SDK compatibility
-    // Strips non-standard fields (x_groq, usage_breakdown, service_tier, etc.)
-    // Extracts <think> and <thinking> tags into reasoning_content
+    // Strips non-standard fields (x_groq, usage_breakdown, etc.) while preserving official ones
+    // such as service_tier and system_fingerprint, and extracts <think>/<thinking> tags.
     // Source format determines output shape. If we are outputting OpenAI shape or pseudo-OpenAI shape, sanitize.
     if (sourceFormat === FORMATS.OPENAI || sourceFormat === FORMATS.OPENAI_RESPONSES) {
       translatedResponse = sanitizeOpenAIResponse(translatedResponse);

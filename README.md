@@ -984,7 +984,6 @@ docker pull linhnguyen0944/routiform:cli
 docker run -d \
   --name routiform \
   --restart unless-stopped \
-  --stop-timeout 40 \
   -p 20128:20128 \
   -p 20129:20129 \
   -e DATA_DIR=/app/data \
@@ -999,29 +998,6 @@ docker run -d \
 
 This keeps the container running after reboot and lets **Dashboard -> CLI Tools -> Apply** write to the
 same config files your host CLIs actually use.
-
-If you do **not** mount those folders, Routiform will update files inside the container filesystem
-only (for example `/root/.claude/settings.json`), not `~/.claude/settings.json` on your host.
-
-**For Kiro provider (AWS SSO cache auto-import)**, mount your AWS config:
-
-```bash
-docker run -d \
-  --name routiform \
-  --restart unless-stopped \
-  --stop-timeout 40 \
-  -p 20128:20128 \
-  -p 20129:20129 \
-  -e DATA_DIR=/app/data \
-  -e INITIAL_PASSWORD="change-this-password" \
-  -v routiform-data:/app/data \
-  -v "$HOME/.claude:/root/.claude" \
-  -v "$HOME/.openclaw:/root/.openclaw" \
-  -v "$HOME/.config/opencode:/root/.config/opencode" \
-  -v "$HOME/.continue:/root/.continue" \
-  -v ~/.aws:/root/.aws:ro \
-  linhnguyen0944/routiform:cli
-```
 
 If you prefer a full `.env` file instead, copy `.env.example`, edit it, and add `--env-file .env` to the command above.
 
