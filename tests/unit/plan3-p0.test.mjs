@@ -307,11 +307,12 @@ test("CodexExecutor generates stable session_id from Codex request fingerprint",
     { provider: "codex" }
   );
 
-  assert.equal(transformed1.session_id, expectedSessionId);
-  assert.equal(transformed2.session_id, expectedSessionId);
+  // session_id is removed because upstream Codex API doesn't support it
+  assert.equal(transformed1.session_id, undefined);
+  assert.equal(transformed2.session_id, undefined);
 });
 
-test("CodexExecutor preserves client-provided session_id", () => {
+test("CodexExecutor removes client-provided session_id (upstream unsupported)", () => {
   const executor = new CodexExecutor();
   const transformed = executor.transformRequest(
     "gpt-5.1-codex",
@@ -324,7 +325,8 @@ test("CodexExecutor preserves client-provided session_id", () => {
     true
   );
 
-  assert.equal(transformed.session_id, "client-session-1");
+  // session_id is removed because upstream Codex API doesn't support it
+  assert.equal(transformed.session_id, undefined);
 });
 
 test("CodexExecutor reuses stable session_id across equivalent effort syntax", () => {
@@ -349,10 +351,12 @@ test("CodexExecutor reuses stable session_id across equivalent effort syntax", (
     true
   );
 
-  assert.equal(withSuffix.session_id, withReasoningEffort.session_id);
+  // session_id is removed because upstream Codex API doesn't support it
+  assert.equal(withSuffix.session_id, undefined);
+  assert.equal(withReasoningEffort.session_id, undefined);
 });
 
-test("CodexExecutor reuses stable session_id across equivalent string and array input", () => {
+test("CodexExecutor removes session_id for both string and array input", () => {
   const executor = new CodexExecutor();
   const stringInput = executor.transformRequest(
     "gpt-5.3-codex",
@@ -374,7 +378,9 @@ test("CodexExecutor reuses stable session_id across equivalent string and array 
     true
   );
 
-  assert.equal(stringInput.session_id, arrayInput.session_id);
+  // session_id is removed because upstream Codex API doesn't support it
+  assert.equal(stringInput.session_id, undefined);
+  assert.equal(arrayInput.session_id, undefined);
 });
 
 test("CodexExecutor does not request SSE accept header for compact requests", () => {

@@ -308,6 +308,9 @@ export class CodexExecutor extends BaseExecutor {
     delete body.messages;
     delete body.prompt;
 
+    // Remove session_id - generated for internal tracking but not supported by upstream Codex API
+    delete body.session_id;
+
     if (nativeCodexPassthrough) {
       return body;
     }
