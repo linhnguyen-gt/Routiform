@@ -1,0 +1,10 @@
+pre-commit:
+  commands:
+    lint-staged:
+      run: npx lint-staged
+    docs-sync:
+      run: node scripts/check-docs-sync.mjs
+    any-budget:
+      run: npm run check:any-budget:t11
+    unit-tests:
+      run: npm run test:unit

@@ -78,7 +78,7 @@
     "check": "npm run lint && npm run test",
     "prepublishOnly": "npm run build:cli",
     "postinstall": "node scripts/postinstall.mjs",
-    "prepare": "husky",
+    "prepare": "lefthook install",
     "system-info": "node scripts/system-info.mjs"
   },
   "dependencies": {
@@ -138,7 +138,7 @@
     "cross-env": "^10.1.0",
     "eslint": "^9.39.2",
     "eslint-config-next": "16.0.10",
-    "husky": "^9.1.7",
+    "lefthook": "^1.7.15",
     "jsdom": "^29.0.1",
     "lint-staged": "^16.2.7",
     "prettier": "^3.8.1",
