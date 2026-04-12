@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.9.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.9.0...v3.9.1) (2026-04-12)
+
+
+### Bug Fixes
+
+* **ci:** restore docker install and release notes ([2d00f05](https://github.com/linhnguyen-gt/Routiform/commit/2d00f056a7ec320c64811b54d681f502a106955f))
+
 ## [3.9.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.8.9...v3.9.0) (2026-04-12)
 
 
