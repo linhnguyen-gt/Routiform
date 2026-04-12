@@ -9,6 +9,8 @@ import { REGISTRY } from "../config/providerRegistry.ts";
 import { getModelContextLimit } from "../../src/lib/modelsDevSync";
 import { CONTEXT_CONFIG } from "../../src/shared/constants/context";
 
+type JsonRecord = Record<string, unknown>;
+
 // Default token limits per provider (fallbacks when not in registry)
 const DEFAULT_LIMITS: Record<string, number> = {
   claude: 200000,
@@ -316,9 +318,9 @@ export type CompressContextStats = {
  * @returns {{ body: object, compressed: boolean, stats: object }}
  */
 export function compressContext(
-  body,
+  body: JsonRecord,
   options: { provider?: string; model?: string; maxTokens?: number; reserveTokens?: number } = {}
-): { body: unknown; compressed: boolean; stats: CompressContextStats } {
+): { body: JsonRecord; compressed: boolean; stats: CompressContextStats } {
   if (!body || !body.messages || !Array.isArray(body.messages)) {
     const t = estimateRequestTokens(body);
     return {
@@ -392,8 +394,10 @@ export function compressContext(
   }
 
   // Layer 3: Aggressive purification — drop oldest messages keeping the newest content that still fits.
-  messages = purifyHistory(messages, (candidateMessages) =>
-    estimateRequestTokens({ ...body, messages: candidateMessages, tools }) <= targetTokens
+  messages = purifyHistory(
+    messages,
+    (candidateMessages) =>
+      estimateRequestTokens({ ...body, messages: candidateMessages, tools }) <= targetTokens
   );
   currentTokens = estimateRequestTokens(buildWorkingBody());
   stats.layers.push({ name: "purify_history", tokens: currentTokens });

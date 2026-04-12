@@ -152,6 +152,7 @@ jobs:
         id: notes
         run: |
           VERSION="${{ steps.version.outputs.version }}"
+          export VERSION
           echo "Extracting release notes for version: $VERSION"
           echo "First 20 lines of CHANGELOG.md:"
           head -20 CHANGELOG.md

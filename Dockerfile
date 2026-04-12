@@ -6,6 +6,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
+COPY open-sse/package.json ./open-sse/package.json
 COPY scripts/postinstall.mjs ./scripts/postinstall.mjs
 COPY scripts/native-binary-compat.mjs ./scripts/native-binary-compat.mjs
 RUN if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
