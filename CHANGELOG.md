@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.9.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.8.9...v3.9.0) (2026-04-12)
+
+
+### Features
+
+* **availability:** adaptive provider/model quarantine with exponential back-off ([1e0cf36](https://github.com/linhnguyen-gt/Routiform/commit/1e0cf366623efebc78f8172910b7e4594798a945)), closes [#1090](https://github.com/linhnguyen-gt/Routiform/issues/1090)
+* **combos:** persistent drag-to-reorder with sort_order column ([6b4f9ef](https://github.com/linhnguyen-gt/Routiform/commit/6b4f9efcabddaf0f37ecaaee8ebf04df35db2505)), closes [#1095](https://github.com/linhnguyen-gt/Routiform/issues/1095) [diegosouzapw/OmniRoute#1095](https://github.com/diegosouzapw/OmniRoute/issues/1095)
+
+
+### Bug Fixes
+
+* **codex:** remove unsupported session_id parameter ([477051d](https://github.com/linhnguyen-gt/Routiform/commit/477051d129a08675ca3c69308a9a8a7c3d3bea36))
+* **core:** resolve regressions and align docs ([56b295a](https://github.com/linhnguyen-gt/Routiform/commit/56b295a6f862c6273f2240b25005899a1be8d7db))
+* **logging:** cap retained logs and harden provider handling ([75c1f37](https://github.com/linhnguyen-gt/Routiform/commit/75c1f37aa923e75de6d12181512852dc87b3be65))
+* **open-sse:** resolve typecheck drift and restore fallback diagnostics ([a328b10](https://github.com/linhnguyen-gt/Routiform/commit/a328b10f53f71401ba9cbae58e3143a7bcadd6ee))
+* **postinstall:** improve Android Termux better-sqlite3 support ([fa3f082](https://github.com/linhnguyen-gt/Routiform/commit/fa3f08208bc5b718db9b3d4cc2d06750538e7aff))
+* **token-health:** align refresh failure health aggregation ([202c6ea](https://github.com/linhnguyen-gt/Routiform/commit/202c6ead1931d16ac9a0ddc989e2cfed40960497))
+
 ### [3.8.9](https://github.com/linhnguyen-gt/Routiform/compare/v3.8.7...v3.8.9) (2026-04-10)
 
 
