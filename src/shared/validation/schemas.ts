@@ -157,6 +157,10 @@ export const createComboSchema = z.object({
   requireToolCalling: z.boolean().optional(),
 });
 
+export const reorderCombosSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1, "At least one combo ID required"),
+});
+
 // ──── Auto-Combo Schemas ────
 
 export const createAutoComboSchema = z.object({

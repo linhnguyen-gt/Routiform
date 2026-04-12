@@ -452,7 +452,7 @@ export function openaiToClaudeRequest(model, body, stream) {
 }
 
 // Get content blocks from single message
-function getContentBlocksFromMessage(msg, toolNameMap = new Map(), disableToolPrefix = false) {
+function getContentBlocksFromMessage(msg, _toolNameMap = new Map(), disableToolPrefix = false) {
   const blocks = [];
 
   if (msg.role === "tool") {

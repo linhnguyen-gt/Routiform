@@ -69,7 +69,7 @@ class CostStrategyImpl implements RouterStrategy {
   readonly name = "cost";
   readonly description = "Always selects cheapest available provider (by costPer1MTokens)";
 
-  select(pool: ProviderCandidate[], context: RoutingContext): RoutingDecision {
+  select(pool: ProviderCandidate[], _context: RoutingContext): RoutingDecision {
     const healthy = pool.filter((c) => c.circuitBreakerState !== "OPEN");
     const candidates = healthy.length > 0 ? healthy : pool;
     const sorted = [...candidates].sort((a, b) => a.costPer1MTokens - b.costPer1MTokens);
@@ -92,7 +92,7 @@ class LatencyStrategyImpl implements RouterStrategy {
   readonly name = "latency";
   readonly description = "Prioritizes lowest p95 latency with reliability weighting";
 
-  select(pool: ProviderCandidate[], context: RoutingContext): RoutingDecision {
+  select(pool: ProviderCandidate[], _context: RoutingContext): RoutingDecision {
     const healthy = pool.filter((c) => c.circuitBreakerState !== "OPEN");
     const candidates = healthy.length > 0 ? healthy : pool;
     const sorted = [...candidates].sort((a, b) => {

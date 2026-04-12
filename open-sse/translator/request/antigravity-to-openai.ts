@@ -1,6 +1,7 @@
 import { register } from "../registry.ts";
 import { FORMATS } from "../formats.ts";
 import { adjustMaxTokens } from "../helpers/maxTokensHelper.ts";
+import { generateToolCallId } from "../helpers/toolCallHelper.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -170,7 +171,13 @@ function convertContent(content) {
     // Function call
     if (part.functionCall) {
       toolCalls.push({
-        id: part.functionCall.id || `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        id:
+          part.functionCall.id ||
+          generateToolCallId({
+            source: "antigravity-to-openai",
+            name: part.functionCall.name,
+            arguments: part.functionCall.args || {},
+          }),
         type: "function",
         function: {
           name: part.functionCall.name,

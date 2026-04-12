@@ -190,9 +190,6 @@ const KNOWN_SVGS = new Set([
   "inworld",
   "nanobanana",
   "oauth",
-  "opencode-go",
-  "opencode-zen",
-  "opencode",
   "playht",
   "pollinations",
   "puter",
@@ -204,6 +201,13 @@ const KNOWN_SVGS = new Set([
   "zai",
 ]);
 
+// Aliases cho các provider sharing cùng một icon file
+const PNG_ALIASES: Record<string, string> = {
+  opencode: "opencode.png",
+  "opencode-zen": "opencode.png",
+  "opencode-go": "opencode.png",
+};
+
 const ProviderIcon = memo(function ProviderIcon({
   providerId,
   size = 24,
@@ -213,8 +217,9 @@ const ProviderIcon = memo(function ProviderIcon({
 }: ProviderIconProps) {
   const normalizedId = providerId.toLowerCase();
   const lobehubId = LOBEHUB_PROVIDER_MAP[normalizedId] ?? null;
-  const hasPng = KNOWN_PNGS.has(normalizedId);
+  const hasPng = KNOWN_PNGS.has(normalizedId) || normalizedId in PNG_ALIASES;
   const hasSvg = KNOWN_SVGS.has(normalizedId);
+  const pngAlias = PNG_ALIASES[normalizedId];
 
   const [useLobehub, setUseLobehub] = useState(lobehubId !== null);
   const [usePng, setUsePng] = useState(hasPng);
@@ -234,13 +239,14 @@ const ProviderIcon = memo(function ProviderIcon({
   }
 
   if (usePng) {
+    const pngPath = pngAlias ?? `${normalizedId}.png`;
     return (
       <span
         className={className}
         style={{ display: "inline-flex", alignItems: "center", ...style }}
       >
         <Image
-          src={`/providers/${normalizedId}.png`}
+          src={`/providers/${pngPath}`}
           alt={providerId}
           width={size}
           height={size}

@@ -434,13 +434,13 @@ export function checkFallbackError(
   status,
   errorText,
   backoffLevel = 0,
-  model = null,
+  _model = null,
   provider = null,
   headers = null
 ) {
   const errorStr = (errorText || "").toString();
 
-  function parseResetFromHeaders(headers, errorStr = "") {
+  function parseResetFromHeaders(headers, _errorStr = "") {
     if (!headers) return null;
 
     // Retry-After header
@@ -772,7 +772,7 @@ export function applyErrorState(account, status, errorText, provider = null) {
  * @param {object} account
  * @returns {number} score 0 = unhealthy, 100 = perfectly healthy
  */
-export function getAccountHealth(account, model?: unknown) {
+export function getAccountHealth(account, _model?: unknown) {
   if (!account) return 0;
   let score = 100;
   score -= (account.backoffLevel || 0) * 10;

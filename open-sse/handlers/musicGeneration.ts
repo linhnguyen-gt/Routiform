@@ -26,7 +26,7 @@ import { saveCallLog } from "@/lib/usageDb";
 /**
  * Handle music generation request
  */
-export async function handleMusicGeneration({ body, credentials, log }) {
+export async function handleMusicGeneration({ body, _credentials, log }) {
   const { provider, model } = parseMusicModel(body.model);
 
   if (!provider) {

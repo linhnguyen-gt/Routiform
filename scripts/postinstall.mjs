@@ -127,15 +127,25 @@ try {
   console.warn(`  ⚠️  node-pre-gyp download failed: ${err.message.split("\n")[0]}`);
 }
 
-// Strategy 2: Fall back to npm rebuild (may work if build tools are available)
-console.log("  ⚠️  Attempting npm rebuild (requires build tools)...");
+// Strategy 2: Fall back to npm rebuild / source build (may work if build tools are available)
+const isAndroid = process.platform === "android";
+const rebuildCommand = isAndroid
+  ? "npm rebuild better-sqlite3 --build-from-source"
+  : "npm rebuild better-sqlite3";
+const rebuildTimeout = isAndroid ? 300_000 : 120_000;
+
+console.log(
+  isAndroid
+    ? "  ⚠️  Attempting better-sqlite3 source build for Android/Termux (requires build tools)..."
+    : "  ⚠️  Attempting npm rebuild (requires build tools)..."
+);
 
 try {
   const { execSync } = await import("node:child_process");
-  execSync("npm rebuild better-sqlite3", {
+  execSync(rebuildCommand, {
     cwd: join(ROOT, "app"),
     stdio: "inherit",
-    timeout: 120_000,
+    timeout: rebuildTimeout,
   });
 
   process.dlopen({ exports: {} }, appBinary);
@@ -144,9 +154,11 @@ try {
 } catch (err) {
   const isTimeout = err.killed || err.signal === "SIGTERM";
   if (isTimeout) {
-    console.warn("  ⚠️  npm rebuild timed out after 120s.");
+    console.warn(
+      `  ⚠️  ${isAndroid ? "better-sqlite3 source build" : "npm rebuild"} timed out after ${Math.floor(rebuildTimeout / 1000)}s.`
+    );
   } else {
-    console.warn(`  ⚠️  npm rebuild failed: ${err.message}`);
+    console.warn(`  ⚠️  ${isAndroid ? "better-sqlite3 source build" : "npm rebuild"} failed: ${err.message}`);
   }
 }
 

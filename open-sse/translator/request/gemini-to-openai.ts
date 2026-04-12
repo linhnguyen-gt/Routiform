@@ -1,6 +1,7 @@
 import { register } from "../registry.ts";
 import { FORMATS } from "../formats.ts";
 import { adjustMaxTokens } from "../helpers/maxTokensHelper.ts";
+import { generateToolCallId } from "../helpers/toolCallHelper.ts";
 
 // Convert Gemini request to OpenAI format
 export function geminiToOpenAIRequest(model, body, stream) {
@@ -105,7 +106,12 @@ function convertGeminiContent(content) {
 
     if (part.functionCall) {
       toolCalls.push({
-        id: `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        id: generateToolCallId({
+          source: "gemini-to-openai",
+          role,
+          name: part.functionCall.name,
+          arguments: part.functionCall.args || {},
+        }),
         type: "function",
         function: {
           name: part.functionCall.name,

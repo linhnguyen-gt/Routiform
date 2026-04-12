@@ -6,7 +6,7 @@ const {
   getDeprecationNotice,
   isDeprecated,
   setCustomAliases,
-  getCustomAliases,
+  _getCustomAliases,
   addCustomAlias,
   removeCustomAlias,
   getAllAliases,

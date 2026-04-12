@@ -10,7 +10,12 @@
  */
 
 import { getDbInstance } from "../db/core";
-import { getAppLogRetentionDays, getCallLogRetentionDays } from "../logEnv";
+import {
+  getAppLogRetentionDays,
+  getCallLogRetentionDays,
+  getCallLogMaxEntries,
+  getProxyLogMaxEntries,
+} from "../logEnv";
 
 /** @returns {import("better-sqlite3").Database | null} */
 function getDb() {
@@ -239,6 +244,8 @@ export function cleanupExpiredLogs() {
   const db = getDb();
   const appRetentionDays = getAppLogRetentionDays();
   const callRetentionDays = getCallLogRetentionDays();
+  const callLogMaxEntries = getCallLogMaxEntries();
+  const proxyLogMaxEntries = getProxyLogMaxEntries();
 
   if (!db) {
     return {
@@ -250,6 +257,8 @@ export function cleanupExpiredLogs() {
       deletedMcpAuditLogs: 0,
       appRetentionDays,
       callRetentionDays,
+      callLogMaxEntries,
+      proxyLogMaxEntries,
     };
   }
 
@@ -305,6 +314,50 @@ export function cleanupExpiredLogs() {
     /* table may not exist */
   }
 
+  try {
+    const overflow = db
+      .prepare("SELECT COUNT(*) - ? AS overflow FROM call_logs")
+      .get(callLogMaxEntries) as { overflow?: number };
+    const overflowRows = Math.max(0, overflow?.overflow ?? 0);
+    if (overflowRows > 0) {
+      const trimmed = db
+        .prepare(
+          `DELETE FROM call_logs
+           WHERE id IN (
+             SELECT id FROM call_logs
+             ORDER BY timestamp ASC, id ASC
+             LIMIT ?
+           )`
+        )
+        .run(overflowRows);
+      deletedCallLogs += trimmed.changes;
+    }
+  } catch {
+    /* table may not exist */
+  }
+
+  try {
+    const overflow = db
+      .prepare("SELECT COUNT(*) - ? AS overflow FROM proxy_logs")
+      .get(proxyLogMaxEntries) as { overflow?: number };
+    const overflowRows = Math.max(0, overflow?.overflow ?? 0);
+    if (overflowRows > 0) {
+      const trimmed = db
+        .prepare(
+          `DELETE FROM proxy_logs
+           WHERE id IN (
+             SELECT id FROM proxy_logs
+             ORDER BY timestamp ASC, id ASC
+             LIMIT ?
+           )`
+        )
+        .run(overflowRows);
+      deletedProxyLogs += trimmed.changes;
+    }
+  } catch {
+    /* table may not exist */
+  }
+
   logAuditEvent({
     action: "compliance.cleanup",
     details: {
@@ -316,6 +369,8 @@ export function cleanupExpiredLogs() {
       deletedMcpAuditLogs,
       appRetentionDays,
       callRetentionDays,
+      callLogMaxEntries,
+      proxyLogMaxEntries,
     },
   });
 
@@ -328,5 +383,7 @@ export function cleanupExpiredLogs() {
     deletedMcpAuditLogs,
     appRetentionDays,
     callRetentionDays,
+    callLogMaxEntries,
+    proxyLogMaxEntries,
   };
 }

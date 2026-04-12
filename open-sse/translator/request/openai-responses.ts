@@ -298,12 +298,27 @@ export function openaiToOpenAIResponsesRequest(
   };
 
   const input = result.input as JsonRecord[];
+  const pendingDeprecatedCallIds = new Map<string, string[]>();
+
+  function enqueueDeprecatedCallId(name: string, callId: string) {
+    const queue = pendingDeprecatedCallIds.get(name) || [];
+    queue.push(callId);
+    pendingDeprecatedCallIds.set(name, queue);
+  }
+
+  function dequeueDeprecatedCallId(name: string): string | undefined {
+    const queue = pendingDeprecatedCallIds.get(name);
+    if (!queue?.length) return undefined;
+    const callId = queue.shift();
+    if (queue.length === 0) pendingDeprecatedCallIds.delete(name);
+    return callId;
+  }
 
   // System/developer messages → instructions (merge all top-level instruction turns)
   let hasSystemMessage = false;
   const messages = toArray(root.messages);
 
-  for (const messageValue of messages) {
+  for (const [messageIndex, messageValue] of messages.entries()) {
     const msg = toRecord(messageValue);
     const role = toString(msg.role);
 
@@ -411,7 +426,8 @@ export function openaiToOpenAIResponsesRequest(
 
       // Convert tool_calls to function_call items
       if (Array.isArray(msg.tool_calls)) {
-        for (const toolCallValue of msg.tool_calls) {
+        for (let toolCallIndex = 0; toolCallIndex < msg.tool_calls.length; toolCallIndex++) {
+          const toolCallValue = msg.tool_calls[toolCallIndex];
           const toolCall = toRecord(toolCallValue);
           const fn = toRecord(toolCall.function);
           // Skip tool calls with empty names to avoid infinite placeholder_tool loops
@@ -419,11 +435,20 @@ export function openaiToOpenAIResponsesRequest(
           if (!fnName) {
             continue;
           }
+          const fnArguments = toString(fn.arguments, "{}");
           input.push({
             type: "function_call",
-            call_id: toString(toolCall.id).trim() || generateToolCallId(),
+            call_id:
+              toString(toolCall.id).trim() ||
+              generateToolCallId({
+                source: "openai-to-responses",
+                messageIndex,
+                toolCallIndex,
+                name: fnName,
+                arguments: fnArguments,
+              }),
             name: fnName,
-            arguments: toString(fn.arguments, "{}"),
+            arguments: fnArguments,
           });
         }
       }
@@ -433,11 +458,19 @@ export function openaiToOpenAIResponsesRequest(
         const fc = toRecord(msg.function_call);
         const fnName = toString(fc.name).trim();
         if (fnName) {
+          const fnArguments = toString(fc.arguments, "{}");
+          const callId = generateToolCallId({
+            source: "openai-to-responses-deprecated-function-call",
+            messageIndex,
+            name: fnName,
+            arguments: fnArguments,
+          });
+          enqueueDeprecatedCallId(fnName, callId);
           input.push({
             type: "function_call",
-            call_id: `call_${fnName}`,
+            call_id: callId,
             name: fnName,
-            arguments: toString(fc.arguments, "{}"),
+            arguments: fnArguments,
           });
         }
       }
@@ -464,10 +497,19 @@ export function openaiToOpenAIResponsesRequest(
 
     // Handle deprecated function role messages
     if (role === "function") {
+      const functionName = toString(msg.name).trim();
+      const output = typeof msg.content === "string" ? msg.content : String(msg.content ?? "");
       input.push({
         type: "function_call_output",
-        call_id: `call_${toString(msg.name)}`,
-        output: typeof msg.content === "string" ? msg.content : String(msg.content ?? ""),
+        call_id:
+          dequeueDeprecatedCallId(functionName) ||
+          generateToolCallId({
+            source: "openai-to-responses-deprecated-function-output",
+            messageIndex,
+            name: functionName,
+            output,
+          }),
+        output,
       });
     }
   }

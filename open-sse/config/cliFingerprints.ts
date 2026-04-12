@@ -247,7 +247,7 @@ export function orderHeaders(
   if (!headerOrder?.length || !headers) return headers;
 
   const result: Record<string, string> = {};
-  const remaining = new Map<string, string>();
+  const _remaining = new Map<string, string>();
 
   // Build case-insensitive lookup
   const headerMap = new Map<string, [string, string]>();

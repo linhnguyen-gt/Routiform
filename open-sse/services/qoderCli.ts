@@ -1,8 +1,8 @@
-import { spawn } from "child_process";
+import { spawn as _spawn } from "child_process";
 import crypto from "crypto";
 
-const DEFAULT_TIMEOUT_MS = 45_000;
-const DEFAULT_MAX_TURNS = "1";
+const _DEFAULT_TIMEOUT_MS = 45_000;
+const _DEFAULT_MAX_TURNS = "1";
 const QODER_DEFAULT_MODEL = "qwen-coder-qoder-1.0";
 
 export const QODER_STATIC_MODELS = [
@@ -18,7 +18,7 @@ export const QODER_STATIC_MODELS = [
 
 type JsonRecord = Record<string, unknown>;
 
-type QoderCliRunOptions = {
+type _QoderCliRunOptions = {
   token: string;
   prompt: string;
   stream: boolean;
@@ -29,7 +29,7 @@ type QoderCliRunOptions = {
   timeoutMs?: number;
 };
 
-type QoderCliRunResult = {
+type _QoderCliRunResult = {
   ok: boolean;
   code: number | null;
   stdout: string;

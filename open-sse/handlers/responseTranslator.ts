@@ -1,4 +1,5 @@
 import { FORMATS } from "../translator/formats.ts";
+import { generateToolCallId } from "../translator/helpers/toolCallHelper.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -130,14 +131,19 @@ export function translateNonStreamingResponse(
           }
         }
       } else if (itemObj.type === "function_call") {
-        const callId =
-          toString(itemObj.call_id) ||
-          toString(itemObj.id) ||
-          `call_${Date.now()}_${toolCalls.length}`;
         const fnArgs =
           typeof itemObj.arguments === "string"
             ? itemObj.arguments
             : JSON.stringify(itemObj.arguments || {});
+        const callId =
+          toString(itemObj.call_id) ||
+          toString(itemObj.id) ||
+          generateToolCallId({
+            source: "responses-json-message",
+            index: toolCalls.length,
+            name: itemObj.name,
+            arguments: fnArgs,
+          });
         const rawName = toString(itemObj.name);
         // Strip Claude OAuth proxy_ prefix using toolNameMap
         const resolvedName = resolveToolName(rawName, toolNameMap);
@@ -256,12 +262,19 @@ export function translateNonStreamingResponse(
           }
           if (partObj.functionCall) {
             const fn = toRecord(partObj.functionCall);
+            const fnName = toString(fn.name);
+            const fnArguments = JSON.stringify(fn.args || {});
             toolCalls.push({
-              id: `call_${toString(fn.name, "unknown")}_${Date.now()}_${toolCalls.length}`,
+              id: generateToolCallId({
+                source: "response-translator-candidate-part",
+                index: toolCalls.length,
+                name: fnName,
+                arguments: fnArguments,
+              }),
               type: "function",
               function: {
-                name: toString(fn.name),
-                arguments: JSON.stringify(fn.args || {}),
+                name: fnName,
+                arguments: fnArguments,
               },
             });
           }
@@ -343,7 +356,14 @@ export function translateNonStreamingResponse(
           const rawName = toString(blockObj.name);
           const strippedName = resolveToolName(rawName, toolNameMap);
           toolCalls.push({
-            id: toString(blockObj.id, `call_${Date.now()}_${toolCalls.length}`),
+            id:
+              toString(blockObj.id) ||
+              generateToolCallId({
+                source: "claude-message-content",
+                index: toolCalls.length,
+                name: strippedName,
+                arguments: blockObj.input || {},
+              }),
             type: "function",
             function: {
               name: strippedName,
@@ -436,7 +456,7 @@ function convertOpenAINonStreamingToClaude(openaiResponse: JsonRecord): JsonReco
   }
 
   // Always include text if it exists (even empty string), or if there are no tool calls and no reasoning
-  const hasToolCalls = Array.isArray(messageObj.tool_calls) && messageObj.tool_calls.length > 0;
+  const _hasToolCalls = Array.isArray(messageObj.tool_calls) && messageObj.tool_calls.length > 0;
 
   if (messageObj.content !== undefined && messageObj.content !== null) {
     hasTextOrReasoning = true;
@@ -458,7 +478,14 @@ function convertOpenAINonStreamingToClaude(openaiResponse: JsonRecord): JsonReco
       const fn = toRecord(toolObj.function);
       content.push({
         type: "tool_use",
-        id: toString(toolObj.id, `call_${Date.now()}`),
+        id:
+          toString(toolObj.id) ||
+          generateToolCallId({
+            source: "openai-to-claude-response",
+            index: content.length,
+            name: fn.name,
+            arguments: fn.arguments || {},
+          }),
         name: toString(fn.name),
         input:
           typeof fn.arguments === "string" ? JSON.parse(fn.arguments || "{}") : fn.arguments || {},

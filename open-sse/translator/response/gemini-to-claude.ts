@@ -1,5 +1,6 @@
 import { register } from "../registry.ts";
 import { FORMATS } from "../formats.ts";
+import { generateToolUseId } from "../helpers/toolCallHelper.ts";
 
 /**
  * Direct Gemini → Claude response translator.
@@ -81,7 +82,14 @@ export function geminiToClaudeResponse(chunk, state) {
         }
         const fc = part.functionCall;
         const idx = state.contentBlockIndex++;
-        const toolId = fc.id || `toolu_${Date.now()}_${idx}`;
+        const toolId =
+          fc.id ||
+          generateToolUseId({
+            source: "gemini-to-claude",
+            index: idx,
+            name: fc.name,
+            arguments: fc.args || {},
+          });
 
         results.push({
           type: "content_block_start",

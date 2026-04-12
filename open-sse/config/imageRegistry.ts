@@ -152,7 +152,7 @@ export function parseImageModel(modelStr) {
   if (!modelStr) return { provider: null, model: null };
 
   // Try each provider prefix
-  for (const [providerId, config] of Object.entries(IMAGE_PROVIDERS)) {
+  for (const [providerId, _config] of Object.entries(IMAGE_PROVIDERS)) {
     if (modelStr.startsWith(providerId + "/")) {
       return { provider: providerId, model: modelStr.slice(providerId.length + 1) };
     }

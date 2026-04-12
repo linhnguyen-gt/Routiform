@@ -26,7 +26,7 @@ export function parseSSELine(line) {
 
   try {
     return JSON.parse(data);
-  } catch (error) {
+  } catch (_error) {
     if (data.length > 0) {
       console.log(
         `[WARN] Failed to parse SSE line (${data.length} chars): ${data.substring(0, 200)}...`
@@ -109,7 +109,7 @@ export function fixInvalidId(parsed) {
 // Remove null perf_metrics from usage (common across formats)
 function cleanPerfMetrics(data) {
   if (data?.usage && typeof data.usage === "object" && data.usage.perf_metrics === null) {
-    const { perf_metrics, ...usageWithoutPerf } = data.usage;
+    const { perf_metrics: _perf_metrics, ...usageWithoutPerf } = data.usage;
     return { ...data, usage: usageWithoutPerf };
   }
   return data;

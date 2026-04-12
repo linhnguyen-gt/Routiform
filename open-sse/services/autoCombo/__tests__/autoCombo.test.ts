@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { calculateFactors, calculateScore, DEFAULT_WEIGHTS, validateWeights } from "../scoring";
-import type { ProviderCandidate, ScoringWeights } from "../scoring";
+import type { ProviderCandidate, _ScoringWeights } from "../scoring";
 import { getTaskFitness, getTaskTypes } from "../taskFitness";
 import { SelfHealingManager } from "../selfHealing";
 import { MODE_PACKS, getModePack, getModePackNames } from "../modePacks";

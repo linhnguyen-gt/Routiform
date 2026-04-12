@@ -195,7 +195,7 @@ describe("CliproxyapiExecutor", () => {
 
     it("should handle rate limited response", async () => {
       globalThis.fetch = async () => ({ status: 429, ok: false });
-      const log = { warn: (tag, msg) => {} };
+      const log = { warn: (_tag, _msg) => {} };
       let logged = false;
       log.warn = () => {
         logged = true;
@@ -210,6 +210,7 @@ describe("CliproxyapiExecutor", () => {
         log,
       });
 
+      assert.equal(logged, true);
       assert.equal(result.response.status, 429);
     });
 

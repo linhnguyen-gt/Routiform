@@ -463,6 +463,33 @@ export async function saveCallLog(entry: any) {
         ).run(artifactRelPath, protectedPipelinePayloads ? 1 : 0, logEntry.id);
       }
     }
+
+    const overflow = db
+      .prepare("SELECT COUNT(*) - ? AS overflow FROM call_logs")
+      .get(getCallLogMaxEntries()) as { overflow?: number };
+    const overflowRows = Math.max(0, overflow?.overflow ?? 0);
+    if (overflowRows > 0) {
+      // Get the IDs that will be deleted from call_logs first
+      const evictedIds = db
+        .prepare(
+          `SELECT id FROM call_logs
+           ORDER BY timestamp ASC, id ASC
+           LIMIT ?`
+        )
+        .all(overflowRows) as { id: string }[];
+
+      const idsToDelete = evictedIds.map((row) => row.id);
+      if (idsToDelete.length > 0) {
+        // First delete from request_detail_logs (the child table with foreign key reference to call_log_id)
+        const placeholders = idsToDelete.map(() => "?").join(",");
+        db.prepare(`DELETE FROM request_detail_logs WHERE call_log_id IN (${placeholders})`).run(
+          ...idsToDelete
+        );
+
+        // Then delete from call_logs
+        db.prepare(`DELETE FROM call_logs WHERE id IN (${placeholders})`).run(...idsToDelete);
+      }
+    }
   } catch (error) {
     console.error("[callLogs] Failed to save call log:", (error as Error).message);
   }

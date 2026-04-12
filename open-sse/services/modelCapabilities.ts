@@ -59,7 +59,8 @@ function getRegistryReasoningFlag(providerIdOrAlias: string, modelId: string): b
   if (!Array.isArray(models)) return null;
   const found = models.find((m) => m?.id === modelId);
   if (!found) return null;
-  return typeof found.supportsReasoning === "boolean" ? found.supportsReasoning : null;
+  const reasoningFlag = (found as unknown as Record<string, unknown>).supportsReasoning;
+  return typeof reasoningFlag === "boolean" ? reasoningFlag : null;
 }
 
 /**

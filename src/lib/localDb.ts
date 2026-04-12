@@ -76,6 +76,7 @@ export {
   createCombo,
   updateCombo,
   deleteCombo,
+  reorderCombos,
 } from "./db/combos";
 
 export {

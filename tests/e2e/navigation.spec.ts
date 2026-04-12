@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Dashboard Navigation", () => {
   test("redirects unauthenticated user to /login", async ({ page }) => {
-    const response = await page.goto("/dashboard");
+    const _response = await page.goto("/dashboard");
     // Should either show login page or redirect to /login
     await page.waitForURL(/\/(login|dashboard)/);
     const url = page.url();

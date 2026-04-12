@@ -21,6 +21,10 @@ type UpdateStep = {
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function isRefreshFailureWarning(conn: any) {
+  return conn.isActive !== false && conn.lastErrorType === "token_refresh_failed";
+}
+
 function mergeUpdateStep(steps: UpdateStep[], nextStep: UpdateStep) {
   const idx = steps.findIndex((step) => step.step === nextStep.step);
   if (idx === -1) {
@@ -97,14 +101,17 @@ export default function HomePageClient({ machineId }) {
           conn.isActive !== false &&
           (conn.testStatus === "active" ||
             conn.testStatus === "success" ||
-            conn.testStatus === "unknown")
+            conn.testStatus === "unknown" ||
+            isRefreshFailureWarning(conn))
       ).length;
+      const warnings = connections.filter((conn) => isRefreshFailureWarning(conn)).length;
       const errors = connections.filter(
         (conn) =>
           conn.isActive !== false &&
           (conn.testStatus === "error" ||
             conn.testStatus === "expired" ||
-            conn.testStatus === "unavailable")
+            conn.testStatus === "unavailable") &&
+          !isRefreshFailureWarning(conn)
       ).length;
 
       const providerKeys = new Set([providerId, providerInfo.alias].filter(Boolean));
@@ -121,6 +128,7 @@ export default function HomePageClient({ machineId }) {
         provider: providerInfo,
         total: connections.length,
         connected,
+        warnings,
         errors,
         modelCount: providerModels.length,
         authType,
@@ -737,7 +745,13 @@ function ProviderOverviewCard({ item, metrics, onClick }) {
   const tc = useTranslations("common");
 
   const statusVariant =
-    item.errors > 0 ? "text-red-500" : item.connected > 0 ? "text-green-500" : "text-text-muted";
+    item.errors > 0
+      ? "text-red-500"
+      : item.warnings > 0
+        ? "text-amber-500"
+        : item.connected > 0
+          ? "text-green-500"
+          : "text-text-muted";
 
   const authTypeConfig = {
     free: { color: "bg-green-500", label: tc("free") },
@@ -770,7 +784,11 @@ function ProviderOverviewCard({ item, metrics, onClick }) {
           <p className={`text-xs ${statusVariant}`}>
             {item.total === 0
               ? tc("notConfigured")
-              : t("activeError", { active: item.connected, errors: item.errors })}
+              : item.errors > 0
+                ? t("activeError", { active: item.connected, errors: item.errors })
+                : item.warnings > 0
+                  ? `${item.connected} ${tc("active")} · ${item.warnings} ${tc("warning")}`
+                  : `${item.connected} ${tc("active")}`}
           </p>
           {metrics && metrics.totalRequests > 0 && (
             <div className="flex items-center gap-2 mt-0.5">

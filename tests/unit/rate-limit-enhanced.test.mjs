@@ -14,7 +14,7 @@ const {
   getBackoffDuration,
   getAccountHealth,
   isAccountUnavailable,
-  getUnavailableUntil,
+  _getUnavailableUntil,
   formatRetryAfter,
   filterAvailableAccounts,
   resetAccountState,

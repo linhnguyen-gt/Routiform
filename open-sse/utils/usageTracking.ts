@@ -243,11 +243,44 @@ export function filterUsageForFormat(usage, targetFormat) {
 export function normalizeUsage(usage) {
   if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
 
-  const normalized = {};
-  const assignNumber = (key, value) => {
+  type UsageDetails = Record<string, number>;
+  type NormalizedUsage = {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+    cached_tokens?: number;
+    reasoning_tokens?: number;
+    prompt_tokens_details?: UsageDetails;
+    completion_tokens_details?: UsageDetails;
+  };
+
+  const normalized: NormalizedUsage = {};
+  type NumericUsageKey = Exclude<
+    keyof NormalizedUsage,
+    "prompt_tokens_details" | "completion_tokens_details"
+  >;
+  const assignNumber = (key: NumericUsageKey, value: unknown) => {
     if (value === undefined || value === null) return;
     const numeric = Number(value);
     if (Number.isFinite(numeric)) normalized[key] = numeric;
+  };
+
+  const normalizeDetails = (
+    details: unknown,
+    mapping: ReadonlyArray<readonly [string, string]>
+  ): UsageDetails | undefined => {
+    if (!details || typeof details !== "object" || Array.isArray(details)) return undefined;
+    const detailRecord = details as Record<string, unknown>;
+    const normalizedDetails: UsageDetails = {};
+    for (const [fromKey, toKey] of mapping) {
+      const value = detailRecord[fromKey];
+      if (value === undefined || value === null) continue;
+      const numeric = Number(value);
+      if (Number.isFinite(numeric)) normalizedDetails[toKey] = numeric;
+    }
+    return Object.keys(normalizedDetails).length > 0 ? normalizedDetails : undefined;
   };
 
   assignNumber("prompt_tokens", usage?.prompt_tokens);
@@ -257,6 +290,22 @@ export function normalizeUsage(usage) {
   assignNumber("cache_creation_input_tokens", usage?.cache_creation_input_tokens);
   assignNumber("cached_tokens", usage?.cached_tokens);
   assignNumber("reasoning_tokens", usage?.reasoning_tokens);
+
+  const usageRecord = usage as Record<string, unknown> & {
+    prompt_tokens_details?: Record<string, unknown>;
+    completion_tokens_details?: Record<string, unknown>;
+  };
+  const promptDetails = normalizeDetails(usageRecord.prompt_tokens_details, [
+    ["cached_tokens", "cached_tokens"],
+    ["cache_creation_tokens", "cache_creation_tokens"],
+    ["cache_write_tokens", "cache_write_tokens"],
+  ]);
+  if (promptDetails) normalized.prompt_tokens_details = promptDetails;
+
+  const completionDetails = normalizeDetails(usageRecord.completion_tokens_details, [
+    ["reasoning_tokens", "reasoning_tokens"],
+  ]);
+  if (completionDetails) normalized.completion_tokens_details = completionDetails;
 
   if (Object.keys(normalized).length === 0) return null;
   return normalized;
@@ -340,6 +389,18 @@ export function extractUsage(chunk) {
       completion_tokens: usage.output_tokens || usage.completion_tokens || 0,
       cached_tokens: usage.input_tokens_details?.cached_tokens,
       reasoning_tokens: usage.output_tokens_details?.reasoning_tokens,
+      prompt_tokens_details: usage.input_tokens_details
+        ? {
+            cached_tokens: usage.input_tokens_details.cached_tokens,
+            cache_creation_tokens: usage.input_tokens_details.cache_creation_tokens,
+            cache_write_tokens: usage.input_tokens_details.cache_write_tokens,
+          }
+        : undefined,
+      completion_tokens_details: usage.output_tokens_details
+        ? {
+            reasoning_tokens: usage.output_tokens_details.reasoning_tokens,
+          }
+        : undefined,
     });
   }
 
@@ -349,11 +410,21 @@ export function extractUsage(chunk) {
     typeof chunk.usage === "object" &&
     (chunk.usage.prompt_tokens !== undefined || chunk.usage.input_tokens !== undefined)
   ) {
+    const chunkUsage = chunk.usage as Record<string, unknown> & {
+      prompt_tokens?: unknown;
+      input_tokens?: unknown;
+      completion_tokens?: unknown;
+      output_tokens?: unknown;
+      prompt_tokens_details?: Record<string, unknown>;
+      completion_tokens_details?: Record<string, unknown>;
+    };
     return normalizeUsage({
-      prompt_tokens: chunk.usage.prompt_tokens ?? chunk.usage.input_tokens ?? 0,
-      completion_tokens: chunk.usage.completion_tokens ?? chunk.usage.output_tokens ?? 0,
-      cached_tokens: chunk.usage.prompt_tokens_details?.cached_tokens,
-      reasoning_tokens: chunk.usage.completion_tokens_details?.reasoning_tokens,
+      prompt_tokens: chunkUsage.prompt_tokens ?? chunkUsage.input_tokens ?? 0,
+      completion_tokens: chunkUsage.completion_tokens ?? chunkUsage.output_tokens ?? 0,
+      cached_tokens: chunkUsage.prompt_tokens_details?.cached_tokens,
+      reasoning_tokens: chunkUsage.completion_tokens_details?.reasoning_tokens,
+      prompt_tokens_details: chunkUsage.prompt_tokens_details,
+      completion_tokens_details: chunkUsage.completion_tokens_details,
     });
   }
 
@@ -425,14 +496,14 @@ export function estimateInputTokens(body) {
       const toolStr = JSON.stringify(body.tools);
       toolTokens = Math.ceil(toolStr.length / CHARS_PER_TOKEN_SCHEMA);
       // Estimate messages without tools
-      const { tools, ...bodyWithoutTools } = body;
+      const { tools: _tools, ...bodyWithoutTools } = body;
       messageTokens = estimateTokenCount(JSON.stringify(bodyWithoutTools));
     } else {
       messageTokens = estimateTokenCount(JSON.stringify(body));
     }
 
     return messageTokens + toolTokens;
-  } catch (err) {
+  } catch (_err) {
     // Fallback if stringify fails
     return 0;
   }
@@ -486,7 +557,7 @@ export function estimateUsage(body, contentLength, targetFormat = FORMATS.OPENAI
 /**
  * Log usage with cache info (green color)
  */
-export function logUsage(provider, usage, model = null, connectionId = null, apiKeyInfo = null) {
+export function logUsage(provider, usage, model = null, connectionId = null, _apiKeyInfo = null) {
   if (!usage || typeof usage !== "object") return;
 
   const p = provider?.toUpperCase() || "UNKNOWN";

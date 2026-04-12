@@ -1,5 +1,5 @@
 import { BaseExecutor } from "./base.ts";
-import { PROVIDERS, OAUTH_ENDPOINTS } from "../config/constants.ts";
+import { PROVIDERS, OAUTH_ENDPOINTS as _OAUTH_ENDPOINTS } from "../config/constants.ts";
 import { getAccessToken } from "../services/tokenRefresh.ts";
 import { getRotatingApiKey } from "../services/apiKeyRotator.ts";
 import {
@@ -156,7 +156,7 @@ export class DefaultExecutor extends BaseExecutor {
    * Models may legitimately contain "/" as part of their ID (e.g. "zai-org/GLM-5-FP8",
    * "org/model-name") — we must NOT strip path segments. (Fix #493)
    */
-  transformRequest(model, body, stream, credentials) {
+  transformRequest(model, body, _stream, _credentials) {
     return body;
   }
 

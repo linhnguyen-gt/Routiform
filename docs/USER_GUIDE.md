@@ -247,6 +247,17 @@ Models:
 Cost: $0 forever!
 ```
 
+### Reordering Combos
+
+Drag combo cards to reorder them in the dashboard. The order is persisted automatically and synced to cloud if enabled.
+
+```bash
+# API: Reorder combos programmatically
+curl -X POST http://localhost:20128/api/combos/reorder \
+  -H "Content-Type: application/json" \
+  -d '{"ids": ["11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222", "33333333-3333-3333-3333-333333333333"]}'
+```
+
 ---
 
 ## 🔧 CLI Integration
@@ -522,6 +533,8 @@ post_install() {
 | `ALLOW_API_KEY_REVEAL`                  | `false`                              | Allow Api Manager to copy full API keys on demand                                                         |
 | `PROVIDER_LIMITS_SYNC_INTERVAL_MINUTES` | `70`                                 | Server-side refresh cadence for cached Provider Limits data; UI refresh buttons still trigger manual sync |
 | `DISABLE_SQLITE_AUTO_BACKUP`            | `false`                              | Disable automatic SQLite snapshots before writes/import/restore; manual backups still work                |
+| `CALL_LOG_MAX_ENTRIES`                  | `10000`                              | Maximum retained rows in `call_logs`; oldest rows are trimmed when the cap is exceeded                    |
+| `PROXY_LOG_MAX_ENTRIES`                 | `10000`                              | Maximum retained rows in `proxy_logs`; oldest rows are trimmed when the cap is exceeded                   |
 | `ENABLE_REQUEST_LOGS`                   | `false`                              | Enables request/response logs                                                                             |
 | `AUTH_COOKIE_SECURE`                    | `false`                              | Force `Secure` auth cookie (behind HTTPS reverse proxy)                                                   |
 | `CLOUDFLARED_BIN`                       | unset                                | Use an existing `cloudflared` binary instead of managed download                                          |

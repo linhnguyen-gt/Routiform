@@ -177,6 +177,8 @@ export function getDailyTotal(apiKeyId: string): number {
   }
 }
 
+export const _getDailyTotal = getDailyTotal;
+
 /**
  * Get cost summary for an API key.
  *

@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomUUID as _randomUUID } from "crypto";
 /**
  * Shared Registry Utilities
  *

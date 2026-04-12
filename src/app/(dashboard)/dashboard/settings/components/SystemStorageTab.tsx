@@ -39,6 +39,10 @@ export default function SystemStorageTab() {
       app: 7,
       call: 7,
     },
+    tableMaxRows: {
+      call: 10000,
+      proxy: 10000,
+    },
     lastBackupAt: null,
   });
 
@@ -413,12 +417,18 @@ export default function SystemStorageTab() {
               follow <code>APP_LOG_RETENTION_DAYS</code>.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Badge variant="default" size="sm">
               Call {storageHealth.retentionDays.call}d
             </Badge>
             <Badge variant="default" size="sm">
               App {storageHealth.retentionDays.app}d
+            </Badge>
+            <Badge variant="info" size="sm">
+              Call max {storageHealth.tableMaxRows.call}
+            </Badge>
+            <Badge variant="info" size="sm">
+              Proxy max {storageHealth.tableMaxRows.proxy}
             </Badge>
           </div>
         </div>

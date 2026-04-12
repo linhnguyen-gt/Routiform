@@ -1,6 +1,5 @@
 import { recordCost } from "@/domain/costRules";
 import { getCacheControlSettings } from "@/lib/cacheControlSettings";
-import { logAuditEvent } from "@/lib/compliance";
 import { isDetailedLoggingEnabled } from "@/lib/db/detailedLogs";
 import { updateProviderConnection } from "@/lib/db/providers";
 import {
@@ -32,7 +31,6 @@ import { detectFormatFromEndpoint, getTargetFormat } from "../services/provider.
 import { refreshWithRetry } from "../services/tokenRefresh.ts";
 import { FORMATS } from "../translator/formats.ts";
 import { needsTranslation, translateRequest } from "../translator/index.ts";
-import { CLAUDE_OAUTH_TOOL_PREFIX } from "../translator/request/openai-to-claude.ts";
 import { handleBypassRequest } from "../utils/bypassHandler.ts";
 import {
   providerSupportsCaching,
@@ -53,61 +51,37 @@ import {
 } from "../utils/stream.ts";
 import { createStreamController, pipeWithDisconnect } from "../utils/streamHandler.ts";
 import { addBufferToUsage, estimateUsage, filterUsageForFormat } from "../utils/usageTracking.ts";
+import { handleIdempotencyCheck } from "./phases/idempotency-check.ts";
+import { sanitizeRequestInput } from "./phases/input-sanitizer.ts";
+import { checkSemanticCache } from "./phases/semantic-cache-handler.ts";
+import { persistCodexQuotaState } from "./services/codex-quota-manager.ts";
+import {
+  attachLogMeta,
+  buildCacheUsageLogMeta,
+  buildClaudePromptCacheLogMeta,
+} from "./utils/cache-log-helpers.ts";
+import {
+  buildClaudePassthroughToolNameMap,
+  restoreClaudePassthroughToolNames,
+} from "./utils/claude-passthrough-helpers.ts";
 
-import { checkIdempotency, getIdempotencyKey, saveIdempotency } from "@/lib/idempotencyLayer";
+import { getIdempotencyKey, saveIdempotency } from "@/lib/idempotencyLayer";
 import { normalizePayloadForLog } from "@/lib/logPayloads";
-import { injectMemory, shouldInjectMemory } from "@/lib/memory/injection";
-import { retrieveMemories } from "@/lib/memory/retrieval";
-import {
-  DEFAULT_MEMORY_SETTINGS,
-  getMemorySettings,
-  toMemoryRetrievalConfig,
-} from "@/lib/memory/settings";
-import {
-  generateSignature,
-  getCachedResponse,
-  isCacheable,
-  setCachedResponse,
-} from "@/lib/semanticCache";
+import { generateSignature, isCacheable, setCachedResponse } from "@/lib/semanticCache";
 import { generateRequestId } from "@/shared/utils/requestId";
 import packageJson from "../../package.json";
-import {
-  getCodexModelScope,
-  getCodexResetTime,
-  parseCodexQuotaHeaders,
-} from "../executors/codex.ts";
-import {
-  getBackgroundDegradationConfig,
-  getBackgroundTaskReason,
-  getDegradedModel,
-} from "../services/backgroundTaskDetector.ts";
 import {
   buildClaudeCodeCompatibleRequest,
   isClaudeCodeCompatibleProvider,
   resolveClaudeCodeCompatibleSessionId,
 } from "../services/claudeCodeCompatible.ts";
-import { recordContextCompression, recordContextRejection } from "../services/comboMetrics.ts";
-import { compressContext, validateContextLimit } from "../services/contextManager.ts";
-import {
-  EMERGENCY_FALLBACK_CONFIG,
-  isFallbackDecision,
-  shouldUseFallback,
-} from "../services/emergencyFallback.ts";
-import { maybeEnforceMediaToolForLocalImage } from "../services/imageToolRouting.ts";
-import {
-  findLargerContextModel,
-  getModelFamily,
-  getNextFamilyFallback,
-  isContextOverflowError,
-  isModelUnavailableError,
-} from "../services/modelFamilyFallback.ts";
+import { getNextFamilyFallback } from "../services/modelFamilyFallback.ts";
 import {
   initializeRateLimits,
   updateFromHeaders,
   withRateLimit,
 } from "../services/rateLimitManager.ts";
 import { computeRequestHash, deduplicate, shouldDeduplicate } from "../services/requestDedup.ts";
-import { maybeEnforceRequiredToolChoiceForUrlFetch } from "../services/urlToolEnforcement.ts";
 import {
   resolveExplicitStreamAlias,
   resolveStreamFlag,
@@ -117,6 +91,13 @@ import {
 import { isDroidCliUserAgent } from "../utils/clientDetection.ts";
 import { optimizeGithubRequestBody } from "../utils/githubRequestOptimizer.ts";
 import { createProgressTransform, wantsProgress } from "../utils/progressTracker.ts";
+import { handleBackgroundTaskRedirection } from "./phases/background-task-redirector.ts";
+import { validateAndCompressContext } from "./phases/context-validator.ts";
+import { handleEmergencyFallback } from "./phases/emergency-fallback-handler.ts";
+import {
+  handleModelFallback,
+  shouldAttemptModelFallback,
+} from "./phases/model-fallback-handler.ts";
 import { sanitizeOpenAIResponse } from "./responseSanitizer.ts";
 import { translateNonStreamingResponse } from "./responseTranslator.ts";
 import {
@@ -143,200 +124,8 @@ export function shouldUseNativeCodexPassthrough({
   return segments.includes("responses");
 }
 
-function buildClaudePassthroughToolNameMap(body: Record<string, unknown> | null | undefined) {
-  if (!body || !Array.isArray(body.tools)) return null;
-
-  const toolNameMap = new Map<string, string>();
-  for (const tool of body.tools) {
-    const toolRecord = tool as Record<string, unknown>;
-    const toolData =
-      toolRecord?.type === "function" &&
-      toolRecord.function &&
-      typeof toolRecord.function === "object"
-        ? (toolRecord.function as Record<string, unknown>)
-        : toolRecord;
-    const originalName = typeof toolData?.name === "string" ? toolData.name.trim() : "";
-    if (!originalName) continue;
-    toolNameMap.set(`${CLAUDE_OAUTH_TOOL_PREFIX}${originalName}`, originalName);
-  }
-
-  return toolNameMap.size > 0 ? toolNameMap : null;
-}
-
-function restoreClaudePassthroughToolNames(
-  responseBody: Record<string, unknown>,
-  toolNameMap: Map<string, string> | null
-) {
-  if (!toolNameMap || !Array.isArray(responseBody?.content)) return responseBody;
-
-  let changed = false;
-  const content = responseBody.content.map((block: Record<string, unknown>) => {
-    if (block?.type !== "tool_use" || typeof block?.name !== "string") return block;
-    const restoredName = toolNameMap.get(block.name) ?? block.name;
-    if (restoredName === block.name) return block;
-    changed = true;
-    return {
-      ...block,
-      name: restoredName,
-    };
-  });
-
-  if (!changed) return responseBody;
-  return {
-    ...responseBody,
-    content,
-  };
-}
-
-function getHeaderValueCaseInsensitive(
-  headers: Record<string, unknown> | null | undefined,
-  targetName: string
-) {
-  if (!headers || typeof headers !== "object") return null;
-  const lowered = targetName.toLowerCase();
-  for (const [key, value] of Object.entries(headers)) {
-    if (key.toLowerCase() === lowered && typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-  return null;
-}
-
-function buildClaudePromptCacheLogMeta(
-  targetFormat: string,
-  finalBody: Record<string, unknown> | null | undefined,
-  providerHeaders: Record<string, unknown> | null | undefined
-) {
-  if (targetFormat !== FORMATS.CLAUDE || !finalBody || typeof finalBody !== "object") return null;
-
-  const describeCacheControl = (cacheControl: Record<string, unknown> | undefined, extra = {}) => ({
-    type:
-      cacheControl && typeof cacheControl.type === "string" && cacheControl.type.trim()
-        ? cacheControl.type.trim()
-        : "ephemeral",
-    ttl:
-      cacheControl && typeof cacheControl.ttl === "string" && cacheControl.ttl.trim()
-        ? cacheControl.ttl.trim()
-        : null,
-    ...extra,
-  });
-
-  const systemBreakpoints = Array.isArray(finalBody.system)
-    ? finalBody.system.flatMap((block, index) => {
-        if (!block || typeof block !== "object") return [];
-        const cacheControl =
-          block.cache_control && typeof block.cache_control === "object"
-            ? block.cache_control
-            : null;
-        return cacheControl ? [describeCacheControl(cacheControl, { index })] : [];
-      })
-    : [];
-
-  const toolBreakpoints = Array.isArray(finalBody.tools)
-    ? finalBody.tools.flatMap((tool, index) => {
-        if (!tool || typeof tool !== "object") return [];
-        const cacheControl =
-          tool.cache_control && typeof tool.cache_control === "object" ? tool.cache_control : null;
-        const name = typeof tool.name === "string" && tool.name.trim() ? tool.name.trim() : null;
-        return cacheControl ? [describeCacheControl(cacheControl, { index, name })] : [];
-      })
-    : [];
-
-  const messageBreakpoints = Array.isArray(finalBody.messages)
-    ? finalBody.messages.flatMap((message, messageIndex) => {
-        if (!message || typeof message !== "object" || !Array.isArray(message.content)) return [];
-        const role =
-          typeof message.role === "string" && message.role.trim() ? message.role.trim() : "unknown";
-        return message.content.flatMap((block, contentIndex) => {
-          if (!block || typeof block !== "object") return [];
-          const cacheControl =
-            block.cache_control && typeof block.cache_control === "object"
-              ? block.cache_control
-              : null;
-          if (!cacheControl) return [];
-          return [
-            describeCacheControl(cacheControl, {
-              messageIndex,
-              contentIndex,
-              role,
-              blockType:
-                typeof block.type === "string" && block.type.trim() ? block.type.trim() : "unknown",
-            }),
-          ];
-        });
-      })
-    : [];
-
-  const totalBreakpoints =
-    systemBreakpoints.length + toolBreakpoints.length + messageBreakpoints.length;
-  const anthropicBeta = getHeaderValueCaseInsensitive(providerHeaders, "Anthropic-Beta");
-
-  if (totalBreakpoints === 0 && !anthropicBeta) return null;
-
-  return {
-    applied: totalBreakpoints > 0,
-    totalBreakpoints,
-    anthropicBeta,
-    systemBreakpoints,
-    toolBreakpoints,
-    messageBreakpoints,
-  };
-}
-
 function toPositiveNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
-}
-
-function buildCacheUsageLogMeta(usage: Record<string, unknown> | null | undefined) {
-  if (!usage || typeof usage !== "object") return null;
-  const promptTokenDetails =
-    usage.prompt_tokens_details && typeof usage.prompt_tokens_details === "object"
-      ? (usage.prompt_tokens_details as Record<string, unknown>)
-      : undefined;
-  const hasCacheFields =
-    "cache_read_input_tokens" in usage ||
-    "cached_tokens" in usage ||
-    "cache_creation_input_tokens" in usage ||
-    (!!promptTokenDetails &&
-      ("cached_tokens" in promptTokenDetails || "cache_creation_tokens" in promptTokenDetails));
-  const cacheReadTokens = toPositiveNumber(
-    usage.cache_read_input_tokens ?? usage.cached_tokens ?? promptTokenDetails?.cached_tokens
-  );
-  const cacheCreationTokens = toPositiveNumber(
-    usage.cache_creation_input_tokens ?? promptTokenDetails?.cache_creation_tokens
-  );
-  if (!hasCacheFields) return null;
-  return {
-    cacheReadTokens,
-    cacheCreationTokens,
-  };
-}
-
-function attachLogMeta(
-  payload: Record<string, unknown> | null | undefined,
-  meta: Record<string, unknown> | null | undefined
-) {
-  if (!meta || typeof meta !== "object") return payload;
-  const compactMeta = Object.fromEntries(
-    Object.entries(meta).filter(([, value]) => value !== null && value !== undefined)
-  );
-  if (Object.keys(compactMeta).length === 0) return payload;
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return { _routiform: compactMeta, _payload: payload ?? null };
-  }
-  const existing =
-    payload._routiform &&
-    typeof payload._routiform === "object" &&
-    !Array.isArray(payload._routiform)
-      ? payload._routiform
-      : {};
-  return {
-    ...payload,
-    _routiform: {
-      ...existing,
-      ...compactMeta,
-    },
-  };
 }
 
 /**
@@ -436,83 +225,13 @@ export async function handleChatCore({
     }).catch(() => {});
   };
 
-  const persistCodexQuotaState = async (
-    headers: Headers | Record<string, string> | null,
-    status = 0
-  ) => {
-    if (provider !== "codex" || !connectionId || !headers) return;
-
-    try {
-      const quota = parseCodexQuotaHeaders(headers as Headers);
-      if (!quota) return;
-
-      const existingProviderData =
-        credentials?.providerSpecificData && typeof credentials.providerSpecificData === "object"
-          ? credentials.providerSpecificData
-          : {};
-      const scope = getCodexModelScope(model || requestedModel || "");
-      const quotaState = {
-        usage5h: quota.usage5h,
-        limit5h: quota.limit5h,
-        resetAt5h: quota.resetAt5h,
-        usage7d: quota.usage7d,
-        limit7d: quota.limit7d,
-        resetAt7d: quota.resetAt7d,
-        scope,
-        updatedAt: new Date().toISOString(),
-      };
-
-      const nextProviderData: Record<string, unknown> = {
-        ...existingProviderData,
-        codexQuotaState: quotaState,
-      };
-
-      // T03/T09: on 429, persist exact reset time per scope to avoid global over-blocking.
-      if (status === 429) {
-        const resetTimeMs = getCodexResetTime(quota);
-        if (resetTimeMs && resetTimeMs > Date.now()) {
-          const scopeUntil = new Date(resetTimeMs).toISOString();
-          const scopeMapRaw =
-            existingProviderData &&
-            typeof existingProviderData === "object" &&
-            existingProviderData.codexScopeRateLimitedUntil &&
-            typeof existingProviderData.codexScopeRateLimitedUntil === "object"
-              ? existingProviderData.codexScopeRateLimitedUntil
-              : {};
-
-          nextProviderData.codexScopeRateLimitedUntil = {
-            ...(scopeMapRaw as Record<string, unknown>),
-            [scope]: scopeUntil,
-          };
-        }
-      }
-
-      await updateProviderConnection(connectionId, {
-        providerSpecificData: nextProviderData,
-      });
-
-      credentials.providerSpecificData = nextProviderData;
-    } catch (err) {
-      const errMessage = err instanceof Error ? err.message : String(err);
-      log?.debug?.("CODEX", `Failed to persist codex quota state: ${errMessage}`);
-    }
-  };
-
   // ── Phase 9.2: Idempotency check ──
   const idempotencyKey = getIdempotencyKey(clientRawRequest?.headers);
-  const cachedIdemp = checkIdempotency(idempotencyKey);
-  if (cachedIdemp) {
-    log?.debug?.("IDEMPOTENCY", `Hit for key=${idempotencyKey?.slice(0, 12)}...`);
+  const idempotentResponse = handleIdempotencyCheck(clientRawRequest, log);
+  if (idempotentResponse) {
     return {
       success: true,
-      response: new Response(JSON.stringify(cachedIdemp.response), {
-        status: cachedIdemp.status,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": getCorsOrigin(),
-          "X-Routiform-Idempotent": "true",
-        },
-      }),
+      response: idempotentResponse,
     };
   }
 
@@ -545,35 +264,15 @@ export async function handleChatCore({
   // Model-specific targetFormat takes priority over provider default
 
   // ── Background Task Redirection (T41) ──
-  const bgConfig = getBackgroundDegradationConfig();
-  const backgroundReason = bgConfig.enabled
-    ? getBackgroundTaskReason(body, clientRawRequest?.headers)
-    : null;
-  if (backgroundReason) {
-    const degradedModel = getDegradedModel(model);
-    if (degradedModel !== model) {
-      const originalModel = model;
-      log?.info?.(
-        "BACKGROUND",
-        `Background task redirect (${backgroundReason}): ${originalModel} → ${degradedModel}`
-      );
-      model = degradedModel;
-      if (body && typeof body === "object") {
-        body.model = model;
-      }
-
-      logAuditEvent({
-        action: "routing.background_task_redirect",
-        actor: apiKeyInfo?.name || "system",
-        target: connectionId || provider || "chat",
-        details: {
-          original_model: originalModel,
-          redirected_to: degradedModel,
-          reason: backgroundReason,
-        },
-      });
-    }
-  }
+  model = handleBackgroundTaskRedirection({
+    model,
+    body,
+    headers: clientRawRequest?.headers,
+    apiKeyInfo,
+    connectionId,
+    provider,
+    log,
+  });
 
   // Apply custom model aliases (Settings → Model Aliases → Pattern→Target) before routing (#315, #472)
   // Custom aliases take priority over built-in and must be resolved here so the
@@ -596,7 +295,6 @@ export async function handleChatCore({
     tokens,
     responseBody,
     error,
-    providerRequest,
     providerResponse,
     clientResponse,
     claudeCacheMeta,
@@ -727,22 +425,12 @@ export async function handleChatCore({
   stripNonStandardStreamAliases(body);
 
   // ── Phase 9.1: Semantic cache check (non-streaming, temp=0 only) ──
-  if (isCacheable(body, clientRawRequest?.headers)) {
-    const signature = generateSignature(model, body.messages, body.temperature, body.top_p);
-    const cached = getCachedResponse(signature);
-    if (cached) {
-      log?.debug?.("CACHE", `Semantic cache HIT for ${model}`);
-      return {
-        success: true,
-        response: new Response(JSON.stringify(cached), {
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": getCorsOrigin(),
-            "X-Routiform-Cache": "HIT",
-          },
-        }),
-      };
-    }
+  const cachedResponse = checkSemanticCache(model, body, clientRawRequest, log);
+  if (cachedResponse) {
+    return {
+      success: true,
+      response: cachedResponse,
+    };
   }
 
   // Create request logger for this session: sourceFormat_targetFormat_model
@@ -760,192 +448,25 @@ export async function handleChatCore({
   log?.debug?.("FORMAT", `${sourceFormat} → ${targetFormat} | stream=${stream}`);
 
   // ── Common input sanitization (runs for ALL paths including passthrough) ──
-  // #291: Strip empty name fields from messages/input items
-  // Upstream providers (OpenAI, Codex) reject name:"" with 400 errors.
-  if (Array.isArray(body.messages)) {
-    body.messages = body.messages.map((msg: Record<string, unknown>) => {
-      if (msg.name === "") {
-        const { name: _n, ...rest } = msg;
-        return rest;
-      }
-      return msg;
-    });
-  }
-  if (Array.isArray(body.input)) {
-    body.input = body.input.map((item: Record<string, unknown>) => {
-      if (item.name === "") {
-        const { name: _n, ...rest } = item;
-        return rest;
-      }
-      return item;
-    });
-  }
-  // #346/#637: Strip tools with empty name
-  // Clients sometimes forward tool definitions with empty names, causing
-  // upstream providers to reject with 400 "Invalid 'tools[0].name': empty string."
-  if (Array.isArray(body.tools)) {
-    body.tools = body.tools.filter((tool: Record<string, unknown>) => {
-      // Built-in Responses API tool types are identified solely by `type` and carry no name.
-      // Preserve only known built-ins here so unknown nameless tool types are still filtered.
-      const toolType = typeof tool.type === "string" ? tool.type : "";
-      const builtInResponsesToolTypes = new Set([
-        "web_search",
-        "web_search_preview",
-        "file_search",
-        "computer",
-        "code_interpreter",
-        "image_generation",
-      ]);
-      if (
-        toolType &&
-        builtInResponsesToolTypes.has(toolType) &&
-        !tool.function &&
-        tool.name === undefined
-      ) {
-        return true;
-      }
-
-      const fn = tool.function as Record<string, unknown> | undefined;
-      const name = fn?.name ?? tool.name;
-      return name && String(name).trim().length > 0;
-    });
-  }
-
-  // Cline often returns empty 200 responses on forced local-image tool routing.
-  // Keep this enforcement for other providers, but skip for Cline.
-  if (provider !== "cline" && maybeEnforceMediaToolForLocalImage(body)) {
-    log?.info?.("TOOLS", "Enforced image-reading tool for local image analysis request");
-  }
-
-  if (maybeEnforceRequiredToolChoiceForUrlFetch(body)) {
-    log?.info?.("TOOLS", "Enforced tool_choice=required for URL fetch request");
-  }
-
-  // Qwen/Kiro/Cline often reject tool_choice="required" and named tool_choice objects
-  // on thinking/tool streams. Keep tool usage enabled but let upstream choose automatically.
-  if (
-    (provider === "qwen" || provider === "kiro" || provider === "cline") &&
-    (body.tool_choice === "required" ||
-      (body.tool_choice &&
-        typeof body.tool_choice === "object" &&
-        !Array.isArray(body.tool_choice)))
-  ) {
-    body.tool_choice = "auto";
-    log?.info?.(
-      "TOOLS",
-      `Downgraded tool_choice to auto for ${provider} thinking-mode compatibility`
-    );
-  }
-
-  const memorySettings = apiKeyInfo?.id
-    ? await getMemorySettings().catch(() => DEFAULT_MEMORY_SETTINGS)
-    : null;
-
-  if (
-    apiKeyInfo?.id &&
-    memorySettings &&
-    shouldInjectMemory(body as Parameters<typeof shouldInjectMemory>[0], {
-      enabled: memorySettings.enabled && memorySettings.maxTokens > 0,
-    })
-  ) {
-    try {
-      const memories = await retrieveMemories(
-        apiKeyInfo.id,
-        toMemoryRetrievalConfig(memorySettings)
-      );
-      if (memories.length > 0) {
-        const injected = injectMemory(
-          body as Parameters<typeof injectMemory>[0],
-          memories,
-          provider
-        );
-        body = injected as typeof body;
-        log?.debug?.("MEMORY", `Injected ${memories.length} memories for key=${apiKeyInfo.id}`);
-      }
-    } catch (memErr) {
-      log?.debug?.(
-        "MEMORY",
-        `Memory injection skipped: ${memErr instanceof Error ? memErr.message : String(memErr)}`
-      );
-    }
-  }
+  body = await sanitizeRequestInput(body, provider, apiKeyInfo, log);
 
   // ── Phase 1 & 2: Context Validation & Compression ──
-  // Validate context window BEFORE translation to catch oversized requests early
-  const validation = validateContextLimit(body, provider, model, combo);
-  if (!validation.valid) {
-    log?.warn?.(
-      "CONTEXT",
-      `Request exceeds context limit: ${validation.estimatedTokens} > ${validation.limit} (exceeded by ${validation.exceeded} tokens)`
-    );
+  const contextResult = validateAndCompressContext({
+    body,
+    provider,
+    model: effectiveModel,
+    combo,
+    comboName,
+    reqLogger,
+    log,
+    persistFailureUsage,
+  });
 
-    // Try compression
-    const compressionResult = compressContext(body, {
-      provider,
-      model,
-      maxTokens: validation.limit,
-    });
-
-    if (compressionResult.compressed) {
-      body = compressionResult.body;
-      const newValidation = validateContextLimit(body, provider, model, combo);
-
-      if (newValidation.valid) {
-        log?.info?.(
-          "CONTEXT",
-          `Compressed: ${compressionResult.stats.original} → ${compressionResult.stats.final} tokens (limit=${validation.limit})`
-        );
-        // Track compression metrics
-        if (comboName) {
-          recordContextCompression(
-            comboName,
-            `${provider}/${model}`,
-            compressionResult.stats.original,
-            compressionResult.stats.final
-          );
-        }
-        // Log successful context compression to reqLogger for dashboard visibility
-        reqLogger?.logContextValidation({
-          originalTokens: validation.estimatedTokens,
-          limit: validation.limit,
-          exceeded: validation.exceeded,
-          compressed: true,
-          finalTokens: newValidation.estimatedTokens,
-          layers: compressionResult.stats.layers?.map((l) => l.name) || [],
-          rejected: false,
-        });
-      } else {
-        // Still oversized after compression - track rejection
-        if (comboName) {
-          recordContextRejection(comboName, `${provider}/${model}`);
-        }
-        // Log context rejection to reqLogger for dashboard visibility
-        reqLogger?.logContextValidation({
-          originalTokens: validation.estimatedTokens,
-          limit: validation.limit,
-          exceeded: validation.exceeded,
-          compressed: true,
-          finalTokens: newValidation.estimatedTokens,
-          rejected: true,
-        });
-        persistFailureUsage(HTTP_STATUS.BAD_REQUEST, "context_length_exceeded");
-        return createErrorResult(
-          HTTP_STATUS.BAD_REQUEST,
-          `Request exceeds context limit even after compression: ${newValidation.estimatedTokens} > ${validation.limit} tokens. Please reduce message history or input size.`
-        );
-      }
-    } else {
-      // Compression didn't help or wasn't applicable - track rejection
-      if (comboName) {
-        recordContextRejection(comboName, `${provider}/${model}`);
-      }
-      persistFailureUsage(HTTP_STATUS.BAD_REQUEST, "context_length_exceeded");
-      return createErrorResult(
-        HTTP_STATUS.BAD_REQUEST,
-        `Request exceeds context limit: ${validation.estimatedTokens} > ${validation.limit} tokens. Please reduce message history or input size.`
-      );
-    }
+  if (!contextResult.valid) {
+    return contextResult.error!;
   }
+
+  body = contextResult.body;
 
   // Translate request (pass reqLogger for intermediate logging)
   let translatedBody = body;
@@ -1760,8 +1281,6 @@ export async function handleChatCore({
     }
   }
 
-  await persistCodexQuotaState(providerResponse.headers, providerResponse.status);
-
   // Check provider response - return error info for fallback handling
   if (!providerResponse.ok) {
     trackPendingRequest(model, provider, connectionId, false);
@@ -1949,39 +1468,37 @@ export async function handleChatCore({
     // Before returning a model-unavailable error upstream, try sibling models
     // from the same family. This keeps the request alive on the same account
     // instead of failing the entire combo.
-    if (isModelUnavailableError(statusCode, message)) {
-      const nextModel = getNextFamilyFallback(currentModel, triedModels);
-      if (nextModel) {
-        triedModels.add(nextModel);
-        currentModel = nextModel;
-        translatedBody.model = nextModel;
-        log?.info?.("MODEL_FALLBACK", `${model} unavailable (${statusCode}) → trying ${nextModel}`);
-        // Re-execute with the fallback model
-        try {
-          const fallbackResult = await executeProviderRequest(nextModel, false);
-          if (fallbackResult.response.ok) {
-            providerResponse = fallbackResult.response;
-            providerUrl = fallbackResult.url;
-            providerHeaders = fallbackResult.headers;
-            finalBody = fallbackResult.transformedBody;
-            reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
-            // Continue processing with the fallback response — skip error return
-            log?.info?.("MODEL_FALLBACK", `Serving ${nextModel} as fallback for ${model}`);
-            // Jump to streaming/non-streaming handling below
-            // We fall through by NOT returning here
-          } else {
-            // Fallback also failed — return original error
-            persistAttemptLogs({
-              status: statusCode,
-              error: errMsg,
-              providerRequest: finalBody || translatedBody,
-              providerResponse: upstreamErrorBody,
-              clientResponse: buildErrorBody(statusCode, errMsg),
-            });
-            persistFailureUsage(statusCode, "model_unavailable");
-            return createErrorResult(statusCode, errMsg, retryAfterMs);
-          }
-        } catch {
+    const fallbackResult = handleModelFallback({
+      statusCode,
+      message,
+      currentModel,
+      triedModels,
+      log,
+    });
+
+    if (fallbackResult.attempted && fallbackResult.nextModel) {
+      currentModel = fallbackResult.nextModel;
+      translatedBody.model = fallbackResult.nextModel;
+      const errorCode = fallbackResult.nextModel.includes("overflow")
+        ? "context_overflow"
+        : "model_unavailable";
+
+      // Re-execute with the fallback model
+      try {
+        const fallbackExecResult = await executeProviderRequest(fallbackResult.nextModel, false);
+        if (fallbackExecResult.response.ok) {
+          providerResponse = fallbackExecResult.response;
+          providerUrl = fallbackExecResult.url;
+          providerHeaders = fallbackExecResult.headers;
+          finalBody = fallbackExecResult.transformedBody;
+          reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
+          log?.info?.(
+            errorCode === "context_overflow" ? "CONTEXT_OVERFLOW_FALLBACK" : "MODEL_FALLBACK",
+            `Serving ${fallbackResult.nextModel} as fallback for ${model}`
+          );
+          // Continue processing with the fallback response — skip error return
+        } else {
+          // Fallback also failed — return original error
           persistAttemptLogs({
             status: statusCode,
             error: errMsg,
@@ -1989,10 +1506,10 @@ export async function handleChatCore({
             providerResponse: upstreamErrorBody,
             clientResponse: buildErrorBody(statusCode, errMsg),
           });
-          persistFailureUsage(statusCode, "model_unavailable");
+          persistFailureUsage(statusCode, errorCode);
           return createErrorResult(statusCode, errMsg, retryAfterMs);
         }
-      } else {
+      } catch {
         persistAttemptLogs({
           status: statusCode,
           error: errMsg,
@@ -2000,67 +1517,27 @@ export async function handleChatCore({
           providerResponse: upstreamErrorBody,
           clientResponse: buildErrorBody(statusCode, errMsg),
         });
-        persistFailureUsage(statusCode, "model_unavailable");
+        persistFailureUsage(statusCode, errorCode);
         return createErrorResult(statusCode, errMsg, retryAfterMs);
       }
-    } else if (isContextOverflowError(statusCode, message)) {
-      const familyCandidates = getModelFamily(currentModel).filter(
-        (m) => m !== currentModel && !triedModels.has(m)
-      );
-      const nextModel =
-        findLargerContextModel(currentModel, familyCandidates) ??
-        getNextFamilyFallback(currentModel, triedModels);
-      if (nextModel) {
-        triedModels.add(nextModel);
-        currentModel = nextModel;
-        translatedBody.model = nextModel;
-        log?.info?.("CONTEXT_OVERFLOW_FALLBACK", `${model} context overflow → trying ${nextModel}`);
-        try {
-          const fallbackResult = await executeProviderRequest(nextModel, false);
-          if (fallbackResult.response.ok) {
-            providerResponse = fallbackResult.response;
-            providerUrl = fallbackResult.url;
-            providerHeaders = fallbackResult.headers;
-            finalBody = fallbackResult.transformedBody;
-            reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
-            log?.info?.(
-              "CONTEXT_OVERFLOW_FALLBACK",
-              `Serving ${nextModel} as fallback for ${model}`
-            );
-          } else {
-            persistAttemptLogs({
-              status: statusCode,
-              error: errMsg,
-              providerRequest: finalBody || translatedBody,
-              providerResponse: upstreamErrorBody,
-              clientResponse: buildErrorBody(statusCode, errMsg),
-            });
-            persistFailureUsage(statusCode, "context_overflow");
-            return createErrorResult(statusCode, errMsg, retryAfterMs);
-          }
-        } catch {
-          persistAttemptLogs({
-            status: statusCode,
-            error: errMsg,
-            providerRequest: finalBody || translatedBody,
-            providerResponse: upstreamErrorBody,
-            clientResponse: buildErrorBody(statusCode, errMsg),
-          });
-          persistFailureUsage(statusCode, "context_overflow");
-          return createErrorResult(statusCode, errMsg, retryAfterMs);
-        }
-      } else {
-        persistAttemptLogs({
-          status: statusCode,
-          error: errMsg,
-          providerRequest: finalBody || translatedBody,
-          providerResponse: upstreamErrorBody,
-          clientResponse: buildErrorBody(statusCode, errMsg),
-        });
-        persistFailureUsage(statusCode, "context_overflow");
-        return createErrorResult(statusCode, errMsg, retryAfterMs);
-      }
+    } else if (fallbackResult.error) {
+      // No fallback available or not a fallback-eligible error
+      const errorCode = shouldAttemptModelFallback(statusCode, message)
+        ? message.toLowerCase().includes("context")
+          ? "context_overflow"
+          : "model_unavailable"
+        : `upstream_${statusCode}`;
+      persistAttemptLogs({
+        status: statusCode,
+        error: errMsg,
+        providerRequest: finalBody || translatedBody,
+        providerResponse: upstreamErrorBody,
+        clientResponse: buildErrorBody(statusCode, errMsg),
+      });
+      persistFailureUsage(statusCode, errorCode);
+      return createErrorResult(statusCode, errMsg, retryAfterMs);
     } else {
+      // Not a fallback-eligible error
       persistAttemptLogs({
         status: statusCode,
         error: errMsg,
@@ -2074,70 +1551,26 @@ export async function handleChatCore({
     // ── End T5 ───────────────────────────────────────────────────────────────
 
     // ── Emergency Fallback (ClawRouter Feature #09/017) ────────────────────
-    // When a non-streaming request fails with a budget-related error (402 or
-    // budget keywords), redirect to nvidia/gpt-oss-120b ($0.00/M) before
-    // returning the error to the combo router. This gives one last free-tier
-    // attempt so the user's session stays alive.
     const requestHasTools = Array.isArray(translatedBody.tools) && translatedBody.tools.length > 0;
-    if (!stream) {
-      const fbDecision = shouldUseFallback(
-        statusCode,
-        message,
-        requestHasTools,
-        EMERGENCY_FALLBACK_CONFIG
-      );
-      if (isFallbackDecision(fbDecision)) {
-        // Cross-provider fallback (e.g. github → nvidia) requires that provider's credentials.
-        // This layer only has the current request's credentials — do not call another executor with mismatched auth.
-        if (fbDecision.provider !== provider) {
-          log?.warn?.(
-            "EMERGENCY_FALLBACK",
-            `Skip cross-provider emergency fallback (${provider} → ${fbDecision.provider}) — handled in app-layer chat handler when credentials exist`
-          );
-        } else {
-          log?.info?.("EMERGENCY_FALLBACK", fbDecision.reason);
-          try {
-            const fbExecutor = getExecutor(fbDecision.provider);
-            const fbResult = await fbExecutor.execute({
-              model: fbDecision.model,
-              body: {
-                ...translatedBody,
-                model: fbDecision.model,
-                max_tokens: Math.min(
-                  typeof translatedBody.max_tokens === "number"
-                    ? translatedBody.max_tokens
-                    : fbDecision.maxOutputTokens,
-                  fbDecision.maxOutputTokens
-                ),
-              },
-              stream: false,
-              credentials: credentials,
-              signal: streamController.signal,
-              log,
-              extendedContext,
-            });
-            if (fbResult.response.ok) {
-              providerResponse = fbResult.response;
-              providerUrl = fbResult.url;
-              providerHeaders = fbResult.headers;
-              finalBody = fbResult.transformedBody;
-              reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
-              log?.info?.(
-                "EMERGENCY_FALLBACK",
-                `Serving ${fbDecision.provider}/${fbDecision.model} as budget fallback for ${provider}/${model}`
-              );
-            } else {
-              log?.warn?.(
-                "EMERGENCY_FALLBACK",
-                `Emergency fallback also failed (${fbResult.response.status})`
-              );
-            }
-          } catch (fbErr) {
-            const errMessage = fbErr instanceof Error ? fbErr.message : String(fbErr);
-            log?.warn?.("EMERGENCY_FALLBACK", `Emergency fallback error: ${errMessage}`);
-          }
-        }
-      }
+    const emergencyFallbackResult = await handleEmergencyFallback({
+      statusCode,
+      message,
+      stream,
+      requestHasTools,
+      provider,
+      translatedBody,
+      credentials,
+      streamController,
+      extendedContext,
+      log,
+    });
+
+    if (emergencyFallbackResult.success) {
+      providerResponse = emergencyFallbackResult.response!;
+      providerUrl = emergencyFallbackResult.url!;
+      providerHeaders = emergencyFallbackResult.headers!;
+      finalBody = emergencyFallbackResult.transformedBody!;
+      reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
     }
     // ── End Emergency Fallback ────────────────────────────────────────────
   }
@@ -2182,6 +1615,27 @@ export async function handleChatCore({
 
       responseBody = parsedFromSSE;
     } else {
+      const looksLikeHtml =
+        contentType.includes("text/html") || /^\s*<(?:!doctype html|html|body)\b/i.test(rawBody);
+      if (looksLikeHtml) {
+        appendRequestLog({
+          model,
+          provider,
+          connectionId,
+          status: `FAILED ${HTTP_STATUS.BAD_GATEWAY}`,
+        }).catch(() => {});
+        const htmlErrorMessage = "Provider returned HTML error page";
+        persistAttemptLogs({
+          status: HTTP_STATUS.BAD_GATEWAY,
+          error: htmlErrorMessage,
+          providerRequest: finalBody || translatedBody,
+          providerResponse: normalizedProviderPayload,
+          clientResponse: buildErrorBody(HTTP_STATUS.BAD_GATEWAY, htmlErrorMessage),
+        });
+        persistFailureUsage(HTTP_STATUS.BAD_GATEWAY, "html_error_payload");
+        return createErrorResult(HTTP_STATUS.BAD_GATEWAY, htmlErrorMessage);
+      }
+
       try {
         responseBody = rawBody ? JSON.parse(rawBody) : {};
       } catch {
@@ -2191,7 +1645,7 @@ export async function handleChatCore({
           connectionId,
           status: `FAILED ${HTTP_STATUS.BAD_GATEWAY}`,
         }).catch(() => {});
-        const invalidJsonMessage = "Invalid JSON response from provider";
+        const invalidJsonMessage = rawBody.trim() || "Invalid JSON response from provider";
         persistAttemptLogs({
           status: HTTP_STATUS.BAD_GATEWAY,
           error: invalidJsonMessage,
@@ -2236,6 +1690,25 @@ export async function handleChatCore({
           const fallbackResult = await executeProviderRequest(nextModel, false);
           if (fallbackResult.response.ok) {
             const fallbackRaw = await fallbackResult.response.text();
+            const fallbackContentType = (
+              fallbackResult.response.headers.get("content-type") || ""
+            ).toLowerCase();
+            const fallbackNormalizedProviderPayload = normalizePayloadForLog(fallbackRaw);
+            const fallbackLooksLikeHtml =
+              fallbackContentType.includes("text/html") ||
+              /^\s*<(?:!doctype html|html|body)\b/i.test(fallbackRaw);
+            if (fallbackLooksLikeHtml) {
+              const htmlErrorMessage = "Provider returned HTML error page";
+              persistAttemptLogs({
+                status: HTTP_STATUS.BAD_GATEWAY,
+                error: htmlErrorMessage,
+                providerRequest: fallbackResult.transformedBody || translatedBody,
+                providerResponse: fallbackNormalizedProviderPayload,
+                clientResponse: buildErrorBody(HTTP_STATUS.BAD_GATEWAY, htmlErrorMessage),
+              });
+              persistFailureUsage(HTTP_STATUS.BAD_GATEWAY, "html_error_payload");
+              return createErrorResult(HTTP_STATUS.BAD_GATEWAY, htmlErrorMessage);
+            }
             try {
               responseBody = fallbackRaw ? JSON.parse(fallbackRaw) : {};
               providerUrl = fallbackResult.url;
@@ -2248,22 +1721,70 @@ export async function handleChatCore({
               );
               // Fall through — continue processing with the new responseBody
             } catch {
-              return createErrorResult(HTTP_STATUS.BAD_GATEWAY, emptyContentMessage);
+              const invalidJsonMessage =
+                fallbackRaw.trim() || "Invalid JSON response from provider";
+              persistAttemptLogs({
+                status: HTTP_STATUS.BAD_GATEWAY,
+                error: invalidJsonMessage,
+                providerRequest: fallbackResult.transformedBody || translatedBody,
+                providerResponse: fallbackNormalizedProviderPayload,
+                clientResponse: buildErrorBody(HTTP_STATUS.BAD_GATEWAY, invalidJsonMessage),
+              });
+              persistFailureUsage(HTTP_STATUS.BAD_GATEWAY, "invalid_json_payload");
+              return createErrorResult(HTTP_STATUS.BAD_GATEWAY, invalidJsonMessage);
             }
           } else {
-            return createErrorResult(HTTP_STATUS.BAD_GATEWAY, emptyContentMessage);
+            const fallbackStatusMessage = `Fallback provider returned ${fallbackResult.response.status}`;
+            persistAttemptLogs({
+              status: HTTP_STATUS.BAD_GATEWAY,
+              error: fallbackStatusMessage,
+              providerRequest: fallbackResult.transformedBody || translatedBody,
+              clientResponse: buildErrorBody(HTTP_STATUS.BAD_GATEWAY, fallbackStatusMessage),
+            });
+            persistFailureUsage(HTTP_STATUS.BAD_GATEWAY, "empty_content_fallback_failed");
+            return createErrorResult(HTTP_STATUS.BAD_GATEWAY, fallbackStatusMessage);
           }
         } catch {
-          return createErrorResult(HTTP_STATUS.BAD_GATEWAY, emptyContentMessage);
+          const fallbackExecutionMessage = "Fallback provider request failed after empty content";
+          persistAttemptLogs({
+            status: HTTP_STATUS.BAD_GATEWAY,
+            error: fallbackExecutionMessage,
+            providerRequest: finalBody || translatedBody,
+            clientResponse: buildErrorBody(HTTP_STATUS.BAD_GATEWAY, fallbackExecutionMessage),
+          });
+          persistFailureUsage(HTTP_STATUS.BAD_GATEWAY, "empty_content_fallback_request_failed");
+          return createErrorResult(HTTP_STATUS.BAD_GATEWAY, fallbackExecutionMessage);
         }
       } else {
-        return createErrorResult(HTTP_STATUS.BAD_GATEWAY, emptyContentMessage);
+        const noFallbackMessage =
+          "Provider returned empty content and no fallback model was available";
+        persistAttemptLogs({
+          status: HTTP_STATUS.BAD_GATEWAY,
+          error: noFallbackMessage,
+          providerRequest: finalBody || translatedBody,
+          providerResponse: normalizedProviderPayload,
+          clientResponse: buildErrorBody(HTTP_STATUS.BAD_GATEWAY, noFallbackMessage),
+        });
+        persistFailureUsage(HTTP_STATUS.BAD_GATEWAY, "empty_content_no_fallback");
+        return createErrorResult(HTTP_STATUS.BAD_GATEWAY, noFallbackMessage);
       }
     }
 
     if (sourceFormat === FORMATS.CLAUDE && targetFormat === FORMATS.CLAUDE) {
       responseBody = restoreClaudePassthroughToolNames(responseBody, toolNameMap);
     }
+
+    await persistCodexQuotaState({
+      provider,
+      connectionId,
+      credentials,
+      model: currentModel || String(translatedBody.model || model),
+      requestedModel,
+      headers: providerResponse.headers,
+      status: providerResponse.status,
+      log,
+    });
+
     reqLogger.logProviderResponse(
       providerResponse.status,
       providerResponse.statusText,
@@ -2295,8 +1816,8 @@ export async function handleChatCore({
       console.log(`${COLORS.green}${msg}${COLORS.reset}`);
 
       // Track cache token metrics
-      const inputTokens = usage.prompt_tokens || 0;
-      const cachedTokens = toPositiveNumber(
+      const _inputTokens = usage.prompt_tokens || 0;
+      const _cachedTokens = toPositiveNumber(
         usage.cache_read_input_tokens ??
           usage.cached_tokens ??
           (
@@ -2305,7 +1826,7 @@ export async function handleChatCore({
               | undefined
           )?.cached_tokens
       );
-      const cacheCreationTokens = toPositiveNumber(
+      const _cacheCreationTokens = toPositiveNumber(
         usage.cache_creation_input_tokens ??
           (
             (usage as Record<string, unknown>).prompt_tokens_details as
@@ -2463,8 +1984,8 @@ export async function handleChatCore({
 
     // Track cache token metrics for streaming responses
     if (streamUsage && typeof streamUsage === "object") {
-      const inputTokens = streamUsage.prompt_tokens || 0;
-      const cachedTokens = toPositiveNumber(
+      const _inputTokens = streamUsage.prompt_tokens || 0;
+      const _cachedTokens = toPositiveNumber(
         streamUsage.cache_read_input_tokens ??
           streamUsage.cached_tokens ??
           (
@@ -2473,7 +1994,7 @@ export async function handleChatCore({
               | undefined
           )?.cached_tokens
       );
-      const cacheCreationTokens = toPositiveNumber(
+      const _cacheCreationTokens = toPositiveNumber(
         streamUsage.cache_creation_input_tokens ??
           (
             (streamUsage as Record<string, unknown>).prompt_tokens_details as

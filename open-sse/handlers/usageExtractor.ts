@@ -2,7 +2,7 @@
  * Extract usage from non-streaming response body
  * Handles different provider response formats
  */
-export function extractUsageFromResponse(responseBody, provider) {
+export function extractUsageFromResponse(responseBody, _provider) {
   if (!responseBody || typeof responseBody !== "object") return null;
 
   // OpenAI format (has prompt_tokens / completion_tokens)

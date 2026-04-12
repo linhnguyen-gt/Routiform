@@ -30,11 +30,57 @@ function normalizeComboContextLength(combo: JsonRecord): JsonRecord {
 export async function getCombos() {
   const db = getDbInstance();
   return db
-    .prepare("SELECT data FROM combos ORDER BY name")
+    .prepare("SELECT data FROM combos ORDER BY sort_order ASC, name ASC")
     .all()
     .map((row) => getSerializedData(row))
     .filter((row): row is string => row !== null)
     .map((row) => normalizeComboContextLength(JSON.parse(row)));
+}
+
+/**
+ * Reorder combos by assigning sequential sort_order values.
+ * Runs in a transaction to ensure atomicity.
+ *
+ * @param orderedIds - Array of combo IDs in desired display order
+ * @returns number of rows updated
+ */
+export async function reorderCombos(orderedIds: string[]): Promise<number> {
+  const db = getDbInstance();
+
+  // Deduplicate while preserving order
+  const seen = new Set<string>();
+  const orderedUniqueIds = orderedIds.filter((id) => {
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+
+  // Return early if empty to avoid invalid SQL WHERE id IN ()
+  if (orderedUniqueIds.length === 0) return 0;
+
+  // Validate all IDs exist before updating
+  const placeholders = orderedUniqueIds.map(() => "?").join(",");
+  const existing = db
+    .prepare(`SELECT id FROM combos WHERE id IN (${placeholders})`)
+    .all(...orderedUniqueIds)
+    .map((row: any) => row.id);
+
+  const validIds = orderedUniqueIds.filter((id) => existing.includes(id));
+  if (validIds.length === 0) return 0;
+
+  const stmt = db.prepare("UPDATE combos SET sort_order = ? WHERE id = ?");
+  let updated = 0;
+
+  const run = db.transaction(() => {
+    for (let i = 0; i < validIds.length; i++) {
+      const result = stmt.run(i + 1, validIds[i]);
+      updated += result.changes;
+    }
+  });
+
+  run();
+  backupDbFile("pre-write");
+  return updated;
 }
 
 export async function getComboById(id: string) {

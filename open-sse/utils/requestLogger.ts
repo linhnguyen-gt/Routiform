@@ -62,10 +62,23 @@ type RequestLogger = {
 function maskSensitiveHeaders(headers: HeaderInput): Record<string, unknown> {
   if (!headers) return {};
 
-  const headerEntries =
-    typeof (headers as Headers).entries === "function"
-      ? Object.fromEntries((headers as Headers).entries())
-      : { ...(headers as Record<string, unknown>) };
+  const headerEntries: Record<string, unknown> = {};
+  if (headers && typeof (headers as Headers).forEach === "function") {
+    (headers as Headers).forEach((value, key) => {
+      headerEntries[key] = value;
+    });
+  } else if (
+    headers &&
+    typeof (headers as { entries?: () => Iterable<[string, unknown]> }).entries === "function"
+  ) {
+    for (const [key, value] of (
+      headers as { entries: () => Iterable<[string, unknown]> }
+    ).entries()) {
+      headerEntries[key] = value;
+    }
+  } else {
+    Object.assign(headerEntries, headers as Record<string, unknown>);
+  }
 
   const masked = { ...headerEntries };
   const sensitiveKeys = ["authorization", "x-api-key", "cookie", "token"];
@@ -128,7 +141,7 @@ function compactPipelinePayloads(
   return hasOwnValues(result) ? result : null;
 }
 
-function createNoOpLogger(): RequestLogger {
+function _createNoOpLogger(): RequestLogger {
   return {
     sessionPath: null,
     logClientRawRequest() {},

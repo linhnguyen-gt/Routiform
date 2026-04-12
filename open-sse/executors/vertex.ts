@@ -122,7 +122,7 @@ export class VertexExecutor extends BaseExecutor {
   buildUrl(
     model: string,
     stream: boolean,
-    urlIndex = 0,
+    _urlIndex = 0,
     credentials: ProviderCredentials | null = null
   ) {
     const region = credentials?.providerSpecificData?.region || "us-central1";

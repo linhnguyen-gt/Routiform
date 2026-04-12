@@ -4,6 +4,7 @@
  */
 import { register } from "../registry.ts";
 import { FORMATS } from "../formats.ts";
+import { generateToolCallId } from "../helpers/toolCallHelper.ts";
 
 function normalizeToolName(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -493,7 +494,14 @@ export function openaiResponsesToOpenAIResponse(chunk, state) {
   // Function call started
   if (eventType === "response.output_item.added" && data.item?.type === "function_call") {
     const item = data.item;
-    state.currentToolCallId = item.call_id || `call_${Date.now()}`;
+    state.currentToolCallId =
+      item.call_id ||
+      generateToolCallId({
+        source: "responses-output-item-added",
+        index: state.toolCallIndex,
+        name: item.name,
+        arguments: item.arguments ?? "",
+      });
     state.currentToolCallArgsBuffer = ""; // reset per-call arg buffer
     state.currentToolCallDeferred = false;
 
@@ -572,7 +580,15 @@ export function openaiResponsesToOpenAIResponse(chunk, state) {
     const item = data.item;
     const buffered = state.currentToolCallArgsBuffer || "";
     const currentIndex = state.toolCallIndex; // capture before increment
-    const callId = item.call_id || state.currentToolCallId || `call_${Date.now()}`;
+    const callId =
+      item.call_id ||
+      state.currentToolCallId ||
+      generateToolCallId({
+        source: "responses-output-item-done",
+        index: currentIndex,
+        name: item.name,
+        arguments: item.arguments ?? buffered,
+      });
     const toolName = normalizeToolName(item.name);
 
     if (state.currentToolCallDeferred) {
@@ -662,19 +678,24 @@ export function openaiResponsesToOpenAIResponse(chunk, state) {
     if (responseUsage && typeof responseUsage === "object") {
       const inputTokens = responseUsage.input_tokens || responseUsage.prompt_tokens || 0;
       const outputTokens = responseUsage.output_tokens || responseUsage.completion_tokens || 0;
-      const cacheReadTokens = responseUsage.cache_read_input_tokens || 0;
-      const cacheCreationTokens = responseUsage.cache_creation_input_tokens || 0;
+      const cacheReadTokens =
+        responseUsage.cache_read_input_tokens ?? responseUsage.input_tokens_details?.cached_tokens ?? 0;
+      const cacheCreationTokens =
+        responseUsage.cache_creation_input_tokens ??
+        responseUsage.input_tokens_details?.cache_creation_tokens ??
+        responseUsage.input_tokens_details?.cache_write_tokens ??
+        0;
 
-      // prompt_tokens = input_tokens + cache_read + cache_creation (all prompt-side tokens)
-      const promptTokens = inputTokens + cacheReadTokens + cacheCreationTokens;
+      // Responses API input_tokens already includes prompt-side cached tokens.
+      const promptTokens = inputTokens;
 
       state.usage = {
         prompt_tokens: promptTokens,
         completion_tokens: outputTokens,
-        total_tokens: promptTokens + outputTokens,
+        total_tokens: responseUsage.total_tokens || promptTokens + outputTokens,
       };
 
-      // Add prompt_tokens_details if cache tokens exist
+      // Preserve prompt token details if cache tokens exist
       if (cacheReadTokens > 0 || cacheCreationTokens > 0) {
         state.usage.prompt_tokens_details = {};
         if (cacheReadTokens > 0) {
@@ -683,6 +704,12 @@ export function openaiResponsesToOpenAIResponse(chunk, state) {
         if (cacheCreationTokens > 0) {
           state.usage.prompt_tokens_details.cache_creation_tokens = cacheCreationTokens;
         }
+      };
+
+      if (responseUsage.output_tokens_details?.reasoning_tokens !== undefined) {
+        state.usage.completion_tokens_details = {
+          reasoning_tokens: responseUsage.output_tokens_details.reasoning_tokens,
+        };
       }
     }
 

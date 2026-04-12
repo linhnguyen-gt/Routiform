@@ -38,8 +38,12 @@ const CC_COMPATIBLE_LABEL = "CC Compatible";
 const ADD_CC_COMPATIBLE_LABEL = "Add CC Compatible";
 const CC_COMPATIBLE_DEFAULT_CHAT_PATH = "/v1/messages?beta=true";
 
+function isRefreshFailureWarning(conn: any) {
+  return conn.isActive !== false && conn.lastErrorType === "token_refresh_failed";
+}
+
 // Shared helper function to avoid code duplication between ProviderCard and ApiKeyProviderCard
-function getStatusDisplay(connected, error, errorCode, t) {
+function getStatusDisplay(connected, error, warning, errorCode, t, tc) {
   const parts = [];
   if (connected > 0) {
     parts.push(
@@ -55,6 +59,13 @@ function getStatusDisplay(connected, error, errorCode, t) {
     parts.push(
       <Badge key="error" variant="error" size="sm" dot>
         {errText}
+      </Badge>
+    );
+  }
+  if (warning > 0) {
+    parts.push(
+      <Badge key="warning" variant="warning" size="sm" dot>
+        {warning} {tc("warning")}
       </Badge>
     );
   }
@@ -202,15 +213,20 @@ export default function ProvidersPage() {
 
     const connected = providerConnections.filter((c) => {
       const status = getEffectiveStatus(c);
-      return status === "active" || status === "success";
+      return status === "active" || status === "success" || isRefreshFailureWarning(c);
     }).length;
 
+    const warningConns = providerConnections.filter((c) => isRefreshFailureWarning(c));
     const errorConns = providerConnections.filter((c) => {
       const status = getEffectiveStatus(c);
-      return status === "error" || status === "expired" || status === "unavailable";
+      return (
+        (status === "error" || status === "expired" || status === "unavailable") &&
+        !isRefreshFailureWarning(c)
+      );
     });
 
     const error = errorConns.length;
+    const warning = warningConns.length;
     const total = providerConnections.length;
 
     // Check if all connections are manually disabled
@@ -233,7 +249,7 @@ export default function ProvidersPage() {
     if (hasExpired) expiryStatus = "expired";
     else if (hasExpiringSoon) expiryStatus = "expiring_soon";
 
-    return { connected, error, total, errorCode, errorTime, allDisabled, expiryStatus };
+    return { connected, error, warning, total, errorCode, errorTime, allDisabled, expiryStatus };
   };
 
   // Toggle all connections for a provider on/off
@@ -702,7 +718,7 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
                   </Badge>
                 ) : (
                   <>
-                    {getStatusDisplay(connected, error, errorCode, t)}
+                    {getStatusDisplay(connected, error, stats.warning, errorCode, t, tc)}
                     {stats.expiryStatus === "expired" && (
                       <Badge variant="error" size="sm" dot>
                         Expired
@@ -841,7 +857,7 @@ function ApiKeyProviderCard({ providerId, provider, stats, authType, onToggle })
                   </Badge>
                 ) : (
                   <>
-                    {getStatusDisplay(connected, error, errorCode, t)}
+                    {getStatusDisplay(connected, error, stats.warning, errorCode, t, tc)}
                     {stats.expiryStatus === "expired" && (
                       <Badge variant="error" size="sm" dot>
                         Expired

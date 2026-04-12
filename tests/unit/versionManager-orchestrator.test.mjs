@@ -35,7 +35,7 @@ describe("versionManager orchestrator (index.ts)", () => {
     try {
       await mod.startTool("nonexistent-tool-xyz");
       assert.fail("Should have thrown");
-    } catch (err) {
+    } catch (_err) {
       assert.ok(true); // Expected to throw
     }
   });
@@ -44,7 +44,7 @@ describe("versionManager orchestrator (index.ts)", () => {
     try {
       await mod.restartTool("nonexistent-tool-xyz");
       assert.fail("Should have thrown");
-    } catch (err) {
+    } catch (_err) {
       assert.ok(true); // Expected to throw
     }
   });

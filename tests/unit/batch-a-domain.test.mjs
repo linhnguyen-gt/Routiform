@@ -13,6 +13,8 @@ import assert from "node:assert/strict";
 import {
   isModelAvailable,
   setModelUnavailable,
+  setModelProblematic,
+  markModelAvailable,
   clearModelUnavailability,
   getAvailabilityReport,
   getUnavailableCount,
@@ -53,10 +55,32 @@ describe("modelAvailability", () => {
 
   it("should auto-expire after cooldown", () => {
     setModelUnavailable("anthropic", "claude-sonnet-4-20250514", 1, "test");
-    // Wait 2ms for expiry
     const start = Date.now();
-    while (Date.now() - start < 5) {} // spin wait
+    while (Date.now() - start < 5) {}
     assert.equal(isModelAvailable("anthropic", "claude-sonnet-4-20250514"), true);
+  });
+
+  it("should escalate cooldown for repeated transient failures", () => {
+    const first = setModelProblematic("openai", "gpt-4o", { status: 503 });
+    const second = setModelProblematic("openai", "gpt-4o", { status: 503 });
+    const report = getAvailabilityReport();
+
+    assert.equal(first.failureCount, 1);
+    assert.equal(second.failureCount, 2);
+    assert.ok(second.cooldownMs > first.cooldownMs);
+    assert.equal(report.length, 1);
+    assert.equal(report[0].provider, "openai");
+    assert.equal(report[0].model, "gpt-4o");
+    assert.match(report[0].reason, /503/);
+  });
+
+  it("should reset failure history on success recovery", () => {
+    const first = setModelProblematic("openai", "gpt-4o-mini", { status: 504 });
+    markModelAvailable("openai", "gpt-4o-mini");
+    const recovered = setModelProblematic("openai", "gpt-4o-mini", { status: 504 });
+
+    assert.equal(first.failureCount, 1);
+    assert.equal(recovered.failureCount, 1);
   });
 });
 
@@ -67,7 +91,7 @@ import {
   getBudget,
   recordCost,
   checkBudget,
-  getDailyTotal,
+  _getDailyTotal,
   getCostSummary,
   resetCostData,
 } from "../../src/domain/costRules.ts";

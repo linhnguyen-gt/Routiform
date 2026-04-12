@@ -39,7 +39,7 @@ export class GithubExecutor extends BaseExecutor {
     );
   }
 
-  buildUrl(model, stream, urlIndex = 0) {
+  buildUrl(model, stream, _urlIndex = 0) {
     const targetFormat = getModelTargetFormat("gh", model);
     const isCodexFamily = typeof model === "string" && /(^|-)codex($|-)/i.test(model);
     if (targetFormat === "openai-responses" || isCodexFamily) {

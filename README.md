@@ -239,6 +239,7 @@ docker run -d \
   -v "$HOME/.openclaw:/root/.openclaw" \
   -v "$HOME/.config/opencode:/root/.config/opencode" \
   -v "$HOME/.continue:/root/.continue" \
+  -v "$HOME/.aws:/root/.aws" \
   linhnguyen0944/routiform:cli
 ```
 

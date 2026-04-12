@@ -833,6 +833,7 @@
     "comboName": "Combo Name",
     "comboNamePlaceholder": "my-combo",
     "deleteConfirm": "Delete this combo?",
+    "comboList": "Combos",
     "noCombosYet": "No combos yet",
     "comboCreated": "Combo created successfully",
     "comboUpdated": "Combo updated successfully",

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 // The auth.js mutex is an integration-level concern (DB-dependent) and is covered
 // by its own manual verification.
 
-const { checkFallbackError, getProviderProfile } =
+const { checkFallbackError, getProviderProfile: _getProviderProfile } =
   await import("../../open-sse/services/accountFallback.ts");
 
 const { PROVIDER_PROFILES, DEFAULT_API_LIMITS, COOLDOWN_MS, RateLimitReason } =

@@ -75,8 +75,8 @@ type CloudCodeEnvelope = {
   };
 };
 
-function normalizeAntigravityToolName(name: unknown) {
-  if (typeof name !== "string") return name;
+function normalizeAntigravityToolName(name: unknown): string {
+  if (typeof name !== "string") return "";
   const trimmed = name.trim();
   if (!trimmed) return trimmed;
 
@@ -85,7 +85,7 @@ function normalizeAntigravityToolName(name: unknown) {
 }
 
 // Core: Convert OpenAI request to Gemini format (base for all variants)
-function openaiToGeminiBase(model, body, stream) {
+function openaiToGeminiBase(model, body, _stream) {
   const result: GeminiRequest = {
     model: model,
     contents: [],
@@ -322,7 +322,7 @@ export function openaiToGeminiRequest(model, body, stream) {
 // OpenAI -> Gemini CLI (Cloud Code Assist)
 export function openaiToGeminiCLIRequest(model, body, stream) {
   const gemini = openaiToGeminiBase(model, body, stream);
-  const isClaude = model.toLowerCase().includes("claude");
+  const _isClaude = model.toLowerCase().includes("claude");
 
   // Add thinking config for CLI
   if (body.reasoning_effort) {
@@ -367,11 +367,24 @@ export function openaiToGeminiCLIRequest(model, body, stream) {
     for (const content of gemini.contents) {
       if (!Array.isArray(content.parts)) continue;
       for (const part of content.parts) {
-        if (part.functionCall?.name) {
-          part.functionCall.name = normalizeAntigravityToolName(part.functionCall.name);
+        const functionCall =
+          part.functionCall &&
+          typeof part.functionCall === "object" &&
+          !Array.isArray(part.functionCall)
+            ? (part.functionCall as Record<string, unknown>)
+            : null;
+        if (functionCall && "name" in functionCall) {
+          functionCall.name = normalizeAntigravityToolName(String(functionCall.name ?? ""));
         }
-        if (part.functionResponse?.name) {
-          part.functionResponse.name = normalizeAntigravityToolName(part.functionResponse.name);
+
+        const functionResponse =
+          part.functionResponse &&
+          typeof part.functionResponse === "object" &&
+          !Array.isArray(part.functionResponse)
+            ? (part.functionResponse as Record<string, unknown>)
+            : null;
+        if (functionResponse && "name" in functionResponse) {
+          functionResponse.name = normalizeAntigravityToolName(String(functionResponse.name ?? ""));
         }
       }
     }

@@ -669,7 +669,7 @@ function convertClaudeCodeCompatibleClaudeMessage(
 
   const content = normalizeClaudeContentBlocks(message?.content).map((block) => {
     if (preserveCacheControl) return block;
-    const { cache_control, ...rest } = block;
+    const { cache_control: _cache_control, ...rest } = block;
     return rest;
   });
   if (content.length === 0) return null;

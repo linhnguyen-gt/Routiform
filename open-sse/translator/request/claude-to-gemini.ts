@@ -12,7 +12,7 @@ import { DEFAULT_THINKING_GEMINI_SIGNATURE } from "../../config/defaultThinkingS
  * Converts Claude Messages API body directly to Gemini format,
  * skipping the OpenAI hub intermediate step.
  */
-export function claudeToGeminiRequest(model, body, stream) {
+export function claudeToGeminiRequest(model, body, _stream) {
   const result: {
     model: string;
     contents: Array<Record<string, unknown>>;

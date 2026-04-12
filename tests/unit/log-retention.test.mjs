@@ -8,6 +8,8 @@ const TEST_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "routiform-log-reten
 process.env.DATA_DIR = TEST_DATA_DIR;
 process.env.APP_LOG_RETENTION_DAYS = "2";
 process.env.CALL_LOG_RETENTION_DAYS = "1";
+process.env.CALL_LOG_MAX_ENTRIES = "2";
+process.env.PROXY_LOG_MAX_ENTRIES = "2";
 
 const core = await import("../../src/lib/db/core.ts");
 const compliance = await import("../../src/lib/compliance/index.ts");
@@ -131,4 +133,42 @@ test("cleanupExpiredLogs uses separate APP and CALL retention windows", () => {
   assert.equal(db.prepare("SELECT COUNT(*) AS cnt FROM request_detail_logs").get().cnt, 1);
   assert.equal(db.prepare("SELECT COUNT(*) AS cnt FROM audit_log").get().cnt, 2);
   assert.equal(db.prepare("SELECT COUNT(*) AS cnt FROM mcp_tool_audit").get().cnt, 1);
+});
+
+test("cleanupExpiredLogs trims oldest call and proxy rows beyond configured limits", () => {
+  compliance.initAuditLog();
+  const db = core.getDbInstance();
+
+  const timestamps = [
+    new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+    new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+    new Date(Date.now() - 1 * 60 * 1000).toISOString(),
+  ];
+
+  for (let i = 0; i < timestamps.length; i += 1) {
+    db.prepare(
+      "INSERT INTO call_logs (id, timestamp, method, path, status, model, provider, account, duration, tokens_in, tokens_out, has_pipeline_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(`call-${i}`, timestamps[i], "POST", "/v1/chat/completions", 200, `m${i}`, "openai", "-", 1, 1, 1, 0);
+
+    db.prepare("INSERT INTO proxy_logs (id, timestamp, status, level, latency_ms) VALUES (?, ?, ?, ?, ?)").run(
+      `proxy-${i}`,
+      timestamps[i],
+      "success",
+      "direct",
+      1
+    );
+  }
+
+  const result = compliance.cleanupExpiredLogs();
+
+  assert.equal(result.deletedCallLogs, 1);
+  assert.equal(result.deletedProxyLogs, 1);
+  assert.deepEqual(
+    db.prepare("SELECT id FROM call_logs ORDER BY timestamp ASC, id ASC").all().map((row) => row.id),
+    ["call-1", "call-2"]
+  );
+  assert.deepEqual(
+    db.prepare("SELECT id FROM proxy_logs ORDER BY timestamp ASC, id ASC").all().map((row) => row.id),
+    ["proxy-1", "proxy-2"]
+  );
 });

@@ -33,13 +33,39 @@ export async function handleResponsesCore({
 }) {
   // Convert Responses API format to Chat Completions format
   const convertedBody = convertResponsesApiFormat(body);
+  const convertedBodyRecord =
+    convertedBody && typeof convertedBody === "object" && !Array.isArray(convertedBody)
+      ? (convertedBody as Record<string, unknown>)
+      : null;
+
+  if (!convertedBodyRecord) {
+    return {
+      success: false,
+      status: 400,
+      error: "Invalid translated payload: Responses API conversion must return a plain object",
+      response: new Response(
+        JSON.stringify({
+          error: {
+            message:
+              "Invalid translated payload: Responses API conversion must return a plain object",
+            type: "invalid_request_error",
+            code: "invalid_translated_payload",
+          },
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        }
+      ),
+    };
+  }
 
   // Ensure stream is enabled
-  convertedBody.stream = true;
+  convertedBodyRecord.stream = true;
 
   // Call chat core handler
   const result = await handleChatCore({
-    body: convertedBody,
+    body: convertedBodyRecord,
     modelInfo,
     credentials,
     log,

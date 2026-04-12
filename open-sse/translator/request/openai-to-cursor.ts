@@ -139,7 +139,7 @@ function convertMessages(messages) {
           tool_calls?: unknown;
         } = { role: "assistant", content: content || "" };
         assistantMsg.tool_calls = msg.tool_calls.map((tc) => {
-          const { index, ...rest } = tc || {};
+          const { index: _index, ...rest } = tc || {};
           return rest;
         });
         result.push(assistantMsg);
@@ -180,7 +180,7 @@ function convertMessages(messages) {
  * Transform OpenAI request to Cursor format
  * Returns modified body with converted messages
  */
-export function buildCursorRequest(model, body, stream, credentials) {
+export function buildCursorRequest(model, body, _stream, _credentials) {
   const messages = convertMessages(body.messages || []);
 
   return {

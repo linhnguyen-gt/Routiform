@@ -87,7 +87,7 @@ const MIN_HISTORY_SAMPLES = 10;
 async function validateResponseQuality(
   response: Response,
   isStreaming: boolean,
-  log: { warn?: (...args: unknown[]) => void }
+  _log: { warn?: (...args: unknown[]) => void }
 ): Promise<{ valid: boolean; reason?: string; clonedResponse?: Response }> {
   if (isStreaming) return { valid: true };
 
@@ -1017,7 +1017,7 @@ export async function handleComboChat({
   let earliestRetryAfter = null;
   let lastStatus = null;
   const startTime = Date.now();
-  let resolvedByModel = null;
+  let _resolvedByModel = null;
   let fallbackCount = 0;
   let lastTriedModelIndex = null;
   let lastTriedModelStr = null;
@@ -1090,7 +1090,7 @@ export async function handleComboChat({
           if (i > 0) fallbackCount++;
           break; // move to next model
         }
-        resolvedByModel = modelStr;
+        _resolvedByModel = modelStr;
         const latencyMs = Date.now() - startTime;
         log.info(
           "COMBO",

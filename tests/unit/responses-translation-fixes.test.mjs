@@ -5,6 +5,11 @@ const { convertResponsesApiFormat } =
   await import("../../open-sse/translator/helpers/responsesApiHelper.ts");
 const { openaiResponsesToOpenAIRequest, openaiToOpenAIResponsesRequest } =
   await import("../../open-sse/translator/request/openai-responses.ts");
+const {
+  generateToolCallId,
+  generateToolUseId,
+  generateToolCallId9,
+} = await import("../../open-sse/translator/helpers/toolCallHelper.ts");
 
 test("convertResponsesApiFormat filters orphaned function_call_output items", () => {
   const body = {
@@ -334,6 +339,72 @@ test("Chat→Responses: deprecated function role message converted to function_c
   assert.equal(fcOutput.call_id, fcItem.call_id);
 });
 
+test("toolCallHelper generates deterministic ids from the same seed", () => {
+  const seed = { source: "unit", index: 1, name: "search", arguments: '{"q":"x"}' };
+  assert.equal(generateToolCallId(seed), generateToolCallId(seed));
+  assert.equal(generateToolUseId(seed), generateToolUseId(seed));
+  assert.equal(generateToolCallId9(seed), generateToolCallId9(seed));
+  assert.match(generateToolCallId(seed), /^call_[a-f0-9]{16}$/);
+  assert.match(generateToolUseId(seed), /^toolu_[a-f0-9]{16}$/);
+  assert.match(generateToolCallId9(seed), /^[a-zA-Z0-9]{9}$/);
+});
+
+test("Chat→Responses assigns deterministic fallback call_id for assistant tool_calls", () => {
+  const body = {
+    model: "gpt-4",
+    messages: [
+      { role: "user", content: "weather?" },
+      {
+        role: "assistant",
+        content: "",
+        tool_calls: [
+          {
+            type: "function",
+            function: { name: "get_weather", arguments: '{"city":"NYC"}' },
+          },
+        ],
+      },
+    ],
+  };
+
+  const resultA = openaiToOpenAIResponsesRequest("gpt-4", body, true, null);
+  const resultB = openaiToOpenAIResponsesRequest("gpt-4", body, true, null);
+  const callA = resultA.input.find((i) => i.type === "function_call");
+  const callB = resultB.input.find((i) => i.type === "function_call");
+
+  assert.ok(callA?.call_id);
+  assert.equal(callA.call_id, callB.call_id);
+  assert.match(callA.call_id, /^call_[a-f0-9]{16}$/);
+});
+
+test("Chat→Responses deprecated function_call fallback is deterministic and unique per message", () => {
+  const body = {
+    model: "gpt-4",
+    messages: [
+      { role: "user", content: "weather twice" },
+      {
+        role: "assistant",
+        content: null,
+        function_call: { name: "get_weather", arguments: '{"city":"NYC"}' },
+      },
+      { role: "tool", tool_call_id: "ignored", content: '{"temp":72}' },
+      {
+        role: "assistant",
+        content: null,
+        function_call: { name: "get_weather", arguments: '{"city":"NYC"}' },
+      },
+    ],
+  };
+
+  const result = openaiToOpenAIResponsesRequest("gpt-4", body, true, null);
+  const calls = result.input.filter((i) => i.type === "function_call");
+
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].call_id, /^call_[a-f0-9]{16}$/);
+  assert.match(calls[1].call_id, /^call_[a-f0-9]{16}$/);
+  assert.notEqual(calls[0].call_id, calls[1].call_id);
+});
+
 const { openaiToOpenAIResponsesResponse, openaiResponsesToOpenAIResponse } =
   await import("../../open-sse/translator/response/openai-responses.ts");
 const { initState } = await import("../../open-sse/translator/index.ts");
@@ -386,6 +457,82 @@ test("Chat→Responses streaming: completed event includes accumulated output", 
   assert.ok(completedEvent.data.response.output.length > 0, "output should not be empty");
   const msgOutput = completedEvent.data.response.output.find((o) => o.type === "message");
   assert.ok(msgOutput, "should have message output item");
+});
+
+test("Responses completion usage does not double-count cached prompt tokens", () => {
+  const state = initState(FORMATS.OPENAI_RESPONSES);
+  const result = openaiResponsesToOpenAIResponse(
+    {
+      type: "response.completed",
+      response: {
+        usage: {
+          input_tokens: 100,
+          output_tokens: 20,
+          total_tokens: 120,
+          cache_read_input_tokens: 15,
+          cache_creation_input_tokens: 5,
+          output_tokens_details: {
+            reasoning_tokens: 6,
+          },
+        },
+      },
+    },
+    state
+  );
+
+  assert.ok(result);
+  assert.deepEqual(result.usage, {
+    prompt_tokens: 100,
+    completion_tokens: 20,
+    total_tokens: 120,
+    prompt_tokens_details: {
+      cached_tokens: 15,
+      cache_creation_tokens: 5,
+    },
+    completion_tokens_details: {
+      reasoning_tokens: 6,
+    },
+  });
+  assert.deepEqual(state.usage, result.usage);
+});
+
+test("Responses completion usage preserves nested-only cache details", () => {
+  const state = initState(FORMATS.OPENAI_RESPONSES);
+  const result = openaiResponsesToOpenAIResponse(
+    {
+      type: "response.completed",
+      response: {
+        usage: {
+          input_tokens: 100,
+          output_tokens: 20,
+          total_tokens: 120,
+          input_tokens_details: {
+            cached_tokens: 15,
+            cache_creation_tokens: 5,
+          },
+          output_tokens_details: {
+            reasoning_tokens: 6,
+          },
+        },
+      },
+    },
+    state
+  );
+
+  assert.ok(result);
+  assert.deepEqual(result.usage, {
+    prompt_tokens: 100,
+    completion_tokens: 20,
+    total_tokens: 120,
+    prompt_tokens_details: {
+      cached_tokens: 15,
+      cache_creation_tokens: 5,
+    },
+    completion_tokens_details: {
+      reasoning_tokens: 6,
+    },
+  });
+  assert.deepEqual(state.usage, result.usage);
 });
 
 test("Responses→Chat streaming: reasoning delta emits reasoning_content in Chat chunk", () => {

@@ -149,7 +149,7 @@ export function prepareClaudeRequest(body, provider = null, preserveCacheControl
   // In passthrough mode, preserve existing cache_control markers
   if (body.system && Array.isArray(body.system) && !preserveCacheControl) {
     body.system = body.system.map((block, i) => {
-      const { cache_control, ...rest } = block;
+      const { cache_control: _cache_control, ...rest } = block;
       if (i === body.system.length - 1) {
         return { ...rest, cache_control: { type: "ephemeral", ttl: "1h" } };
       }
@@ -271,7 +271,7 @@ export function prepareClaudeRequest(body, provider = null, preserveCacheControl
   // In passthrough mode, preserve existing cache_control markers
   if (body.tools && Array.isArray(body.tools) && !preserveCacheControl) {
     body.tools = body.tools.map((tool) => {
-      const { cache_control, ...rest } = tool;
+      const { cache_control: _cache_control, ...rest } = tool;
       return rest;
     });
     for (let i = body.tools.length - 1; i >= 0; i--) {

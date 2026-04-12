@@ -76,7 +76,7 @@ type ToolCall = {
   function: { name: string; arguments: string };
 };
 
-type UsageTokenRecord = Record<string, number>;
+type UsageTokenRecord = Record<string, number | Record<string, number>>;
 
 function getOpenAIIntermediateChunks(value: unknown): unknown[] {
   if (!value || typeof value !== "object") return [];
@@ -324,13 +324,26 @@ export function createSSEStream(options: StreamOptions = {}) {
                     if (!usage) usage = {};
                     const u = usage;
                     const eu = extracted as UsageTokenRecord;
-                    if (eu.prompt_tokens > 0) u.prompt_tokens = eu.prompt_tokens;
-                    if (eu.completion_tokens > 0) u.completion_tokens = eu.completion_tokens;
-                    if (eu.total_tokens > 0) u.total_tokens = eu.total_tokens;
-                    if (eu.cache_read_input_tokens)
-                      u.cache_read_input_tokens = eu.cache_read_input_tokens;
-                    if (eu.cache_creation_input_tokens)
-                      u.cache_creation_input_tokens = eu.cache_creation_input_tokens;
+                    const promptTokens =
+                      typeof eu.prompt_tokens === "number" ? eu.prompt_tokens : undefined;
+                    const completionTokens =
+                      typeof eu.completion_tokens === "number" ? eu.completion_tokens : undefined;
+                    const totalTokens = typeof eu.total_tokens === "number" ? eu.total_tokens : undefined;
+                    const cacheReadTokens =
+                      typeof eu.cache_read_input_tokens === "number"
+                        ? eu.cache_read_input_tokens
+                        : undefined;
+                    const cacheCreationTokens =
+                      typeof eu.cache_creation_input_tokens === "number"
+                        ? eu.cache_creation_input_tokens
+                        : undefined;
+                    if (promptTokens && promptTokens > 0) u.prompt_tokens = promptTokens;
+                    if (completionTokens && completionTokens > 0) {
+                      u.completion_tokens = completionTokens;
+                    }
+                    if (totalTokens && totalTokens > 0) u.total_tokens = totalTokens;
+                    if (cacheReadTokens) u.cache_read_input_tokens = cacheReadTokens;
+                    if (cacheCreationTokens) u.cache_creation_input_tokens = cacheCreationTokens;
                   }
                   const restoredToolName = restoreClaudePassthroughToolUseName(parsed, toolNameMap);
                   // Track content length and accumulate from Claude format

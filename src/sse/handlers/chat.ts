@@ -47,6 +47,7 @@ import { getCircuitBreaker, CircuitBreakerOpenError } from "../../shared/utils/c
 import {
   isModelAvailable,
   setModelUnavailable,
+  setModelProblematic,
   clearModelUnavailability,
 } from "../../domain/modelAvailability";
 import { markAccountExhaustedFrom429 } from "../../domain/quotaCache";
@@ -837,6 +838,18 @@ function handleNoCredentials(
   if (triedConnectionIds.length === 0) {
     log.error("AUTH", `No credentials for provider: ${provider}`);
     return errorResponse(HTTP_STATUS.BAD_REQUEST, `No credentials for provider: ${provider}`);
+  }
+  // All eligible accounts have been tried and exhausted by transient upstream errors.
+  // Adaptively quarantine this provider/model so subsequent requests skip it until it recovers.
+  if ([408, 500, 502, 503, 504].includes(Number(lastStatus || 0))) {
+    const quarantine = setModelProblematic(provider, model, {
+      status: Number(lastStatus || 0),
+      reason: `HTTP ${Number(lastStatus || 0)} all accounts exhausted`,
+    });
+    log.info(
+      "AVAILABILITY",
+      `${provider}/${model} quarantined for ${Math.ceil(quarantine.cooldownMs / 1000)}s after ${quarantine.failureCount} transient failure(s) across all accounts`
+    );
   }
   log.warn("CHAT", "No more accounts available", { provider });
   return errorResponse(

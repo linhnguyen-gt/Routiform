@@ -1,6 +1,7 @@
 import { BaseExecutor } from "./base.ts";
 import { CODEX_DEFAULT_INSTRUCTIONS } from "../config/codexInstructions.ts";
 import { PROVIDERS } from "../config/constants.ts";
+import { generateSessionId } from "../services/sessionManager.ts";
 import { refreshCodexToken } from "../services/tokenRefresh.ts";
 
 // ─── T09: Codex vs Spark Scope-Aware Rate Limiting ────────────────────────
@@ -199,7 +200,7 @@ export class CodexExecutor extends BaseExecutor {
    * Always request event-stream from upstream, even when client requested stream=false.
    * Includes chatgpt-account-id header for strict workspace binding.
    */
-  buildHeaders(credentials, stream = true) {
+  buildHeaders(credentials, _stream = true) {
     const isCompactRequest = isCompactResponsesEndpoint(credentials?.requestEndpointPath);
     const headers = super.buildHeaders(credentials, isCompactRequest ? false : true);
 
@@ -270,30 +271,77 @@ export class CodexExecutor extends BaseExecutor {
     // Ensure store is false (Codex requirement)
     body.store = false;
 
+    // Normalize effort suffix early so generated session_id reflects effective Codex wire semantics.
+    const effortLevels = ["none", "low", "medium", "high", "xhigh"];
+    let modelEffort: string | null = null;
+    const rawModel = typeof body.model === "string" && body.model ? body.model : model;
+    let cleanModel = rawModel;
+    for (const level of effortLevels) {
+      if (rawModel.endsWith(`-${level}`)) {
+        modelEffort = level;
+        cleanModel = rawModel.replace(`-${level}`, "");
+        break;
+      }
+    }
+
+    const normalizedSessionInput = Array.isArray(body.input)
+      ? body.input
+      : typeof body.input === "string" && body.input.trim()
+        ? [{ role: "user", content: body.input }]
+        : undefined;
+
+    // Keep a stable session_id for Codex conversation continuity.
+    if (!body.session_id) {
+      body.session_id = generateSessionId(
+        {
+          model: cleanModel,
+          system: body.instructions,
+          input: normalizedSessionInput,
+          tools: Array.isArray(body.tools) ? body.tools : undefined,
+        },
+        { provider: "codex" }
+      );
+    }
+
     // Issue #806: Even for native passthrough, some clients (purist completions) might indiscriminately inject
     // a `messages` or `prompt` array which the strict Codex Responses schema rejects.
     delete body.messages;
     delete body.prompt;
 
+    // Remove session_id - generated for internal tracking but not supported by upstream Codex API
+    delete body.session_id;
+
+    // Normalize suffixed model IDs before passthrough so upstream Codex receives
+    // the wire model name rather than the internal convenience suffix.
+    // e.g., gpt-5.3-codex-high → gpt-5.3-codex
+    if (modelEffort) {
+      body.model = cleanModel;
+      if (!body.reasoning) {
+        body.reasoning = { effort: clampEffort(cleanModel, modelEffort) };
+      } else if (body.reasoning.effort) {
+        body.reasoning.effort = clampEffort(cleanModel, body.reasoning.effort);
+      }
+      delete body.reasoning_effort;
+    }
+
+    // Always normalize or remove reasoning_effort shorthand before passthrough
+    // to avoid leaking internal convenience fields upstream (even when no model suffix)
+    if (body.reasoning_effort) {
+      if (!body.reasoning) {
+        body.reasoning = { effort: clampEffort(cleanModel, body.reasoning_effort) };
+      } else if (body.reasoning.effort) {
+        // Keep reasoning.effort precedence if already set
+        body.reasoning.effort = clampEffort(cleanModel, body.reasoning.effort);
+      }
+      delete body.reasoning_effort;
+    }
+
     if (nativeCodexPassthrough) {
       return body;
     }
 
-    // Extract thinking level from model name suffix
-    // e.g., gpt-5.3-codex-high → high, gpt-5.3-codex → medium (default)
-    const effortLevels = ["none", "low", "medium", "high", "xhigh"];
-    let modelEffort: string | null = null;
-    // Track the clean model name (suffix stripped) for clamp lookup
-    let cleanModel = model;
-    for (const level of effortLevels) {
-      if (model.endsWith(`-${level}`)) {
-        modelEffort = level;
-        // Strip suffix from model name for actual API call
-        body.model = body.model.replace(`-${level}`, "");
-        cleanModel = body.model;
-        break;
-      }
-    }
+    // Apply normalized model/effect for the actual Codex wire request.
+    // e.g., gpt-5.3-codex-high → model gpt-5.3-codex with reasoning high
 
     // Priority: explicit reasoning.effort > reasoning_effort param > model suffix > default (medium)
     if (!body.reasoning) {

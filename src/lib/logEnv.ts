@@ -62,6 +62,13 @@ export function getCallLogMaxEntries(): number {
   return parsePositiveInt(process.env.CALL_LOG_MAX_ENTRIES, DEFAULT_CALL_LOG_MAX_ENTRIES);
 }
 
+export function getProxyLogMaxEntries(): number {
+  return parsePositiveInt(
+    process.env.PROXY_LOG_MAX_ENTRIES ?? process.env.PROXY_LOGS_TABLE_MAX_ROWS,
+    DEFAULT_CALL_LOG_MAX_ENTRIES
+  );
+}
+
 export function getAppLogLevel(defaultLevel: string): string {
   return process.env.APP_LOG_LEVEL || defaultLevel;
 }

@@ -4,6 +4,7 @@
  */
 import { register } from "../registry.ts";
 import { FORMATS } from "../formats.ts";
+import { generateToolCallId } from "../helpers/toolCallHelper.ts";
 
 /**
  * Parse Kiro SSE event and convert to OpenAI format
@@ -116,7 +117,13 @@ export function convertKiroToOpenAI(chunk, state) {
   // Handle tool use events
   if (eventType === "toolUseEvent" || data.toolUseEvent) {
     const toolUse = data.toolUseEvent || data;
-    const toolCallId = toolUse.toolUseId || `call_${Date.now()}`;
+    const toolCallId =
+      toolUse.toolUseId ||
+      generateToolCallId({
+        source: "kiro-to-openai",
+        name: toolUse.name || "",
+        input: toolUse.input || {},
+      });
     const toolName = toolUse.name || "";
     const toolInput = toolUse.input || {};
 

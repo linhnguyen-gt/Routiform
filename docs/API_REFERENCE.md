@@ -197,13 +197,38 @@ Response example:
 
 ### Routing & Config
 
-| Endpoint              | Method   | Description                   |
-| --------------------- | -------- | ----------------------------- |
-| `/api/models/alias`   | GET/POST | Model aliases                 |
-| `/api/models/catalog` | GET      | All models by provider + type |
-| `/api/combos*`        | Various  | Combo management              |
-| `/api/keys*`          | Various  | API key management            |
-| `/api/pricing`        | GET      | Model pricing                 |
+| Endpoint              | Method   | Description                       |
+| --------------------- | -------- | --------------------------------- |
+| `/api/models/alias`   | GET/POST | Model aliases                     |
+| `/api/models/catalog` | GET      | All models by provider + type     |
+| `/api/combos*`        | Various  | Combo management (CRUD + reorder) |
+| `/api/keys*`          | Various  | API key management                |
+| `/api/pricing`        | GET      | Model pricing                     |
+
+#### Combo Reordering
+
+```bash
+# Reorder combos by drag-and-drop
+POST /api/combos/reorder
+Content-Type: application/json
+
+{
+  "ids": [
+    "11111111-1111-1111-1111-111111111111",
+    "22222222-2222-2222-2222-222222222222",
+    "33333333-3333-3333-3333-333333333333"
+  ]
+}
+
+# Response
+{
+  "updated": 3
+}
+```
+
+Persists the display order of combos. The `ids` array defines the new sequence; combos are assigned sequential `sort_order` values starting from 1. Malformed IDs are rejected with 400. Well-formed IDs that do not exist are ignored, and `updated` reflects the rows that were actually changed.
+
+---
 
 ### Usage & Analytics
 

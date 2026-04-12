@@ -84,7 +84,7 @@ test("selectAccount: round-robin with excludeConnectionId skips excluded", () =>
   let state = {};
 
   // First request - no exclusion
-  const { account: acc1 } = selectAccount(accounts, "round-robin", state);
+  const { account: _acc1 } = selectAccount(accounts, "round-robin", state);
   state = { lastIndex: 0 }; // Simulate 'a' was picked
 
   // 'a' fails, exclude it

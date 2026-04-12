@@ -1,5 +1,6 @@
 import { cloneLogPayload } from "@/lib/logPayloads";
 import { FORMATS } from "../translator/formats.ts";
+import { generateToolUseId } from "../translator/helpers/toolCallHelper.ts";
 
 type StructuredSSEEvent = {
   index: number;
@@ -379,7 +380,14 @@ function buildClaudeSummary(events: StructuredSSEEvent[], fallbackModel?: string
         blocks.set(index, {
           type: "tool_use",
           index,
-          id: toString(contentBlock.id, `toolu_${Date.now()}_${index}`),
+          id:
+            toString(contentBlock.id) ||
+            generateToolUseId({
+              source: "stream-payload-collector-content-block-start",
+              index,
+              name: contentBlock.name,
+              input: contentBlock.input ?? {},
+            }),
           name: toString(contentBlock.name),
           input: cloneLogPayload(contentBlock.input ?? {}),
           inputJson: "",
@@ -407,7 +415,10 @@ function buildClaudeSummary(events: StructuredSSEEvent[], fallbackModel?: string
             : {
                 type: "tool_use" as const,
                 index,
-                id: `toolu_${Date.now()}_${index}`,
+                id: generateToolUseId({
+                  source: "stream-payload-collector-input-json-delta",
+                  index,
+                }),
                 name: "",
                 input: {},
                 inputJson: "",
@@ -454,7 +465,7 @@ function buildClaudeSummary(events: StructuredSSEEvent[], fallbackModel?: string
 
   const content = [...blocks.values()]
     .sort((a, b) => a.index - b.index)
-    .flatMap((block) => {
+    .flatMap((block): Array<JsonRecord> => {
       if (block.type === "text") {
         return block.text
           ? [

@@ -156,8 +156,11 @@ describe("modelsDevSync — resolution order: user > models.dev > LiteLLM > defa
 
   it("getPricing() merges all layers correctly", async () => {
     const { getPricing } = await import("../../src/lib/db/settings.ts");
-    const { syncModelsDev, clearModelsDevPricing, saveModelsDevPricing } =
-      await import("../../src/lib/modelsDevSync.ts");
+    const {
+      syncModelsDev,
+      clearModelsDevPricing,
+      saveModelsDevPricing: _saveModelsDevPricing,
+    } = await import("../../src/lib/modelsDevSync.ts");
     const { updatePricing, resetPricing } = await import("../../src/lib/db/settings.ts");
 
     // Clear all synced data first

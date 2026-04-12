@@ -10,7 +10,7 @@ import { FORMATS } from "../formats.ts";
  * Since CursorExecutor.transformProtobufToSSE/JSON already emits OpenAI chunks,
  * this is a passthrough translator (similar to Kiro pattern)
  */
-export function convertCursorToOpenAI(chunk, state) {
+export function convertCursorToOpenAI(chunk, _state) {
   if (!chunk) return null;
 
   // If chunk is already in OpenAI format (from executor transform), return as-is

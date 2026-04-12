@@ -8,6 +8,7 @@ import {
 import { PROVIDERS } from "../config/constants.ts";
 import { v4 as uuidv4 } from "uuid";
 import { refreshKiroToken } from "../services/tokenRefresh.ts";
+import { generateToolCallId } from "../translator/helpers/toolCallHelper.ts";
 import { CONTEXT_CONFIG } from "../../src/shared/constants/context";
 
 type JsonRecord = Record<string, unknown>;
@@ -99,7 +100,7 @@ export class KiroExecutor extends BaseExecutor {
     stream,
     credentials,
     signal,
-    log,
+    _log,
     upstreamExtraHeaders,
   }: ExecuteInput) {
     const url = this.buildUrl(model, stream, 0);
@@ -223,7 +224,14 @@ export class KiroExecutor extends BaseExecutor {
             const toolUses = Array.isArray(toolUse) ? toolUse : [toolUse];
 
             for (const singleToolUse of toolUses) {
-              const toolCallId = singleToolUse.toolUseId || `call_${Date.now()}`;
+              const toolCallId =
+                singleToolUse.toolUseId ||
+                generateToolCallId({
+                  source: "kiro-executor-tool-use",
+                  occurrence: state.toolCallIndex,
+                  name: singleToolUse.name || "",
+                  input: singleToolUse.input,
+                });
               const toolName = singleToolUse.name || "";
               const toolInput = singleToolUse.input;
 
@@ -506,7 +514,7 @@ export class KiroExecutor extends BaseExecutor {
 function parseEventFrame(data: Uint8Array): EventFrame | null {
   try {
     const view = new DataView(data.buffer, data.byteOffset);
-    const totalLength = view.getUint32(0, false);
+    const _totalLength = view.getUint32(0, false);
     const headersLength = view.getUint32(4, false);
 
     // ── CRC32 validation ──

@@ -527,7 +527,7 @@ export function parseResetTime(resetValue: unknown): string | null {
  * GitHub Copilot Usage
  * Uses GitHub accessToken (not copilotToken) to call copilot_internal/user API
  */
-async function getGitHubUsage(accessToken, providerSpecificData) {
+async function getGitHubUsage(accessToken, _providerSpecificData) {
   try {
     if (!accessToken) {
       throw new Error("No GitHub access token available. Please re-authorize the connection.");
@@ -1024,7 +1024,7 @@ function getAntigravityPlanLabel(subscriptionInfo) {
  * with per-model quotaInfo (remainingFraction, resetTime).
  * retrieveUserQuota only returns Gemini models — not suitable for Antigravity.
  */
-async function getAntigravityUsage(accessToken, providerSpecificData) {
+async function getAntigravityUsage(accessToken, _providerSpecificData) {
   try {
     const subscriptionInfo = await getAntigravitySubscriptionInfoCached(accessToken);
     const projectId = subscriptionInfo?.cloudaicompanionProject || null;
@@ -1811,7 +1811,7 @@ async function getKimiUsage(accessToken) {
     const limitsArray = Array.isArray(dataObj.limits) ? dataObj.limits : [];
     for (let i = 0; i < limitsArray.length; i++) {
       const limitItem = toRecord(limitsArray[i]);
-      const window = toRecord(limitItem.window);
+      const _window = toRecord(limitItem.window);
       const detail = toRecord(limitItem.detail);
 
       const limit = toNumber(detail.limit || detail.Limit, 0);
@@ -1901,7 +1901,7 @@ async function getQwenUsage(accessToken, providerSpecificData) {
 
     // Qwen may have usage endpoint at resource URL
     return { message: "Qwen connected. Usage tracked per request." };
-  } catch (error) {
+  } catch (_error) {
     return { message: "Unable to fetch Qwen usage." };
   }
 }
@@ -1909,11 +1909,11 @@ async function getQwenUsage(accessToken, providerSpecificData) {
 /**
  * Qoder Usage
  */
-async function getIflowUsage(accessToken) {
+async function getIflowUsage(_accessToken) {
   try {
     // Qoder may have usage endpoint
     return { message: "Qoder connected. Usage tracked per request." };
-  } catch (error) {
+  } catch (_error) {
     return { message: "Unable to fetch Qoder usage." };
   }
 }

@@ -16,7 +16,7 @@ export class GeminiCLIExecutor extends BaseExecutor {
     super("gemini-cli", PROVIDERS["gemini-cli"]);
   }
 
-  buildUrl(model, stream, urlIndex = 0) {
+  buildUrl(model, stream, _urlIndex = 0) {
     const action = stream ? "streamGenerateContent?alt=sse" : "generateContent";
     return `${this.config.baseUrl}:${action}`;
   }

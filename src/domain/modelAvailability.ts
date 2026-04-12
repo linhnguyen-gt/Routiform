@@ -21,6 +21,21 @@
 /** @type {Map<string, UnavailableEntry>} */
 const unavailable = new Map();
 
+/** @type {Map<string, { failureCount: number, lastFailureAt: number }>} */
+const failureState = new Map();
+
+const FAILURE_WINDOW_MS = 30 * 60 * 1000;
+const PROBLEMATIC_STATUS_COOLDOWNS = {
+  429: 5 * 60 * 1000,
+  408: 60 * 1000,
+  500: 2 * 60 * 1000,
+  502: 2 * 60 * 1000,
+  503: 2 * 60 * 1000,
+  504: 2 * 60 * 1000,
+};
+const MIN_PROBLEMATIC_COOLDOWN_MS = 60 * 1000;
+const MAX_PROBLEMATIC_COOLDOWN_MS = 30 * 60 * 1000;
+
 /**
  * Build a composite key for provider+model.
  * @param {string} provider
@@ -62,13 +77,53 @@ export function isModelAvailable(provider, model) {
  */
 export function setModelUnavailable(provider, model, cooldownMs = 60000, reason) {
   const key = makeKey(provider, model);
+  const now = Date.now();
+  const safeCooldownMs = Number.isFinite(cooldownMs) && cooldownMs > 0 ? cooldownMs : 60000;
+  const existing = unavailable.get(key);
+  const existingRemainingMs =
+    existing && now - existing.unavailableSince < existing.cooldownMs
+      ? existing.cooldownMs - (now - existing.unavailableSince)
+      : 0;
+  const effectiveCooldownMs = Math.max(safeCooldownMs, existingRemainingMs);
+
   unavailable.set(key, {
     provider,
     model,
-    unavailableSince: Date.now(),
-    cooldownMs,
+    unavailableSince: now,
+    cooldownMs: effectiveCooldownMs,
     reason: reason || "unknown",
   });
+}
+
+export function setModelProblematic(provider, model, options = {}) {
+  const key = makeKey(provider, model);
+  const now = Date.now();
+  const status = Number(options.status || 0);
+  const baseCooldownMs =
+    Number.isFinite(options.baseCooldownMs) && options.baseCooldownMs > 0
+      ? options.baseCooldownMs
+      : PROBLEMATIC_STATUS_COOLDOWNS[status] || MIN_PROBLEMATIC_COOLDOWN_MS;
+  const previous = failureState.get(key);
+  const withinWindow = previous && now - previous.lastFailureAt <= FAILURE_WINDOW_MS;
+  const failureCount = withinWindow ? previous.failureCount + 1 : 1;
+  const scaledCooldownMs = Math.min(
+    MAX_PROBLEMATIC_COOLDOWN_MS,
+    Math.max(MIN_PROBLEMATIC_COOLDOWN_MS, baseCooldownMs * 2 ** (failureCount - 1))
+  );
+
+  failureState.set(key, { failureCount, lastFailureAt: now });
+  setModelUnavailable(provider, model, scaledCooldownMs, options.reason || `HTTP ${status || "transient"}`);
+
+  return {
+    failureCount,
+    cooldownMs: scaledCooldownMs,
+  };
+}
+
+export function markModelAvailable(provider, model) {
+  const key = makeKey(provider, model);
+  failureState.delete(key);
+  return unavailable.delete(key);
 }
 
 /**
@@ -79,7 +134,7 @@ export function setModelUnavailable(provider, model, cooldownMs = 60000, reason)
  * @returns {boolean} true if entry existed and was removed
  */
 export function clearModelUnavailability(provider, model) {
-  return unavailable.delete(makeKey(provider, model));
+  return markModelAvailable(provider, model);
 }
 
 /**
@@ -125,4 +180,5 @@ export function getUnavailableCount() {
  */
 export function resetAllAvailability() {
   unavailable.clear();
+  failureState.clear();
 }

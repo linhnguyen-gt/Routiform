@@ -13,10 +13,17 @@ import { CodexExecutor, setDefaultFastServiceTierEnabled } from "../../open-sse/
 import { translateNonStreamingResponse } from "../../open-sse/handlers/responseTranslator.ts";
 import { extractUsageFromResponse } from "../../open-sse/handlers/usageExtractor.ts";
 import {
+  parseSSEToClaudeResponse,
   parseSSEToOpenAIResponse,
   parseSSEToResponsesOutput,
 } from "../../open-sse/handlers/sseParser.ts";
+import { KiroExecutor } from "../../open-sse/executors/kiro.ts";
 import { createPassthroughStreamWithLogger } from "../../open-sse/utils/stream.ts";
+import { clearSessions, generateSessionId } from "../../open-sse/services/sessionManager.ts";
+import {
+  generateToolCallId,
+  generateToolUseId,
+} from "../../open-sse/translator/helpers/toolCallHelper.ts";
 
 test("getModelInfoCore resolves unique non-openai unprefixed model", async () => {
   const info = await getModelInfoCore("claude-haiku-4-5-20251001", {});
@@ -277,6 +284,105 @@ test("CodexExecutor always requests SSE accept header", () => {
   assert.equal(headers.Accept, "text/event-stream");
 });
 
+test("CodexExecutor generates stable session_id from Codex request fingerprint", () => {
+  clearSessions();
+  const executor = new CodexExecutor();
+  const body = {
+    model: "gpt-5.1-codex",
+    input: [{ role: "user", content: "ship it" }],
+    instructions: "custom system prompt",
+    tools: [{ type: "function", name: "lookup_weather", parameters: { type: "object" } }],
+  };
+
+  const transformed1 = executor.transformRequest("gpt-5.1-codex", structuredClone(body), true);
+  const transformed2 = executor.transformRequest("gpt-5.1-codex", structuredClone(body), true);
+
+  const _expectedSessionId = generateSessionId(
+    {
+      model: body.model,
+      system: body.instructions,
+      input: body.input,
+      tools: body.tools,
+    },
+    { provider: "codex" }
+  );
+
+  // session_id is removed because upstream Codex API doesn't support it
+  assert.equal(transformed1.session_id, undefined);
+  assert.equal(transformed2.session_id, undefined);
+});
+
+test("CodexExecutor removes client-provided session_id (upstream unsupported)", () => {
+  const executor = new CodexExecutor();
+  const transformed = executor.transformRequest(
+    "gpt-5.1-codex",
+    {
+      model: "gpt-5.1-codex",
+      input: [{ role: "user", content: "ship it" }],
+      instructions: "custom system prompt",
+      session_id: "client-session-1",
+    },
+    true
+  );
+
+  // session_id is removed because upstream Codex API doesn't support it
+  assert.equal(transformed.session_id, undefined);
+});
+
+test("CodexExecutor reuses stable session_id across equivalent effort syntax", () => {
+  const executor = new CodexExecutor();
+  const withSuffix = executor.transformRequest(
+    "gpt-5.3-codex-high",
+    {
+      model: "gpt-5.3-codex-high",
+      input: [{ role: "user", content: "ship it" }],
+      instructions: "custom system prompt",
+    },
+    true
+  );
+  const withReasoningEffort = executor.transformRequest(
+    "gpt-5.3-codex",
+    {
+      model: "gpt-5.3-codex",
+      input: [{ role: "user", content: "ship it" }],
+      instructions: "custom system prompt",
+      reasoning_effort: "high",
+    },
+    true
+  );
+
+  // session_id is removed because upstream Codex API doesn't support it
+  assert.equal(withSuffix.session_id, undefined);
+  assert.equal(withReasoningEffort.session_id, undefined);
+});
+
+test("CodexExecutor removes session_id for both string and array input", () => {
+  const executor = new CodexExecutor();
+  const stringInput = executor.transformRequest(
+    "gpt-5.3-codex",
+    {
+      model: "gpt-5.3-codex",
+      input: "ship it",
+      instructions: "custom system prompt",
+    },
+    true
+  );
+  const arrayInput = executor.transformRequest(
+    "gpt-5.3-codex",
+    {
+      model: "gpt-5.3-codex",
+      input: [{ role: "user", content: "ship it" }],
+      instructions: "custom system prompt",
+      messages: [{ role: "user", content: "ignored extra field" }],
+    },
+    true
+  );
+
+  // session_id is removed because upstream Codex API doesn't support it
+  assert.equal(stringInput.session_id, undefined);
+  assert.equal(arrayInput.session_id, undefined);
+});
+
 test("CodexExecutor does not request SSE accept header for compact requests", () => {
   const executor = new CodexExecutor();
   const headers = executor.buildHeaders(
@@ -312,7 +418,29 @@ test("CodexExecutor preserves native responses payloads for Codex passthrough", 
   assert.equal(transformed.instructions, "custom system prompt");
   assert.equal(transformed.store, false);
   assert.deepEqual(transformed.metadata, { source: "codex-client" });
-  assert.equal(transformed.reasoning_effort, "high");
+  assert.deepEqual(transformed.reasoning, { effort: "high" });
+  assert.equal(transformed.reasoning_effort, undefined);
+  assert.ok(!("_nativeCodexPassthrough" in transformed));
+});
+
+test("CodexExecutor normalizes suffixed models for native Codex passthrough", () => {
+  const executor = new CodexExecutor();
+  const transformed = executor.transformRequest(
+    "gpt-5.3-codex-high",
+    {
+      model: "gpt-5.3-codex-high",
+      input: "ship it",
+      instructions: "custom system prompt",
+      _nativeCodexPassthrough: true,
+      stream: false,
+    },
+    false
+  );
+
+  assert.equal(transformed.model, "gpt-5.3-codex");
+  assert.deepEqual(transformed.reasoning, { effort: "high" });
+  assert.equal(transformed.reasoning_effort, undefined);
+  assert.equal(transformed.stream, true);
   assert.ok(!("_nativeCodexPassthrough" in transformed));
 });
 
@@ -637,15 +765,156 @@ test("parseSSEToOpenAIResponse reads final chunk with message not delta", () => 
   assert.equal(parsed.choices[0].message.content, "OK");
 });
 
-test("createPassthroughStreamWithLogger emits final usage-only chunk when include_usage is true", async () => {
-  const transform = createPassthroughStreamWithLogger(
-    "openai",
-    null,
-    null,
-    "gpt-4o-mini",
-    null,
-    { stream_options: { include_usage: true } }
+function streamFromChunks(chunks) {
+  const encoder = new TextEncoder();
+  return new ReadableStream({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(typeof chunk === "string" ? encoder.encode(chunk) : chunk);
+      }
+      controller.close();
+    },
+  });
+}
+
+function encodeKiroHeader(name, value) {
+  const encoder = new TextEncoder();
+  const nameBytes = encoder.encode(name);
+  const valueBytes = encoder.encode(value);
+  const header = new Uint8Array(1 + nameBytes.length + 1 + 2 + valueBytes.length);
+  let offset = 0;
+  header[offset++] = nameBytes.length;
+  header.set(nameBytes, offset);
+  offset += nameBytes.length;
+  header[offset++] = 7;
+  header[offset++] = (valueBytes.length >> 8) & 0xff;
+  header[offset++] = valueBytes.length & 0xff;
+  header.set(valueBytes, offset);
+  return header;
+}
+
+const TEST_CRC32_TABLE = new Uint32Array(256);
+for (let i = 0; i < 256; i++) {
+  let c = i;
+  for (let j = 0; j < 8; j++) {
+    c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  }
+  TEST_CRC32_TABLE[i] = c >>> 0;
+}
+
+function crc32(buf) {
+  let crc = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) {
+    crc = TEST_CRC32_TABLE[(crc ^ buf[i]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function encodeKiroFrame(eventType, payload) {
+  const encoder = new TextEncoder();
+  const headers = encodeKiroHeader(":event-type", eventType);
+  const payloadBytes = encoder.encode(JSON.stringify(payload));
+  const totalLength = 12 + headers.length + payloadBytes.length + 4;
+  const frame = new Uint8Array(totalLength);
+  const view = new DataView(frame.buffer);
+  view.setUint32(0, totalLength, false);
+  view.setUint32(4, headers.length, false);
+  view.setUint32(8, crc32(frame.slice(0, 8)), false);
+  frame.set(headers, 12);
+  frame.set(payloadBytes, 12 + headers.length);
+  view.setUint32(totalLength - 4, crc32(frame.slice(0, totalLength - 4)), false);
+  return frame;
+}
+
+test("parseSSEToClaudeResponse generates deterministic fallback tool_use ids", () => {
+  const rawSSE = [
+    "event: message_start",
+    `data: ${JSON.stringify({
+      type: "message_start",
+      message: { id: "msg_1", model: "fallback-model", role: "assistant", usage: {} },
+    })}`,
+    "",
+    "event: content_block_start",
+    `data: ${JSON.stringify({
+      type: "content_block_start",
+      index: 0,
+      content_block: { type: "tool_use", name: "search", input: { q: "abc" } },
+    })}`,
+    "",
+    "event: content_block_stop",
+    `data: ${JSON.stringify({ type: "content_block_stop", index: 0 })}`,
+    "",
+    "event: message_stop",
+    `data: ${JSON.stringify({ type: "message_stop", stop_reason: "tool_use" })}`,
+    "",
+    "data: [DONE]",
+    "",
+  ].join("\n");
+
+  const parsedA = parseSSEToClaudeResponse(rawSSE, "fallback-model");
+  const parsedB = parseSSEToClaudeResponse(rawSSE, "fallback-model");
+
+  assert.ok(parsedA);
+  assert.ok(parsedB);
+  const toolA = parsedA.content.find((part) => part.type === "tool_use");
+  const toolB = parsedB.content.find((part) => part.type === "tool_use");
+  assert.ok(toolA);
+  assert.ok(toolB);
+  assert.equal(toolA.id, toolB.id);
+  assert.equal(
+    toolA.id,
+    generateToolUseId({
+      source: "sse-parser-content-block-start",
+      index: 0,
+      name: "search",
+      input: { q: "abc" },
+    })
   );
+});
+
+test("KiroExecutor generates distinct fallback ids for repeated identical tool calls without upstream ids", async () => {
+  const executor = new KiroExecutor();
+  const response = new Response(
+    streamFromChunks([
+      encodeKiroFrame("toolUseEvent", { name: "search", input: { q: "abc" } }),
+      encodeKiroFrame("toolUseEvent", { name: "search", input: { q: "abc" } }),
+      encodeKiroFrame("messageStopEvent", {}),
+    ]),
+    { headers: { "content-type": "application/vnd.amazon.eventstream" } }
+  );
+
+  const transformed = executor.transformEventStreamToSSE(response, "kiro-model");
+  const rawSSE = await transformed.text();
+  const parsed = parseSSEToOpenAIResponse(rawSSE, "kiro-model");
+
+  assert.ok(parsed);
+  const toolCalls = parsed.choices[0].message.tool_calls;
+  assert.equal(toolCalls.length, 2);
+  assert.equal(
+    toolCalls[0].id,
+    generateToolCallId({
+      source: "kiro-executor-tool-use",
+      occurrence: 0,
+      name: "search",
+      input: { q: "abc" },
+    })
+  );
+  assert.equal(
+    toolCalls[1].id,
+    generateToolCallId({
+      source: "kiro-executor-tool-use",
+      occurrence: 1,
+      name: "search",
+      input: { q: "abc" },
+    })
+  );
+  assert.notEqual(toolCalls[0].id, toolCalls[1].id);
+});
+
+test("createPassthroughStreamWithLogger emits final usage-only chunk when include_usage is true", async () => {
+  const transform = createPassthroughStreamWithLogger("openai", null, null, "gpt-4o-mini", null, {
+    stream_options: { include_usage: true },
+  });
 
   const writer = transform.writable.getWriter();
   const reader = transform.readable.getReader();

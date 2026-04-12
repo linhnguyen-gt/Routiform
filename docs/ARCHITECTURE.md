@@ -192,7 +192,23 @@ Management domains:
 Main flow modules:
 
 - Entry: `src/sse/handlers/chat.ts`
-- Core orchestration: `open-sse/handlers/chatCore.ts`
+- Core orchestration: `open-sse/handlers/chatCore.ts` (2,094 lines, modularized)
+- Request phases: `open-sse/handlers/phases/*` (7 modules)
+  - `idempotency-check.ts` — duplicate request detection
+  - `input-sanitizer.ts` — request normalization and memory injection
+  - `semantic-cache-handler.ts` — semantic cache lookup
+  - `background-task-redirector.ts` — async task routing
+  - `context-validator.ts` — context window validation and compression
+  - `model-fallback-handler.ts` — model-level fallback logic
+  - `emergency-fallback-handler.ts` — last-resort fallback strategies
+- Handler utilities: `open-sse/handlers/utils/*` (3 modules)
+  - `cache-log-helpers.ts` — cache usage logging utilities
+  - `claude-passthrough-helpers.ts` — Claude tool name mapping
+  - `header-helpers.ts` — case-insensitive header access
+- Handler services: `open-sse/handlers/services/*` (1 module)
+  - `codex-quota-manager.ts` — Codex quota state persistence
+- Handler types: `open-sse/handlers/types/*` (1 module)
+  - `chat-request-context.ts` — request context type definitions
 - Provider execution adapters: `open-sse/executors/*`
 - Format detection/provider config: `open-sse/services/provider.ts`
 - Model parse/resolve: `src/sse/services/model.ts`, `open-sse/services/model.ts`
@@ -256,6 +272,7 @@ Usage persistence:
 
 - facade: `src/lib/usageDb.ts` (decomposed modules in `src/lib/usage/*`)
 - SQLite tables in `storage.sqlite`: `usage_history`, `call_logs`, `proxy_logs`
+- `call_logs` and `proxy_logs` are bounded by retention rules and max-row caps (`CALL_LOG_MAX_ENTRIES`, `PROXY_LOG_MAX_ENTRIES`)
 - optional file artifacts remain for compatibility/debug (`${DATA_DIR}/log.txt`, `${DATA_DIR}/call_logs/`, `<repo>/logs/...`)
 - legacy JSON files are migrated to SQLite by startup migrations when present
 
@@ -477,6 +494,7 @@ erDiagram
       string id
       string name
       string[] models
+      number sort_order
     }
 
     API_KEY {
@@ -576,7 +594,8 @@ flowchart LR
 - `src/app/api/oauth/*`: OAuth/device-code flows
 - `src/app/api/keys*`: local API key lifecycle
 - `src/app/api/models/alias`: alias management
-- `src/app/api/combos*`: fallback combo management
+- `src/app/api/combos*`: fallback combo management (CRUD + reorder)
+- `src/app/api/combos/reorder`: combo sort_order persistence (POST)
 - `src/app/api/pricing`: pricing overrides for cost calculation
 - `src/app/api/settings/proxy`: proxy configuration (GET/PUT/DELETE)
 - `src/app/api/settings/proxy/test`: outbound proxy connectivity test (POST)
@@ -705,6 +724,7 @@ Additional processing layers in the translation pipeline:
 | `GET/PUT/DELETE /api/settings/proxy`               | Proxy Config       | Network proxy configuration                                         |
 | `POST /api/settings/proxy/test`                    | Proxy Connectivity | Proxy health/connectivity test endpoint                             |
 | `GET/POST/DELETE /api/provider-models`             | Provider Models    | Provider model metadata backing custom and managed available models |
+| `POST /api/combos/reorder`                         | Combo Reorder      | Persist drag-to-reorder sequence                                    |
 
 ## Bypass Handler
 
@@ -756,6 +776,7 @@ Runtime visibility sources:
 
 - console logs from `src/sse/utils/logger.ts`
 - per-request usage aggregates in SQLite (`usage_history`, `call_logs`, `proxy_logs`)
+- `call_logs` and `proxy_logs` are capped by retention windows and `*_MAX_ENTRIES` limits; `/api/storage/health` exposes the configured table caps via `tableMaxRows`
 - four-stage detailed payload captures in SQLite (`request_detail_logs`) when `settings.detailed_logs_enabled=true`
 - textual request status log in `log.txt` (optional/compat)
 - optional deep request/translation logs under `logs/` when `ENABLE_REQUEST_LOGS=true`

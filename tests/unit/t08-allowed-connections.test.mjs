@@ -15,7 +15,7 @@ const apiKeysDb = await import("../../src/lib/db/apiKeys.ts");
 const schemas = await import("../../src/shared/validation/schemas.ts");
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT_DIR = path.resolve(__dirname, "../..");
+const _ROOT_DIR = path.resolve(__dirname, "../..");
 
 async function resetStorage() {
   core.resetDbInstance();

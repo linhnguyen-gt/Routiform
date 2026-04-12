@@ -38,7 +38,7 @@ export class AntigravityExecutor extends BaseExecutor {
     return `${baseUrl}/v1internal:streamGenerateContent?alt=sse`;
   }
 
-  buildHeaders(credentials, stream = true) {
+  buildHeaders(credentials, _stream = true) {
     return {
       "Content-Type": "application/json",
       Authorization: `Bearer ${credentials.accessToken}`,
@@ -289,7 +289,7 @@ export class AntigravityExecutor extends BaseExecutor {
               total_tokens: um.totalTokenCount || 0,
             };
           }
-        } catch (e) {
+        } catch (_e) {
           log?.debug?.("SSE_PARSE", `Skipping malformed SSE line: ${payload.slice(0, 80)}`);
         }
       }
@@ -393,7 +393,7 @@ export class AntigravityExecutor extends BaseExecutor {
                   retryMs = 60 * 1000; // 60s
                 }
               }
-            } catch (e) {
+            } catch (_e) {
               // Ignore parse errors, will fall back to exponential backoff
             }
           }

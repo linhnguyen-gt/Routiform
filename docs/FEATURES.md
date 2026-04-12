@@ -16,7 +16,7 @@ Manage AI provider connections: OAuth providers (Claude Code, Codex, Gemini CLI)
 
 ## 🎨 Combos
 
-Create model routing combos with 6 strategies: priority, weighted, round-robin, random, least-used, and cost-optimized. Each combo chains multiple models with automatic fallback and includes quick templates and readiness checks.
+Create model routing combos with 6 strategies: priority, weighted, round-robin, random, least-used, and cost-optimized. Each combo chains multiple models with automatic fallback and includes quick templates and readiness checks. Drag combo cards to reorder them — the order persists across sessions.
 
 ![Combos Dashboard](screenshots/02-combos.png)
 

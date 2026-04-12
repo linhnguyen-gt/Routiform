@@ -152,7 +152,7 @@ test("extractFactsFromText: truncates very long matches", () => {
 // ─── extractFacts: non-blocking behavior ───────────────────────────────────
 
 test("extractFacts: returns immediately (non-blocking)", () => {
-  let called = false;
+  let _called = false;
   const start = Date.now();
 
   extractFacts("I prefer dark mode.", "key-123", "session-456");

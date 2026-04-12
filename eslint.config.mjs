@@ -14,14 +14,36 @@ const eslintConfig = [
   },
   // Relaxed rules for open-sse and tests (incremental adoption)
   {
-    files: ["open-sse/**/*.ts", "tests/**/*.mjs", "tests/**/*.ts"],
+    files: ["open-sse/**/*.ts", "tests/**/*.ts"],
     plugins: {
       "@typescript-eslint": tseslint.plugin,
     },
     rules: {
+      "no-unused-vars": "off",
       "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
       "@next/next/no-assign-module-variable": "off",
       "react-hooks/rules-of-hooks": "off",
+    },
+  },
+  {
+    files: ["tests/**/*.mjs"],
+    rules: {
+      "no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
     },
   },
   // Global ignores — keep ESLint scoped to source files only

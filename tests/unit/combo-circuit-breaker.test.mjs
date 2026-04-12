@@ -2,10 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 // Reset circuit breaker registry between tests
-const { CircuitBreaker, getCircuitBreaker, getAllCircuitBreakerStatuses, STATE } =
-  await import("../../src/shared/utils/circuitBreaker.ts");
+const {
+  CircuitBreaker: _CircuitBreaker,
+  getCircuitBreaker,
+  getAllCircuitBreakerStatuses: _getAllCircuitBreakerStatuses,
+  STATE,
+} = await import("../../src/shared/utils/circuitBreaker.ts");
 
-const { handleComboChat, getComboFromData } = await import("../../open-sse/services/combo.ts");
+const { handleComboChat, getComboFromData: _getComboFromData } =
+  await import("../../open-sse/services/combo.ts");
 
 const { PROVIDER_PROFILES } = await import("../../open-sse/config/constants.ts");
 
@@ -25,7 +30,7 @@ function mockLog() {
 /** Create a handleSingleModel that returns given status codes in sequence */
 function mockHandler(statusSequence) {
   let callIndex = 0;
-  return async (body, modelStr) => {
+  return async (_body, _modelStr) => {
     const status = statusSequence[callIndex] ?? statusSequence[statusSequence.length - 1] ?? 200;
     callIndex++;
     if (status === 200) {
