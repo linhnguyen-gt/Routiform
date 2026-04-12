@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.9.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.9.1...v3.9.2) (2026-04-12)
+
+
+### Bug Fixes
+
+* **docker:** skip lefthook prepare during image build ([0459417](https://github.com/linhnguyen-gt/Routiform/commit/04594174c940beaa8ed521d280a639efbc05e4cf))
+
 ### [3.9.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.9.0...v3.9.1) (2026-04-12)
 
 
