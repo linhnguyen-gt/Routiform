@@ -16,6 +16,8 @@ export interface RegistryModel {
   defaultParams?: Record<string, unknown>;
   /** Maximum context window in tokens */
   contextLength?: number;
+  /** Maximum output tokens for this model */
+  maxOutputTokens?: number;
 }
 
 // Reasoning models reject temperature, top_p, penalties, logprobs, n.
@@ -69,6 +71,8 @@ export interface RegistryEntry {
   passthroughModels?: boolean;
   /** Default context window for all models in this provider (can be overridden per-model) */
   defaultContextLength?: number;
+  /** Default max output tokens for all models in this provider (can be overridden per-model) */
+  defaultMaxOutputTokens?: number;
 }
 
 export interface LegacyProvider {

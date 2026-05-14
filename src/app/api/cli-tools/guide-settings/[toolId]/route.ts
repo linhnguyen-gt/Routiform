@@ -208,8 +208,10 @@ async function saveOpenCodeConfig({ baseUrl, apiKey, model, models }) {
     // File doesn't exist or invalid JSON — start fresh
   }
 
-  // Lookup context_length for each model from /v1/models so opencode can show % used
+  // Lookup context_length and max_output_tokens for each model from /v1/models
+  // so opencode can show % used and know output limits
   const modelContextLengths: Record<string, number> = {};
+  const modelMaxOutputTokens: Record<string, number> = {};
   try {
     const allModelIds = [...new Set([model, ...(models || [])].filter(Boolean))] as string[];
     if (allModelIds.length > 0) {
@@ -226,6 +228,10 @@ async function saveOpenCodeConfig({ baseUrl, apiKey, model, models }) {
           if (typeof contextLength === "number" && contextLength > 0) {
             modelContextLengths[modelId] = contextLength;
           }
+          const maxOutput = entry?.max_output_tokens;
+          if (typeof maxOutput === "number" && maxOutput > 0) {
+            modelMaxOutputTokens[modelId] = maxOutput;
+          }
         }
       }
     }
@@ -239,6 +245,7 @@ async function saveOpenCodeConfig({ baseUrl, apiKey, model, models }) {
     model,
     models,
     modelContextLengths,
+    modelMaxOutputTokens,
   });
 
   await fs.writeFile(configPath, JSON.stringify(nextConfig, null, 2), "utf-8");

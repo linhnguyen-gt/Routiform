@@ -3,8 +3,10 @@ type OpenCodeConfigInput = {
   apiKey?: string;
   model?: string;
   models?: string[];
-  /** Map of model id (as stored in models record) → context window size in tokens */
+  /** Map of model id → context window size in tokens */
   modelContextLengths?: Record<string, number>;
+  /** Map of model id → max output tokens */
+  modelMaxOutputTokens?: Record<string, number>;
 };
 
 const normalizeValue = (value: unknown) =>
@@ -31,6 +33,7 @@ export const buildOpenCodeProviderConfig = ({
   model,
   models,
   modelContextLengths,
+  modelMaxOutputTokens,
 }: OpenCodeConfigInput): Record<string, unknown> => {
   const normalizedBaseUrl = String(baseUrl || "")
     .trim()
@@ -42,13 +45,20 @@ export const buildOpenCodeProviderConfig = ({
 
   const uniqueModels = [...new Set([normalizedModel, ...normalizedModels].filter(Boolean))];
 
-  const modelsRecord: Record<string, { name: string; limit?: { context: number } }> = {};
+  const modelsRecord: Record<
+    string,
+    { name: string; limit?: { context: number; output?: number } }
+  > = {};
   for (const m of uniqueModels) {
     if (m) {
       const contextLength = modelContextLengths?.[m];
+      const maxOutput = modelMaxOutputTokens?.[m];
+      const limit = contextLength
+        ? { context: contextLength, ...(maxOutput ? { output: maxOutput } : {}) }
+        : undefined;
       modelsRecord[m] = {
         name: m,
-        ...(contextLength ? { limit: { context: contextLength } } : {}),
+        ...(limit ? { limit } : {}),
       };
     }
   }

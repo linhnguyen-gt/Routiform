@@ -265,6 +265,7 @@ export async function getUnifiedModelsResponse(
       // Get default context length from registry (provider-level default)
       const registryEntry = REGISTRY[alias] || REGISTRY[canonicalProviderId];
       const defaultContextLength = registryEntry?.defaultContextLength;
+      const defaultMaxOutputTokens = registryEntry?.defaultMaxOutputTokens;
 
       for (const model of providerModels) {
         const aliasId = `${alias}/${model.id}`;
@@ -274,6 +275,7 @@ export async function getUnifiedModelsResponse(
           getVisionCapabilityFields(aliasId) || getVisionCapabilityFields(model.id);
         // Model-level context length overrides provider default
         const contextLength = model.contextLength || defaultContextLength;
+        const maxOutputTokens = model.maxOutputTokens || defaultMaxOutputTokens;
 
         models.push({
           id: aliasId,
@@ -284,6 +286,7 @@ export async function getUnifiedModelsResponse(
           root: model.id,
           parent: null,
           ...(contextLength ? { context_length: contextLength } : {}),
+          ...(maxOutputTokens ? { max_output_tokens: maxOutputTokens } : {}),
           ...(visionFields || {}),
         });
 
@@ -302,6 +305,7 @@ export async function getUnifiedModelsResponse(
             root: model.id,
             parent: aliasId,
             ...(contextLength ? { context_length: contextLength } : {}),
+            ...(maxOutputTokens ? { max_output_tokens: maxOutputTokens } : {}),
             ...(providerVisionFields || {}),
           });
         }
