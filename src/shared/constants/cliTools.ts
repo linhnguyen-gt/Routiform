@@ -257,7 +257,7 @@ export const CLI_TOOLS = {
       language: "json",
       code: `{
   "$schema": "https://opencode.ai/config.json",
-  "providers": {
+  "provider": {
     "routiform": {
       "npm": "@ai-sdk/anthropic",
       "name": "Routiform",

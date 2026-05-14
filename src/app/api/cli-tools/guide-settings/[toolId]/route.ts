@@ -208,11 +208,37 @@ async function saveOpenCodeConfig({ baseUrl, apiKey, model, models }) {
     // File doesn't exist or invalid JSON — start fresh
   }
 
+  // Lookup context_length for each model from /v1/models so opencode can show % used
+  const modelContextLengths: Record<string, number> = {};
+  try {
+    const allModelIds = [...new Set([model, ...(models || [])].filter(Boolean))] as string[];
+    if (allModelIds.length > 0) {
+      const res = await fetch(`http://localhost:${process.env.PORT || 20128}/v1/models`);
+      if (res.ok) {
+        const data = await res.json();
+        const modelList: Array<Record<string, unknown>> = data?.data || [];
+        for (const modelId of allModelIds) {
+          // /v1/models returns ids like "cx/gpt-5.4" — match against the bare model id
+          const entry = modelList.find(
+            (m) => m.id === modelId || String(m.id).endsWith(`/${modelId}`)
+          );
+          const contextLength = entry?.context_length;
+          if (typeof contextLength === "number" && contextLength > 0) {
+            modelContextLengths[modelId] = contextLength;
+          }
+        }
+      }
+    }
+  } catch {
+    // Non-fatal — proceed without context lengths
+  }
+
   const nextConfig = mergeOpenCodeConfig(existingConfig, {
     baseUrl: normalizedBaseUrl,
     apiKey,
     model,
     models,
+    modelContextLengths,
   });
 
   await fs.writeFile(configPath, JSON.stringify(nextConfig, null, 2), "utf-8");

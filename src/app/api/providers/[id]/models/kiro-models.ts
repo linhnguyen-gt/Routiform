@@ -5,6 +5,10 @@ const DEFAULT_KIRO_BASE_URL = "https://codewhisperer.us-east-1.amazonaws.com";
 
 const FALLBACK_KIRO_MODELS: Array<{ id: string; name: string; credits: string }> = [
   { id: "auto", name: "Auto", credits: "1.00x" },
+  { id: "claude-opus-4.7", name: "Claude Opus 4.7 — Experimental preview", credits: "2.20x" },
+  { id: "claude-opus-4.6", name: "Claude Opus 4.6", credits: "2.20x" },
+  { id: "claude-sonnet-4.6", name: "Claude Sonnet 4.6 — Latest Sonnet model", credits: "1.30x" },
+  { id: "claude-opus-4.5", name: "Claude Opus 4.5", credits: "2.20x" },
   { id: "claude-sonnet-4.5", name: "Claude Sonnet 4.5", credits: "1.30x" },
   { id: "claude-sonnet-4", name: "Claude Sonnet 4", credits: "1.30x" },
   { id: "claude-haiku-4.5", name: "Claude Haiku 4.5", credits: "0.40x" },

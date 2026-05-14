@@ -309,6 +309,10 @@ export const OAUTH_PROVIDERS: Record<string, RegistryEntry> = {
     },
     models: [
       { id: "auto", name: "Auto (1.00x credits)" },
+      { id: "claude-opus-4.7", name: "Claude Opus 4.7 (2.20x credits) — Experimental preview" },
+      { id: "claude-opus-4.6", name: "Claude Opus 4.6 (2.20x credits)" },
+      { id: "claude-sonnet-4.6", name: "Claude Sonnet 4.6 (1.30x credits) — Latest Sonnet model" },
+      { id: "claude-opus-4.5", name: "Claude Opus 4.5 (2.20x credits)" },
       { id: "claude-sonnet-4.5", name: "Claude Sonnet 4.5 (1.30x credits)" },
       { id: "claude-sonnet-4", name: "Claude Sonnet 4 (1.30x credits)" },
       { id: "claude-haiku-4.5", name: "Claude Haiku 4.5 (0.40x credits)" },

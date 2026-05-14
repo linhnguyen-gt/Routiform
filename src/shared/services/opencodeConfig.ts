@@ -3,6 +3,8 @@ type OpenCodeConfigInput = {
   apiKey?: string;
   model?: string;
   models?: string[];
+  /** Map of model id (as stored in models record) → context window size in tokens */
+  modelContextLengths?: Record<string, number>;
 };
 
 const normalizeValue = (value: unknown) =>
@@ -28,6 +30,7 @@ export const buildOpenCodeProviderConfig = ({
   apiKey,
   model,
   models,
+  modelContextLengths,
 }: OpenCodeConfigInput): Record<string, unknown> => {
   const normalizedBaseUrl = String(baseUrl || "")
     .trim()
@@ -39,10 +42,14 @@ export const buildOpenCodeProviderConfig = ({
 
   const uniqueModels = [...new Set([normalizedModel, ...normalizedModels].filter(Boolean))];
 
-  const modelsRecord: Record<string, { name: string }> = {};
+  const modelsRecord: Record<string, { name: string; limit?: { context: number } }> = {};
   for (const m of uniqueModels) {
     if (m) {
-      modelsRecord[m] = { name: m };
+      const contextLength = modelContextLengths?.[m];
+      modelsRecord[m] = {
+        name: m,
+        ...(contextLength ? { limit: { context: contextLength } } : {}),
+      };
     }
   }
 
@@ -66,12 +73,6 @@ export const mergeOpenCodeConfig = (
       ? existingConfig
       : {};
 
-  const primaryModel =
-    normalizeValue(input.model) ||
-    (Array.isArray(input.models)
-      ? input.models.map((item) => normalizeValue(item)).find(Boolean)
-      : "");
-  const modelRef = toOpenCodeModelRef(primaryModel);
   const providerEntry = buildOpenCodeProviderConfig(input);
 
   const next: Record<string, unknown> = {
@@ -82,9 +83,7 @@ export const mergeOpenCodeConfig = (
     },
   };
 
-  if (modelRef) {
-    next.model = modelRef;
-  }
+  // Do not set a default top-level `model` — let the user pick interactively in opencode.
 
   if (next.$schema == null) {
     next.$schema = "https://opencode.ai/config.json";

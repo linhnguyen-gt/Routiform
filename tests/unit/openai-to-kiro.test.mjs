@@ -206,7 +206,7 @@ test("buildKiroPayload drops leading assistant/tool fragments", () => {
   );
 });
 
-test("buildKiroPayload truncates oversized tool descriptions", () => {
+test("buildKiroPayload does not truncate tool descriptions (delegated to Kiro API)", () => {
   const veryLongDescription = "d".repeat(6000);
   const body = {
     messages: [{ role: "user", content: "Run tool" }],
@@ -227,11 +227,11 @@ test("buildKiroPayload truncates oversized tool descriptions", () => {
     payload.conversationState.currentMessage.userInputMessage.userInputMessageContext.tools[0]
       .toolSpecification.description;
 
-  assert.ok(description.length <= 515, "Kiro tool description should be capped");
-  assert.equal(description.endsWith("..."), true);
+  // Description is passed through as-is — size enforcement delegated to Kiro API
+  assert.equal(description, veryLongDescription);
 });
 
-test("buildKiroPayload trims oversized history", () => {
+test("buildKiroPayload passes oversized history through (size enforcement delegated to Kiro API)", () => {
   const messages = [];
   for (let i = 0; i < 140; i += 1) {
     messages.push({ role: "user", content: `U${i} ${"u".repeat(1600)}` });
@@ -258,11 +258,7 @@ test("buildKiroPayload trims oversized history", () => {
     null
   );
 
-  const payloadBytes = Buffer.byteLength(JSON.stringify(payload));
-  assert.ok(payloadBytes <= 180000, `Expected payload <= 180000 bytes, got ${payloadBytes}`);
-
-  const firstHistory = payload.conversationState.history[0];
-  if (firstHistory) {
-    assert.ok(!firstHistory.assistantResponseMessage, "Trimmed history should stay user-anchored");
-  }
+  // History is passed through as-is — payload size enforcement delegated to Kiro API
+  // to avoid silent context truncation in Passthrough mode
+  assert.ok(payload.conversationState.history.length > 0, "History should be preserved");
 });

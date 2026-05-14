@@ -66,7 +66,8 @@ test("T40: OpenCode config generator includes endpoint and selected API key", ()
   assert.ok(mergedConfig.provider.custom);
   assert.equal(mergedConfig.provider.routiform.options.baseURL, "http://localhost:20128/v1");
   assert.equal(mergedConfig.provider.routiform.options.apiKey, "sk_test_opencode");
-  assert.equal(mergedConfig.model, "routiform/openai/gpt-5.4");
+  // top-level model is intentionally not set — user picks model interactively in opencode
+  assert.equal(mergedConfig.model, undefined);
   assert.ok(mergedConfig.provider.routiform.models["claude-sonnet-4-5-thinking"]);
   assert.ok(mergedConfig.$schema);
 });
