@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.25.3](https://github.com/linhnguyen-gt/Routiform/compare/v3.25.2...v3.25.3) (2026-05-14)
+
+
+### Bug Fixes
+
+* **opencode:** fix provider key, add context window lookup, update Kiro config ([34ffc83](https://github.com/linhnguyen-gt/Routiform/commit/34ffc83c27ecf6a7625461a5254b489034984510))
+
 ### [3.25.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.25.1...v3.25.2) (2026-05-06)
 
 
