@@ -4,6 +4,11 @@ import { optimizeGithubRequestBody } from "../../utils/githubRequestOptimizer.ts
 import type { HandlerLogger, JsonRecord, ToolNameMap } from "../types/chat-core.ts";
 import { buildClaudePassthroughToolNameMap } from "../utils/claude-passthrough-helpers.ts";
 
+// Providers that natively support xhigh reasoning_effort
+const XHIGH_SUPPORTED_PROVIDERS = new Set(["claude", "commandcode"]);
+// Providers that do not support reasoning_effort at all
+const NO_REASONING_EFFORT_PROVIDERS = new Set(["mistral"]);
+
 export function extractToolNameMapAndTuneTranslatedBody({
   translatedBody,
   body,
@@ -45,6 +50,22 @@ export function extractToolNameMapAndTuneTranslatedBody({
     }
     if (stripped.length > 0) {
       log?.warn?.("PARAMS", `Stripped unsupported params for ${model}: ${stripped.join(", ")}`);
+    }
+  }
+
+  // Downgrade xhigh reasoning_effort for providers that only support up to high.
+  // Providers that natively support xhigh (claude, anthropic-compatible) are excluded.
+  if (typeof translatedBody.reasoning_effort === "string") {
+    if (NO_REASONING_EFFORT_PROVIDERS.has(provider)) {
+      delete translatedBody.reasoning_effort;
+      log?.debug?.("PARAMS", `Stripped reasoning_effort for ${provider} (not supported)`);
+    } else if (
+      translatedBody.reasoning_effort === "xhigh" &&
+      !XHIGH_SUPPORTED_PROVIDERS.has(provider) &&
+      !provider.startsWith("anthropic-compatible-")
+    ) {
+      translatedBody.reasoning_effort = "high";
+      log?.debug?.("PARAMS", `Downgraded reasoning_effort xhigh→high for ${provider}`);
     }
   }
 

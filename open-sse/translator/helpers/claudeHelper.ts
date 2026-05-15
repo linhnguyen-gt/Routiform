@@ -312,6 +312,7 @@ export function prepareClaudeRequest(body, provider = null, preserveCacheControl
 
     // Pass 2 (reverse): add cache_control to last assistant + handle thinking for Anthropic
     let lastAssistantProcessed = false;
+    let latestAssistantFound = false;
     for (let i = filtered.length - 1; i >= 0; i--) {
       const msg = filtered[i];
 
@@ -327,10 +328,19 @@ export function prepareClaudeRequest(body, provider = null, preserveCacheControl
           let hasToolUse = false;
           let hasThinking = false;
 
-          // Always replace signature for all thinking blocks
+          // Preserve the latest assistant message's thinking blocks verbatim — Anthropic
+          // requires the original signature on the most recent turn or returns HTTP 400.
+          // Older turns are safe to normalize with the default signature.
+          // Use a separate tracker so this works regardless of cache_control path or
+          // whether the latest assistant message has content blocks.
+          const isLatestAssistant = !latestAssistantFound;
+          latestAssistantFound = true;
+
           for (const block of msg.content) {
             if (block.type === "thinking" || block.type === "redacted_thinking") {
-              block.signature = DEFAULT_THINKING_CLAUDE_SIGNATURE;
+              if (!isLatestAssistant) {
+                block.signature = DEFAULT_THINKING_CLAUDE_SIGNATURE;
+              }
               hasThinking = true;
             }
             if (block.type === "tool_use") hasToolUse = true;

@@ -22,6 +22,7 @@ const REASONING_REPLAY_MODEL_PATTERNS = [
   /deepseek-r1/i,
   /deepseek-reasoner/i,
   /deepseek-chat/i,
+  /deepseek-v4/i,
   /kimi-k2/i,
   /qwq/i,
   /qwen.*think/i,

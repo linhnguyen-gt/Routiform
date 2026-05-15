@@ -215,6 +215,30 @@ export function injectEmptyReasoningContent(messages: unknown): unknown {
   });
 }
 
+const TOOL_ARRAY_FIELDS: Record<string, string[]> = {
+  submit_pr_review: ["functionalChanges", "findings"],
+};
+
+export function coerceToolCallArguments(toolName: string, args: unknown): unknown {
+  const fields = TOOL_ARRAY_FIELDS[toolName];
+  if (!fields || typeof args !== "object" || args === null) return args;
+  const result = { ...(args as Record<string, unknown>) };
+  let changed = false;
+  for (const field of fields) {
+    if (field in result && !Array.isArray(result[field])) {
+      // Only coerce string values — objects/numbers are left as-is to avoid wrapping malformed payloads
+      result[field] =
+        typeof result[field] === "string"
+          ? [result[field]]
+          : result[field] != null
+            ? [result[field]]
+            : [];
+      changed = true;
+    }
+  }
+  return changed ? result : args;
+}
+
 export function injectEmptyReasoningContentForToolCalls(
   messages: unknown,
   provider: unknown,
