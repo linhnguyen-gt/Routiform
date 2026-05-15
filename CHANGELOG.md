@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.27.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.26.0...v3.27.0) (2026-05-15)
+
+
+### Features
+
+* **open-sse:** add CommandCode provider ([c539db0](https://github.com/linhnguyen-gt/Routiform/commit/c539db0691c0226b0847c1524acc3420485dc420))
+
+
+### Bug Fixes
+
+* **translator:** type Kiro converters ([5927d0d](https://github.com/linhnguyen-gt/Routiform/commit/5927d0da915b1d98a8200745f7455adfdc8b8676))
+
 ## [3.26.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.25.3...v3.26.0) (2026-05-14)
 
 
