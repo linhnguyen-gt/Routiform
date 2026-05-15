@@ -25,21 +25,13 @@ export const gemini = {
 
     if (config.clientSecret) {
       bodyParams.client_secret = config.clientSecret;
-    } else {
-      // (#537) Google's OAuth2 token endpoint always requires client_secret for
-      // non-PKCE flows. Without it we get a cryptic "client_secret is missing" error.
-      // This typically happens in self-hosted / Docker deployments where
-      // GEMINI_OAUTH_CLIENT_SECRET is not set in the container environment.
-      throw new Error(
-        "Gemini CLI OAuth requires GEMINI_OAUTH_CLIENT_SECRET to be set.\n" +
-          "In Docker: add 'GEMINI_OAUTH_CLIENT_SECRET=<your-secret>' to your docker-compose.yml env.\n" +
-          "In npm: add it to ~/.routiform/.env\n" +
-          "Obtain the client secret from https://console.cloud.google.com/apis/credentials\n" +
-          "for the same OAuth 2.0 Client ID configured as GEMINI_OAUTH_CLIENT_ID."
-      );
     }
+    // When GEMINI_OAUTH_CLIENT_SECRET is not set, try the exchange without it
+    // first. The built-in default credentials work on localhost without a
+    // client secret. If Google rejects the request, we surface the actionable
+    // error message below.
 
-    const response = await fetch(config.tokenUrl, {
+    let response = await fetch(config.tokenUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -49,8 +41,24 @@ export const gemini = {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Token exchange failed: ${error}`);
+      const errText = await response.text();
+      const lower = errText.toLowerCase();
+      // Google requires client_secret for OAuth2 non-PKCE flows. When it is
+      // not set and Google rejects with "client_secret is missing", surface a
+      // clear actionable message so users know how to fix it.
+      if (
+        !config.clientSecret &&
+        (lower.includes("client_secret is missing") || lower.includes("client_secret"))
+      ) {
+        throw new Error(
+          "Gemini CLI OAuth requires GEMINI_OAUTH_CLIENT_SECRET to be set.\n" +
+            "In Docker: add 'GEMINI_OAUTH_CLIENT_SECRET=<your-secret>' to your docker-compose.yml env.\n" +
+            "In npm: add it to ~/.routiform/.env\n" +
+            "Obtain the client secret from https://console.cloud.google.com/apis/credentials\n" +
+            "for the same OAuth 2.0 Client ID configured as GEMINI_OAUTH_CLIENT_ID."
+        );
+      }
+      throw new Error(`Token exchange failed: ${errText}`);
     }
 
     return await response.json();
