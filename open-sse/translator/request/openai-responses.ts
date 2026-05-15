@@ -61,9 +61,7 @@ export function openaiResponsesToOpenAIRequest(
   }
 
   if (root.background) {
-    throw unsupportedFeature(
-      "Unsupported Responses API feature: background mode is not supported by routiform"
-    );
+    console.warn("[responses] background:true not supported — degrading to synchronous execution");
   }
 
   const result: JsonRecord = { ...root };
@@ -268,11 +266,13 @@ export function openaiResponsesToOpenAIRequest(
   // Cleanup Responses API specific fields
   // Note: prompt_cache_key is intentionally preserved — it is used by Codex and other
   // providers as a cache-affinity signal. Stripping it breaks prompt caching (#517).
+  // Note: include is preserved — clients like Codex send include:["reasoning.encrypted_content"]
+  // to request encrypted thinking blocks; stripping it breaks the thinking panel.
   delete result.input;
   delete result.instructions;
-  delete result.include;
   delete result.store;
   delete result.reasoning;
+  delete result.background;
 
   return result;
 }
