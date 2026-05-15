@@ -3,6 +3,7 @@ import { ensureToolCallIds, fixMissingToolResponses } from "./helpers/toolCallHe
 import { prepareClaudeRequest } from "./helpers/claudeHelper.ts";
 import { filterToOpenAIFormat } from "./helpers/openaiHelper.ts";
 import {
+  coerceToolCallArguments,
   coerceToolSchemas,
   injectEmptyReasoningContent,
   injectEmptyReasoningContentForToolCalls,
@@ -224,6 +225,27 @@ export function translateRequest(
   // Ensure unique tool_call ids on final payload (translators may have introduced duplicates)
   ensureToolCallIds(result, { use9CharId });
   fixMissingToolResponses(result);
+
+  // Coerce known tool arguments that must be arrays (e.g. submit_pr_review functionalChanges/findings)
+  if (result.messages && Array.isArray(result.messages)) {
+    for (const msg of result.messages) {
+      if (msg?.role === "assistant" && Array.isArray(msg.tool_calls)) {
+        for (const tc of msg.tool_calls) {
+          if (tc?.function?.name && typeof tc.function.arguments === "string") {
+            try {
+              const parsed = JSON.parse(tc.function.arguments);
+              const coerced = coerceToolCallArguments(tc.function.name, parsed);
+              if (coerced !== parsed) {
+                tc.function.arguments = JSON.stringify(coerced);
+              }
+            } catch {
+              // leave arguments as-is if not valid JSON
+            }
+          }
+        }
+      }
+    }
+  }
 
   if (result.tools) {
     result.tools = coerceToolSchemas(result.tools);
