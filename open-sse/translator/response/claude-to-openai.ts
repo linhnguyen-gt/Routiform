@@ -65,6 +65,9 @@ export function claudeToOpenAIResponse(chunk, state) {
         // Emit empty reasoning_content to signal thinking block start
         // (clients like Claude Code look for reasoning_content, not <think> tags)
         results.push(createChunk(state, { reasoning_content: "" }));
+      } else if (block?.type === "redacted_thinking") {
+        // Emit data field so clients open the thinking panel; no content to stream
+        results.push(createChunk(state, { reasoning_content: "" }));
       } else if (block?.type === "tool_use") {
         const toolCallIndex = state.toolCallIndex++;
         // Restore original tool name from mapping (Claude OAuth)
