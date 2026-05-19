@@ -133,6 +133,7 @@ const KNOWN_PNGS = new Set([
   "cursor",
   "deepgram",
   "deepseek",
+  "devin",
   "droid",
   "exa-search",
   "fireworks",
