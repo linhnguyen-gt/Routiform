@@ -45,10 +45,11 @@ type OpenAITool = {
 };
 
 type KiroImage = { format: string; source: { bytes: string } };
+type KiroToolResultContentBlock = { text: string } | { json: JsonRecord };
 type KiroToolResult = {
   toolUseId: string | undefined;
-  status: "success";
-  content: Array<{ text: string }>;
+  status: "success" | "error";
+  content: KiroToolResultContentBlock[];
 };
 type KiroToolUse = {
   toolUseId: string;
@@ -69,11 +70,14 @@ type KiroUserInputMessageContext = {
 type KiroUserInputMessage = {
   content: string;
   modelId: string;
+  origin?: string;
+  userIntent?: string;
   images?: KiroImage[];
   userInputMessageContext?: KiroUserInputMessageContext;
 };
 type KiroAssistantResponseMessage = {
   content: string;
+  messageId?: string;
   toolUses?: KiroToolUse[];
 };
 type KiroHistoryItem = {
@@ -86,6 +90,8 @@ type KiroPayload = {
     conversationId: string;
     currentMessage: { userInputMessage: KiroUserInputMessage & { origin: "AI_EDITOR" } };
     history: KiroHistoryItem[];
+    workspaceId?: string;
+    customizationArn?: string;
   };
   profileArn?: string;
   inferenceConfig?: {
@@ -251,16 +257,18 @@ function convertMessages(messages: OpenAIMessage[], tools: OpenAITool[], model: 
         const toolResultBlocks = msg.content.filter((c) => c.type === "tool_result");
         if (toolResultBlocks.length > 0) {
           toolResultBlocks.forEach((block) => {
-            const text = Array.isArray(block.content)
-              ? block.content.map((c) => c.text || "").join("\n")
-              : typeof block.content === "string"
-                ? block.content
-                : "";
+            const contentBlocks: KiroToolResultContentBlock[] = Array.isArray(block.content)
+              ? block.content.map((c) =>
+                  c.type === "json" && c.json != null
+                    ? { json: c.json as JsonRecord }
+                    : { text: c.text || "" }
+                )
+              : [{ text: typeof block.content === "string" ? block.content : "" }];
 
             pendingToolResults.push({
               toolUseId: block.tool_use_id,
               status: "success",
-              content: [{ text: text }],
+              content: contentBlocks,
             });
           });
         }
@@ -368,6 +376,9 @@ function convertMessages(messages: OpenAIMessage[], tools: OpenAITool[], model: 
     }
     if (item.userInputMessage && !item.userInputMessage.modelId) {
       item.userInputMessage.modelId = model;
+    }
+    if (item.userInputMessage && !item.userInputMessage.origin) {
+      item.userInputMessage.origin = "AI_EDITOR";
     }
   });
 
