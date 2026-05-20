@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.29.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.28.0...v3.29.0) (2026-05-20)
+
+
+### Features
+
+* **translator:** align Kiro request types with native API schema ([daf06ae](https://github.com/linhnguyen-gt/Routiform/commit/daf06aec18edfc2f1613b71e91ea8ae0c5e44c64))
+
 ## [3.28.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.27.2...v3.28.0) (2026-05-20)
 
 
