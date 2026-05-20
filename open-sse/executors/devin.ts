@@ -22,30 +22,28 @@ export class DevinExecutor extends BaseExecutor {
   }
 
   // Override execute entirely — bypass HTTP and use subprocess instead.
-  async execute(
-    input: ExecuteInput
-  ): Promise<{
+  async execute(input: ExecuteInput): Promise<{
     response: Response;
     url: string;
     headers: Record<string, string>;
     transformedBody: unknown;
   }> {
-    const { model, body, stream, signal, log } = input;
+    const { model, body, stream, signal, log: _log } = input;
     const messages = (body as Record<string, unknown>).messages as
       | Array<{ role: string; content: string }>
       | undefined;
 
-    // Build prompt from messages
     const prompt = buildPrompt(messages || []);
     const devinBin = findDevinBin();
+    const args = buildArgs(prompt, model);
 
-    log?.info?.("DEVIN_EXEC", `Spawning: ${devinBin} --print [prompt] (model hint: ${model})`);
+    _log?.info?.("DEVIN_EXEC", `Spawning: ${devinBin} --print [prompt] (model: ${model})`);
 
-    const responseText = await runDevinPrint(devinBin, prompt, model, signal ?? null, log ?? null);
-
-    // Wrap in OpenAI-compatible response
-    const openaiResponse = buildOpenAIResponse(responseText, model, stream);
-    const responseBody = stream ? buildSSEStream(openaiResponse) : JSON.stringify(openaiResponse);
+    const responseBody = stream
+      ? buildSSEStream(devinBin, args, signal ?? null, _log ?? null, model)
+      : await runDevinPrint(devinBin, args, signal ?? null, _log ?? null).then((text) =>
+          JSON.stringify(buildOpenAIResponse(text, model))
+        );
 
     const response = new Response(responseBody, {
       status: 200,
@@ -81,7 +79,6 @@ export class DevinExecutor extends BaseExecutor {
 }
 
 function findDevinBin(): string {
-  // Common install locations for Devin CLI
   const candidates = [
     process.env.DEVIN_BIN,
     `${process.env.HOME}/.local/bin/devin`,
@@ -92,15 +89,29 @@ function findDevinBin(): string {
   return candidates[0];
 }
 
+function buildArgs(prompt: string, model: string): string[] {
+  const args = ["--print", prompt];
+  const devinModels = [
+    "adaptive",
+    "swe",
+    "opus",
+    "sonnet",
+    "haiku",
+    "gpt",
+    "gemini",
+    "deepseek",
+    "kimi",
+    "glm",
+  ];
+  if (model && devinModels.some((m) => model.toLowerCase().includes(m))) {
+    args.unshift("--model", model);
+  }
+  return args;
+}
+
 function buildPrompt(messages: Array<{ role: string; content: string }>): string {
   if (messages.length === 0) return "";
-
-  // For single user message, pass directly
-  if (messages.length === 1 && messages[0].role === "user") {
-    return messages[0].content;
-  }
-
-  // For multi-turn, format as conversation
+  if (messages.length === 1 && messages[0].role === "user") return messages[0].content;
   return messages
     .map((m) => {
       const role = m.role === "assistant" ? "Assistant" : m.role === "system" ? "System" : "User";
@@ -111,36 +122,12 @@ function buildPrompt(messages: Array<{ role: string; content: string }>): string
 
 function runDevinPrint(
   bin: string,
-  prompt: string,
-  model: string,
+  args: string[],
   signal: AbortSignal | null,
-  log: ExecutorLog | null
+  _log: ExecutorLog | null
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const args = ["--print", prompt];
-
-    // Pass model hint if it's a known Devin model name (not an OpenAI/Anthropic model ID)
-    const devinModels = [
-      "swe",
-      "swe-1-6",
-      "swe-1-6-fast",
-      "opus",
-      "sonnet",
-      "gpt",
-      "gemini",
-      "codex",
-    ];
-    if (model && devinModels.some((m) => model.toLowerCase().includes(m))) {
-      args.unshift("--model", model);
-    }
-
-    log?.info?.("DEVIN_SPAWN", `${bin} ${args.slice(0, 2).join(" ")} ...`);
-
-    const child = spawn(bin, args, {
-      env: { ...process.env },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
+    const child = spawn(bin, args, { env: { ...process.env }, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
 
@@ -161,14 +148,12 @@ function runDevinPrint(
 
     child.on("close", (code) => {
       if (code !== 0) {
-        const msg = stderr.trim() || `devin exited with code ${code}`;
-        reject(new Error(msg));
+        reject(new Error(stderr.trim() || `devin exited with code ${code}`));
         return;
       }
       resolve(stdout.trim());
     });
 
-    // Respect abort signal
     if (signal) {
       signal.addEventListener("abort", () => {
         child.kill("SIGTERM");
@@ -178,47 +163,93 @@ function runDevinPrint(
   });
 }
 
-function buildOpenAIResponse(text: string, model: string, _stream: boolean) {
+function buildSSEStream(
+  bin: string,
+  args: string[],
+  signal: AbortSignal | null,
+  log: ExecutorLog | null,
+  model: string
+): ReadableStream {
+  const encoder = new TextEncoder();
+  const id = `devin-${Date.now()}`;
+  const created = Math.floor(Date.now() / 1000);
+
+  return new ReadableStream({
+    start(controller) {
+      const child = spawn(bin, args, {
+        env: { ...process.env },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let stderr = "";
+      let started = false;
+
+      child.stdout.on("data", (chunk: Buffer) => {
+        const content = chunk.toString();
+        if (!started) {
+          // Send role delta on first chunk
+          const roleChunk = {
+            id,
+            object: "chat.completion.chunk",
+            created,
+            model,
+            choices: [{ index: 0, delta: { role: "assistant", content: "" }, finish_reason: null }],
+          };
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
+          started = true;
+        }
+        const delta = {
+          id,
+          object: "chat.completion.chunk",
+          created,
+          model,
+          choices: [{ index: 0, delta: { content }, finish_reason: null }],
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(delta)}\n\n`));
+      });
+
+      child.stderr.on("data", (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+
+      child.on("error", (err) => {
+        log?.error?.("DEVIN_STREAM", err.message);
+        controller.error(new Error(`Failed to spawn devin CLI: ${err.message}`));
+      });
+
+      child.on("close", (code) => {
+        if (code !== 0) {
+          controller.error(new Error(stderr.trim() || `devin exited with code ${code}`));
+          return;
+        }
+        const finish = {
+          id,
+          object: "chat.completion.chunk",
+          created,
+          model,
+          choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(finish)}\n\n`));
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      });
+
+      if (signal) {
+        signal.addEventListener("abort", () => {
+          child.kill("SIGTERM");
+          controller.error(new Error("Request aborted"));
+        });
+      }
+    },
+  });
+}
+
+function buildOpenAIResponse(text: string, model: string) {
   return {
     id: `devin-${Date.now()}`,
     object: "chat.completion",
     created: Math.floor(Date.now() / 1000),
     model,
-    choices: [
-      {
-        index: 0,
-        message: { role: "assistant", content: text },
-        finish_reason: "stop",
-      },
-    ],
+    choices: [{ index: 0, message: { role: "assistant", content: text }, finish_reason: "stop" }],
     usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
   };
-}
-
-function buildSSEStream(response: ReturnType<typeof buildOpenAIResponse>): ReadableStream {
-  const content = response.choices[0].message.content;
-  const encoder = new TextEncoder();
-
-  return new ReadableStream({
-    start(controller) {
-      // Send content as a single delta chunk
-      const chunk = {
-        id: response.id,
-        object: "chat.completion.chunk",
-        created: response.created,
-        model: response.model,
-        choices: [{ index: 0, delta: { role: "assistant", content }, finish_reason: null }],
-      };
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
-
-      // Send finish chunk
-      const finishChunk = {
-        ...chunk,
-        choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
-      };
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishChunk)}\n\n`));
-      controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-      controller.close();
-    },
-  });
 }

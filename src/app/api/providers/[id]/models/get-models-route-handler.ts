@@ -5,6 +5,7 @@ import { handleClaudeStaticModels } from "./handle-claude-static-models";
 import { handleClineModels } from "./handle-cline-models";
 import { handleCodexModels } from "./handle-codex-models";
 import { handleConfiguredProviderModels } from "./handle-configured-provider-models";
+import { handleDevinModels } from "./handle-devin-models";
 import { handleGeminiCliModels } from "./handle-gemini-cli-models";
 import { handleGithubModels } from "./handle-github-models";
 import { handleGlmModels } from "./handle-glm-models";
@@ -15,9 +16,6 @@ import { handleQwenOauthModels } from "./handle-qwen-oauth-models";
 import { handleStaticRegistryModels } from "./handle-static-registry-models";
 import { toModelsRouteError } from "./models-route-error";
 
-/**
- * GET /api/providers/[id]/models - Get models list from provider
- */
 export async function handleGetModels(
   request: Request,
   context: { params: Promise<{ id: string }> | { id: string } }
@@ -37,6 +35,7 @@ export async function handleGetModels(
       (await handleKiroModels(ctx)) ??
       (await handleGeminiCliModels(ctx)) ??
       (await handleClineModels(ctx)) ??
+      (await handleDevinModels(ctx)) ??
       (await handleAnthropicCompatibleModels(ctx)) ??
       (await handleStaticRegistryModels(ctx)) ??
       (await handleQwenOauthModels(ctx)) ??
