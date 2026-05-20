@@ -64,9 +64,17 @@ FROM runner-base AS runner-cli
 
 # Install system dependencies required by openclaw (git+ssh references).
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends git ca-certificates docker.io docker-compose \
+  && apt-get install -y --no-install-recommends git curl ca-certificates docker.io docker-compose \
   && rm -rf /var/lib/apt/lists/* \
   && git config --system url."https://github.com/".insteadOf "ssh://git@github.com/"
 
 # Install CLI tools globally. Separate layer from apt for better cache reuse.
 RUN npm install -g --no-audit --no-fund @openai/codex @anthropic-ai/claude-code droid 2>/tmp/cli-install.log || { cat /tmp/cli-install.log; exit 1; } && npm install -g --no-audit --no-fund openclaw@latest 2>/tmp/openclaw-install.log || echo "openclaw install skipped (non-critical)"
+
+# Install Devin CLI for Linux so Docker users can mount host credentials without
+# trying to execute a macOS binary inside the container. Skip the installer's
+# interactive `devin setup` step during image build; users can reuse mounted
+# credentials at runtime or run setup/login inside a container if needed.
+RUN curl -fsSL https://cli.devin.ai/install.sh \
+  | sed '/^"\$VERSION_DIR\/bin\/\$COMPILED_BIN_NAME" setup$/d' \
+  | bash

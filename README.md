@@ -231,7 +231,9 @@ docker run -d \
   -p 443:443 \
   -e DATA_DIR=/app/data \
   -e INITIAL_PASSWORD="change_your_password" \
+  -e DEVIN_BIN=/root/.local/bin/devin \
   -v routiform-data:/app/data \
+  -v "$HOME/.local/share/devin/credentials.toml:/root/.local/share/devin/credentials.toml:ro" \
   -v "$HOME/.claude:/root/.claude" \
   -v "$HOME/.openclaw:/root/.openclaw" \
   -v "$HOME/.config/opencode:/root/.config/opencode" \
@@ -252,6 +254,19 @@ sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keyc
 ```
 
 If you use `npm install -g routiform` instead, MITM works out of the box — it runs directly on your host with full DNS and keychain access.
+
+If you want to use Devin in Docker, mount only `credentials.toml` from the host so
+the Linux CLI inside the container can reuse your existing credentials without
+overwriting the bundled Linux install:
+
+```bash
+-e DEVIN_BIN=/root/.local/bin/devin \
+-v "$HOME/.local/share/devin/credentials.toml:/root/.local/share/devin/credentials.toml:ro"
+```
+
+Do not mount `~/.local/bin` or the entire `~/.local/share/devin` directory from
+macOS into the container. That can overwrite the Linux Devin binary with macOS
+symlinks and cause `spawn devin ENOENT` or binary format errors.
 
 ### Option 4: source
 

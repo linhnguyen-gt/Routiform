@@ -414,6 +414,17 @@ docker build -t routiform:cli .
 docker run -d --name routiform -p 20128:20128 --env-file ./.env -v routiform-data:/app/data routiform:cli
 ```
 
+If you want to use Devin inside Docker, mount only your host credentials file so the
+Linux CLI in the image is not overwritten by macOS binaries:
+
+```bash
+docker run -d --name routiform -p 20128:20128 --env-file ./.env \
+  -e DEVIN_BIN=/root/.local/bin/devin \
+  -v routiform-data:/app/data \
+  -v "$HOME/.local/share/devin/credentials.toml:/root/.local/share/devin/credentials.toml:ro" \
+  routiform:cli
+```
+
 For host-integrated mode with CLI binaries, see the Docker section in the main docs.
 
 ### Void Linux (xbps-src)

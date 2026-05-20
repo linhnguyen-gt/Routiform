@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import { accessSync, constants as fsConstants } from "fs";
 import {
   BaseExecutor,
   type ExecutorLog,
@@ -78,15 +79,30 @@ export class DevinExecutor extends BaseExecutor {
   }
 }
 
-function findDevinBin(): string {
+function isExecutableFile(path: string): boolean {
+  try {
+    accessSync(path, fsConstants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function findDevinBin(
+  env: NodeJS.ProcessEnv = process.env,
+  isExecutable: (path: string) => boolean = isExecutableFile
+): string {
   const candidates = [
-    process.env.DEVIN_BIN,
-    `${process.env.HOME}/.local/bin/devin`,
+    env.DEVIN_BIN,
+    env.HOME ? `${env.HOME}/.local/bin/devin` : null,
     "/usr/local/bin/devin",
     "/opt/homebrew/bin/devin",
     "devin",
   ].filter(Boolean) as string[];
-  return candidates[0];
+
+  return (
+    candidates.find((candidate) => candidate === "devin" || isExecutable(candidate)) || "devin"
+  );
 }
 
 function buildArgs(prompt: string, model: string): string[] {

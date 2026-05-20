@@ -89,6 +89,31 @@ curl -s http://localhost:20128/api/cli-tools/claude-settings | jq '{installed,ru
 curl -s http://localhost:20128/api/cli-tools/openclaw-settings | jq '{installed,runnable,commandPath,runtimeMode,reason}'
 ```
 
+### Devin In Docker Fails To Start
+
+If Devin is enabled in Docker, use the `routiform:cli` image and mount only the
+host credentials file into the container:
+
+```bash
+-e DEVIN_BIN=/root/.local/bin/devin \
+-v "$HOME/.local/share/devin/credentials.toml:/root/.local/share/devin/credentials.toml:ro"
+```
+
+Do not mount `~/.local/bin` or the full `~/.local/share/devin` directory from a
+macOS host. That can overwrite the bundled Linux Devin install with macOS symlinks.
+
+Validate the bundled Linux CLI inside the container:
+
+```bash
+docker run --rm --entrypoint /root/.local/bin/devin linhnguyen0944/routiform:cli --version
+```
+
+If the binary works but auth still fails, refresh credentials inside a running container:
+
+```bash
+docker exec -it routiform /root/.local/bin/devin auth login
+```
+
 ---
 
 ## Cost Issues
