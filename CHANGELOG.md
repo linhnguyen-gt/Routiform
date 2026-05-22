@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.29.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.29.1...v3.29.2) (2026-05-22)
+
+
+### Bug Fixes
+
+* **codex:** remove session_id from body before native passthrough return ([9d0bfb1](https://github.com/linhnguyen-gt/Routiform/commit/9d0bfb17358be63c2e2b4cf394ad7011edac6130))
+
 ### [3.29.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.29.0...v3.29.1) (2026-05-20)
 
 
