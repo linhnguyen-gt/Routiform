@@ -448,6 +448,9 @@ export class CodexExecutor extends BaseExecutor {
     delete body.max_output_tokens;
     delete body.max_completion_tokens;
 
+    // session_id is used internally for cache affinity but the Codex API rejects it.
+    delete body.session_id;
+
     // Native passthrough must return after hygiene only; do not strip `tools` (MCP namespaces,
     // hosted tools) or other Responses fields — upstream parity
     if (nativeCodexPassthrough) {
