@@ -72,7 +72,7 @@ export const DEFAULT_MIN_TOKENS = 32000;
 
 export const PROVIDER_MAX_TOKENS: Record<string, number> = {
   groq: 16384, // Groq strict per-model enforcement
-  openai: 16384, // GPT-4/4o standard
+  openai: 65536, // GPT-4/4o standard
   anthropic: 65536, // Claude models
   gemini: 65536, // Gemini Studio
   "ollama-cloud": 65536, // Ollama Cloud API (supports large context models like Kimi K2.5)
