@@ -2,48 +2,59 @@ import { spawn } from "child_process";
 import { accessSync, constants as fsConstants } from "fs";
 import {
   BaseExecutor,
+  type ExecuteInput,
   type ExecutorLog,
   type ProviderCredentials,
-  type ExecuteInput,
 } from "./base.ts";
 import { PROVIDERS } from "../config/constants.ts";
 
-/**
- * DevinExecutor — runs `devin --print <prompt>` as a subprocess.
- *
- * Devin CLI manages its own auth (credentials at ~/.local/share/devin/credentials.toml)
- * and model selection. We spawn it with --print for non-interactive output.
- *
- * Auth: the windsurf_api_key token is validated at import time; the CLI uses it
- * automatically from its credential store — no token injection needed here.
- */
+type DevinProviderSpecificData = {
+  permissionMode?: unknown;
+  sandbox?: unknown;
+  respectWorkspaceTrust?: unknown;
+  continueSession?: unknown;
+  resumeSessionId?: unknown;
+  agentConfigPath?: unknown;
+  configPath?: unknown;
+};
+
+type DevinRequestBody = {
+  prompt?: unknown;
+  messages?: Array<{ role?: string; content?: unknown }>;
+  permissionMode?: unknown;
+  sandbox?: unknown;
+  respectWorkspaceTrust?: unknown;
+  continueSession?: unknown;
+  resumeSessionId?: unknown;
+  agentConfigPath?: unknown;
+  configPath?: unknown;
+};
+
 export class DevinExecutor extends BaseExecutor {
   constructor() {
     super("devin", PROVIDERS.devin);
   }
 
-  // Override execute entirely — bypass HTTP and use subprocess instead.
   async execute(input: ExecuteInput): Promise<{
     response: Response;
     url: string;
     headers: Record<string, string>;
     transformedBody: unknown;
   }> {
-    const { model, body, stream, signal, log: _log } = input;
-    const messages = (body as Record<string, unknown>).messages as
-      | Array<{ role: string; content: string }>
-      | undefined;
-
-    const prompt = buildPrompt(messages || []);
+    const { model, body, stream, signal, log, credentials } = input;
+    const requestBody = (body || {}) as DevinRequestBody;
+    const prompt = resolvePrompt(requestBody);
+    const providerSpecificData =
+      (credentials.providerSpecificData as DevinProviderSpecificData | undefined) || {};
     const devinBin = findDevinBin();
-    const args = buildArgs(prompt, model);
+    const args = buildArgs(prompt, model, requestBody, providerSpecificData);
 
-    _log?.info?.("DEVIN_EXEC", `Spawning: ${devinBin} --print [prompt] (model: ${model})`);
+    log?.info?.("DEVIN_EXEC", `Spawning: ${devinBin} --print [prompt] (model: ${model})`);
 
     const responseBody = stream
-      ? buildSSEStream(devinBin, args, signal ?? null, _log ?? null, model)
-      : await runDevinPrint(devinBin, args, signal ?? null, _log ?? null).then((text) =>
-          JSON.stringify(buildOpenAIResponse(text, model))
+      ? buildSSEStream(devinBin, args, signal ?? null, log ?? null, model)
+      : await runDevinPrint(devinBin, args, signal ?? null).then((text) =>
+          JSON.stringify(buildDevinResponse(text, model))
         );
 
     const response = new Response(responseBody, {
@@ -53,15 +64,17 @@ export class DevinExecutor extends BaseExecutor {
       },
     });
 
-    return { response, url: "devin://subprocess", headers: {}, transformedBody: prompt };
+    return { response, url: "devin://subprocess", headers: {}, transformedBody: requestBody };
   }
 
   buildUrl() {
     return "devin://subprocess";
   }
+
   buildHeaders() {
     return {};
   }
+
   transformRequest(_model: string, body: Record<string, unknown>) {
     return body;
   }
@@ -105,47 +118,110 @@ export function findDevinBin(
   );
 }
 
-function buildArgs(prompt: string, model: string): string[] {
-  const args = ["--print", prompt];
-  const devinModels = [
-    "adaptive",
-    "swe",
-    "opus",
-    "sonnet",
-    "haiku",
-    "gpt",
-    "gemini",
-    "deepseek",
-    "kimi",
-    "glm",
-  ];
-  if (model && devinModels.some((m) => model.toLowerCase().includes(m))) {
-    args.unshift("--model", model);
+function asBoolean(value: unknown): boolean | null {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (value === "true") return true;
+    if (value === "false") return false;
   }
+  return null;
+}
+
+function asNonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function buildArgs(
+  prompt: string,
+  model: string,
+  body: DevinRequestBody,
+  providerSpecificData: DevinProviderSpecificData
+): string[] {
+  const args: string[] = [];
+  if (model && model !== "default") {
+    args.push("--model", model);
+  }
+
+  const permissionMode =
+    asNonEmptyString(body.permissionMode) ||
+    asNonEmptyString(providerSpecificData.permissionMode) ||
+    "dangerous";
+  args.push("--permission-mode", permissionMode);
+
+  const sandbox = asBoolean(body.sandbox) ?? asBoolean(providerSpecificData.sandbox) ?? false;
+  if (sandbox) {
+    args.push("--sandbox");
+  }
+
+  const respectWorkspaceTrust =
+    asBoolean(body.respectWorkspaceTrust) ??
+    asBoolean(providerSpecificData.respectWorkspaceTrust) ??
+    false;
+  args.push("--respect-workspace-trust", String(respectWorkspaceTrust));
+
+  const agentConfigPath =
+    asNonEmptyString(body.agentConfigPath) ||
+    asNonEmptyString(providerSpecificData.agentConfigPath);
+  if (agentConfigPath) {
+    args.push("--agent-config", agentConfigPath);
+  }
+
+  const configPath =
+    asNonEmptyString(body.configPath) || asNonEmptyString(providerSpecificData.configPath);
+  if (configPath) {
+    args.push("--config", configPath);
+  }
+
+  const resumeSessionId =
+    asNonEmptyString(body.resumeSessionId) ||
+    asNonEmptyString(providerSpecificData.resumeSessionId);
+  if (resumeSessionId) {
+    args.push("--resume", resumeSessionId);
+  } else {
+    const continueSession =
+      asBoolean(body.continueSession) ?? asBoolean(providerSpecificData.continueSession) ?? false;
+    if (continueSession) {
+      args.push("--continue");
+    }
+  }
+
+  args.push("--print", prompt);
   return args;
 }
 
-function buildPrompt(messages: Array<{ role: string; content: string }>): string {
-  if (messages.length === 0) return "";
-  if (messages.length === 1 && messages[0].role === "user") return messages[0].content;
-  return messages
-    .map((m) => {
-      const role = m.role === "assistant" ? "Assistant" : m.role === "system" ? "System" : "User";
-      return `${role}: ${m.content}`;
+function resolvePrompt(body: DevinRequestBody): string {
+  if (typeof body.prompt === "string") return body.prompt;
+  if (!Array.isArray(body.messages)) return "";
+  return body.messages
+    .map((message) => {
+      const role = typeof message?.role === "string" ? message.role : "user";
+      const content =
+        typeof message?.content === "string"
+          ? message.content
+          : JSON.stringify(message?.content ?? "");
+      return `${role}: ${content}`;
     })
     .join("\n\n");
 }
 
-function runDevinPrint(
-  bin: string,
-  args: string[],
-  signal: AbortSignal | null,
-  _log: ExecutorLog | null
-): Promise<string> {
+function runDevinPrint(bin: string, args: string[], signal: AbortSignal | null): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { env: { ...process.env }, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
+    let settled = false;
+
+    const finalize = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (signal) signal.removeEventListener("abort", onAbort);
+      fn();
+    };
+
+    const onAbort = () => {
+      child.kill("SIGTERM");
+      finalize(() => reject(new Error("Request aborted")));
+    };
 
     child.stdout.on("data", (chunk: Buffer) => {
       stdout += chunk.toString();
@@ -155,26 +231,27 @@ function runDevinPrint(
     });
 
     child.on("error", (err) => {
-      reject(
-        new Error(
-          `Failed to spawn devin CLI: ${err.message}. Ensure Devin is installed and run \`devin auth login\`.`
+      finalize(() =>
+        reject(
+          new Error(
+            `Failed to spawn devin CLI: ${err.message}. Ensure Devin is installed and run \`devin auth login\`.`
+          )
         )
       );
     });
 
     child.on("close", (code) => {
-      if (code !== 0) {
-        reject(new Error(stderr.trim() || `devin exited with code ${code}`));
-        return;
-      }
-      resolve(stdout.trim());
+      finalize(() => {
+        if (code !== 0) {
+          reject(new Error(stderr.trim() || `devin exited with code ${code}`));
+          return;
+        }
+        resolve(stdout.trim());
+      });
     });
 
     if (signal) {
-      signal.addEventListener("abort", () => {
-        child.kill("SIGTERM");
-        reject(new Error("Request aborted"));
-      });
+      signal.addEventListener("abort", onAbort);
     }
   });
 }
@@ -197,75 +274,81 @@ function buildSSEStream(
         stdio: ["ignore", "pipe", "pipe"],
       });
       let stderr = "";
-      let started = false;
+      let closed = false;
+
+      const emitEvent = (event: Record<string, unknown>) => {
+        if (closed) return;
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      };
+
+      const finalizeError = (error: Error) => {
+        if (closed) return;
+        closed = true;
+        if (signal) signal.removeEventListener("abort", onAbort);
+        controller.error(error);
+      };
+
+      const finalizeClose = () => {
+        if (closed) return;
+        closed = true;
+        if (signal) signal.removeEventListener("abort", onAbort);
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      };
+
+      const onAbort = () => {
+        child.kill("SIGTERM");
+        finalizeError(new Error("Request aborted"));
+      };
+
+      emitEvent({ type: "start", id, created, model });
 
       child.stdout.on("data", (chunk: Buffer) => {
-        const content = chunk.toString();
-        if (!started) {
-          // Send role delta on first chunk
-          const roleChunk = {
-            id,
-            object: "chat.completion.chunk",
-            created,
-            model,
-            choices: [{ index: 0, delta: { role: "assistant", content: "" }, finish_reason: null }],
-          };
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
-          started = true;
-        }
-        const delta = {
-          id,
-          object: "chat.completion.chunk",
-          created,
-          model,
-          choices: [{ index: 0, delta: { content }, finish_reason: null }],
-        };
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(delta)}\n\n`));
+        emitEvent({ type: "text-delta", id, created, model, delta: chunk.toString() });
       });
 
       child.stderr.on("data", (chunk: Buffer) => {
-        stderr += chunk.toString();
+        const delta = chunk.toString();
+        stderr += delta;
+        emitEvent({ type: "reasoning-delta", id, created, model, delta });
       });
 
       child.on("error", (err) => {
         log?.error?.("DEVIN_STREAM", err.message);
-        controller.error(new Error(`Failed to spawn devin CLI: ${err.message}`));
+        finalizeError(new Error(`Failed to spawn devin CLI: ${err.message}`));
       });
 
       child.on("close", (code) => {
         if (code !== 0) {
-          controller.error(new Error(stderr.trim() || `devin exited with code ${code}`));
+          finalizeError(new Error(stderr.trim() || `devin exited with code ${code}`));
           return;
         }
-        const finish = {
+        emitEvent({
+          type: "finish",
           id,
-          object: "chat.completion.chunk",
           created,
           model,
-          choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
-        };
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(finish)}\n\n`));
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        controller.close();
+          finishReason: "stop",
+          usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        });
+        finalizeClose();
       });
 
       if (signal) {
-        signal.addEventListener("abort", () => {
-          child.kill("SIGTERM");
-          controller.error(new Error("Request aborted"));
-        });
+        signal.addEventListener("abort", onAbort);
       }
     },
   });
 }
 
-function buildOpenAIResponse(text: string, model: string) {
+function buildDevinResponse(text: string, model: string) {
   return {
     id: `devin-${Date.now()}`,
-    object: "chat.completion",
+    object: "devin.response",
     created: Math.floor(Date.now() / 1000),
     model,
-    choices: [{ index: 0, message: { role: "assistant", content: text }, finish_reason: "stop" }],
+    output_text: text,
+    finish_reason: "stop",
     usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
   };
 }

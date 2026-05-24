@@ -22,9 +22,18 @@ test("T28: antigravity static catalog exposes current Gemini 3.1 model IDs", () 
 
   assert.ok(staticIds.includes("gemini-3.1-pro-high"));
   assert.ok(staticIds.includes("gemini-3.1-pro-low"));
+  assert.ok(staticIds.includes("gemini-3-flash"));
   assert.ok(staticIds.includes("gemini-3.5-flash"));
+  assert.ok(staticIds.includes("gpt-oss-120b"));
   assert.ok(!staticIds.includes("gemini-3-pro-high"));
   assert.ok(!staticIds.includes("gemini-3-pro-low"));
+  assert.ok(!staticIds.includes("gpt-oss-120b-medium"));
+});
+
+test("T28: antigravity legacy GPT-OSS alias resolves to the current canonical ID", async () => {
+  const legacy = await getModelInfoCore("antigravity/gpt-oss-120b-medium", {});
+  assert.equal(legacy.provider, "antigravity");
+  assert.equal(legacy.model, "gpt-oss-120b");
 });
 
 test("T28: github registry exposes Gemini 3.1 Pro Preview and keeps legacy alias compatibility", async () => {

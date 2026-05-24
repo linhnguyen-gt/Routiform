@@ -6,6 +6,6 @@ export const CONTEXT_CONFIG: {
   readonly defaultLimit: number;
   readonly reserveTokens: number;
 } = {
-  defaultLimit: 200000,
+  defaultLimit: 262144,
   reserveTokens: 8000,
 };

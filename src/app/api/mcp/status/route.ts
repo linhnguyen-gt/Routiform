@@ -7,10 +7,14 @@ import {
   resolveMcpHeartbeatPath,
 } from "@routiform/open-sse/mcp-server/runtimeHeartbeat";
 import { getMcpHttpStatus } from "../../../../../open-sse/mcp-server/httpTransport";
+import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import { getSettings } from "@/lib/db/settings";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const authError = await requireManagementAuth(request);
+    if (authError) return authError;
+
     const [heartbeat, stats, lastCallPage, settings] = await Promise.all([
       readMcpHeartbeat(),
       getAuditStats(),

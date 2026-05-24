@@ -19,28 +19,31 @@ export interface ModelSpec {
   supportsVision?: boolean;
 }
 
+const GPT_5_CONTEXT_WINDOW = 400000;
+const GPT_5_MAX_OUTPUT_TOKENS = 128000;
+
+const GPT_5_TEXT_VISION_SPEC: ModelSpec = {
+  maxOutputTokens: GPT_5_MAX_OUTPUT_TOKENS,
+  contextWindow: GPT_5_CONTEXT_WINDOW,
+  supportsTools: true,
+  supportsVision: true,
+};
+
 export const MODEL_SPECS: Record<string, ModelSpec> = {
   // ── GPT-5 / Codex multimodal series ──────────────────────────────
-  "gpt-5.4": {
-    maxOutputTokens: 32768,
-    supportsTools: true,
-    supportsVision: true,
-  },
-  "gpt-5.4-mini": {
-    maxOutputTokens: 32768,
-    supportsTools: true,
-    supportsVision: true,
-  },
-  "gpt-5.3-codex": {
-    maxOutputTokens: 32768,
-    supportsTools: true,
-    supportsVision: true,
-  },
-  "gpt-5.2": {
-    maxOutputTokens: 32768,
-    supportsTools: true,
-    supportsVision: true,
-  },
+  "gpt-5": GPT_5_TEXT_VISION_SPEC,
+  "gpt-5-mini": GPT_5_TEXT_VISION_SPEC,
+  "gpt-5-nano": GPT_5_TEXT_VISION_SPEC,
+  "gpt-5-codex": GPT_5_TEXT_VISION_SPEC,
+  "gpt-5.1": GPT_5_TEXT_VISION_SPEC,
+  "gpt-5.1-codex": GPT_5_TEXT_VISION_SPEC,
+  "gpt-5.1-codex-mini": GPT_5_TEXT_VISION_SPEC,
+  "gpt-5.1-codex-max": GPT_5_TEXT_VISION_SPEC,
+  "gpt-5.2": GPT_5_TEXT_VISION_SPEC,
+  "gpt-5.2-codex": GPT_5_TEXT_VISION_SPEC,
+  "gpt-5.3-codex": GPT_5_TEXT_VISION_SPEC,
+  "gpt-5.4": GPT_5_TEXT_VISION_SPEC,
+  "gpt-5.4-mini": GPT_5_TEXT_VISION_SPEC,
 
   // ── Gemini 3 Flash series ───────────────────────────────────────
   "gemini-3-flash": {

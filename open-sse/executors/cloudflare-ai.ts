@@ -2,6 +2,65 @@ import { BaseExecutor } from "./base.ts";
 import { PROVIDERS } from "../config/constants.ts";
 import type { ProviderCredentials } from "./base.ts";
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getTextPartContent(part: unknown): string | null {
+  const record = asRecord(part);
+  if (!record) return null;
+
+  const type = typeof record.type === "string" ? record.type : "";
+  if (type !== "text" && type !== "input_text") {
+    return null;
+  }
+
+  if (typeof record.text === "string") {
+    return record.text;
+  }
+
+  return typeof record.content === "string" ? record.content : null;
+}
+
+function normalizeWorkersAiMessages(body: unknown): unknown {
+  const payload = asRecord(body);
+  if (!payload) return body;
+
+  const messages = payload.messages;
+  if (!Array.isArray(messages)) {
+    return body;
+  }
+
+  let changed = false;
+  const normalizedMessages = messages.map((message) => {
+    const messageRecord = asRecord(message);
+    if (!messageRecord || !Array.isArray(messageRecord.content)) {
+      return message;
+    }
+
+    const textParts = messageRecord.content.map(getTextPartContent);
+    if (textParts.some((part) => part === null)) {
+      return message;
+    }
+
+    changed = true;
+    return {
+      ...messageRecord,
+      // Preserve exact part ordering without injecting extra separators.
+      content: textParts.join(""),
+    };
+  });
+
+  return changed
+    ? {
+        ...payload,
+        messages: normalizedMessages,
+      }
+    : body;
+}
+
 /**
  * CloudflareAIExecutor — handles dynamic URL construction with accountId.
  * Cloudflare Workers AI uses the authenticated user's account ID in the URL.
@@ -61,9 +120,10 @@ export class CloudflareAIExecutor extends BaseExecutor {
     _stream: boolean,
     _credentials: ProviderCredentials
   ): unknown {
-    // Cloudflare uses full model paths like @cf/meta/llama-3.3-70b-instruct
-    // No transformation needed — user sends the full Cloudflare model path.
-    return body;
+    // Cloudflare uses full model paths like @cf/meta/llama-3.3-70b-instruct.
+    // Workers AI is stricter about message content shape, so flatten text-only
+    // content-part arrays into plain strings while preserving mixed multimodal payloads.
+    return normalizeWorkersAiMessages(body);
   }
 }
 

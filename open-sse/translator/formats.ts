@@ -11,4 +11,5 @@ export const FORMATS = {
   KIRO: "kiro",
   CURSOR: "cursor",
   COMMANDCODE: "commandcode",
+  DEVIN: "devin",
 };

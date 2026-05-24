@@ -70,12 +70,22 @@ export function createResponsesLogger(model, logsDir = null) {
   };
 }
 
+type ResponsesTransformOptions = {
+  heartbeatIntervalMs?: number;
+};
+
 /**
  * Create TransformStream that converts Chat Completions SSE to Responses API SSE
  * @param {Object} logger - Optional logger instance
  * @returns {TransformStream}
  */
-export function createResponsesApiTransformStream(logger = null) {
+export function createResponsesApiTransformStream(
+  logger = null,
+  options: ResponsesTransformOptions = {}
+) {
+  const heartbeatIntervalMs = Number.isFinite(options?.heartbeatIntervalMs)
+    ? Math.max(0, Number(options.heartbeatIntervalMs))
+    : 5000;
   const state = {
     seq: 0,
     responseId: `resp_${Date.now()}`,
@@ -103,12 +113,40 @@ export function createResponsesApiTransformStream(logger = null) {
 
   const encoder = new TextEncoder();
   const nextSeq = () => ++state.seq;
+  let heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const clearHeartbeat = () => {
+    if (heartbeatTimer) {
+      clearTimeout(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+  };
+
+  const scheduleHeartbeat = (controller) => {
+    clearHeartbeat();
+    if (!(heartbeatIntervalMs > 0) || state.completedSent) {
+      return;
+    }
+
+    heartbeatTimer = setTimeout(() => {
+      heartbeatTimer = null;
+      if (state.completedSent) {
+        return;
+      }
+
+      const output = ": keep-alive\n\n";
+      logger?.logOutput(output.trim());
+      controller.enqueue(encoder.encode(output));
+      scheduleHeartbeat(controller);
+    }, heartbeatIntervalMs);
+  };
 
   const emit = (controller, eventType, data) => {
     data.sequence_number = nextSeq();
     const output = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
     logger?.logOutput(output.trim());
     controller.enqueue(encoder.encode(output));
+    scheduleHeartbeat(controller);
   };
 
   // Helper to start reasoning
@@ -301,10 +339,15 @@ export function createResponsesApiTransformStream(logger = null) {
   };
 
   return new TransformStream({
+    start(controller) {
+      scheduleHeartbeat(controller);
+    },
+
     transform(chunk, controller) {
       const text = new TextDecoder().decode(chunk);
       logger?.logInput(text.trim());
       state.buffer += text;
+      scheduleHeartbeat(controller);
 
       const messages = state.buffer.split("\n\n");
       state.buffer = messages.pop() || "";
@@ -501,6 +544,7 @@ export function createResponsesApiTransformStream(logger = null) {
     },
 
     flush(controller) {
+      clearHeartbeat();
       for (const i in state.msgItemAdded) closeMessage(controller, i);
       closeReasoning(controller);
       for (const i in state.funcCallIds) closeToolCall(controller, i);

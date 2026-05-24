@@ -51,7 +51,8 @@ const PROVIDER_MODEL_ALIASES = {
     "nvidia/gpt-oss-120b": "openai/gpt-oss-120b",
   },
   antigravity: {
-    "gemini-3-flash": "gemini-3.5-flash",
+    "gemini-3.5-flash": "gemini-3.5-flash",
+    "gpt-oss-120b-medium": "gpt-oss-120b",
   },
 };
 

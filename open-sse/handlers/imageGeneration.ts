@@ -26,6 +26,242 @@ import {
   extractComfyOutputFiles,
 } from "../utils/comfyuiClient.ts";
 
+function normalizeRequestedImageCount(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.max(1, Math.floor(parsed));
+}
+
+function createSingleImageBody(body) {
+  return {
+    ...body,
+    n: 1,
+  };
+}
+
+function createImageFanoutError(provider, delivered, requested, message) {
+  return {
+    success: false,
+    status: 502,
+    error: `${provider} image fanout failed after ${delivered}/${requested} successful request(s): ${message}`,
+  };
+}
+
+async function runWithConcurrency(tasks, concurrency) {
+  const results = new Array(tasks.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < tasks.length) {
+      const currentIndex = nextIndex++;
+      results[currentIndex] = await tasks[currentIndex]();
+    }
+  }
+
+  const workerCount = Math.max(1, Math.min(concurrency, tasks.length));
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
+async function saveImageCallLog({
+  provider,
+  model,
+  status,
+  duration,
+  requestBody,
+  responseImagesCount,
+  error,
+  metadata,
+}) {
+  return saveCallLog({
+    method: "POST",
+    path: "/v1/images/generations",
+    status,
+    model: `${provider}/${model}`,
+    provider,
+    duration,
+    tokens: { prompt_tokens: 0, completion_tokens: 0 },
+    error: typeof error === "string" ? error.slice(0, 500) : null,
+    requestBody,
+    responseBody:
+      typeof responseImagesCount === "number"
+        ? {
+            images_count: responseImagesCount,
+            ...(metadata && typeof metadata === "object" ? metadata : {}),
+          }
+        : null,
+  }).catch(() => {});
+}
+
+async function dispatchImageGeneration({
+  model,
+  provider,
+  providerConfig,
+  body,
+  credentials,
+  log,
+  callLog = true,
+}) {
+  if (providerConfig.format === "gemini-image") {
+    return handleGeminiImageGeneration({ model, providerConfig, body, credentials, log, callLog });
+  }
+
+  if (providerConfig.format === "imagen3") {
+    return handleImagen3ImageGeneration({
+      model,
+      provider,
+      providerConfig,
+      body,
+      credentials,
+      log,
+      callLog,
+    });
+  }
+
+  if (providerConfig.format === "hyperbolic") {
+    return handleHyperbolicImageGeneration({
+      model,
+      provider,
+      providerConfig,
+      body,
+      credentials,
+      log,
+      callLog,
+    });
+  }
+
+  if (providerConfig.format === "nanobanana") {
+    return handleNanoBananaImageGeneration({
+      model,
+      provider,
+      providerConfig,
+      body,
+      credentials,
+      log,
+    });
+  }
+
+  if (providerConfig.format === "sdwebui") {
+    return handleSDWebUIImageGeneration({ model, provider, providerConfig, body, log });
+  }
+
+  if (providerConfig.format === "comfyui") {
+    return handleComfyUIImageGeneration({ model, provider, providerConfig, body, log });
+  }
+
+  return handleOpenAIImageGeneration({
+    model,
+    provider,
+    providerConfig,
+    body,
+    credentials,
+    log,
+    callLog,
+  });
+}
+
+async function handleParallelImageGeneration({
+  provider,
+  model,
+  providerConfig,
+  body,
+  credentials,
+  log,
+}) {
+  const requestedN = normalizeRequestedImageCount(body.n);
+  const concurrency = Math.max(
+    1,
+    Math.min(
+      requestedN,
+      Number.isFinite(providerConfig.fanoutDefaultConcurrency)
+        ? Number(providerConfig.fanoutDefaultConcurrency)
+        : 2
+    )
+  );
+  const startTime = Date.now();
+  const logRequestBody = {
+    model: body.model,
+    prompt:
+      typeof body.prompt === "string"
+        ? body.prompt.slice(0, 200)
+        : String(body.prompt ?? "").slice(0, 200),
+    size: body.size || "default",
+    n: requestedN,
+    quality: body.quality || undefined,
+  };
+
+  const tasks = Array.from({ length: requestedN }, () => {
+    const childBody = createSingleImageBody(body);
+    return () =>
+      dispatchImageGeneration({
+        model,
+        provider,
+        providerConfig,
+        body: childBody,
+        credentials,
+        log,
+        callLog: false,
+      });
+  });
+
+  const results = await runWithConcurrency(tasks, concurrency);
+  const firstFailure = results.find((result) => !result?.success);
+
+  if (firstFailure) {
+    const delivered = results.filter((result) => result?.success).length;
+    const errorResult = createImageFanoutError(
+      provider,
+      delivered,
+      requestedN,
+      firstFailure.error || "Unknown image provider error"
+    );
+
+    await saveImageCallLog({
+      provider,
+      model,
+      status: firstFailure.status || errorResult.status,
+      duration: Date.now() - startTime,
+      requestBody: logRequestBody,
+      error: errorResult.error,
+      metadata: {
+        mode: "fanout",
+        requested_n: requestedN,
+        delivered_n: delivered,
+      },
+    });
+
+    return errorResult;
+  }
+
+  const aggregatedImages = results.flatMap((result) => result?.data?.data || []);
+  const created =
+    results.find((result) => Number.isFinite(result?.data?.created))?.data?.created ||
+    Math.floor(Date.now() / 1000);
+
+  await saveImageCallLog({
+    provider,
+    model,
+    status: 200,
+    duration: Date.now() - startTime,
+    requestBody: logRequestBody,
+    responseImagesCount: aggregatedImages.length,
+    metadata: {
+      mode: "fanout",
+      requested_n: requestedN,
+      delivered_n: aggregatedImages.length,
+      concurrency,
+    },
+  });
+
+  return {
+    success: true,
+    data: {
+      created,
+      data: aggregatedImages,
+    },
+  };
+}
+
 /**
  * Handle image generation request
  * @param {object} options
@@ -87,7 +323,7 @@ export async function handleImageGeneration({ body, credentials, log, resolvedPr
       format: "openai",
     };
 
-    return handleOpenAIImageGeneration({
+    return dispatchImageGeneration({
       model,
       provider,
       providerConfig: syntheticConfig,
@@ -97,59 +333,55 @@ export async function handleImageGeneration({ body, credentials, log, resolvedPr
     });
   }
 
-  if (providerConfig.format === "gemini-image") {
-    return handleGeminiImageGeneration({ model, providerConfig, body, credentials, log });
+  const requestedN = normalizeRequestedImageCount(body.n);
+  if (requestedN > 1) {
+    const maxNativeN = Number.isFinite(providerConfig.maxNativeN)
+      ? Number(providerConfig.maxNativeN)
+      : Infinity;
+    if (providerConfig.supportsNativeN === true && requestedN <= maxNativeN) {
+      return dispatchImageGeneration({
+        model,
+        provider,
+        providerConfig,
+        body: { ...body, n: requestedN },
+        credentials,
+        log,
+      });
+    }
+
+    if (providerConfig.supportsParallelFanout === true) {
+      return handleParallelImageGeneration({
+        provider,
+        model,
+        providerConfig,
+        body: { ...body, n: requestedN },
+        credentials,
+        log,
+      });
+    }
+
+    return {
+      success: false,
+      status: 400,
+      error: `${provider} does not support n > 1 image generation for model ${model}`,
+    };
   }
 
-  if (providerConfig.format === "imagen3") {
-    return handleImagen3ImageGeneration({
-      model,
-      provider,
-      providerConfig,
-      body,
-      credentials,
-      log,
-    });
-  }
-
-  if (providerConfig.format === "hyperbolic") {
-    return handleHyperbolicImageGeneration({
-      model,
-      provider,
-      providerConfig,
-      body,
-      credentials,
-      log,
-    });
-  }
-
-  if (providerConfig.format === "nanobanana") {
-    return handleNanoBananaImageGeneration({
-      model,
-      provider,
-      providerConfig,
-      body,
-      credentials,
-      log,
-    });
-  }
-
-  if (providerConfig.format === "sdwebui") {
-    return handleSDWebUIImageGeneration({ model, provider, providerConfig, body, log });
-  }
-
-  if (providerConfig.format === "comfyui") {
-    return handleComfyUIImageGeneration({ model, provider, providerConfig, body, log });
-  }
-
-  return handleOpenAIImageGeneration({ model, provider, providerConfig, body, credentials, log });
+  return dispatchImageGeneration({ model, provider, providerConfig, body, credentials, log });
 }
 
 /**
  * Handle Gemini-format image generation (Antigravity / Nano Banana)
  * Uses Gemini's generateContent API with responseModalities: ["TEXT", "IMAGE"]
  */
-async function handleGeminiImageGeneration({ model, providerConfig, body, credentials, log }) {
+async function handleGeminiImageGeneration({
+  model,
+  providerConfig,
+  body,
+  credentials,
+  log,
+  callLog = true,
+}) {
   const startTime = Date.now();
   const url = `${providerConfig.baseUrl}/${model}:generateContent`;
   const provider = "antigravity";
@@ -206,16 +438,18 @@ async function handleGeminiImageGeneration({ model, providerConfig, body, creden
         log.error("IMAGE", `antigravity error ${response.status}: ${errorText.slice(0, 200)}`);
       }
 
-      saveCallLog({
-        method: "POST",
-        path: "/v1/images/generations",
-        status: response.status,
-        model: `antigravity/${model}`,
-        provider,
-        duration: Date.now() - startTime,
-        error: errorText.slice(0, 500),
-        requestBody: logRequestBody,
-      }).catch(() => {});
+      if (callLog) {
+        saveCallLog({
+          method: "POST",
+          path: "/v1/images/generations",
+          status: response.status,
+          model: `antigravity/${model}`,
+          provider,
+          duration: Date.now() - startTime,
+          error: errorText.slice(0, 500),
+          requestBody: logRequestBody,
+        }).catch(() => {});
+      }
 
       return { success: false, status: response.status, error: errorText };
     }
@@ -237,17 +471,19 @@ async function handleGeminiImageGeneration({ model, providerConfig, body, creden
       }
     }
 
-    saveCallLog({
-      method: "POST",
-      path: "/v1/images/generations",
-      status: 200,
-      model: `antigravity/${model}`,
-      provider,
-      duration: Date.now() - startTime,
-      tokens: { prompt_tokens: 0, completion_tokens: 0 },
-      requestBody: logRequestBody,
-      responseBody: { images_count: images.length },
-    }).catch(() => {});
+    if (callLog) {
+      saveCallLog({
+        method: "POST",
+        path: "/v1/images/generations",
+        status: 200,
+        model: `antigravity/${model}`,
+        provider,
+        duration: Date.now() - startTime,
+        tokens: { prompt_tokens: 0, completion_tokens: 0 },
+        requestBody: logRequestBody,
+        responseBody: { images_count: images.length },
+      }).catch(() => {});
+    }
 
     return {
       success: true,
@@ -261,16 +497,18 @@ async function handleGeminiImageGeneration({ model, providerConfig, body, creden
       log.error("IMAGE", `antigravity fetch error: ${err.message}`);
     }
 
-    saveCallLog({
-      method: "POST",
-      path: "/v1/images/generations",
-      status: 502,
-      model: `antigravity/${model}`,
-      provider,
-      duration: Date.now() - startTime,
-      error: err.message,
-      requestBody: logRequestBody,
-    }).catch(() => {});
+    if (callLog) {
+      saveCallLog({
+        method: "POST",
+        path: "/v1/images/generations",
+        status: 502,
+        model: `antigravity/${model}`,
+        provider,
+        duration: Date.now() - startTime,
+        error: err.message,
+        requestBody: logRequestBody,
+      }).catch(() => {});
+    }
 
     return { success: false, status: 502, error: `Image provider error: ${err.message}` };
   }
@@ -286,6 +524,7 @@ async function handleOpenAIImageGeneration({
   body,
   credentials,
   log,
+  callLog = true,
 }) {
   const startTime = Date.now();
 
@@ -367,22 +606,24 @@ async function handleOpenAIImageGeneration({
   }
 
   // Save call log after result is determined
-  saveCallLog({
-    method: "POST",
-    path: "/v1/images/generations",
-    status: result.status || (result.success ? 200 : 502),
-    model: `${provider}/${model}`,
-    provider,
-    duration: Date.now() - startTime,
-    tokens: { prompt_tokens: 0, completion_tokens: 0 },
-    error: result.success
-      ? null
-      : typeof result.error === "string"
-        ? result.error.slice(0, 500)
-        : null,
-    requestBody: logRequestBody,
-    responseBody: result.success ? { images_count: result.data?.data?.length || 0 } : null,
-  }).catch(() => {});
+  if (callLog) {
+    saveCallLog({
+      method: "POST",
+      path: "/v1/images/generations",
+      status: result.status || (result.success ? 200 : 502),
+      model: `${provider}/${model}`,
+      provider,
+      duration: Date.now() - startTime,
+      tokens: { prompt_tokens: 0, completion_tokens: 0 },
+      error: result.success
+        ? null
+        : typeof result.error === "string"
+          ? result.error.slice(0, 500)
+          : null,
+      requestBody: logRequestBody,
+      responseBody: result.success ? { images_count: result.data?.data?.length || 0 } : null,
+    }).catch(() => {});
+  }
 
   return result;
 }
@@ -443,6 +684,7 @@ async function handleHyperbolicImageGeneration({
   body,
   credentials,
   log,
+  callLog = true,
 }) {
   const startTime = Date.now();
   const token = credentials.apiKey || credentials.accessToken;
@@ -477,15 +719,17 @@ async function handleHyperbolicImageGeneration({
       if (log)
         log.error("IMAGE", `${provider} error ${response.status}: ${errorText.slice(0, 200)}`);
 
-      saveCallLog({
-        method: "POST",
-        path: "/v1/images/generations",
-        status: response.status,
-        model: `${provider}/${model}`,
-        provider,
-        duration: Date.now() - startTime,
-        error: errorText.slice(0, 500),
-      }).catch(() => {});
+      if (callLog) {
+        saveCallLog({
+          method: "POST",
+          path: "/v1/images/generations",
+          status: response.status,
+          model: `${provider}/${model}`,
+          provider,
+          duration: Date.now() - startTime,
+          error: errorText.slice(0, 500),
+        }).catch(() => {});
+      }
 
       return { success: false, status: response.status, error: errorText };
     }
@@ -497,15 +741,17 @@ async function handleHyperbolicImageGeneration({
       revised_prompt: body.prompt,
     }));
 
-    saveCallLog({
-      method: "POST",
-      path: "/v1/images/generations",
-      status: 200,
-      model: `${provider}/${model}`,
-      provider,
-      duration: Date.now() - startTime,
-      responseBody: { images_count: images.length },
-    }).catch(() => {});
+    if (callLog) {
+      saveCallLog({
+        method: "POST",
+        path: "/v1/images/generations",
+        status: 200,
+        model: `${provider}/${model}`,
+        provider,
+        duration: Date.now() - startTime,
+        responseBody: { images_count: images.length },
+      }).catch(() => {});
+    }
 
     return {
       success: true,
@@ -513,15 +759,17 @@ async function handleHyperbolicImageGeneration({
     };
   } catch (err) {
     if (log) log.error("IMAGE", `${provider} fetch error: ${err.message}`);
-    saveCallLog({
-      method: "POST",
-      path: "/v1/images/generations",
-      status: 502,
-      model: `${provider}/${model}`,
-      provider,
-      duration: Date.now() - startTime,
-      error: err.message,
-    }).catch(() => {});
+    if (callLog) {
+      saveCallLog({
+        method: "POST",
+        path: "/v1/images/generations",
+        status: 502,
+        model: `${provider}/${model}`,
+        provider,
+        duration: Date.now() - startTime,
+        error: err.message,
+      }).catch(() => {});
+    }
     return { success: false, status: 502, error: `Image provider error: ${err.message}` };
   }
 }

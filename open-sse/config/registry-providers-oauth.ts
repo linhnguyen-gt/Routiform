@@ -115,6 +115,7 @@ export const OAUTH_PROVIDERS: Record<string, RegistryEntry> = {
     authType: "oauth",
     authHeader: "bearer",
     defaultContextLength: 400000,
+    defaultMaxOutputTokens: 128000,
     headers: getCodexDefaultHeaders(),
     oauth: {
       clientIdEnv: "CODEX_OAUTH_CLIENT_ID",
@@ -224,11 +225,11 @@ export const OAUTH_PROVIDERS: Record<string, RegistryEntry> = {
     models: [
       { id: "claude-opus-4-6-thinking", name: "Claude Opus 4.6 (Thinking)" },
       { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6 (Thinking)" },
-      { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash (High)" },
-      { id: "gemini-3.5-flash-low", name: "Gemini 3.5 Flash (Medium)" },
+      { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash" },
+      { id: "gemini-3-flash", name: "Gemini 3 Flash" },
       { id: "gemini-3.1-pro-high", name: "Gemini 3.1 Pro (High)" },
       { id: "gemini-3.1-pro-low", name: "Gemini 3.1 Pro (Low)" },
-      { id: "gpt-oss-120b-medium", name: "GPT-OSS 120B (Medium)" },
+      { id: "gpt-oss-120b", name: "GPT-OSS-120b" },
     ],
     passthroughModels: true,
   },
@@ -339,7 +340,7 @@ export const OAUTH_PROVIDERS: Record<string, RegistryEntry> = {
   devin: {
     id: "devin",
     alias: "dv",
-    format: "openai",
+    format: "devin",
     executor: "devin",
     // DevinExecutor spawns `devin --print` subprocess — no HTTP endpoint needed.
     baseUrl: "devin://subprocess",

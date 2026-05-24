@@ -1,6 +1,7 @@
 import { REGISTRY } from "../../config/registry-providers.ts";
 import { getModelContextLimit } from "../../../src/lib/modelsDevSync";
 import { CONTEXT_CONFIG } from "../../../src/shared/constants/context";
+import { getModelSpec } from "../../../src/shared/constants/modelSpecs";
 
 const SAFETY_MARGIN = 0.8;
 
@@ -26,6 +27,11 @@ export function getSafeLimit(limit: number, margin: number = SAFETY_MARGIN): num
 export function getTokenLimit(provider: string, model: string | null = null): number {
   const envOverride = getEnvOverride(provider);
   if (envOverride) return envOverride;
+
+  if (model) {
+    const specLimit = getModelSpec(model)?.contextWindow;
+    if (typeof specLimit === "number" && specLimit > 0) return specLimit;
+  }
 
   if (model) {
     const dbLimit = getModelContextLimit(provider, model);

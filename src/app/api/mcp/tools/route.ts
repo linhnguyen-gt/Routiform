@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { MCP_TOOLS, MCP_TOOL_MAP } from "@routiform/open-sse/mcp-server/schemas/tools";
+import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const authError = await requireManagementAuth(request);
+    if (authError) return authError;
+
     return NextResponse.json({
       total: MCP_TOOLS.length,
       mappedTotal: Object.keys(MCP_TOOL_MAP).length,

@@ -12,6 +12,8 @@ export const IMAGE_PROVIDERS = {
     authType: "apikey",
     authHeader: "bearer",
     format: "openai", // native OpenAI format
+    supportsNativeN: true,
+    maxNativeN: 10,
     models: [
       { id: "gpt-image-1", name: "GPT Image 1" },
       { id: "dall-e-3", name: "DALL-E 3" },
@@ -26,6 +28,8 @@ export const IMAGE_PROVIDERS = {
     authType: "apikey",
     authHeader: "bearer",
     format: "openai",
+    supportsNativeN: true,
+    maxNativeN: 10,
     models: [{ id: "grok-2-image-1212", name: "Grok 2 Image" }],
     supportedSizes: ["1024x1024"],
   },
@@ -36,6 +40,8 @@ export const IMAGE_PROVIDERS = {
     authType: "apikey",
     authHeader: "bearer",
     format: "openai",
+    supportsParallelFanout: true,
+    fanoutDefaultConcurrency: 2,
     models: [
       { id: "black-forest-labs/FLUX.1.1-pro", name: "FLUX 1.1 Pro" },
       { id: "black-forest-labs/FLUX.1-schnell-Free", name: "FLUX 1 Schnell (Free)" },
@@ -50,6 +56,8 @@ export const IMAGE_PROVIDERS = {
     authType: "apikey",
     authHeader: "bearer",
     format: "openai",
+    supportsParallelFanout: true,
+    fanoutDefaultConcurrency: 2,
     models: [
       { id: "accounts/fireworks/models/flux-1-dev-fp8", name: "FLUX 1 Dev FP8" },
       { id: "accounts/fireworks/models/stable-diffusion-xl-1024-v1-0", name: "SDXL 1024 v1.0" },
@@ -63,6 +71,10 @@ export const IMAGE_PROVIDERS = {
     authType: "oauth",
     authHeader: "bearer",
     format: "gemini-image", // Special format: uses Gemini generateContent API
+    supportsParallelFanout: true,
+    fanoutDefaultConcurrency: 2,
+    // Antigravity's current public docs present image tooling separately
+    // from the direct model picker, so keep this list intentionally empty.
     models: [],
     supportedSizes: ["1024x1024"],
   },
@@ -74,6 +86,8 @@ export const IMAGE_PROVIDERS = {
     authType: "apikey",
     authHeader: "bearer",
     format: "openai",
+    supportsParallelFanout: true,
+    fanoutDefaultConcurrency: 2,
     models: [
       { id: "black-forest-labs/flux-schnell", name: "FLUX.1 Schnell" },
       { id: "black-forest-labs/flux-dev", name: "FLUX.1 Dev" },
@@ -87,6 +101,8 @@ export const IMAGE_PROVIDERS = {
     authType: "apikey",
     authHeader: "bearer",
     format: "hyperbolic", // custom: uses model_name, returns base64 images
+    supportsParallelFanout: true,
+    fanoutDefaultConcurrency: 2,
     models: [
       { id: "SDXL1.0-base", name: "SDXL 1.0 Base" },
       { id: "SD2", name: "Stable Diffusion 2" },
@@ -103,6 +119,7 @@ export const IMAGE_PROVIDERS = {
     authType: "apikey",
     authHeader: "bearer",
     format: "nanobanana", // custom format (async: submit task, then poll)
+    supportsParallelFanout: false,
     models: [
       { id: "nanobanana-flash", name: "NanoBanana Flash (Gemini 2.5 Flash)" },
       { id: "nanobanana-pro", name: "NanoBanana Pro (Gemini 3 Pro)" },
@@ -116,6 +133,7 @@ export const IMAGE_PROVIDERS = {
     authType: "none",
     authHeader: "none",
     format: "sdwebui",
+    supportsParallelFanout: false,
     models: [
       { id: "stable-diffusion-v1-5", name: "Stable Diffusion v1.5" },
       { id: "sdxl-base-1.0", name: "SDXL Base 1.0" },
@@ -129,6 +147,7 @@ export const IMAGE_PROVIDERS = {
     authType: "none",
     authHeader: "none",
     format: "comfyui",
+    supportsParallelFanout: false,
     models: [
       { id: "flux-dev", name: "FLUX Dev" },
       { id: "sdxl", name: "SDXL" },

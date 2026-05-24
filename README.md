@@ -7,7 +7,7 @@ Routiform is a self-hosted AI gateway and dashboard for teams that want one stab
 It is built for developers who want to:
 
 - integrate once, then swap providers and models without rewriting client code
-- keep Cursor, Cline, Claude Desktop, Codex, MCP clients, and internal apps on one base URL
+- keep Cursor, Devin, Cline, Claude Desktop, Codex, MCP clients, and internal apps on one base URL
 - survive provider outages, model deprecations, and quota limits with policy-driven fallback
 - reduce cost using combo routing, budget guards, and lower-cost model paths
 - run their own gateway with full visibility into keys, logs, quotas, and health
@@ -52,7 +52,8 @@ These screens show the day-to-day workflow: manage unified endpoints, configure 
 ### Unified API gateway
 
 - OpenAI-compatible API surface for chat, embeddings, images, audio, video, rerank, search, and more
-- Request and response translation across OpenAI, Anthropic, Gemini, and provider-specific formats
+- Request and response translation across OpenAI, Anthropic, Gemini, Devin, and provider-specific formats
+- Native CLI-backed bridges for providers like Devin, including subprocess execution and streaming normalization back to OpenAI-compatible responses
 - Works with local apps, server deployments, CLI tools, browser clients, and agent frameworks
 
 ### 60+ providers
@@ -61,6 +62,7 @@ Routiform supports a broad provider mix, including:
 
 - OpenAI
 - Anthropic
+- Devin
 - Google Gemini
 - DeepSeek
 - Groq
@@ -285,6 +287,10 @@ npm run dev
 4. Create a combo if you want fallback or multi-provider routing
 5. Point your client to Routiform instead of the upstream provider directly
 
+For Devin connections, authenticate the local CLI first with `devin auth login`, then
+import or auto-detect the credentials from the provider setup flow and sync the
+available Devin model catalog.
+
 ## Example client configuration
 
 ### OpenAI SDK compatible clients
@@ -316,7 +322,7 @@ Examples include built-in support for free-access workflows such as Qoder AI, Qw
 
 ### OAuth
 
-Examples include Claude Code, Codex, GitHub Copilot, Cursor, Cline, Kimi Coding, and other account-backed integrations.
+Examples include Claude Code, Devin, Codex, GitHub Copilot, Cursor, Cline, Kimi Coding, and other account-backed integrations.
 
 ### API key
 
@@ -458,6 +464,7 @@ Routiform is useful with:
 
 - OpenAI-compatible SDKs
 - Cursor
+- Devin
 - Cline
 - Claude Desktop
 - Codex clients

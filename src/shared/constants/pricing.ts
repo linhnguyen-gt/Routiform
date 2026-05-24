@@ -417,6 +417,13 @@ export const DEFAULT_PRICING = {
       reasoning: 3.0,
       cache_creation: 0.5,
     },
+    "gpt-oss-120b": {
+      input: 0.5,
+      output: 2.0,
+      cached: 0.25,
+      reasoning: 3.0,
+      cache_creation: 0.5,
+    },
   },
 
   // GitHub Copilot (gh)

@@ -1,6 +1,7 @@
 import { CORS_ORIGIN } from "@/shared/utils/cors";
 import { PROVIDER_MODELS } from "@/shared/constants/models";
 import { getAllCustomModels, getSyncedAvailableModels } from "@/lib/db/models";
+import { REGISTRY } from "@routiform/open-sse/config/providerRegistry.ts";
 
 /**
  * Handle CORS preflight
@@ -25,14 +26,28 @@ export async function GET() {
 
     // Built-in models (hardcoded defaults)
     for (const [provider, providerModels] of Object.entries(PROVIDER_MODELS)) {
+      const registryEntry = REGISTRY[provider];
+      const defaultContextLength = registryEntry?.defaultContextLength;
+      const defaultOutputTokenLimit = registryEntry?.defaultMaxOutputTokens;
+
       for (const model of providerModels) {
         models.push({
           name: `models/${provider}/${model.id}`,
           displayName: model.name || model.id,
           description: `${provider} model: ${model.name || model.id}`,
           supportedGenerationMethods: ["generateContent"],
-          inputTokenLimit: 128000,
-          outputTokenLimit: 8192,
+          inputTokenLimit:
+            typeof model.contextLength === "number"
+              ? model.contextLength
+              : typeof defaultContextLength === "number"
+                ? defaultContextLength
+                : 128000,
+          outputTokenLimit:
+            typeof model.maxOutputTokens === "number"
+              ? model.maxOutputTokens
+              : typeof defaultOutputTokenLimit === "number"
+                ? defaultOutputTokenLimit
+                : 8192,
         });
       }
     }

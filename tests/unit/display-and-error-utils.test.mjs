@@ -31,8 +31,13 @@ test("toJsonErrorPayload: normalizes object payloads with string error", () => {
 test("toJsonErrorPayload: wraps plain objects under error key", () => {
   assert.deepEqual(toJsonErrorPayload({ status: 503, message: "backend down" }), {
     error: {
-      status: 503,
       message: "backend down",
+      type: "upstream_error",
+      code: "upstream_error",
+      details: {
+        status: 503,
+        message: "backend down",
+      },
     },
   });
 });
