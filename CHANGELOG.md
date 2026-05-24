@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.30.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.30.1...v3.30.2) (2026-05-24)
+
+
+### Bug Fixes
+
+* **antigravity:** model handling and logging ([8301ce1](https://github.com/linhnguyen-gt/Routiform/commit/8301ce149cbd276b12b3455d1e6a98d1d4758b50))
+
 ### [3.30.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.30.0...v3.30.1) (2026-05-24)
 
 
