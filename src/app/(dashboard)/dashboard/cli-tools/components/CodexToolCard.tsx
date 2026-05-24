@@ -42,9 +42,21 @@ export default function CodexToolCard({
   const [restoringBackup, setRestoringBackup] = useState(null);
   const cliReady = !!(codexStatus?.installed && codexStatus?.runnable);
 
+  const getErrorText = (error, fallback) => {
+    if (!error) return fallback;
+    if (typeof error === "string") return error;
+    if (typeof error?.message === "string") {
+      if (Array.isArray(error.details) && error.details.length > 0) {
+        return `${error.message}: ${error.details.map((detail) => detail.message).join(", ")}`;
+      }
+      return error.message;
+    }
+    return fallback;
+  };
+
   useEffect(() => {
     if (apiKeys?.length > 0 && !selectedApiKey) {
-      setSelectedApiKey(apiKeys[0].key);
+      setSelectedApiKey(apiKeys[0].id);
     }
   }, [apiKeys, selectedApiKey]);
 
@@ -115,29 +127,29 @@ export default function CodexToolCard({
     setApplying(true);
     setMessage(null);
     try {
-      // Use sk_routiform for localhost if no key, otherwise use selected key
-      const keyToUse =
-        selectedApiKey && selectedApiKey.trim()
-          ? selectedApiKey
-          : !cloudEnabled
-            ? "sk_routiform"
-            : selectedApiKey;
+      // Prefer keyId so the backend can resolve the real secret instead of
+      // writing the masked key label returned by /api/keys.
+      const selectedKeyId = selectedApiKey?.trim() || (apiKeys?.length > 0 ? apiKeys[0].id : null);
+      const keyToUse = !selectedKeyId && !cloudEnabled ? "sk_routiform" : undefined;
+
+      const postBody = {
+        baseUrl: getEffectiveBaseUrl(),
+        apiKey: keyToUse,
+        model: selectedModel,
+        ...(selectedKeyId ? { keyId: selectedKeyId } : {}),
+      };
 
       const res = await fetch("/api/cli-tools/codex-settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          baseUrl: getEffectiveBaseUrl(),
-          apiKey: keyToUse,
-          model: selectedModel,
-        }),
+        body: JSON.stringify(postBody),
       });
       const data = await res.json();
       if (res.ok) {
         setMessage({ type: "success", text: t("settingsApplied") });
         checkCodexStatus();
       } else {
-        setMessage({ type: "error", text: data.error || t("failedApplySettings") });
+        setMessage({ type: "error", text: getErrorText(data.error, t("failedApplySettings")) });
       }
     } catch (error) {
       setMessage({ type: "error", text: error.message });
@@ -157,7 +169,7 @@ export default function CodexToolCard({
         setSelectedModel("");
         checkCodexStatus();
       } else {
-        setMessage({ type: "error", text: data.error || t("failedResetSettings") });
+        setMessage({ type: "error", text: getErrorText(data.error, t("failedResetSettings")) });
       }
     } catch (error) {
       setMessage({ type: "error", text: error.message });
@@ -280,9 +292,10 @@ export default function CodexToolCard({
   };
 
   const getManualConfigs = () => {
+    const selectedKeyRecord = apiKeys?.find((key) => key.id === selectedApiKey);
     const keyToUse =
-      selectedApiKey && selectedApiKey.trim()
-        ? selectedApiKey
+      selectedKeyRecord?.key && selectedKeyRecord.key.trim()
+        ? selectedKeyRecord.key
         : !cloudEnabled
           ? "sk_routiform"
           : "<API_KEY_FROM_DASHBOARD>";
@@ -490,7 +503,7 @@ wire_api = "responses"
                       className="flex-1 px-2 py-1.5 bg-surface rounded text-xs border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
                     >
                       {apiKeys.map((key) => (
-                        <option key={key.id} value={key.key}>
+                        <option key={key.id} value={key.id}>
                           {key.key}
                         </option>
                       ))}
@@ -552,7 +565,7 @@ wire_api = "responses"
                   variant="primary"
                   size="sm"
                   onClick={handleApplySettings}
-                  disabled={!selectedApiKey || !selectedModel}
+                  disabled={(!selectedApiKey && cloudEnabled) || !selectedModel}
                   loading={applying}
                 >
                   <span className="material-symbols-outlined text-[14px] mr-1">save</span>

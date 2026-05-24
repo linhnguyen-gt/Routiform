@@ -52,6 +52,7 @@ export const cliModelConfigSchema = z
   .object({
     baseUrl: z.string().trim().min(1, "baseUrl and model are required"),
     apiKey: z.string().optional(),
+    keyId: z.string().optional(),
     model: z.string().trim().min(1, "baseUrl and model are required"),
   })
   .strict();

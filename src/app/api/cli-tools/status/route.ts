@@ -7,6 +7,7 @@ import {
   CLI_TOOL_IDS,
   getCliPrimaryConfigPath,
 } from "@/shared/services/cliRuntime";
+import { hasRoutiformCodexConfig, hasUsableCodexAuth } from "@/shared/services/codexConfigToml";
 import { getAllCliToolLastConfigured } from "@/lib/db/cliToolState";
 import { getRuntimePorts } from "@/lib/runtime/ports";
 
@@ -23,20 +24,12 @@ async function checkToolConfigStatus(toolId: string): Promise<string> {
 
     // Codex uses TOML config — parse as raw text, not JSON
     if (toolId === "codex") {
-      const lower = content.toLowerCase();
-      const hasRoutiform =
-        lower.includes("routiform") ||
-        lower.includes(`localhost:${apiPort}`) ||
-        lower.includes(`127.0.0.1:${apiPort}`);
-      if (!hasRoutiform) return "not_configured";
+      if (!hasRoutiformCodexConfig(content)) return "not_configured";
 
-      // Also verify auth.json has an API key (not masked/empty)
       try {
         const authPath = configPath.replace(/config\.toml$/, "auth.json");
         const authContent = await fs.readFile(authPath, "utf-8");
-        const auth = JSON.parse(authContent);
-        const apiKey = auth?.OPENAI_API_KEY || "";
-        if (!apiKey || apiKey.includes("****") || apiKey.length < 20) {
+        if (!hasUsableCodexAuth(authContent)) {
           return "not_configured";
         }
       } catch {

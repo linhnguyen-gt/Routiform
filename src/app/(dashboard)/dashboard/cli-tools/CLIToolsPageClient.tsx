@@ -79,7 +79,10 @@ export default function CLIToolsPageClient({ machineId: _machineId }) {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s client timeout
-      const res = await fetch("/api/cli-tools/status", { signal: controller.signal });
+      const res = await fetch("/api/cli-tools/status", {
+        signal: controller.signal,
+        cache: "no-store",
+      });
       clearTimeout(timeoutId);
       if (res.ok) {
         const data = await res.json();

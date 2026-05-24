@@ -10,6 +10,11 @@ import {
 } from "@/shared/services/cliRuntime";
 import { createMultiBackup } from "@/shared/services/backupService";
 import { saveCliToolLastConfigured, deleteCliToolLastConfigured } from "@/lib/db/cliToolState";
+import {
+  applyRoutiformCodexConfig,
+  hasRoutiformCodexConfig,
+  removeRoutiformCodexConfig,
+} from "@/shared/services/codexConfigToml";
 import { cliModelConfigSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { getApiKeyById } from "@/lib/localDb";
@@ -17,67 +22,6 @@ import { getApiKeyById } from "@/lib/localDb";
 const getCodexConfigPath = () => getCliConfigPaths("codex").config;
 const getCodexAuthPath = () => getCliConfigPaths("codex").auth;
 const getCodexDir = () => path.dirname(getCodexConfigPath());
-
-// Parse TOML config to object (simple parser for codex config)
-const parseToml = (content: string) => {
-  const result: Record<string, Record<string, unknown>> = { _root: {}, _sections: {} };
-  let currentSection = "_root";
-
-  content.split("\n").forEach((line) => {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) return;
-
-    // Section header like [model_providers.routiform]
-    const sectionMatch = trimmed.match(/^\[(.+)\]$/);
-    if (sectionMatch) {
-      currentSection = sectionMatch[1];
-      result._sections[currentSection] = {};
-      return;
-    }
-
-    // Key = value
-    const kvMatch = trimmed.match(/^([^=]+)\s*=\s*(.+)$/);
-    if (kvMatch) {
-      const key = kvMatch[1].trim();
-      let value = kvMatch[2].trim();
-      // Remove quotes
-      if (
-        (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      ) {
-        value = value.slice(1, -1);
-      }
-      if (currentSection === "_root") {
-        result._root[key] = value;
-      } else {
-        result._sections[currentSection][key] = value;
-      }
-    }
-  });
-
-  return result;
-};
-
-// Convert parsed object back to TOML string
-const toToml = (parsed: Record<string, Record<string, unknown>>) => {
-  let lines: string[] = [];
-
-  // Root level keys
-  Object.entries(parsed._root).forEach(([key, value]) => {
-    lines.push(`${key} = "${value}"`);
-  });
-
-  // Sections
-  Object.entries(parsed._sections).forEach(([section, values]) => {
-    lines.push("");
-    lines.push(`[${section}]`);
-    Object.entries(values).forEach(([key, value]) => {
-      lines.push(`${key} = "${value}"`);
-    });
-  });
-
-  return lines.join("\n") + "\n";
-};
 
 // Read current config.toml
 const readConfig = async () => {
@@ -90,15 +34,6 @@ const readConfig = async () => {
       return null;
     throw error;
   }
-};
-
-// Check if config has Routiform settings
-const hasRoutiformConfig = (config: string | null) => {
-  if (!config) return false;
-  return (
-    config.includes('model_provider = "routiform"') ||
-    config.includes("[model_providers.routiform]")
-  );
 };
 
 // GET - Check codex CLI and read current settings
@@ -132,7 +67,7 @@ export async function GET() {
       runtimeMode: runtime.runtimeMode,
       reason: runtime.reason,
       config,
-      hasRoutiform: hasRoutiformConfig(config),
+      hasRoutiform: hasRoutiformCodexConfig(config),
       configPath: getCodexConfigPath(),
     });
   } catch (error) {
@@ -170,17 +105,11 @@ export async function POST(request: Request) {
     }
     const { baseUrl, model } = validation.data;
     let { apiKey } = validation.data;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "baseUrl, apiKey and model are required" },
-        { status: 400 }
-      );
-    }
 
     // (#549) Resolve real key from DB if keyId was provided.
     // The dashboard sends masked key strings — resolving by ID guarantees
     // we always write the full key value to the config file.
-    const keyId = typeof rawBody?.keyId === "string" ? rawBody.keyId.trim() : null;
+    const keyId = typeof validation.data?.keyId === "string" ? validation.data.keyId.trim() : null;
     if (keyId) {
       try {
         const keyRecord = await getApiKeyById(keyId);
@@ -190,6 +119,13 @@ export async function POST(request: Request) {
       } catch {
         // Non-critical: fall back to whatever value was in apiKey
       }
+    }
+
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "baseUrl, apiKey and model are required" },
+        { status: 400 }
+      );
     }
 
     const codexDir = getCodexDir();
@@ -202,30 +138,15 @@ export async function POST(request: Request) {
     // Backup current configs before modifying
     await createMultiBackup("codex", [configPath, authPath]);
 
-    // Read and parse existing config
-    let parsed: Record<string, Record<string, unknown>> = { _root: {}, _sections: {} };
+    let existingConfig: string | null = null;
     try {
-      const existingConfig = await fs.readFile(configPath, "utf-8");
-      parsed = parseToml(existingConfig);
+      existingConfig = await fs.readFile(configPath, "utf-8");
     } catch {
       /* No existing config */
     }
 
-    // Update only Routiform related fields (api_key goes to auth.json, not config.toml)
-    parsed._root.model = model;
-    parsed._root.model_provider = "routiform";
-
-    // Update or create routiform provider section (no api_key - Codex reads from auth.json)
-    // Ensure /v1 suffix is added only once
-    const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
-    parsed._sections["model_providers.routiform"] = {
-      name: "Routiform",
-      base_url: normalizedBaseUrl,
-      wire_api: "responses",
-    };
-
-    // Write merged config
-    const configContent = toToml(parsed);
+    // Update only the Routiform-specific root keys and provider section.
+    const configContent = applyRoutiformCodexConfig(existingConfig, { model, baseUrl });
     await fs.writeFile(configPath, configContent);
 
     // Update auth.json with OPENAI_API_KEY (Codex reads this first)
@@ -271,11 +192,9 @@ export async function DELETE() {
     // Backup current configs before resetting
     await createMultiBackup("codex", [configPath, getCodexAuthPath()]);
 
-    // Read and parse existing config
-    let parsed: Record<string, Record<string, unknown>> = { _root: {}, _sections: {} };
+    let existingConfig = "";
     try {
-      const existingConfig = await fs.readFile(configPath, "utf-8");
-      parsed = parseToml(existingConfig);
+      existingConfig = await fs.readFile(configPath, "utf-8");
     } catch (error: unknown) {
       if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
         return NextResponse.json({
@@ -286,17 +205,7 @@ export async function DELETE() {
       throw error;
     }
 
-    // Remove Routiform related root fields only if they point to routiform
-    if (parsed._root.model_provider === "routiform") {
-      delete parsed._root.model;
-      delete parsed._root.model_provider;
-    }
-
-    // Remove routiform provider section
-    delete parsed._sections["model_providers.routiform"];
-
-    // Write updated config
-    const configContent = toToml(parsed);
+    const configContent = removeRoutiformCodexConfig(existingConfig);
     await fs.writeFile(configPath, configContent);
 
     // Remove OPENAI_API_KEY from auth.json
