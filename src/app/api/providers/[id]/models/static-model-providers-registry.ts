@@ -17,15 +17,6 @@ const STATIC_MODEL_PROVIDERS: Record<string, () => Array<{ id: string; name: str
     { id: "nanobanana-flash", name: "NanoBanana Flash (Gemini 2.5 Flash)" },
     { id: "nanobanana-pro", name: "NanoBanana Pro (Gemini 3 Pro)" },
   ],
-  antigravity: () => [
-    { id: "claude-opus-4-6-thinking", name: "Claude Opus 4.6 (Thinking)" },
-    { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6 (Thinking)" },
-    { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash" },
-    { id: "gemini-3-flash", name: "Gemini 3 Flash" },
-    { id: "gemini-3.1-pro-high", name: "Gemini 3.1 Pro (High)" },
-    { id: "gemini-3.1-pro-low", name: "Gemini 3.1 Pro (Low)" },
-    { id: "gpt-oss-120b", name: "GPT-OSS-120b" },
-  ],
   claude: () => [
     { id: "claude-opus-4-6", name: "Claude Opus 4.6" },
     { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },

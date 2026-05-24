@@ -17,17 +17,8 @@ const {
 } = await import("../../src/shared/constants/modelSpecs.ts");
 const { getTokenLimit } = await import("../../open-sse/services/context-manager/token-limits.ts");
 
-test("T31: antigravity static catalog exposes the current Gemini and Pro model IDs", () => {
-  // Antigravity uses a static catalog because its Cloud Code model list does not come
-  // from the normal provider registry sync path.
-  const staticIds = (getStaticModelsForProvider("antigravity") || []).map((m) => m.id);
-  assert.ok(staticIds.includes("gemini-3-flash"));
-  assert.ok(staticIds.includes("gemini-3.5-flash"));
-  assert.ok(staticIds.includes("gemini-3.1-pro-high"));
-  assert.ok(staticIds.includes("gemini-3.1-pro-low"));
-  assert.ok(staticIds.includes("gpt-oss-120b"));
-  assert.ok(!staticIds.includes("gpt-oss-120b-medium"));
-  assert.ok(!staticIds.includes("gemini-3.1-flash-image"));
+test("T31: antigravity provider route is the only catalog source", () => {
+  assert.equal(getStaticModelsForProvider("antigravity"), undefined);
 });
 
 test("T31: legacy Gemini aliases resolve to Gemini 3.1 IDs", () => {

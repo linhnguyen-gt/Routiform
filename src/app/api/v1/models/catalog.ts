@@ -19,6 +19,7 @@ import { getAllVideoModels } from "@routiform/open-sse/config/videoRegistry.ts";
 import { getAllMusicModels } from "@routiform/open-sse/config/musicRegistry.ts";
 import { REGISTRY } from "@routiform/open-sse/config/registry-providers.ts";
 import { getSyncedAvailableModels } from "@/lib/db/models";
+import { loadAntigravityModelsFromConnections } from "@/lib/providers/antigravityLiveModels";
 import { getCompatibleFallbackModels } from "@/lib/providers/managedAvailableModels";
 
 const FALLBACK_ALIAS_TO_PROVIDER = {
@@ -253,6 +254,7 @@ export async function getUnifiedModelsResponse(
     for (const [alias, providerModels] of Object.entries(PROVIDER_MODELS)) {
       const providerId = aliasToProviderId[alias] || alias;
       const canonicalProviderId = FALLBACK_ALIAS_TO_PROVIDER[alias] || providerId;
+      if (canonicalProviderId === "antigravity" || alias === "antigravity") continue;
 
       // Skip blocked providers (Issue #96)
       if (blockedProviders.has(alias) || blockedProviders.has(canonicalProviderId)) continue;
@@ -309,6 +311,39 @@ export async function getUnifiedModelsResponse(
             ...(providerVisionFields || {}),
           });
         }
+      }
+    }
+
+    if (activeAliases.has("antigravity") && !blockedProviders.has("antigravity")) {
+      try {
+        const antigravityModels = await loadAntigravityModelsFromConnections(
+          connections as Array<Record<string, unknown>>
+        );
+        const registryEntry = REGISTRY.antigravity;
+        const defaultContextLength = registryEntry?.defaultContextLength;
+        const defaultMaxOutputTokens = registryEntry?.defaultMaxOutputTokens;
+
+        for (const model of antigravityModels) {
+          const modelId = `antigravity/${model.id}`;
+          if (getModelIsHidden("antigravity", model.id)) continue;
+
+          const visionFields =
+            getVisionCapabilityFields(modelId) || getVisionCapabilityFields(model.id);
+          models.push({
+            id: modelId,
+            object: "model",
+            created: timestamp,
+            owned_by: "antigravity",
+            permission: [],
+            root: model.id,
+            parent: null,
+            ...(defaultContextLength ? { context_length: defaultContextLength } : {}),
+            ...(defaultMaxOutputTokens ? { max_output_tokens: defaultMaxOutputTokens } : {}),
+            ...(visionFields || {}),
+          });
+        }
+      } catch (err) {
+        console.error("[catalog] Error fetching live Antigravity models:", err);
       }
     }
 

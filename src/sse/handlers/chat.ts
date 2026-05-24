@@ -519,6 +519,7 @@ async function handleSingleModelChat(
       bypassCircuitBreaker: forceLiveComboTest,
       breaker,
       body,
+      requestedModel: modelStr,
       provider,
       model,
       refreshedCredentials: refreshedCredentials as Record<string, unknown>,
@@ -776,6 +777,7 @@ async function executeChatWithBreaker({
   bypassCircuitBreaker,
   breaker,
   body,
+  requestedModel,
   provider,
   model,
   refreshedCredentials,
@@ -794,6 +796,7 @@ async function executeChatWithBreaker({
   bypassCircuitBreaker: boolean;
   breaker: ReturnType<typeof getCircuitBreaker>;
   body: Record<string, unknown>;
+  requestedModel: string;
   provider: string;
   model: string;
   refreshedCredentials: Record<string, unknown>;
@@ -818,6 +821,7 @@ async function executeChatWithBreaker({
           handleChatCore as (args: {
             body: Record<string, unknown>;
             modelInfo: { provider: string; model: string; extendedContext?: boolean };
+            requestedModelOverride?: string;
             credentials: Record<string, unknown>;
             log: typeof log;
             clientRawRequest: Record<string, unknown> | null;
@@ -834,6 +838,7 @@ async function executeChatWithBreaker({
         )({
           body: { ...body, model: `${provider}/${model}` },
           modelInfo: { provider, model, extendedContext },
+          requestedModelOverride: requestedModel,
           credentials: refreshedCredentials,
           log: logger,
           clientRawRequest,

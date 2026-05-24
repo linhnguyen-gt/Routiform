@@ -102,13 +102,14 @@ export function ProviderDetailModelsSection({
   modelTestBannerError,
 }: ProviderDetailModelsSectionProps) {
   if (isSearchProvider) return null;
+  const usesFetchedCatalogProvider = isLiveCatalogProvider || providerId === "antigravity";
 
   const modelTestBanner = modelTestBannerError ? (
     <p className="mb-3 break-words text-xs text-red-500">{modelTestBannerError}</p>
   ) : null;
 
   const renderModelsContent = () => {
-    if (isLiveCatalogProvider) {
+    if (usesFetchedCatalogProvider) {
       if (opencodeLiveCatalog.status === "idle" || opencodeLiveCatalog.status === "loading") {
         return (
           <div>

@@ -17,23 +17,34 @@ test("T28: gemini-cli catalog includes preview models, gemini uses API sync", ()
   assert.ok(geminiCliIds.includes("gemini-3-flash-preview"));
 });
 
-test("T28: antigravity static catalog exposes current Gemini 3.1 model IDs", () => {
-  const staticIds = (getStaticModelsForProvider("antigravity") || []).map((m) => m.id);
-
-  assert.ok(staticIds.includes("gemini-3.1-pro-high"));
-  assert.ok(staticIds.includes("gemini-3.1-pro-low"));
-  assert.ok(staticIds.includes("gemini-3-flash"));
-  assert.ok(staticIds.includes("gemini-3.5-flash"));
-  assert.ok(staticIds.includes("gpt-oss-120b"));
-  assert.ok(!staticIds.includes("gemini-3-pro-high"));
-  assert.ok(!staticIds.includes("gemini-3-pro-low"));
-  assert.ok(!staticIds.includes("gpt-oss-120b-medium"));
+test("T28: antigravity no longer exposes a static catalog fallback", () => {
+  assert.equal(getStaticModelsForProvider("antigravity"), undefined);
 });
 
 test("T28: antigravity legacy GPT-OSS alias resolves to the current canonical ID", async () => {
   const legacy = await getModelInfoCore("antigravity/gpt-oss-120b-medium", {});
   assert.equal(legacy.provider, "antigravity");
   assert.equal(legacy.model, "gpt-oss-120b");
+});
+
+test("T28: antigravity legacy internal agent aliases resolve to the current canonical IDs", async () => {
+  const flash = await getModelInfoCore("antigravity/gemini-3-flash-agent", {});
+  assert.equal(flash.provider, "antigravity");
+  assert.equal(flash.model, "gemini-3.5-flash-low");
+
+  const pro = await getModelInfoCore("antigravity/gemini-pro-agent", {});
+  assert.equal(pro.provider, "antigravity");
+  assert.equal(pro.model, "gemini-3.1-pro-high");
+});
+
+test("T28: antigravity unstable high-tier rows resolve to the high-tier IDs", async () => {
+  const flash = await getModelInfoCore("antigravity/gemini-3.5-flash", {});
+  assert.equal(flash.provider, "antigravity");
+  assert.equal(flash.model, "gemini-3.5-flash-low");
+
+  const pro = await getModelInfoCore("antigravity/gemini-3.1-pro-high", {});
+  assert.equal(pro.provider, "antigravity");
+  assert.equal(pro.model, "gemini-3.1-pro-high");
 });
 
 test("T28: github registry exposes Gemini 3.1 Pro Preview and keeps legacy alias compatibility", async () => {

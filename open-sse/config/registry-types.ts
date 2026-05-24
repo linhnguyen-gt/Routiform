@@ -7,6 +7,7 @@ import type { ProviderRequestDefaults } from "../services/providerRequestDefault
 export interface RegistryModel {
   id: string;
   name: string;
+  thinking?: boolean;
   toolCalling?: boolean;
   targetFormat?: string;
   unsupportedParams?: readonly string[];

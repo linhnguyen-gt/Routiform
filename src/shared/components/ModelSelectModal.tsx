@@ -177,28 +177,36 @@ export default function ModelSelectModal({
         .filter((row) => typeof row.connectionId === "string" && row.connectionId.length > 0);
 
       const entries = await Promise.all(
-        firstConnections.map(async ({ providerId, connectionId }) => {
+        firstConnections.map(async ({ providerId, connectionId: _connectionId }) => {
           try {
-            const res = await fetch(
-              `/api/providers/${encodeURIComponent(String(connectionId))}/models`,
-              {
-                cache: "no-store",
-              }
+            const providerConnections = grouped.get(providerId) || [];
+            const sortedConnections = [...providerConnections].sort(
+              (a, b) => Number(a?.priority || 0) - Number(b?.priority || 0)
             );
-            if (!res.ok) return [providerId, []] as const;
-            const data = await res.json().catch(() => ({}));
-            const raw = Array.isArray(data?.models) ? data.models : [];
-            const models = raw
-              .map((m: Record<string, unknown>) => {
-                const id = String(m?.id ?? m?.name ?? "").trim();
-                if (!id) return null;
-                return {
-                  id,
-                  name: String(m?.name ?? m?.display_name ?? m?.displayName ?? id).trim() || id,
-                };
-              })
-              .filter(Boolean) as Array<{ id: string; name: string }>;
-            return [providerId, models] as const;
+
+            for (const conn of sortedConnections) {
+              const currentId = String(conn?.id || "");
+              if (!currentId) continue;
+              const res = await fetch(`/api/providers/${encodeURIComponent(currentId)}/models`, {
+                cache: "no-store",
+              });
+              if (!res.ok) continue;
+              const data = await res.json().catch(() => ({}));
+              const raw = Array.isArray(data?.models) ? data.models : [];
+              const models = raw
+                .map((m: Record<string, unknown>) => {
+                  const id = String(m?.id ?? m?.name ?? "").trim();
+                  if (!id) return null;
+                  return {
+                    id,
+                    name: String(m?.name ?? m?.display_name ?? m?.displayName ?? id).trim() || id,
+                  };
+                })
+                .filter(Boolean) as Array<{ id: string; name: string }>;
+              if (models.length > 0) return [providerId, models] as const;
+            }
+
+            return [providerId, []] as const;
           } catch {
             return [providerId, []] as const;
           }
@@ -396,6 +404,12 @@ export default function ModelSelectModal({
       const providerCustomModels = customModels[providerId] || customModels[rawProviderId] || [];
 
       if (providerInfo.passthroughModels) {
+        const liveEntries = liveProviderModels.map((m) => ({
+          id: m.id,
+          name: m.name || m.id,
+          value: `${alias}/${m.id}`,
+        }));
+
         const syncedEntries = providerCustomModels.map((cm) => ({
           id: cm.id,
           name: cm.name || cm.id,
@@ -415,7 +429,11 @@ export default function ModelSelectModal({
                 }))
             : [];
 
-        const allModels = dedupeModelsById([...syncedEntries, ...legacyAliasEntries]);
+        const allModels = dedupeModelsById([
+          ...liveEntries,
+          ...syncedEntries,
+          ...legacyAliasEntries,
+        ]);
 
         if (allModels.length > 0) {
           const matchedNode = providerNodes.find((node) => node.id === providerId);

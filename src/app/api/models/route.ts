@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getModelAliases, setModelAlias, getProviderConnections } from "@/models";
 import { AI_MODELS, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
+import { loadAntigravityModelsFromConnections } from "@/lib/providers/antigravityLiveModels";
 import { updateModelAliasSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 
@@ -11,12 +12,13 @@ export async function GET(request: Request) {
     const showAll = searchParams.get("all") === "true";
 
     const modelAliases = await getModelAliases();
+    let connections: Array<Record<string, unknown>> = [];
 
     // Get active provider connections to filter available models
     let activeProviders: Set<string> | null = null;
-    if (!showAll) {
-      try {
-        const connections = await getProviderConnections();
+    try {
+      connections = await getProviderConnections();
+      if (!showAll) {
         const active = connections.filter((c: Record<string, unknown>) => c.isActive !== false);
         // Include both provider IDs and their aliases in the active set.
         // PROVIDER_MODELS keys are aliases (e.g. 'cc' for 'claude', 'gh' for 'github').
@@ -29,13 +31,13 @@ export async function GET(request: Request) {
           const alias = PROVIDER_ID_TO_ALIAS[pId];
           if (alias) activeProviders.add(alias);
         }
-      } catch {
-        // If DB unavailable, show all models
       }
+    } catch {
+      // If DB unavailable, show all models
     }
 
-    const models = AI_MODELS.map(
-      (m: { provider: string; model: string; [key: string]: unknown }) => {
+    const models = AI_MODELS.filter((m) => m.provider !== "antigravity")
+      .map((m: { provider: string; model: string; [key: string]: unknown }) => {
         const fullModel = `${m.provider}/${m.model}`;
         const available = !activeProviders || activeProviders.has(m.provider);
         return {
@@ -44,8 +46,26 @@ export async function GET(request: Request) {
           alias: modelAliases[fullModel] || m.model,
           available,
         };
+      })
+      .filter((m: { available: boolean }) => showAll || m.available);
+
+    try {
+      const antigravityModels = await loadAntigravityModelsFromConnections(connections);
+      const available = !activeProviders || activeProviders.has("antigravity");
+      for (const model of antigravityModels) {
+        const fullModel = `antigravity/${model.id}`;
+        models.push({
+          provider: "antigravity",
+          model: model.id,
+          name: model.name,
+          fullModel,
+          alias: modelAliases[fullModel] || model.id,
+          available,
+        });
       }
-    ).filter((m: { available: boolean }) => showAll || m.available);
+    } catch {
+      // Antigravity catalog is fetched live; omit stale hardcoded entries on failure.
+    }
 
     return NextResponse.json({ models });
   } catch (error) {

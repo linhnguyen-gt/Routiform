@@ -1,4 +1,5 @@
 import { getProviderConnections, getAllCustomModels } from "@/lib/localDb";
+import { loadAntigravityModelsFromConnections } from "@/lib/providers/antigravityLiveModels";
 import { PROVIDER_MODELS, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
 import { getAllEmbeddingModels } from "@routiform/open-sse/config/embeddingRegistry.ts";
 import { getAllImageModels } from "@routiform/open-sse/config/imageRegistry.ts";
@@ -26,6 +27,7 @@ export async function GET() {
     // Built-in chat models
     for (const [alias, models] of Object.entries(PROVIDER_MODELS)) {
       const providerId = ALIAS_TO_ID[alias] || alias;
+      if (providerId === "antigravity" || alias === "antigravity") continue;
       if (!catalog[alias]) {
         catalog[alias] = {
           provider: AI_PROVIDERS[providerId]?.name || alias,
@@ -41,6 +43,28 @@ export async function GET() {
           type: "chat",
           custom: false,
         });
+      }
+    }
+
+    if (activeProviders.has("antigravity")) {
+      catalog.antigravity = catalog.antigravity || {
+        provider: AI_PROVIDERS.antigravity?.name || "antigravity",
+        active: true,
+        models: [],
+      };
+
+      try {
+        const antigravityModels = await loadAntigravityModelsFromConnections(connections);
+        for (const model of antigravityModels) {
+          catalog.antigravity.models.push({
+            id: `antigravity/${model.id}`,
+            name: model.name,
+            type: "chat",
+            custom: false,
+          });
+        }
+      } catch {
+        // Antigravity catalog is live-only; leave empty on fetch failure.
       }
     }
 

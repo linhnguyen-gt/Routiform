@@ -13,6 +13,7 @@ export type ChatCoreHandlerResult = Record<string, unknown> & {
 export type HandleChatCoreArgs = {
   body: Record<string, unknown>;
   modelInfo: { provider: string; model: string; extendedContext?: boolean };
+  requestedModelOverride?: string;
   credentials: Record<string, unknown>;
   log?: unknown;
   onCredentialsRefreshed?: (c: unknown) => Promise<void>;
@@ -92,9 +93,13 @@ export type ChatCorePipeline = HandleChatCoreArgs & {
 };
 
 export function initChatCorePipeline(args: HandleChatCoreArgs): ChatCorePipeline {
-  const { modelInfo, body, credentials, ...rest } = args;
+  const { modelInfo, body, credentials, requestedModelOverride, ...rest } = args;
   const requestedModel =
-    typeof body?.model === "string" && body.model.trim().length > 0 ? body.model : modelInfo.model;
+    typeof requestedModelOverride === "string" && requestedModelOverride.trim().length > 0
+      ? requestedModelOverride
+      : typeof body?.model === "string" && body.model.trim().length > 0
+        ? body.model
+        : modelInfo.model;
   const startTime = Date.now();
   const persistFailureUsage = (statusCode: number, errorCode?: string | null) => {
     saveRequestUsage({

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveGetModelsContext } from "./get-models-handler-context";
 import { handleAnthropicCompatibleModels } from "./handle-anthropic-compatible-models";
+import { handleAntigravityModels } from "./handle-antigravity-models";
 import { handleClaudeStaticModels } from "./handle-claude-static-models";
 import { handleClineModels } from "./handle-cline-models";
 import { handleCodexModels } from "./handle-codex-models";
@@ -31,6 +32,7 @@ export async function handleGetModels(
       (await handleOpenAICompatibleModels(ctx)) ??
       (await handleGithubModels(ctx)) ??
       (await handleClaudeStaticModels(ctx)) ??
+      (await handleAntigravityModels(ctx)) ??
       (await handleGlmModels(ctx)) ??
       (await handleKiroModels(ctx)) ??
       (await handleGeminiCliModels(ctx)) ??

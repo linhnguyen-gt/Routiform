@@ -1,6 +1,8 @@
 import { CORS_ORIGIN } from "@/shared/utils/cors";
 import { PROVIDER_MODELS } from "@/shared/constants/models";
 import { getAllCustomModels, getSyncedAvailableModels } from "@/lib/db/models";
+import { getProviderConnections } from "@/lib/localDb";
+import { loadAntigravityModelsFromConnections } from "@/lib/providers/antigravityLiveModels";
 import { REGISTRY } from "@routiform/open-sse/config/providerRegistry.ts";
 
 /**
@@ -26,6 +28,7 @@ export async function GET() {
 
     // Built-in models (hardcoded defaults)
     for (const [provider, providerModels] of Object.entries(PROVIDER_MODELS)) {
+      if (provider === "antigravity") continue;
       const registryEntry = REGISTRY[provider];
       const defaultContextLength = registryEntry?.defaultContextLength;
       const defaultOutputTokenLimit = registryEntry?.defaultMaxOutputTokens;
@@ -50,6 +53,30 @@ export async function GET() {
                 : 8192,
         });
       }
+    }
+
+    try {
+      const connections = await getProviderConnections();
+      const antigravityModels = await loadAntigravityModelsFromConnections(
+        connections as Array<Record<string, unknown>>
+      );
+      const registryEntry = REGISTRY.antigravity;
+      const defaultContextLength = registryEntry?.defaultContextLength;
+      const defaultOutputTokenLimit = registryEntry?.defaultMaxOutputTokens;
+
+      for (const model of antigravityModels) {
+        models.push({
+          name: `models/antigravity/${model.id}`,
+          displayName: model.name || model.id,
+          description: `antigravity model: ${model.name || model.id}`,
+          supportedGenerationMethods: ["generateContent"],
+          inputTokenLimit: typeof defaultContextLength === "number" ? defaultContextLength : 128000,
+          outputTokenLimit:
+            typeof defaultOutputTokenLimit === "number" ? defaultOutputTokenLimit : 8192,
+        });
+      }
+    } catch {
+      // Antigravity catalog is live-only; omit stale fallback entries on failure.
     }
 
     // Gemini: always replace hardcoded entries with synced models (no fallback)

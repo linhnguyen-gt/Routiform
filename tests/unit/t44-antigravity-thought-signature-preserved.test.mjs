@@ -72,7 +72,7 @@ test("T44: Antigravity still strips standalone thoughtSignature without tool cal
   assert.deepEqual(transformed.request.contents[0].parts, [{ text: "plain text" }]);
 });
 
-test("T44: Antigravity keeps Gemini 3.1 Pro tier model IDs (no legacy 3-pro remap)", () => {
+test("T44: Antigravity normalizes Gemini Pro High model IDs to their callable upstream ID", () => {
   const executor = new AntigravityExecutor();
   const transformed = executor.transformRequest(
     "antigravity/gemini-3.1-pro-high",
@@ -85,5 +85,5 @@ test("T44: Antigravity keeps Gemini 3.1 Pro tier model IDs (no legacy 3-pro rema
     { projectId: "test-project" }
   );
 
-  assert.equal(transformed.model, "gemini-3.1-pro-high");
+  assert.equal(transformed.model, "gemini-3.1-pro-low");
 });

@@ -34,6 +34,17 @@ export interface UseProviderDetailModelsReturn {
   fetchProviderModelMeta: () => Promise<void>;
 }
 
+type ProviderDetailModel = { id: string; name: string; contextLength?: number };
+type LiveCatalogState = {
+  status: "idle" | "loading" | "ready" | "no_connection" | "error";
+  models: ProviderDetailModel[];
+  errorMessage: string;
+};
+
+function usesFetchedProviderCatalog(providerId: string, isLiveCatalogProvider: boolean): boolean {
+  return isLiveCatalogProvider || providerId === "antigravity";
+}
+
 function dedupeModelsById<T extends { id: string; name: string }>(models: T[]): T[] {
   const seen = new Set<string>();
   return models.filter((model) => {
@@ -41,6 +52,48 @@ function dedupeModelsById<T extends { id: string; name: string }>(models: T[]): 
     seen.add(model.id);
     return true;
   });
+}
+
+export function selectProviderDetailModels({
+  providerId,
+  isLiveCatalogProvider,
+  registryModels,
+  syncedModels,
+  syncedAvailableModels,
+  opencodeLiveCatalog,
+}: {
+  providerId: string;
+  isLiveCatalogProvider: boolean;
+  registryModels: ProviderDetailModel[];
+  syncedModels: ProviderDetailModel[];
+  syncedAvailableModels: ProviderDetailModel[];
+  opencodeLiveCatalog: LiveCatalogState;
+}): ProviderDetailModel[] {
+  if (providerId === "gemini") return dedupeModelsById(syncedAvailableModels);
+
+  if (usesFetchedProviderCatalog(providerId, isLiveCatalogProvider)) {
+    if (opencodeLiveCatalog.status === "ready" && opencodeLiveCatalog.models.length > 0) {
+      return dedupeModelsById(opencodeLiveCatalog.models);
+    }
+    if (providerId === "antigravity") return [];
+  }
+
+  if (isLiveCatalogProvider) {
+    return dedupeModelsById(registryModels);
+  }
+
+  if (registryModels.length > 0) {
+    // Auto-sync stores only non-registry deltas for most providers, so the
+    // detail page must layer synced rows on top of the built-in catalog rather
+    // than replacing it outright.
+    return dedupeModelsById([...registryModels, ...syncedModels]);
+  }
+
+  if (syncedModels.length > 0) {
+    return dedupeModelsById(syncedModels);
+  }
+
+  return [];
 }
 
 export function useProviderDetailModels({
@@ -57,11 +110,11 @@ export function useProviderDetailModels({
   const [syncedAvailableModels, setSyncedAvailableModels] = useState<
     Array<{ id: string; name: string }>
   >([]);
-  const [opencodeLiveCatalog, setOpencodeLiveCatalog] = useState<{
-    status: "idle" | "loading" | "ready" | "no_connection" | "error";
-    models: Array<{ id: string; name: string; contextLength?: number }>;
-    errorMessage: string;
-  }>({ status: "idle", models: [], errorMessage: "" });
+  const [opencodeLiveCatalog, setOpencodeLiveCatalog] = useState<LiveCatalogState>({
+    status: "idle",
+    models: [],
+    errorMessage: "",
+  });
 
   const registryModels = useMemo(() => getModelsByProviderId(providerId), [providerId]);
 
@@ -76,15 +129,14 @@ export function useProviderDetailModels({
   );
 
   const models = useMemo(() => {
-    if (providerId === "gemini") return dedupeModelsById(syncedAvailableModels);
-    if (isLiveCatalogProvider) {
-      if (opencodeLiveCatalog.status === "ready" && opencodeLiveCatalog.models.length > 0) {
-        return dedupeModelsById(opencodeLiveCatalog.models);
-      }
-      return dedupeModelsById(registryModels);
-    }
-    if (syncedModels.length > 0) return syncedModels;
-    return dedupeModelsById(registryModels);
+    return selectProviderDetailModels({
+      providerId,
+      isLiveCatalogProvider,
+      registryModels,
+      syncedModels,
+      syncedAvailableModels,
+      opencodeLiveCatalog,
+    });
   }, [
     providerId,
     syncedAvailableModels,
@@ -125,11 +177,12 @@ export function useProviderDetailModels({
     }
   }, [providerId, isSearchProvider]);
 
-  useEffect(() => {
-    if (!isLiveCatalogProvider || loading || isSearchProvider) return;
+  const shouldFetchProviderCatalog = usesFetchedProviderCatalog(providerId, isLiveCatalogProvider);
 
-    const primaryId = sortedConnectionIds[0];
-    if (!primaryId) {
+  useEffect(() => {
+    if (!shouldFetchProviderCatalog || loading || isSearchProvider) return;
+
+    if (sortedConnectionIds.length === 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setOpencodeLiveCatalog({ status: "no_connection", models: [], errorMessage: "" });
       return;
@@ -143,30 +196,37 @@ export function useProviderDetailModels({
     );
 
     void (async () => {
+      let lastError = "fetch failed";
       try {
-        const res = await fetch(`/api/providers/${encodeURIComponent(primaryId)}/models`, {
-          cache: "no-store",
-        });
-        const data = await res.json().catch(() => ({}));
-        if (cancelled) return;
-        if (!res.ok) {
-          const msg = typeof data?.error === "string" ? data.error : `HTTP ${res.status}`;
-          setOpencodeLiveCatalog({ status: "error", models: [], errorMessage: msg });
+        for (const connectionId of sortedConnectionIds) {
+          const res = await fetch(`/api/providers/${encodeURIComponent(connectionId)}/models`, {
+            cache: "no-store",
+          });
+          const data = await res.json().catch(() => ({}));
+          if (cancelled) return;
+          if (!res.ok) {
+            lastError = typeof data?.error === "string" ? data.error : `HTTP ${res.status}`;
+            continue;
+          }
+
+          const raw = Array.isArray(data.models) ? data.models : [];
+          const normalized = raw
+            .map((m: Record<string, unknown>) => {
+              const id = String(m.id ?? m.name ?? "").trim();
+              if (!id) return null;
+              const name = String(m.name ?? m.displayName ?? m.id ?? "").trim() || id;
+              const row: { id: string; name: string; contextLength?: number } = { id, name };
+              if (typeof m.context_length === "number") row.contextLength = m.context_length;
+              if (typeof m.inputTokenLimit === "number") row.contextLength = m.inputTokenLimit;
+              return row;
+            })
+            .filter((x): x is { id: string; name: string; contextLength?: number } => x !== null);
+
+          setOpencodeLiveCatalog({ status: "ready", models: normalized, errorMessage: "" });
           return;
         }
-        const raw = Array.isArray(data.models) ? data.models : [];
-        const normalized = raw
-          .map((m: Record<string, unknown>) => {
-            const id = String(m.id ?? m.name ?? "").trim();
-            if (!id) return null;
-            const name = String(m.name ?? m.displayName ?? m.id ?? "").trim() || id;
-            const row: { id: string; name: string; contextLength?: number } = { id, name };
-            if (typeof m.context_length === "number") row.contextLength = m.context_length;
-            if (typeof m.inputTokenLimit === "number") row.contextLength = m.inputTokenLimit;
-            return row;
-          })
-          .filter((x): x is { id: string; name: string; contextLength?: number } => x !== null);
-        setOpencodeLiveCatalog({ status: "ready", models: normalized, errorMessage: "" });
+
+        setOpencodeLiveCatalog({ status: "error", models: [], errorMessage: lastError });
       } catch (e) {
         if (cancelled) return;
         setOpencodeLiveCatalog({
@@ -180,10 +240,11 @@ export function useProviderDetailModels({
     return () => {
       cancelled = true;
     };
-  }, [providerId, loading, isSearchProvider, sortedConnectionIds, isLiveCatalogProvider]);
+  }, [providerId, loading, isSearchProvider, sortedConnectionIds, shouldFetchProviderCatalog]);
 
   useEffect(() => {
     if (
+      providerId !== "antigravity" &&
       providerId !== "opencode-zen" &&
       providerId !== "opencode-go" &&
       providerId !== "kilocode" &&

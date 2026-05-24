@@ -1,24 +1,28 @@
 import crypto, { randomUUID } from "crypto";
-import { BaseExecutor, mergeUpstreamExtraHeaders } from "./base.ts";
-import { PROVIDERS, OAUTH_ENDPOINTS, HTTP_STATUS } from "../config/constants.ts";
-import { scrubProxyAndFingerprintHeaders } from "../services/antigravityHeaderScrub.ts";
-import { antigravityUserAgent, googApiClientHeader } from "../services/antigravityHeaders.ts";
+import { HTTP_STATUS, OAUTH_ENDPOINTS, PROVIDERS } from "../config/constants.ts";
 import { classify429, decide429, type Decision } from "../services/antigravity429Engine.ts";
 import {
+  handleCreditsFailure,
   injectCreditsField,
   shouldRetryWithCredits,
-  handleCreditsFailure,
 } from "../services/antigravityCredits.ts";
+import { scrubProxyAndFingerprintHeaders } from "../services/antigravityHeaderScrub.ts";
+import { antigravityUserAgent, googApiClientHeader } from "../services/antigravityHeaders.ts";
 import { obfuscateSensitiveWords } from "../services/antigravityObfuscation.ts";
 import { normalizePlaceholderOnlyAssistantText } from "../utils/assistantContent.ts";
+import { BaseExecutor, mergeUpstreamExtraHeaders } from "./base.ts";
 
 const MAX_RETRY_AFTER_MS = 60_000;
 const LONG_RETRY_THRESHOLD_MS = 60_000;
 
 const BARE_PRO_IDS = new Set(["gemini-3.1-pro"]);
 const ANTIGRAVITY_UPSTREAM_MODEL_ALIASES: Record<string, string> = {
-  "gemini-3.5-flash": "gemini-3.5-flash",
-  "gpt-oss-120b-medium": "gpt-oss-120b",
+  "gemini-3-flash-agent": "gemini-3.5-flash-low",
+  "gemini-3.5-flash": "gemini-3.5-flash-low",
+  "gemini-3.5-flash-low": "gemini-3.5-flash-low",
+  "gemini-pro-agent": "gemini-3.1-pro-high",
+  "gemini-3.1-pro-high": "gemini-3.1-pro-low",
+  "gpt-oss-120b": "gpt-oss-120b-medium",
 };
 
 type AntigravityCollectedStream = {
@@ -631,7 +635,7 @@ export class AntigravityExecutor extends BaseExecutor {
 
         // For non-streaming clients, collect the SSE stream and return a synthetic
         // non-streaming Response so chatCore doesn't need to handle SSE conversion.
-        if (!stream) {
+        if (!stream && response.ok) {
           const collected = await this.collectStreamToResponse(
             response,
             model,
