@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.30.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.29.2...v3.30.0) (2026-05-24)
+
+
+### Features
+
+* **context:** raise default token limits ([fa2e493](https://github.com/linhnguyen-gt/Routiform/commit/fa2e4935fc6cd7f1ffdb32b667655bf137d817d7))
+* **devin:** add request and response translators ([d2a41b2](https://github.com/linhnguyen-gt/Routiform/commit/d2a41b20addc3b141f3261526649e1bbb5c394ad))
+
+
+### Bug Fixes
+
+* **models:** update gpt-5 context limits ([2691aef](https://github.com/linhnguyen-gt/Routiform/commit/2691aef4597f524ebf44575d39c37221a3614183))
+* **runtime:** stabilize provider adapters and refactor stream handling ([011d877](https://github.com/linhnguyen-gt/Routiform/commit/011d87729827896ed42c2b983dd9af4f68367589))
+
 ### [3.29.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.29.1...v3.29.2) (2026-05-22)
 
 
