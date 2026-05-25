@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.30.3](https://github.com/linhnguyen-gt/Routiform/compare/v3.30.2...v3.30.3) (2026-05-25)
+
+
+### Bug Fixes
+
+* **opencode:** generate protocol-correct OpenCode config ([34b477e](https://github.com/linhnguyen-gt/Routiform/commit/34b477e35e9b62cfcf2d8ee9e4d924abb71b5385))
+* **release:** lock publish workflows to release tags ([294e36b](https://github.com/linhnguyen-gt/Routiform/commit/294e36ba80fb7714578aaf23da48c7194b051c5f))
+
 ### [3.30.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.30.1...v3.30.2) (2026-05-24)
 
 
