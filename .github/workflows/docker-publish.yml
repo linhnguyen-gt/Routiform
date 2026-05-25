@@ -1,9 +1,6 @@
 name: Publish to Docker Hub
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_call:
     inputs:
       version:
@@ -15,8 +12,6 @@ on:
         required: true
       DOCKERHUB_TOKEN:
         required: true
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       version:
@@ -44,7 +39,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/v{0}', inputs.version) || '' }}
+          fetch-depth: 0
+          ref: refs/tags/v${{ inputs.version }}
 
       - name: Set up QEMU (for multi-arch builds)
         uses: docker/setup-qemu-action@v4
@@ -72,15 +68,23 @@ jobs:
             VERSION="${{ inputs.version }}"
           elif [ "${{ github.event_name }}" = "workflow_call" ]; then
             VERSION="${{ inputs.version }}"
-          elif [ "${{ github.event_name }}" = "release" ]; then
-            VERSION="${GITHUB_REF_NAME}"
-            VERSION="${VERSION#v}"
           else
             # fallback safety path
             VERSION=$(node -p "require('./package.json').version")
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Publishing ${{ env.IMAGE_NAME }}:$VERSION / :latest (base) and :${VERSION}-cli / :cli (runner-cli)"
+
+      - name: Sanity check checked-out tag version
+        run: |
+          EXPECTED_VERSION="${{ steps.version.outputs.version }}"
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          echo "Expected version: $EXPECTED_VERSION"
+          echo "package.json version: $PACKAGE_VERSION"
+          if [ "$PACKAGE_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "❌ Version mismatch: tag/input resolved to $EXPECTED_VERSION but package.json is $PACKAGE_VERSION"
+            exit 1
+          fi
 
       - name: Build and push base image (runner-base)
         uses: docker/build-push-action@v7

@@ -1,8 +1,6 @@
 name: Publish to npm
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       version:
@@ -40,11 +38,12 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # Use `environment: <name>` only if you create a GitHub Environment (Settings → Environments)
-    # and attach protection rules; secrets use `secrets.NPM_TOKEN` below, not the env block name.
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: refs/tags/v${{ inputs.version }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -61,12 +60,6 @@ jobs:
           VERSION="${{ inputs.version }}"
           TAG="${{ inputs.tag }}"
 
-          if [ -z "$VERSION" ]; then
-            if [ "${{ github.event_name }}" = "release" ]; then
-              VERSION="${GITHUB_REF_NAME}"
-            fi
-          fi
-
           # Strip v prefix if present
           VERSION="${VERSION#v}"
 
@@ -81,6 +74,17 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "📦 Publishing routiform@$VERSION with tag=$TAG"
+
+      - name: Sanity check checked-out tag version
+        run: |
+          EXPECTED_VERSION="${{ steps.resolve.outputs.version }}"
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          echo "Expected version: $EXPECTED_VERSION"
+          echo "package.json version: $PACKAGE_VERSION"
+          if [ "$PACKAGE_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "❌ Version mismatch: tag/input resolved to $EXPECTED_VERSION but package.json is $PACKAGE_VERSION"
+            exit 1
+          fi
 
       - name: Sync package.json version
         run: |

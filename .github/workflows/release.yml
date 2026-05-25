@@ -26,6 +26,7 @@ jobs:
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
       version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
@@ -219,6 +220,35 @@ jobs:
           else
             gh release create "$TAG" --title "$TAG" --generate-notes
           fi
+
+      - name: Verify release tag points to release commit
+        if: steps.check.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          RELEASE_COMMIT=$(git rev-parse HEAD)
+
+          git fetch origin "refs/tags/$TAG:refs/tags/$TAG" --force
+          TAG_COMMIT=$(git rev-list -n 1 "$TAG")
+
+          echo "Release commit: $RELEASE_COMMIT"
+          echo "Tag commit: $TAG_COMMIT"
+
+          if [ "$RELEASE_COMMIT" != "$TAG_COMMIT" ]; then
+            echo "❌ Tag $TAG does not point to the release commit."
+            exit 1
+          fi
+
+          RELEASE_TAG=$(gh release view "$TAG" --json tagName --jq '.tagName')
+          echo "GitHub release tag: $RELEASE_TAG"
+
+          if [ "$RELEASE_TAG" != "$TAG" ]; then
+            echo "❌ GitHub release tag mismatch: expected $TAG, got $RELEASE_TAG"
+            exit 1
+          fi
+
+          echo "✅ Verified Git tag and GitHub release alignment for $TAG"
 
   publish-npm:
     name: Publish to npm
