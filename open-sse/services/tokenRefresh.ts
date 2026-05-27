@@ -4,6 +4,9 @@ import { runWithProxyContext } from "../utils/proxyFetch.ts";
 
 // Token expiry buffer (refresh if expires within 5 minutes)
 export const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
+export const REFRESH_LEAD_MS = {
+  claude: 4 * 60 * 60 * 1000,
+};
 
 const CACHE_SECRET = "routiform-token-cache";
 
@@ -14,6 +17,10 @@ const refreshPromiseCache = new Map();
 function getRefreshCacheKey(provider, refreshToken) {
   const tokenHash = pbkdf2Sync(refreshToken, CACHE_SECRET, 1000, 32, "sha256").toString("hex");
   return `${provider}:${tokenHash}`;
+}
+
+export function getRefreshLeadMs(provider) {
+  return REFRESH_LEAD_MS[provider] || TOKEN_EXPIRY_BUFFER_MS;
 }
 
 /**

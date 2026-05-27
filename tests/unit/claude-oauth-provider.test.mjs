@@ -10,7 +10,7 @@ test.afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-test("Claude OAuth provider always uses the configured redirectUri when building the auth URL", () => {
+test("Claude OAuth provider uses the runtime redirectUri when building the auth URL", () => {
   const runtimeRedirectUri = "http://localhost:43121/callback";
   const authUrl = claude.buildAuthUrl(
     CLAUDE_CONFIG,
@@ -20,12 +20,12 @@ test("Claude OAuth provider always uses the configured redirectUri when building
   );
   const parsed = new URL(authUrl);
 
-  assert.equal(parsed.searchParams.get("redirect_uri"), CLAUDE_CONFIG.redirectUri);
+  assert.equal(parsed.searchParams.get("redirect_uri"), runtimeRedirectUri);
   assert.equal(parsed.searchParams.get("state"), "state-123");
   assert.equal(parsed.searchParams.get("code_challenge"), "challenge-456");
 });
 
-test("Claude OAuth provider always uses the configured redirectUri during token exchange", async () => {
+test("Claude OAuth provider uses the runtime redirectUri during token exchange", async () => {
   let captured = null;
 
   globalThis.fetch = async (url, init = {}) => {
@@ -53,7 +53,7 @@ test("Claude OAuth provider always uses the configured redirectUri during token 
 
   assert.equal(captured.url, CLAUDE_CONFIG.tokenUrl);
   assert.equal(captured.method, "POST");
-  assert.equal(captured.body.redirect_uri, CLAUDE_CONFIG.redirectUri);
+  assert.equal(captured.body.redirect_uri, runtimeRedirectUri);
   assert.equal(captured.body.code, "auth-code");
   assert.equal(captured.body.state, "state-from-fragment");
   assert.equal(captured.body.code_verifier, "verifier-123");

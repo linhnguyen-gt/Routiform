@@ -24,6 +24,7 @@ import {
   runWithTlsTracking,
   isTlsFingerprintActive,
 } from "@routiform/open-sse/utils/proxyFetch.ts";
+import { cacheClaudeHeaders } from "@routiform/open-sse/utils/claudeHeaderCache.ts";
 import * as log from "../utils/logger";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh";
 import { getSettings, getCombos } from "@/lib/localDb";
@@ -104,6 +105,7 @@ export async function handleChat(
   if (!clientRawRequest) {
     clientRawRequest = buildClientRawRequest(request, rawClientBody);
   }
+  cacheClaudeHeaders(clientRawRequest.headers as Record<string, unknown>);
 
   // FASE-01: Input sanitization — prompt injection detection & PII redaction
   telemetry.startPhase("validate");

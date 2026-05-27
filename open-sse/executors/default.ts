@@ -10,6 +10,7 @@ import {
 } from "../services/claudeCodeCompatible.ts";
 import { isClaudeCodeCompatible } from "../services/provider.ts";
 import { buildClineHeaders } from "../services/clineAuth.ts";
+import { getCachedClaudeHeaders } from "../utils/claudeHeaderCache.ts";
 import { normalizeXiaomiTokenPlanClusterBaseUrl } from "../config/xiaomiMimoTokenPlanClusters.ts";
 
 function normalizeBaseUrl(baseUrl) {
@@ -150,6 +151,45 @@ export class DefaultExecutor extends BaseExecutor {
           : (headers["Authorization"] = `Bearer ${credentials.accessToken}`);
         break;
       case "claude":
+        {
+          const cached = getCachedClaudeHeaders();
+          if (cached) {
+            for (const lowerCaseKey of Object.keys(cached)) {
+              const titleCaseKey = lowerCaseKey.replace(
+                /(^|-)([a-z])/g,
+                (_match, separator, char) => `${separator}${char.toUpperCase()}`
+              );
+
+              if (lowerCaseKey === "anthropic-beta") {
+                const staticValue = headers[titleCaseKey] || headers[lowerCaseKey] || "";
+                const mergedFlags = new Set(
+                  String(cached[lowerCaseKey] || "")
+                    .split(",")
+                    .map((value) => value.trim())
+                    .filter(Boolean)
+                );
+
+                for (const flag of String(staticValue)
+                  .split(",")
+                  .map((value) => value.trim())
+                  .filter(Boolean)) {
+                  mergedFlags.add(flag);
+                }
+                cached[lowerCaseKey] = Array.from(mergedFlags).join(",");
+              }
+
+              if (titleCaseKey !== lowerCaseKey && headers[titleCaseKey] !== undefined) {
+                delete headers[titleCaseKey];
+              }
+            }
+
+            Object.assign(headers, cached);
+          }
+        }
+        effectiveKey
+          ? (headers["x-api-key"] = effectiveKey)
+          : (headers["Authorization"] = `Bearer ${credentials.accessToken}`);
+        break;
       case "anthropic":
         effectiveKey
           ? (headers["x-api-key"] = effectiveKey)

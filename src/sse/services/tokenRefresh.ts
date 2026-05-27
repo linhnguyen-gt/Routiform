@@ -3,6 +3,7 @@ import * as log from "../utils/logger";
 import { updateProviderConnection, resolveProxyForProvider } from "@/lib/localDb";
 import {
   TOKEN_EXPIRY_BUFFER_MS as BUFFER_MS,
+  getRefreshLeadMs as _getRefreshLeadMs,
   refreshAccessToken as _refreshAccessToken,
   refreshClaudeOAuthToken as _refreshClaudeOAuthToken,
   refreshGoogleToken as _refreshGoogleToken,
@@ -18,6 +19,7 @@ import {
 } from "@routiform/open-sse/services/tokenRefresh.ts";
 
 export const TOKEN_EXPIRY_BUFFER_MS = BUFFER_MS;
+export const getRefreshLeadMs = (provider: string) => _getRefreshLeadMs(provider);
 
 export const refreshAccessToken = async (
   provider: string,
@@ -142,11 +144,13 @@ export async function checkAndRefreshToken(provider: string, credentials: unknow
   if (updatedCredentials.expiresAt && typeof updatedCredentials.expiresAt === "string") {
     const expiresAt = new Date(updatedCredentials.expiresAt).getTime();
     const now = Date.now();
+    const refreshLeadMs = getRefreshLeadMs(provider);
 
-    if (expiresAt - now < TOKEN_EXPIRY_BUFFER_MS) {
+    if (expiresAt - now < refreshLeadMs) {
       log.info("TOKEN_REFRESH", "Token expiring soon, refreshing proactively", {
         provider,
         expiresIn: Math.round((expiresAt - now) / 1000),
+        refreshLeadMs,
       });
 
       const newCredentials = await getAccessToken(provider, updatedCredentials);
