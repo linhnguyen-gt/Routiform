@@ -102,7 +102,8 @@ export function ProviderDetailModelsSection({
   modelTestBannerError,
 }: ProviderDetailModelsSectionProps) {
   if (isSearchProvider) return null;
-  const usesFetchedCatalogProvider = isLiveCatalogProvider || providerId === "antigravity";
+  const usesFetchedCatalogProvider =
+    isLiveCatalogProvider || providerId === "antigravity" || providerId === "claude";
 
   const modelTestBanner = modelTestBannerError ? (
     <p className="mb-3 break-words text-xs text-red-500">{modelTestBannerError}</p>

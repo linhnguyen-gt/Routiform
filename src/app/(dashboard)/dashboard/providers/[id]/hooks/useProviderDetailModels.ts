@@ -42,7 +42,7 @@ type LiveCatalogState = {
 };
 
 function usesFetchedProviderCatalog(providerId: string, isLiveCatalogProvider: boolean): boolean {
-  return isLiveCatalogProvider || providerId === "antigravity";
+  return isLiveCatalogProvider || providerId === "antigravity" || providerId === "claude";
 }
 
 function dedupeModelsById<T extends { id: string; name: string }>(models: T[]): T[] {
@@ -75,7 +75,7 @@ export function selectProviderDetailModels({
     if (opencodeLiveCatalog.status === "ready" && opencodeLiveCatalog.models.length > 0) {
       return dedupeModelsById(opencodeLiveCatalog.models);
     }
-    if (providerId === "antigravity") return [];
+    if (providerId === "antigravity" || providerId === "claude") return [];
   }
 
   if (isLiveCatalogProvider) {
@@ -245,6 +245,7 @@ export function useProviderDetailModels({
   useEffect(() => {
     if (
       providerId !== "antigravity" &&
+      providerId !== "claude" &&
       providerId !== "opencode-zen" &&
       providerId !== "opencode-go" &&
       providerId !== "kilocode" &&

@@ -56,6 +56,7 @@ export function useProviderDetailOrchestrator() {
   const isAnthropicProtocolCompatible = isAnthropicCompatible || isCcCompatible;
   const isSearchProvider = providerId.endsWith("-search");
   const isLiveCatalogProvider =
+    providerId === "claude" ||
     providerId === "opencode-zen" ||
     providerId === "opencode-go" ||
     providerId === "kilocode" ||
