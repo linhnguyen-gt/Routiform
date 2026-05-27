@@ -51,6 +51,11 @@ export default function CliStatusBadge({
       badgeClass: "bg-green-500/10 text-green-600 dark:text-green-400",
       text: t("configured"),
     },
+    configured_1m: {
+      dotClass: "bg-emerald-500",
+      badgeClass: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+      text: `${t("configured")} · 1M`,
+    },
     not_configured: {
       dotClass: "bg-yellow-500",
       badgeClass: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",

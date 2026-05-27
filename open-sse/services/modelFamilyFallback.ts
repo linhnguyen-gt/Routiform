@@ -73,10 +73,13 @@ const MODEL_FAMILIES: Record<string, string[]> = {
   "gemini-2.5-pro-preview-06-05": ["gemini-2.5-pro", "gemini-2.5-pro-exp-03-25"],
 
   // Claude Opus family
+  "claude-opus-4-1-20250805": ["claude-opus-4-20250514", "claude-sonnet-4-20250514"],
+  "claude-opus-4-20250514": ["claude-opus-4-1-20250805", "claude-sonnet-4-20250514"],
   "claude-opus-4-6": ["claude-opus-4-6-thinking", "claude-opus-4-5-20251101", "claude-sonnet-4-6"],
   "claude-opus-4-6-thinking": ["claude-opus-4-6", "claude-opus-4-5-20251101"],
 
   // Claude Sonnet family
+  "claude-sonnet-4-20250514": ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"],
   "claude-sonnet-4-6": ["claude-sonnet-4-5-20250929", "claude-sonnet-4-20250514"],
   "claude-sonnet-4-5-20250929": ["claude-sonnet-4-6", "claude-sonnet-4-20250514"],
 

@@ -37,6 +37,8 @@ const FALLBACK_ALIAS_TO_PROVIDER = {
   qw: "qwen",
 };
 
+const LIVE_SYNC_MODEL_PROVIDERS = new Set(["claude", "gemini"]);
+
 const VISION_MODEL_KEYWORDS = [
   "gpt-5.4",
   "gpt-5.4-mini",
@@ -347,15 +349,15 @@ export async function getUnifiedModelsResponse(
       }
     }
 
-    // Gemini: synced API models exclusively (outside PROVIDER_MODELS loop since registry is empty)
-    if (activeAliases.has("gemini") && !blockedProviders.has("gemini")) {
+    for (const providerId of LIVE_SYNC_MODEL_PROVIDERS) {
+      if (!activeAliases.has(providerId) || blockedProviders.has(providerId)) continue;
       try {
-        const syncedModels = await getSyncedAvailableModels("gemini");
+        const syncedModels = await getSyncedAvailableModels(providerId);
         for (const sm of syncedModels) {
-          const aliasId = `gemini/${sm.id}`;
-          if (getModelIsHidden("gemini", sm.id)) continue;
+          const alias = providerIdToAlias[providerId] || providerId;
+          const aliasId = `${alias}/${sm.id}`;
+          if (getModelIsHidden(providerId, sm.id)) continue;
 
-          // Convert supportedEndpoints to type/subtype for endpoint categorization
           const endpoints = Array.isArray(sm.supportedEndpoints) ? sm.supportedEndpoints : ["chat"];
           let modelType: string | undefined;
           if (endpoints.includes("embeddings")) modelType = "embedding";
@@ -366,7 +368,7 @@ export async function getUnifiedModelsResponse(
             id: aliasId,
             object: "model",
             created: timestamp,
-            owned_by: "gemini",
+            owned_by: providerId,
             permission: [],
             root: sm.id,
             parent: null,
@@ -378,13 +380,12 @@ export async function getUnifiedModelsResponse(
               : {}),
           });
 
-          // For audio models, also add a speech variant so they appear in both sections
           if (modelType === "audio") {
             models.push({
               id: aliasId,
               object: "model",
               created: timestamp,
-              owned_by: "gemini",
+              owned_by: providerId,
               permission: [],
               root: sm.id,
               parent: null,
@@ -398,7 +399,7 @@ export async function getUnifiedModelsResponse(
           }
         }
       } catch (err) {
-        console.error("[catalog] Error fetching synced Gemini models:", err);
+        console.error(`[catalog] Error fetching synced ${providerId} models:`, err);
       }
     }
 

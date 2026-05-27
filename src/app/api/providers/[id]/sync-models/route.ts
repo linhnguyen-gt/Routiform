@@ -17,6 +17,8 @@ import {
 } from "@/shared/services/modelSyncScheduler";
 import { getModelsByProviderId } from "@/shared/constants/models";
 
+const UNION_SYNCED_MODEL_PROVIDERS = new Set(["gemini", "claude"]);
+
 type JsonRecord = Record<string, unknown>;
 
 function asRecord(value: unknown): JsonRecord {
@@ -259,8 +261,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const previousModels = await getCustomModels(logProvider);
     const replaced = await replaceCustomModels(logProvider, models);
 
-    // For Gemini: also write to syncedAvailableModels (unioned across API keys)
-    if (logProvider === "gemini") {
+    // Providers with live upstream catalogs also write a unioned synced list so
+    // catalog endpoints can avoid stale hardcoded models.
+    if (UNION_SYNCED_MODEL_PROVIDERS.has(logProvider)) {
       try {
         const syncedModels = models.map((m: Record<string, unknown>) => ({
           id: typeof m.id === "string" ? m.id : String(m.id),
@@ -279,7 +282,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         }));
         await replaceSyncedAvailableModelsForConnection(logProvider, id, syncedModels);
       } catch (e) {
-        console.error("Failed to union synced available models for gemini:", e);
+        console.error(`Failed to union synced available models for ${logProvider}:`, e);
       }
     }
 

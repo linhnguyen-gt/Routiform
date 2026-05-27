@@ -138,7 +138,7 @@ export function buildClaudeCodeCompatibleHeaders(
   };
 }
 
-export function buildClaudeCodeCompatibleValidationPayload(model = "claude-sonnet-4-6") {
+export function buildClaudeCodeCompatibleValidationPayload(model = "claude-sonnet-4-20250514") {
   const sessionId = randomUUID();
   return buildClaudeCodeCompatibleRequest({
     sourceBody: { max_tokens: 1 },

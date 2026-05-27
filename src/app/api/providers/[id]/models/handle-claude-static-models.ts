@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runWithProxyContext } from "@routiform/open-sse/utils/proxyFetch.ts";
 import { safeOutboundFetch } from "@/lib/network/safeOutboundFetch";
+import { filterLatestClaudeModelRows } from "@/shared/services/claudeCodeConfig";
 import type { GetModelsHandlerContext } from "./get-models-handler-context";
 
 export async function handleClaudeStaticModels(
@@ -44,9 +45,14 @@ export async function handleClaudeStaticModels(
   }
 
   const data = (await response.json()) as { data?: unknown[]; models?: unknown[] };
+  const rawModels = Array.isArray(data.data)
+    ? data.data
+    : Array.isArray(data.models)
+      ? data.models
+      : [];
   return ctx.buildResponse({
     provider: ctx.provider,
     connectionId: ctx.connectionId,
-    models: data.data || data.models || [],
+    models: filterLatestClaudeModelRows(rawModels),
   });
 }

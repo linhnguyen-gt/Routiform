@@ -37,7 +37,7 @@ import {
 
 test("getModelInfoCore resolves unique non-openai unprefixed model", async () => {
   const info = await getModelInfoCore("claude-haiku-4-5-20251001", {});
-  assert.equal(info.provider, "claude");
+  assert.equal(info.provider, "anthropic");
   assert.equal(info.model, "claude-haiku-4-5-20251001");
 });
 

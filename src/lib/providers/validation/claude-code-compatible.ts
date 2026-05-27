@@ -67,7 +67,7 @@ export async function validateClaudeCodeCompatibleProvider({
   const payload = buildClaudeCodeCompatibleValidationPayload(
     typeof providerSpecificData?.validationModelId === "string"
       ? providerSpecificData.validationModelId
-      : "claude-sonnet-4-6"
+      : "claude-sonnet-4-20250514"
   );
   const sessionId = JSON.parse(payload.metadata.user_id).session_id;
 

@@ -47,9 +47,12 @@ const DEFAULT_DETECTION_PATTERNS = [
 
 const DEFAULT_DEGRADATION_MAP: Record<string, string> = {
   // Premium → Cheap alternatives
+  "claude-opus-4-1-20250805": "gemini-3-flash",
+  "claude-opus-4-20250514": "gemini-3-flash",
   "claude-opus-4-6": "gemini-3-flash",
   "claude-opus-4-6-thinking": "gemini-3-flash",
   "claude-opus-4-5-20251101": "gemini-3-flash",
+  "claude-3-5-haiku-20241022": "gemini-3-flash",
   "claude-sonnet-4-5-20250929": "gemini-3-flash",
   "claude-sonnet-4-20250514": "gemini-3-flash",
   "claude-sonnet-4": "gemini-3-flash",

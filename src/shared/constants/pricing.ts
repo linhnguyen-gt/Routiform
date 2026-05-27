@@ -48,6 +48,22 @@ export const DEFAULT_PRICING = {
 
   // Claude Code (cc)
   cc: {
+    "claude-opus-4-1-20250805": {
+      ...CLAUDE_OPUS_4_PRICING,
+    },
+    "claude-opus-4-20250514": {
+      ...CLAUDE_OPUS_4_PRICING,
+    },
+    "claude-sonnet-4-20250514": {
+      ...CLAUDE_SONNET_4_PRICING,
+    },
+    "claude-3-5-haiku-20241022": {
+      input: 0.8,
+      output: 4.0,
+      cached: 0.4,
+      reasoning: 4.0,
+      cache_creation: 0.8,
+    },
     "claude-opus-4-6": {
       input: 5.0,
       output: 25.0,
@@ -557,6 +573,9 @@ export const DEFAULT_PRICING = {
 
   // Anthropic
   anthropic: {
+    "claude-opus-4-1-20250805": {
+      ...CLAUDE_OPUS_4_PRICING,
+    },
     "claude-sonnet-4-20250514": {
       input: 3.0,
       output: 15.0,
@@ -570,6 +589,13 @@ export const DEFAULT_PRICING = {
       cached: 7.5,
       reasoning: 112.5,
       cache_creation: 15.0,
+    },
+    "claude-3-5-haiku-20241022": {
+      input: 0.8,
+      output: 4.0,
+      cached: 0.4,
+      reasoning: 4.0,
+      cache_creation: 0.8,
     },
     "claude-3-5-sonnet-20241022": {
       input: 3.0,

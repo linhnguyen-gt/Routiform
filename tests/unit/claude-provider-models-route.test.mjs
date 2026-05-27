@@ -42,7 +42,15 @@ test("claude models route fetches available models from Anthropic API", async ()
     assert.equal(init?.headers?.["anthropic-version"], "2023-06-01");
 
     return Response.json({
-      data: [{ id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" }],
+      data: [
+        { id: "claude-opus-4-7", display_name: "Claude Opus 4.7" },
+        { id: "claude-opus-4-6", display_name: "Claude Opus 4.6" },
+        { id: "claude-opus-4-5-20251101", display_name: "Claude Opus 4.5" },
+        { id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" },
+        { id: "claude-sonnet-4-5-20250929", display_name: "Claude Sonnet 4.5" },
+        { id: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5" },
+        { id: "claude-3-5-haiku-20241022", display_name: "Claude 3.5 Haiku" },
+      ],
     });
   };
 
@@ -54,7 +62,11 @@ test("claude models route fetches available models from Anthropic API", async ()
 
     assert.equal(response.status, 200);
     const body = await response.json();
-    assert.deepEqual(body.models, [{ id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" }]);
+    assert.deepEqual(body.models, [
+      { id: "claude-opus-4-7", display_name: "Claude Opus 4.7" },
+      { id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" },
+      { id: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5" },
+    ]);
   } finally {
     globalThis.fetch = originalFetch;
   }

@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { getModelAliases, setModelAlias, getProviderConnections } from "@/models";
+import { getAllSyncedAvailableModels } from "@/lib/db/models";
 import { AI_MODELS, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
 import { loadAntigravityModelsFromConnections } from "@/lib/providers/antigravityLiveModels";
 import { updateModelAliasSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+
+const LIVE_SYNC_MODEL_PROVIDERS = new Set(["claude", "gemini"]);
 
 // GET /api/models - Get models with aliases (only from active providers by default)
 export async function GET(request: Request) {
@@ -12,6 +15,7 @@ export async function GET(request: Request) {
     const showAll = searchParams.get("all") === "true";
 
     const modelAliases = await getModelAliases();
+    const syncedModelsMap = await getAllSyncedAvailableModels().catch(() => ({}));
     let connections: Array<Record<string, unknown>> = [];
 
     // Get active provider connections to filter available models
@@ -65,6 +69,25 @@ export async function GET(request: Request) {
       }
     } catch {
       // Antigravity catalog is fetched live; omit stale hardcoded entries on failure.
+    }
+
+    for (const providerId of LIVE_SYNC_MODEL_PROVIDERS) {
+      const alias = PROVIDER_ID_TO_ALIAS[providerId] || providerId;
+      const available =
+        !activeProviders || activeProviders.has(providerId) || activeProviders.has(alias);
+      const syncedModels = syncedModelsMap[providerId] || [];
+      for (const model of syncedModels as Array<{ id: string; name?: string }>) {
+        const fullModel = `${alias}/${model.id}`;
+        if (models.some((entry) => entry.fullModel === fullModel)) continue;
+        models.push({
+          provider: alias,
+          model: model.id,
+          name: model.name || model.id,
+          fullModel,
+          alias: modelAliases[fullModel] || model.id,
+          available,
+        });
+      }
     }
 
     return NextResponse.json({ models });

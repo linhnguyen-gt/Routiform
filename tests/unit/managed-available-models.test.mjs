@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 
 const { compatibleProviderSupportsModelImport, getCompatibleFallbackModels } =
   await import("../../src/lib/providers/managedAvailableModels.ts");
-const { getModelsByProviderId } = await import("../../src/shared/constants/models.ts");
+const { getClaudeLatestFallbackModels } =
+  await import("../../src/shared/services/claudeCodeConfig.ts");
 
 test("CC compatible fallback models mirror the OAuth Claude Code registry list", () => {
   assert.deepEqual(
     getCompatibleFallbackModels("anthropic-compatible-cc-demo"),
-    getModelsByProviderId("claude")
+    getClaudeLatestFallbackModels()
   );
 });
 

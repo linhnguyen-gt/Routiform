@@ -23,11 +23,11 @@ const BUILT_IN_ALIASES: Record<string, string> = {
   "gemini-3.1-flash-image": "gemini-3.5-flash-low",
 
   // Claude legacy → current
-  "claude-3-opus-20240229": "claude-opus-4-20250514",
+  "claude-3-opus-20240229": "claude-opus-4-1-20250805",
   "claude-3-sonnet-20240229": "claude-sonnet-4-20250514",
-  "claude-3-haiku-20240307": "claude-3-5-sonnet-20241022",
+  "claude-3-haiku-20240307": "claude-3-5-haiku-20241022",
   "claude-3-5-sonnet-latest": "claude-sonnet-4-20250514",
-  "claude-3-5-haiku-latest": "claude-3-5-sonnet-20241022",
+  "claude-3-5-haiku-latest": "claude-3-5-haiku-20241022",
 
   // OpenAI legacy → current
   "gpt-4-turbo-preview": "gpt-4-turbo",

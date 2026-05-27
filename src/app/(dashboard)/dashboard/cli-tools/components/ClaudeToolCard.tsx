@@ -1,7 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, Button, ModelSelectModal, ManualConfigModal } from "@/shared/components";
+import {
+  buildClaudeCliDefaultModelMap,
+  getClaudeCliConfigStatus,
+  setClaudeCode1mSuffix,
+  stripClaudeCode1mSuffix,
+} from "@/shared/services/claudeCodeConfig";
 import Image from "next/image";
 import CliStatusBadge from "./CliStatusBadge";
 import { useTranslations } from "next-intl";
@@ -33,6 +39,8 @@ export default function ClaudeToolCard({
   const [currentEditingAlias, setCurrentEditingAlias] = useState(null);
   const [selectedApiKey, setSelectedApiKey] = useState("");
   const [modelAliases, setModelAliases] = useState({});
+  const [providerDefaults, setProviderDefaults] = useState({});
+  const [providerDefaultsLoaded, setProviderDefaultsLoaded] = useState(false);
   const [showManualConfigModal, setShowManualConfigModal] = useState(false);
   const [customBaseUrl, setCustomBaseUrl] = useState("");
   const hasInitializedModels = useRef(false);
@@ -44,18 +52,20 @@ export default function ClaudeToolCard({
 
   const getConfigStatus = () => {
     if (!cliReady) return null;
-    const currentUrl = claudeStatus.settings?.env?.ANTHROPIC_BASE_URL;
-    if (!currentUrl) return "not_configured";
-    const localMatch = currentUrl.includes("localhost") || currentUrl.includes("127.0.0.1");
-    const cloudMatch = cloudEnabled && CLOUD_URL && currentUrl.startsWith(CLOUD_URL);
-    if (localMatch || cloudMatch) return "configured";
-    return "other";
+    return getClaudeCliConfigStatus(claudeStatus.settings?.env, {
+      cloudUrl: cloudEnabled ? CLOUD_URL : null,
+    });
   };
 
   const configStatus = getConfigStatus();
 
   // Use batch status as fallback when card hasn't been expanded yet
   const effectiveConfigStatus = configStatus || batchStatus?.configStatus || null;
+  const activeClaudeConnection = [...(activeProviders || [])]
+    .filter((conn) => conn?.provider === "claude" && conn?.isActive !== false)
+    .sort((left, right) => Number(left?.priority || 0) - Number(right?.priority || 0))[0];
+  const activeClaudeConnectionId =
+    typeof activeClaudeConnection?.id === "string" ? activeClaudeConnection.id : "";
 
   useEffect(() => {
     // (#523) Store the key *id* (not the masked string) so the backend can
@@ -73,6 +83,50 @@ export default function ClaudeToolCard({
     }
   }, [isExpanded, claudeStatus]);
 
+  useEffect(() => {
+    if (!isExpanded) return;
+
+    setProviderDefaultsLoaded(false);
+    if (!activeClaudeConnectionId) {
+      setProviderDefaults({});
+      setProviderDefaultsLoaded(true);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/providers/${encodeURIComponent(activeClaudeConnectionId)}/models`,
+          {
+            cache: "no-store",
+          }
+        );
+        if (!res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        const rawModels = Array.isArray(data?.models) ? data.models : [];
+        setProviderDefaults(buildClaudeCliDefaultModelMap(rawModels));
+      } catch (error) {
+        console.log("Error fetching Claude provider defaults:", error);
+      } finally {
+        if (!cancelled) setProviderDefaultsLoaded(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isExpanded, activeClaudeConnectionId]);
+
+  const getDefaultModelValue = useCallback(
+    (model) => {
+      if (!model || typeof model.alias !== "string") return "";
+      return providerDefaults[model.alias] || model.defaultValue || "";
+    },
+    [providerDefaults]
+  );
+
   const fetchModelAliases = async () => {
     try {
       const res = await fetch("/api/models/alias");
@@ -84,27 +138,36 @@ export default function ClaudeToolCard({
   };
 
   useEffect(() => {
-    if (claudeStatus?.installed && !hasInitializedModels.current) {
-      hasInitializedModels.current = true;
-      const env = claudeStatus.settings?.env || {};
+    if (!claudeStatus?.installed || hasInitializedModels.current) return;
+    if (activeClaudeConnectionId && !providerDefaultsLoaded) return;
 
-      tool.defaultModels.forEach((model) => {
-        if (model.envKey) {
-          const value = env[model.envKey] || model.defaultValue || "";
-          // Only sync initial values from file once
-          if (value) {
-            onModelMappingChange(model.alias, value);
-          }
+    hasInitializedModels.current = true;
+    const env = claudeStatus.settings?.env || {};
+
+    tool.defaultModels.forEach((model) => {
+      if (model.envKey) {
+        const value = env[model.envKey] || getDefaultModelValue(model);
+        if (value) {
+          onModelMappingChange(model.alias, value);
         }
-      });
-      // Restore selected key from file: match token stored in file against known keys
-      const tokenFromFile = env.ANTHROPIC_AUTH_TOKEN;
-      if (tokenFromFile) {
-        const matchedKey = apiKeys?.find((k) => k.key === tokenFromFile);
-        if (matchedKey) setSelectedApiKey(matchedKey.id);
       }
+    });
+
+    const tokenFromFile = env.ANTHROPIC_AUTH_TOKEN;
+    if (tokenFromFile) {
+      const matchedKey = apiKeys?.find((k) => k.key === tokenFromFile);
+      if (matchedKey) setSelectedApiKey(matchedKey.id);
     }
-  }, [claudeStatus, apiKeys, tool.defaultModels, onModelMappingChange]);
+  }, [
+    claudeStatus,
+    apiKeys,
+    tool.defaultModels,
+    onModelMappingChange,
+    getDefaultModelValue,
+    providerDefaults,
+    providerDefaultsLoaded,
+    activeClaudeConnectionId,
+  ]);
 
   const checkClaudeStatus = async () => {
     setCheckingClaude(true);
@@ -184,7 +247,7 @@ export default function ClaudeToolCard({
       if (res.ok) {
         setMessage({ type: "success", text: t("settingsReset") });
         tool.defaultModels.forEach((model) =>
-          onModelMappingChange(model.alias, model.defaultValue || "")
+          onModelMappingChange(model.alias, getDefaultModelValue(model))
         );
         setSelectedApiKey("");
       } else {
@@ -204,6 +267,19 @@ export default function ClaudeToolCard({
 
   const handleModelSelect = (model) => {
     if (currentEditingAlias) onModelMappingChange(currentEditingAlias, model.value);
+  };
+
+  const canUse1mContext = (alias) => alias === "opus" || alias === "sonnet";
+
+  const toggleModel1mContext = (alias) => {
+    const modelConfig = tool.defaultModels.find((model) => model.alias === alias);
+    const currentValue = modelMappings[alias] || "";
+    const nextValue = setClaudeCode1mSuffix(
+      currentValue,
+      !currentValue.includes("[1m]"),
+      getDefaultModelValue(modelConfig)
+    );
+    onModelMappingChange(alias, nextValue);
   };
 
   // Generate settings.json content for manual copy
@@ -432,36 +508,60 @@ export default function ClaudeToolCard({
 
                 {/* Model Mappings */}
                 {tool.defaultModels.map((model) => (
-                  <div key={model.alias} className="flex items-center gap-2">
-                    <span className="w-32 shrink-0 text-sm font-semibold text-text-main text-right">
+                  <div key={model.alias} className="flex items-start gap-2">
+                    <span className="w-32 shrink-0 pt-1.5 text-sm font-semibold text-text-main text-right">
                       {model.name}
                     </span>
-                    <span className="material-symbols-outlined text-text-muted text-[14px]">
+                    <span className="material-symbols-outlined text-text-muted text-[14px] pt-2">
                       arrow_forward
                     </span>
-                    <input
-                      type="text"
-                      value={modelMappings[model.alias] || ""}
-                      onChange={(e) => onModelMappingChange(model.alias, e.target.value)}
-                      placeholder={t("providerModelPlaceholder")}
-                      className="flex-1 px-2 py-1.5 bg-surface rounded border border-border text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    />
-                    <button
-                      onClick={() => openModelSelector(model.alias)}
-                      disabled={!hasActiveProviders}
-                      className={`px-2 py-1.5 rounded border text-xs transition-colors shrink-0 whitespace-nowrap ${hasActiveProviders ? "bg-surface border-border text-text-main hover:border-primary cursor-pointer" : "opacity-50 cursor-not-allowed border-border"}`}
-                    >
-                      {t("selectModel")}
-                    </button>
-                    {modelMappings[model.alias] && (
-                      <button
-                        onClick={() => onModelMappingChange(model.alias, "")}
-                        className="p-1 text-text-muted hover:text-red-500 rounded transition-colors"
-                        title={t("clear")}
-                      >
-                        <span className="material-symbols-outlined text-[14px]">close</span>
-                      </button>
-                    )}
+                    <div className="flex-1 flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={modelMappings[model.alias] || ""}
+                          onChange={(e) => onModelMappingChange(model.alias, e.target.value)}
+                          placeholder={t("providerModelPlaceholder")}
+                          className="flex-1 px-2 py-1.5 bg-surface rounded border border-border text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        />
+                        <button
+                          onClick={() => openModelSelector(model.alias)}
+                          disabled={!hasActiveProviders}
+                          className={`px-2 py-1.5 rounded border text-xs transition-colors shrink-0 whitespace-nowrap ${hasActiveProviders ? "bg-surface border-border text-text-main hover:border-primary cursor-pointer" : "opacity-50 cursor-not-allowed border-border"}`}
+                        >
+                          {t("selectModel")}
+                        </button>
+                        {canUse1mContext(model.alias) && (
+                          <button
+                            onClick={() => toggleModel1mContext(model.alias)}
+                            className={`px-2 py-1.5 rounded border text-xs transition-colors shrink-0 whitespace-nowrap ${
+                              (modelMappings[model.alias] || "").includes("[1m]")
+                                ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                                : "bg-surface border-border text-text-main hover:border-emerald-500"
+                            }`}
+                            title="Toggle 1M context"
+                          >
+                            1M
+                          </button>
+                        )}
+                        {modelMappings[model.alias] && (
+                          <button
+                            onClick={() => onModelMappingChange(model.alias, "")}
+                            className="p-1 text-text-muted hover:text-red-500 rounded transition-colors"
+                            title={t("clear")}
+                          >
+                            <span className="material-symbols-outlined text-[14px]">close</span>
+                          </button>
+                        )}
+                      </div>
+                      {canUse1mContext(model.alias) && (
+                        <p className="text-[11px] text-text-muted">
+                          {(modelMappings[model.alias] || "").includes("[1m]")
+                            ? `1M context enabled for ${stripClaudeCode1mSuffix(modelMappings[model.alias])}`
+                            : `Use 1M to append [1m] for long-context ${model.name} sessions.`}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

@@ -1,5 +1,6 @@
 import { generateModels, generateAliasMap } from "./registry-generators.ts";
 import type { RegistryModel } from "./registry-types.ts";
+import { getClaudeLatestFallbackModels } from "@/shared/services/claudeCodeConfig";
 
 // Provider models - Generated from providerRegistry.js (single source of truth)
 export const PROVIDER_MODELS = generateModels();
@@ -85,5 +86,5 @@ export function getModelsByProviderId(providerId: string): RegistryModel[] {
  * of hardcoding model lists per provider.
  */
 export function getClaudeCodeDefaultModels(): RegistryModel[] {
-  return getModelsByProviderId("claude");
+  return getClaudeLatestFallbackModels();
 }

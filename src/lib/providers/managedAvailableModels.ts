@@ -1,5 +1,5 @@
-import { getModelsByProviderId } from "@/shared/constants/models";
 import { isClaudeCodeCompatibleProvider } from "@/shared/constants/providers";
+import { getClaudeLatestFallbackModels } from "@/shared/services/claudeCodeConfig";
 
 type ManagedAvailableModel = {
   id?: string;
@@ -10,7 +10,7 @@ export function getCompatibleFallbackModels(
   _providerId: string,
   fallbackModels: ManagedAvailableModel[] = []
 ): ManagedAvailableModel[] | undefined {
-  if (isClaudeCodeCompatibleProvider(_providerId)) return getModelsByProviderId("claude");
+  if (isClaudeCodeCompatibleProvider(_providerId)) return getClaudeLatestFallbackModels();
   return fallbackModels;
 }
 

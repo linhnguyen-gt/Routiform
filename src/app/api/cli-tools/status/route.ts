@@ -7,6 +7,7 @@ import {
   CLI_TOOL_IDS,
   getCliPrimaryConfigPath,
 } from "@/shared/services/cliRuntime";
+import { getClaudeCliConfigStatus } from "@/shared/services/claudeCodeConfig";
 import { hasRoutiformCodexConfig, hasUsableCodexAuth } from "@/shared/services/codexConfigToml";
 import { getAllCliToolLastConfigured } from "@/lib/db/cliToolState";
 import { getRuntimePorts } from "@/lib/runtime/ports";
@@ -44,7 +45,9 @@ async function checkToolConfigStatus(toolId: string): Promise<string> {
     // Each tool stores Routiform config differently
     switch (toolId) {
       case "claude":
-        return config?.env?.ANTHROPIC_BASE_URL ? "configured" : "not_configured";
+        return getClaudeCliConfigStatus(config?.env, {
+          cloudUrl: process.env.NEXT_PUBLIC_CLOUD_URL,
+        });
       case "droid":
       case "openclaw":
       case "cline":

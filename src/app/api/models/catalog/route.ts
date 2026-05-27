@@ -1,9 +1,12 @@
 import { getProviderConnections, getAllCustomModels } from "@/lib/localDb";
+import { getAllSyncedAvailableModels } from "@/lib/db/models";
 import { loadAntigravityModelsFromConnections } from "@/lib/providers/antigravityLiveModels";
 import { PROVIDER_MODELS, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
 import { getAllEmbeddingModels } from "@routiform/open-sse/config/embeddingRegistry.ts";
 import { getAllImageModels } from "@routiform/open-sse/config/imageRegistry.ts";
 import { AI_PROVIDERS, ALIAS_TO_ID } from "@/shared/constants/providers";
+
+const LIVE_SYNC_MODEL_PROVIDERS = new Set(["claude", "gemini"]);
 
 /**
  * GET /api/models/catalog
@@ -14,6 +17,7 @@ export async function GET() {
     const connections = await getProviderConnections();
     const activeProviders = new Set(connections.map((c) => c.provider));
     const customModelsMap = await getAllCustomModels().catch(() => ({}));
+    const syncedModelsMap = await getAllSyncedAvailableModels().catch(() => ({}));
 
     const catalog: Record<
       string,
@@ -65,6 +69,31 @@ export async function GET() {
         }
       } catch {
         // Antigravity catalog is live-only; leave empty on fetch failure.
+      }
+    }
+
+    for (const providerId of LIVE_SYNC_MODEL_PROVIDERS) {
+      const syncedModels = syncedModelsMap[providerId] || [];
+      if (syncedModels.length === 0) continue;
+
+      const alias = PROVIDER_ID_TO_ALIAS[providerId] || providerId;
+      if (!catalog[alias]) {
+        catalog[alias] = {
+          provider: AI_PROVIDERS[providerId]?.name || alias,
+          active: activeProviders.has(providerId),
+          models: [],
+        };
+      }
+
+      for (const model of syncedModels as Array<{ id: string; name?: string }>) {
+        const fullId = `${alias}/${model.id}`;
+        if (catalog[alias].models.some((entry) => entry.id === fullId)) continue;
+        catalog[alias].models.push({
+          id: fullId,
+          name: model.name || model.id,
+          type: "chat",
+          custom: false,
+        });
       }
     }
 
