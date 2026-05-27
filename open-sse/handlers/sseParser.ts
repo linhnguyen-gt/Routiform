@@ -723,14 +723,63 @@ export function parseSSEToResponsesOutput(rawSSE, fallbackModel) {
   const picked = completed || latestResponse;
   if (!picked || typeof picked !== "object") return null;
 
-  return {
+  // Build the native response object preserving all known fields.
+  // Prefer additive preservation over destructive normalization — keep
+  // whatever the upstream sends so that Responses-oriented clients receive
+  // payloads closer to the native OpenAI Responses API shape.
+  const result: Record<string, unknown> = {
     id: picked.id || `resp_${Date.now()}`,
     object: "response",
     model: picked.model || fallbackModel || "unknown",
     output: Array.isArray(picked.output) ? picked.output : [],
-    usage: picked.usage || null,
     status: picked.status || (completed ? "completed" : "in_progress"),
     created_at: picked.created_at || Math.floor(Date.now() / 1000),
-    metadata: picked.metadata || {},
   };
+
+  // Preserve usage when present (include richer nested detail if the upstream provides it).
+  if (picked.usage != null) {
+    result.usage = picked.usage;
+  }
+
+  // Preserve error field — even null is intentional and should be forwarded.
+  if ("error" in picked) {
+    result.error = picked.error;
+  }
+
+  // Preserve incomplete_details when the upstream signals a partial / truncated response.
+  if (picked.incomplete_details != null) {
+    result.incomplete_details = picked.incomplete_details;
+  }
+
+  // Preserve metadata object (may carry provider-specific tags).
+  if (picked.metadata != null && typeof picked.metadata === "object") {
+    result.metadata = picked.metadata;
+  } else {
+    result.metadata = {};
+  }
+
+  // Preserve additional native state/metadata fields if present.
+  // These are forwarded as-is so that clients that understand them keep fidelity.
+  const passthroughFields = [
+    "background",
+    "parallel_tool_calls",
+    "previous_response_id",
+    "temperature",
+    "top_p",
+    "max_output_tokens",
+    "truncation",
+    "instructions",
+    "text",
+    "tool_choice",
+    "tools",
+    "store",
+    "service_tier",
+  ];
+  for (const field of passthroughFields) {
+    if (field in picked && picked[field] !== undefined) {
+      result[field] = picked[field];
+    }
+  }
+
+  return result;
 }

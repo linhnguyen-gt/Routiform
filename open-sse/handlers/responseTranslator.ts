@@ -205,14 +205,24 @@ export function translateNonStreamingResponse(
       const itemObj = toRecord(item);
 
       if (itemObj.type === "message" && Array.isArray(itemObj.content)) {
+        // Scan message content parts for any reasoning summary text that may be embedded
+        // inside a message item (some providers put summary_text in message.content).
         for (const part of itemObj.content) {
           if (!part || typeof part !== "object") continue;
           const partObj = toRecord(part);
           if (partObj.type === "summary_text" && typeof partObj.text === "string") {
             reasoningContent += partObj.text;
           }
+          // Also pick up refusal content if present
+          if (partObj.type === "refusal" && typeof partObj.refusal === "string") {
+            // Map refusal to text content so clients receive it
+            if (!textContent) {
+              textContent = partObj.refusal;
+            }
+          }
         }
       } else if (itemObj.type === "reasoning" && Array.isArray(itemObj.summary)) {
+        // Top-level reasoning output item — collect all summary text parts in order.
         for (const part of itemObj.summary) {
           const partObj = toRecord(part);
           if (partObj.type === "summary_text" && typeof partObj.text === "string") {
@@ -244,7 +254,15 @@ export function translateNonStreamingResponse(
             arguments: fnArgs,
           },
         });
+      } else if (itemObj.type === "web_search_call" || itemObj.type === "web_search_result") {
+        // Built-in tool output items: not representable as Chat tool_calls.
+        // Skip them rather than dropping them silently — they have no Chat equivalent.
+        if (process.env.DEBUG_RESPONSES_EVENTS === "true") {
+          console.log(`[responseTranslator] skipping built-in output item type: ${itemObj.type}`);
+        }
       }
+      // Other unknown output item types are intentionally skipped; the caller receives
+      // whatever text/reasoning/tool_calls we could extract rather than an error.
     }
 
     const message: JsonRecord = { role: "assistant" };

@@ -45,7 +45,10 @@ export function openaiResponsesToOpenAIRequest(
   const root = toRecord(body);
   if (root.input === undefined) return body;
 
-  // Validate tool types — only function tools can be translated to Chat Completions
+  // Validate tool types — only function tools can be translated to Chat Completions.
+  // Built-in tool types (web_search, web_search_preview, code_interpreter, computer, mcp, etc.)
+  // have no direct Chat Completions equivalent and are rejected explicitly so that callers
+  // receive a deterministic 400 error rather than silent data loss.
   const tools = toArray(root.tools);
   if (tools.length > 0) {
     for (const toolValue of tools) {
@@ -60,8 +63,15 @@ export function openaiResponsesToOpenAIRequest(
     }
   }
 
+  // background: true — the Responses API background execution mode has no Chat Completions
+  // equivalent. We degrade to synchronous execution and log once so that operators are
+  // aware. This is intentional behavior, not a silent omission.
   if (root.background) {
-    console.warn("[responses] background:true not supported — degrading to synchronous execution");
+    console.warn(
+      "[responses] background:true is not supported in Chat Completions translation — " +
+        "degrading to synchronous (foreground) execution. " +
+        "To suppress this warning, remove background:true from the request."
+    );
   }
 
   const result: JsonRecord = { ...root };

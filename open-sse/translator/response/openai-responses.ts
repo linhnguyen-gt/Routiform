@@ -359,33 +359,64 @@ function sendCompleted(state, emit) {
   if (!state.completedSent) {
     state.completedSent = true;
 
-    // Build output from accumulated state
-    const output = [];
+    // Build output items ordered by their original output_index to reflect the native
+    // Responses API output item taxonomy as closely as possible.
+    // Collect all output items with their indices first, then sort them.
+    const outputItems: Array<{ index: number; item: Record<string, unknown> }> = [];
+
     if (state.reasoningId) {
-      output.push({
-        id: state.reasoningId,
-        type: "reasoning",
-        summary: [{ type: "summary_text", text: state.reasoningBuf }],
+      outputItems.push({
+        index: typeof state.reasoningIndex === "number" ? state.reasoningIndex : -1,
+        item: {
+          id: state.reasoningId,
+          type: "reasoning",
+          status: "completed",
+          summary: [{ type: "summary_text", text: state.reasoningBuf || "" }],
+        },
       });
     }
+
     for (const idx in state.msgItemAdded) {
-      output.push({
-        id: `msg_${state.responseId}_${idx}`,
-        type: "message",
-        role: "assistant",
-        content: [{ type: "output_text", annotations: [], text: state.msgTextBuf[idx] || "" }],
+      const numIdx = parseInt(idx, 10);
+      const msgId = `msg_${state.responseId}_${idx}`;
+      outputItems.push({
+        index: numIdx,
+        item: {
+          id: msgId,
+          type: "message",
+          role: "assistant",
+          status: "completed",
+          content: [
+            {
+              type: "output_text",
+              annotations: [],
+              logprobs: [],
+              text: state.msgTextBuf[idx] || "",
+            },
+          ],
+        },
       });
     }
+
     for (const idx in state.funcCallIds) {
+      const numIdx = parseInt(idx, 10);
       const callId = state.funcCallIds[idx];
-      output.push({
-        id: `fc_${callId}`,
-        type: "function_call",
-        call_id: callId,
-        name: state.funcNames[idx] || "",
-        arguments: state.funcArgsBuf[idx] || "{}",
+      outputItems.push({
+        index: numIdx,
+        item: {
+          id: `fc_${callId}`,
+          type: "function_call",
+          call_id: callId,
+          name: state.funcNames[idx] || "",
+          arguments: state.funcArgsBuf[idx] || "{}",
+          status: "completed",
+        },
       });
     }
+
+    // Sort by captured output_index so the completed payload order mirrors the stream.
+    outputItems.sort((a, b) => a.index - b.index);
+    const output = outputItems.map((o) => o.item);
 
     const response: Record<string, unknown> = {
       id: state.responseId,
@@ -399,6 +430,11 @@ function sendCompleted(state, emit) {
 
     if (state.usage) {
       response.usage = state.usage;
+    }
+
+    // Forward any model metadata captured on the state.
+    if (state.model) {
+      response.model = state.model;
     }
 
     emit("response.completed", {
@@ -679,7 +715,9 @@ export function openaiResponsesToOpenAIResponse(chunk, state) {
       const inputTokens = responseUsage.input_tokens || responseUsage.prompt_tokens || 0;
       const outputTokens = responseUsage.output_tokens || responseUsage.completion_tokens || 0;
       const cacheReadTokens =
-        responseUsage.cache_read_input_tokens ?? responseUsage.input_tokens_details?.cached_tokens ?? 0;
+        responseUsage.cache_read_input_tokens ??
+        responseUsage.input_tokens_details?.cached_tokens ??
+        0;
       const cacheCreationTokens =
         responseUsage.cache_creation_input_tokens ??
         responseUsage.input_tokens_details?.cache_creation_tokens ??
@@ -704,7 +742,7 @@ export function openaiResponsesToOpenAIResponse(chunk, state) {
         if (cacheCreationTokens > 0) {
           state.usage.prompt_tokens_details.cache_creation_tokens = cacheCreationTokens;
         }
-      };
+      }
 
       if (responseUsage.output_tokens_details?.reasoning_tokens !== undefined) {
         state.usage.completion_tokens_details = {
@@ -762,7 +800,42 @@ export function openaiResponsesToOpenAIResponse(chunk, state) {
     };
   }
 
-  // Ignore other events
+  // Output item lifecycle events that carry no Chat-level content:
+  // These are informational and can be ignored in Chat translation.
+  if (
+    eventType === "response.output_item.added" ||
+    eventType === "response.output_item.done" ||
+    eventType === "response.content_part.added" ||
+    eventType === "response.content_part.done" ||
+    eventType === "response.reasoning_summary_part.added" ||
+    eventType === "response.reasoning_summary_part.done" ||
+    eventType === "response.reasoning_summary_text.done" ||
+    eventType === "response.function_call_arguments.done" ||
+    eventType === "response.created" ||
+    eventType === "response.in_progress" ||
+    eventType === "response.failed" ||
+    eventType === "response.incomplete" ||
+    eventType === "response.queued"
+  ) {
+    // These are either already handled above (output_item.added/done for function_call)
+    // or carry no streaming content that needs to be forwarded to Chat clients.
+    // Return null to skip them silently rather than letting them fall through to the
+    // debug log below.
+    return null;
+  }
+
+  // Unknown / future Responses API event types: log once for debugging but remain non-fatal.
+  // This ensures forward-compatibility as OpenAI expands the event taxonomy.
+  if (eventType && !state.unknownEventsSeen) {
+    state.unknownEventsSeen = new Set();
+  }
+  if (eventType && state.unknownEventsSeen && !state.unknownEventsSeen.has(eventType)) {
+    state.unknownEventsSeen.add(eventType);
+    if (process.env.DEBUG_RESPONSES_EVENTS === "true") {
+      console.log(`[responses-translator] unknown event type: ${eventType}`);
+    }
+  }
+
   return null;
 }
 
