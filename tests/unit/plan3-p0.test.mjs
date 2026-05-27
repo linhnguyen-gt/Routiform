@@ -732,6 +732,62 @@ test("translateNonStreamingResponse converts Responses API payload to OpenAI cha
   assert.equal(translated.usage.total_tokens, 18);
 });
 
+test("translateNonStreamingResponse preserves Claude-native content arrays on OpenAI->Claude conversion", () => {
+  const responseBody = {
+    id: "chatcmpl_native_1",
+    object: "chat.completion",
+    model: "claude-sonnet-4-6",
+    choices: [
+      {
+        index: 0,
+        finish_reason: "tool_calls",
+        message: {
+          role: "assistant",
+          reasoning_content: "step 1",
+          content: [
+            { type: "redacted_thinking", data: "encrypted" },
+            {
+              type: "server_tool_use",
+              id: "srv_1",
+              name: "web_search",
+              input: { q: "hello" },
+            },
+            {
+              type: "web_search_tool_result",
+              tool_use_id: "srv_1",
+              content: [{ type: "text", text: "result" }],
+            },
+          ],
+        },
+      },
+    ],
+    usage: {
+      prompt_tokens: 10,
+      completion_tokens: 4,
+    },
+  };
+
+  const translated = translateNonStreamingResponse(responseBody, FORMATS.OPENAI, FORMATS.CLAUDE);
+
+  assert.equal(translated.type, "message");
+  assert.equal(translated.stop_reason, "tool_use");
+  assert.deepEqual(translated.content, [
+    { type: "thinking", thinking: "step 1" },
+    { type: "redacted_thinking", data: "encrypted" },
+    {
+      type: "server_tool_use",
+      id: "srv_1",
+      name: "web_search",
+      input: { q: "hello" },
+    },
+    {
+      type: "web_search_tool_result",
+      tool_use_id: "srv_1",
+      content: [{ type: "text", text: "result" }],
+    },
+  ]);
+});
+
 test("extractUsageFromResponse reads usage from Responses API payload", () => {
   const responseBody = {
     object: "response",
@@ -1195,6 +1251,106 @@ test("parseSSEToClaudeResponse generates deterministic fallback tool_use ids", (
       input: { q: "abc" },
     })
   );
+});
+
+test("parseSSEToClaudeResponse preserves modern Claude native content blocks", () => {
+  const rawSSE = [
+    "event: message_start",
+    `data: ${JSON.stringify({
+      type: "message_start",
+      message: { id: "msg_native", model: "claude-sonnet-4-6", role: "assistant", usage: {} },
+    })}`,
+    "",
+    "event: content_block_start",
+    `data: ${JSON.stringify({
+      type: "content_block_start",
+      index: 0,
+      content_block: { type: "thinking", thinking: "" },
+    })}`,
+    "",
+    "event: content_block_delta",
+    `data: ${JSON.stringify({
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "thinking_delta", thinking: "draft" },
+    })}`,
+    "",
+    "event: content_block_delta",
+    `data: ${JSON.stringify({
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "signature_delta", signature: "sig_native" },
+    })}`,
+    "",
+    "event: content_block_start",
+    `data: ${JSON.stringify({
+      type: "content_block_start",
+      index: 1,
+      content_block: { type: "redacted_thinking", data: "encrypted" },
+    })}`,
+    "",
+    "event: content_block_start",
+    `data: ${JSON.stringify({
+      type: "content_block_start",
+      index: 2,
+      content_block: {
+        type: "server_tool_use",
+        id: "srv_1",
+        name: "web_search",
+        input: { q: "x" },
+      },
+    })}`,
+    "",
+    "event: content_block_start",
+    `data: ${JSON.stringify({
+      type: "content_block_start",
+      index: 3,
+      content_block: {
+        type: "web_search_tool_result",
+        tool_use_id: "srv_1",
+        content: [],
+        citations: [{ type: "char_location", start_char_index: 0, end_char_index: 4 }],
+      },
+    })}`,
+    "",
+    "event: content_block_delta",
+    `data: ${JSON.stringify({
+      type: "content_block_delta",
+      index: 3,
+      delta: { type: "text_delta", text: "done" },
+    })}`,
+    "",
+    "event: message_delta",
+    `data: ${JSON.stringify({
+      type: "message_delta",
+      delta: { stop_reason: "tool_use" },
+      usage: { output_tokens: 3 },
+    })}`,
+    "",
+    "event: message_stop",
+    `data: ${JSON.stringify({ type: "message_stop" })}`,
+    "",
+  ].join("\n");
+
+  const parsed = parseSSEToClaudeResponse(rawSSE, "fallback-model");
+
+  assert.equal(parsed.content[0].type, "thinking");
+  assert.equal(parsed.content[0].thinking, "draft");
+  assert.equal(parsed.content[0].signature, "sig_native");
+  assert.deepEqual(parsed.content[1], { type: "redacted_thinking", data: "encrypted" });
+  assert.deepEqual(parsed.content[2], {
+    type: "server_tool_use",
+    id: "srv_1",
+    name: "web_search",
+    input: { q: "x" },
+  });
+  assert.deepEqual(parsed.content[3], {
+    type: "web_search_tool_result",
+    tool_use_id: "srv_1",
+    content: [],
+    text: "done",
+    citations: [{ type: "char_location", start_char_index: 0, end_char_index: 4 }],
+  });
 });
 
 test("KiroExecutor generates distinct fallback ids for repeated identical tool calls without upstream ids", async () => {

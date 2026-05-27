@@ -11,6 +11,11 @@ type OpenAIUsage = {
   };
 };
 
+function cloneJson(value) {
+  if (value === undefined) return undefined;
+  return JSON.parse(JSON.stringify(value));
+}
+
 // Create OpenAI chunk helper
 function createChunk(state, delta, finishReason = null) {
   return {
@@ -90,11 +95,20 @@ export function claudeToOpenAIResponse(chunk, state) {
     case "content_block_delta": {
       const delta = chunk.delta;
       if (delta?.type === "text_delta" && delta.text) {
-        results.push(createChunk(state, { content: delta.text }));
+        const textDelta = { content: delta.text };
+        if (Array.isArray(delta.citations) && delta.citations.length > 0) {
+          textDelta.citations = cloneJson(delta.citations);
+        }
+        results.push(createChunk(state, textDelta));
       } else if (delta?.type === "thinking_delta" && delta.thinking) {
         // Map Claude thinking_delta → OpenAI reasoning_content
         // Clients (Claude Code, Cursor, etc.) display reasoning_content as the thinking panel
         results.push(createChunk(state, { reasoning_content: delta.thinking }));
+      } else if (delta?.type === "signature_delta" && delta.signature) {
+        // Preserve Claude native thinking signature for Claude-aware consumers.
+        results.push(createChunk(state, { reasoning_signature: delta.signature }));
+      } else if (delta?.type === "citations_delta" && Array.isArray(delta.citations)) {
+        results.push(createChunk(state, { citations: cloneJson(delta.citations) }));
       } else if (delta?.type === "input_json_delta" && delta.partial_json) {
         const toolCall = state.toolCalls.get(chunk.index);
         if (toolCall) {

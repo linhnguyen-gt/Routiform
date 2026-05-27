@@ -21,6 +21,18 @@ function toNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function tryParseJsonString(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) return value;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
 function resolveToolName(rawName: string, toolNameMap?: Map<string, string> | null): string {
   const mapped = toolNameMap?.get(rawName);
   if (typeof mapped === "string" && mapped.trim().length > 0) {
@@ -30,6 +42,83 @@ function resolveToolName(rawName: string, toolNameMap?: Map<string, string> | nu
     return rawName.slice("proxy_".length);
   }
   return rawName;
+}
+
+function toClaudeContentBlocksFromOpenAIMessage(messageObj: JsonRecord): JsonRecord[] {
+  const content: JsonRecord[] = [];
+  const rawContent = messageObj.content;
+
+  if (messageObj.reasoning_content) {
+    content.push({
+      type: "thinking",
+      thinking: toString(messageObj.reasoning_content),
+    });
+  }
+
+  if (Array.isArray(rawContent)) {
+    for (const part of rawContent) {
+      const partObj = toRecord(part);
+      const partType = toString(partObj.type);
+      if (!partType) continue;
+      if (
+        partType === "text" ||
+        partType === "thinking" ||
+        partType === "redacted_thinking" ||
+        partType === "tool_use" ||
+        partType === "server_tool_use" ||
+        partType === "web_search_tool_result" ||
+        partType === "web_fetch_tool_result"
+      ) {
+        content.push(JSON.parse(JSON.stringify(partObj)));
+        continue;
+      }
+      const textValue = toString(partObj.text || partObj.content);
+      if (textValue) {
+        content.push({
+          type: "text",
+          text: textValue,
+          ...(Array.isArray(partObj.citations) ? { citations: partObj.citations } : {}),
+        });
+      }
+    }
+  } else if (rawContent !== undefined && rawContent !== null) {
+    content.push({
+      type: "text",
+      text: toString(rawContent),
+    });
+  }
+
+  if (Array.isArray(messageObj.tool_calls)) {
+    for (const tool of messageObj.tool_calls) {
+      const toolObj = toRecord(tool);
+      const fn = toRecord(toolObj.function);
+      content.push({
+        type: "tool_use",
+        id:
+          toString(toolObj.id) ||
+          generateToolCallId({
+            source: "openai-to-claude-response",
+            index: content.length,
+            name: fn.name,
+            arguments: fn.arguments || {},
+          }),
+        name: toString(fn.name),
+        input:
+          typeof fn.arguments === "string"
+            ? tryParseJsonString(fn.arguments || "{}")
+            : fn.arguments || {},
+      });
+    }
+  }
+
+  if (content.length === 0) {
+    content.push({
+      type: "text",
+      text: "",
+    });
+  }
+
+  return content;
 }
 
 function extractMessageOutputText(item: JsonRecord): string {
@@ -385,6 +474,7 @@ export function translateNonStreamingResponse(
       let textContent = "";
       let thinkingContent = "";
       const toolCalls: JsonRecord[] = [];
+      const richClaudeBlocks: JsonRecord[] = [];
 
       for (const block of contentBlocks) {
         const blockObj = toRecord(block);
@@ -392,7 +482,7 @@ export function translateNonStreamingResponse(
           textContent += toString(blockObj.text);
         } else if (blockObj.type === "thinking") {
           thinkingContent += toString(blockObj.thinking);
-        } else if (blockObj.type === "tool_use") {
+        } else if (blockObj.type === "tool_use" || blockObj.type === "server_tool_use") {
           const rawName = toString(blockObj.name);
           const strippedName = resolveToolName(rawName, toolNameMap);
           toolCalls.push({
@@ -410,6 +500,8 @@ export function translateNonStreamingResponse(
               arguments: JSON.stringify(blockObj.input || {}),
             },
           });
+        } else {
+          richClaudeBlocks.push(JSON.parse(JSON.stringify(blockObj)));
         }
       }
 
@@ -425,6 +517,9 @@ export function translateNonStreamingResponse(
       }
       if (message.content === undefined) {
         message.content = "";
+      }
+      if (richClaudeBlocks.length > 0) {
+        message.content_blocks = richClaudeBlocks;
       }
 
       let finishReason = toString(root.stop_reason, "stop");
@@ -482,56 +577,7 @@ function convertOpenAINonStreamingToClaude(openaiResponse: JsonRecord): JsonReco
   const choice = isChoicesArray ? choices[0] : null;
   const choiceObj = choice ? toRecord(choice) : {};
   const messageObj = choiceObj.message ? toRecord(choiceObj.message) : {};
-
-  const content: JsonRecord[] = [];
-
-  let hasTextOrReasoning = false;
-
-  if (messageObj.reasoning_content) {
-    hasTextOrReasoning = true;
-    content.push({
-      type: "thinking",
-      thinking: toString(messageObj.reasoning_content),
-    });
-  }
-
-  // Always include text if it exists (even empty string), or if there are no tool calls and no reasoning
-  const _hasToolCalls = Array.isArray(messageObj.tool_calls) && messageObj.tool_calls.length > 0;
-
-  if (messageObj.content !== undefined && messageObj.content !== null) {
-    hasTextOrReasoning = true;
-    const resolvedText = toString(messageObj.content);
-    content.push({
-      type: "text",
-      text: resolvedText === "" ? "(empty response)" : resolvedText,
-    });
-  } else if (!hasTextOrReasoning) {
-    content.push({
-      type: "text",
-      text: "(empty response)",
-    });
-  }
-
-  if (Array.isArray(messageObj.tool_calls)) {
-    for (const tool of messageObj.tool_calls) {
-      const toolObj = toRecord(tool);
-      const fn = toRecord(toolObj.function);
-      content.push({
-        type: "tool_use",
-        id:
-          toString(toolObj.id) ||
-          generateToolCallId({
-            source: "openai-to-claude-response",
-            index: content.length,
-            name: fn.name,
-            arguments: fn.arguments || {},
-          }),
-        name: toString(fn.name),
-        input:
-          typeof fn.arguments === "string" ? JSON.parse(fn.arguments || "{}") : fn.arguments || {},
-      });
-    }
-  }
+  const content = toClaudeContentBlocksFromOpenAIMessage(messageObj);
 
   let stopReason = toString(choiceObj.finish_reason, "end_turn");
   if (stopReason === "stop") stopReason = "end_turn";

@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { openaiResponsesToOpenAIResponse } = await import(
-  "../../open-sse/translator/response/openai-responses.ts"
-);
+const { openaiResponsesToOpenAIResponse } =
+  await import("../../open-sse/translator/response/openai-responses.ts");
+const { claudeToOpenAIResponse } =
+  await import("../../open-sse/translator/response/claude-to-openai.ts");
 const { FORMATS } = await import("../../open-sse/translator/formats.ts");
+const { initState } = await import("../../open-sse/translator/index.ts");
 const { createSSETransformStreamWithLogger } = await import("../../open-sse/utils/stream.ts");
 
 test("Responses->Chat: output_item.done emits arguments when no delta chunks were sent", () => {
@@ -148,6 +150,54 @@ test("Responses->Chat: empty-name tool call is dropped when done still has no va
 
   assert.equal(done, null);
   assert.equal(state.toolCallIndex, 0);
+});
+
+test("Claude->Chat streaming preserves reasoning signatures and citation deltas", () => {
+  const state = initState(FORMATS.OPENAI);
+
+  const startEvents = claudeToOpenAIResponse(
+    {
+      type: "message_start",
+      message: { id: "msg_test", model: "claude-sonnet-4-6" },
+    },
+    state
+  );
+  assert.ok(startEvents);
+
+  const thinkingStart = claudeToOpenAIResponse(
+    {
+      type: "content_block_start",
+      index: 0,
+      content_block: { type: "thinking", thinking: "" },
+    },
+    state
+  );
+  assert.equal(thinkingStart[0].choices[0].delta.reasoning_content, "");
+
+  const signatureChunk = claudeToOpenAIResponse(
+    {
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "signature_delta", signature: "sig_abc" },
+    },
+    state
+  );
+  assert.equal(signatureChunk[0].choices[0].delta.reasoning_signature, "sig_abc");
+
+  const citationChunk = claudeToOpenAIResponse(
+    {
+      type: "content_block_delta",
+      index: 1,
+      delta: {
+        type: "citations_delta",
+        citations: [{ type: "char_location", start_char_index: 0, end_char_index: 5 }],
+      },
+    },
+    state
+  );
+  assert.deepEqual(citationChunk[0].choices[0].delta.citations, [
+    { type: "char_location", start_char_index: 0, end_char_index: 5 },
+  ]);
 });
 
 test("Claude->Responses: {event,data} items bypass sanitization in translate mode", async () => {

@@ -101,6 +101,17 @@ function toNumber(value, fallback = 0) {
   return fallback;
 }
 
+function cloneJson(value) {
+  if (value === undefined) return undefined;
+  return JSON.parse(JSON.stringify(value));
+}
+
+function normalizeClaudeCitations(value) {
+  if (Array.isArray(value)) return cloneJson(value);
+  if (value && typeof value === "object") return [cloneJson(value)];
+  return undefined;
+}
+
 function appendTextPart(parts, chunk) {
   if (typeof chunk !== "string" || chunk.length === 0) return;
   const lastIndex = parts.length - 1;
@@ -394,6 +405,19 @@ export function parseSSEToClaudeResponse(rawSSE, fallbackModel) {
     }
   };
 
+  const appendText = (target, text) => {
+    if (typeof text !== "string" || text.length === 0) return;
+    target.text = `${typeof target.text === "string" ? target.text : ""}${text}`;
+  };
+
+  const appendCitations = (target, citations) => {
+    const normalized = normalizeClaudeCitations(citations);
+    if (!normalized || normalized.length === 0) return;
+    target.citations = Array.isArray(target.citations)
+      ? [...target.citations, ...normalized]
+      : normalized;
+  };
+
   for (const payload of payloads) {
     const eventType = toString(payload.type);
     if (eventType === "message_start") {
@@ -418,9 +442,15 @@ export function parseSSEToClaudeResponse(rawSSE, fallbackModel) {
           signature:
             typeof contentBlock.signature === "string" ? contentBlock.signature : undefined,
         });
-      } else if (blockType === "tool_use") {
+      } else if (blockType === "redacted_thinking") {
         blocks.set(index, {
-          type: "tool_use",
+          type: "redacted_thinking",
+          index,
+          data: cloneJson(contentBlock.data),
+        });
+      } else if (blockType === "tool_use" || blockType === "server_tool_use") {
+        blocks.set(index, {
+          type: blockType,
           index,
           id:
             toString(contentBlock.id) ||
@@ -434,11 +464,27 @@ export function parseSSEToClaudeResponse(rawSSE, fallbackModel) {
           input: contentBlock.input ?? {},
           inputJson: "",
         });
-      } else {
+      } else if (blockType === "web_search_tool_result" || blockType === "web_fetch_tool_result") {
+        blocks.set(index, {
+          type: blockType,
+          index,
+          tool_use_id: toString(contentBlock.tool_use_id),
+          content: cloneJson(contentBlock.content ?? []),
+          text: toString(contentBlock.text),
+          citations: normalizeClaudeCitations(contentBlock.citations),
+        });
+      } else if (blockType === "text") {
         blocks.set(index, {
           type: "text",
           index,
           text: toString(contentBlock.text),
+          citations: normalizeClaudeCitations(contentBlock.citations),
+        });
+      } else {
+        blocks.set(index, {
+          type: blockType || "text",
+          index,
+          block: cloneJson(contentBlock),
         });
       }
       continue;
@@ -452,7 +498,7 @@ export function parseSSEToClaudeResponse(rawSSE, fallbackModel) {
 
       if (deltaType === "input_json_delta") {
         const toolUse =
-          existing && existing.type === "tool_use"
+          existing && (existing.type === "tool_use" || existing.type === "server_tool_use")
             ? existing
             : {
                 type: "tool_use",
@@ -467,6 +513,16 @@ export function parseSSEToClaudeResponse(rawSSE, fallbackModel) {
         continue;
       }
 
+      if (deltaType === "signature_delta" && typeof delta.signature === "string") {
+        const thinking =
+          existing && existing.type === "thinking"
+            ? existing
+            : { type: "thinking", index, thinking: "", signature: undefined };
+        thinking.signature = delta.signature;
+        blocks.set(index, thinking);
+        continue;
+      }
+
       if (deltaType === "thinking_delta" || typeof delta.thinking === "string") {
         const thinking =
           existing && existing.type === "thinking"
@@ -474,6 +530,41 @@ export function parseSSEToClaudeResponse(rawSSE, fallbackModel) {
             : { type: "thinking", index, thinking: "", signature: undefined };
         thinking.thinking += toString(delta.thinking);
         blocks.set(index, thinking);
+        continue;
+      }
+
+      if (deltaType === "citations_delta") {
+        const citationTarget =
+          existing && typeof existing === "object"
+            ? existing
+            : {
+                type: "text",
+                index,
+                text: "",
+              };
+        appendCitations(citationTarget, delta.citations ?? delta.citation);
+        blocks.set(index, citationTarget);
+        continue;
+      }
+
+      if (
+        existing &&
+        (existing.type === "web_search_tool_result" || existing.type === "web_fetch_tool_result")
+      ) {
+        appendText(existing, toString(delta.text));
+        appendCitations(existing, delta.citations ?? delta.citation);
+        blocks.set(index, existing);
+        continue;
+      }
+
+      if (existing && existing.block && typeof existing.block === "object") {
+        const updated = {
+          ...existing,
+          block: { ...existing.block },
+        };
+        appendText(updated.block, toString(delta.text));
+        appendCitations(updated.block, delta.citations ?? delta.citation);
+        blocks.set(index, updated);
         continue;
       }
 
@@ -485,7 +576,8 @@ export function parseSSEToClaudeResponse(rawSSE, fallbackModel) {
               index,
               text: "",
             };
-      textBlock.text += toString(delta.text);
+      appendText(textBlock, toString(delta.text));
+      appendCitations(textBlock, delta.citations ?? delta.citation);
       blocks.set(index, textBlock);
       continue;
     }
@@ -503,16 +595,32 @@ export function parseSSEToClaudeResponse(rawSSE, fallbackModel) {
   }
 
   type ParsedContentBlock =
-    | { type: "text"; text: string }
+    | { type: "text"; text: string; citations?: unknown[] }
     | { type: "thinking"; thinking: string; signature?: string }
-    | { type: "tool_use"; id: string; name: string; input: unknown };
+    | { type: "redacted_thinking"; data?: unknown }
+    | { type: "tool_use"; id: string; name: string; input: unknown }
+    | { type: "server_tool_use"; id: string; name: string; input: unknown }
+    | {
+        type: "web_search_tool_result" | "web_fetch_tool_result";
+        tool_use_id?: string;
+        content?: unknown;
+        text?: string;
+        citations?: unknown[];
+      }
+    | Record<string, unknown>;
 
   const content: ParsedContentBlock[] = [...blocks.values()]
     .sort((a, b) => a.index - b.index)
     .reduce<ParsedContentBlock[]>((items, block) => {
       if (block.type === "text") {
         if (block.text) {
-          items.push({ type: "text", text: block.text });
+          items.push({
+            type: "text",
+            text: block.text,
+            ...(Array.isArray(block.citations) && block.citations.length > 0
+              ? { citations: block.citations }
+              : {}),
+          });
         }
         return items;
       }
@@ -526,15 +634,41 @@ export function parseSSEToClaudeResponse(rawSSE, fallbackModel) {
         }
         return items;
       }
+      if (block.type === "redacted_thinking") {
+        items.push({
+          type: "redacted_thinking",
+          ...(block.data !== undefined ? { data: cloneJson(block.data) } : {}),
+        });
+        return items;
+      }
+      if (block.type === "tool_use" || block.type === "server_tool_use") {
+        const parsedInput =
+          block.inputJson.trim().length > 0 ? tryParseJson(block.inputJson) : block.input;
+        items.push({
+          type: block.type,
+          id: block.id,
+          name: block.name,
+          input: parsedInput,
+        });
+        return items;
+      }
+      if (block.type === "web_search_tool_result" || block.type === "web_fetch_tool_result") {
+        items.push({
+          type: block.type,
+          ...(block.tool_use_id ? { tool_use_id: block.tool_use_id } : {}),
+          ...(block.content !== undefined ? { content: cloneJson(block.content) } : {}),
+          ...(block.text ? { text: block.text } : {}),
+          ...(Array.isArray(block.citations) && block.citations.length > 0
+            ? { citations: block.citations }
+            : {}),
+        });
+        return items;
+      }
+      if (block.block && typeof block.block === "object") {
+        items.push(cloneJson(block.block));
+        return items;
+      }
 
-      const parsedInput =
-        block.inputJson.trim().length > 0 ? tryParseJson(block.inputJson) : block.input;
-      items.push({
-        type: "tool_use",
-        id: block.id,
-        name: block.name,
-        input: parsedInput,
-      });
       return items;
     }, []);
 
