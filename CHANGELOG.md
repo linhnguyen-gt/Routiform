@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.30.4](https://github.com/linhnguyen-gt/Routiform/compare/v3.30.3...v3.30.4) (2026-05-28)
+
+
+### Bug Fixes
+
+* **ci:** harden playwright install in e2e workflow ([cb3a5ae](https://github.com/linhnguyen-gt/Routiform/commit/cb3a5ae7d7880f0994b1061e264c8874b2948e1f))
+* **claude:** improve oauth callback and header handling ([c31d290](https://github.com/linhnguyen-gt/Routiform/commit/c31d290087fc57c666cbe00e89c8ec553b380a76))
+* **claude:** prefer fetched model catalog in provider detail ([09901d5](https://github.com/linhnguyen-gt/Routiform/commit/09901d5d1ff866d7617220f147722872aabef866))
+* **claude:** preserve native response fidelity ([bbc3783](https://github.com/linhnguyen-gt/Routiform/commit/bbc3783c1fa201c83128489f52f8f4bba16b70d4))
+* **claude:** refresh model handling and CLI defaults ([8032624](https://github.com/linhnguyen-gt/Routiform/commit/8032624b07106ff0b4a2ce1bf6aab2565332dd66))
+* **openai:** improve Responses API native response parity ([2d49983](https://github.com/linhnguyen-gt/Routiform/commit/2d499836d5353af46e8b8bb8b1266c06052e11ae))
+* **types:** filter undefined id from ClaudeModelRow before casting to RegistryModel ([91e170e](https://github.com/linhnguyen-gt/Routiform/commit/91e170e32381cd466f7ed365a9ebf384a3c4e6f1))
+
 ### [3.30.3](https://github.com/linhnguyen-gt/Routiform/compare/v3.30.2...v3.30.3) (2026-05-25)
 
 
