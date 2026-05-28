@@ -4,7 +4,7 @@
 
 import { getDbInstance } from "./core";
 import { backupDbFile } from "./backup";
-import { PROVIDER_ID_TO_ALIAS } from "@routiform/open-sse/config/providerModels.ts";
+import { getProviderAlias, resolveProviderId } from "@/shared/constants/providers";
 import { invalidateDbCache } from "./readCache";
 import { resolveProxyForConnectionFromRegistry } from "./proxies";
 
@@ -175,8 +175,7 @@ export async function getPricingForModel(provider: string, model: string) {
   const pricing = await getPricing();
   if (pricing[provider]?.[model]) return pricing[provider][model];
 
-  const { PROVIDER_ID_TO_ALIAS } = await import("@routiform/open-sse/config/providerModels");
-  const alias = PROVIDER_ID_TO_ALIAS[provider];
+  const alias = getProviderAlias(provider);
   if (alias && pricing[alias]) return pricing[alias][model] || null;
 
   const np = provider?.replace(/-cn$/, "");
@@ -299,18 +298,10 @@ export function clearAllLKGP(): void {
 // ──────────────── Proxy Config ────────────────
 
 const DEFAULT_PROXY_CONFIG: ProxyConfig = { global: null, providers: {}, combos: {}, keys: {} };
-const ALIAS_TO_PROVIDER_ID = Object.entries(PROVIDER_ID_TO_ALIAS).reduce(
-  (acc, [providerId, alias]) => {
-    if (alias) acc[alias] = providerId;
-    acc[providerId] = providerId;
-    return acc;
-  },
-  {} as Record<string, string>
-);
 
 function resolveProviderAliasOrId(providerOrAlias: string): string {
   if (typeof providerOrAlias !== "string") return providerOrAlias;
-  return ALIAS_TO_PROVIDER_ID[providerOrAlias] || providerOrAlias;
+  return resolveProviderId(providerOrAlias);
 }
 
 function getComboModelProvider(modelEntry: unknown): string | null {
