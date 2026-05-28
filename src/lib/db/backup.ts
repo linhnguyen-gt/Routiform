@@ -38,6 +38,39 @@ function isSqliteAutoBackupDisabled() {
   return TRUE_ENV_VALUES.has(value.trim().toLowerCase());
 }
 
+function isAutomaticBackupReason(reason: string) {
+  return !["manual", "pre-restore", "pre-import", "pre-import-all"].includes(reason);
+}
+
+function isAutoBackupEnabledInSettings() {
+  try {
+    const db = getDbInstance();
+    const row = db
+      .prepare("SELECT value FROM key_value WHERE namespace = 'settings' AND key = ?")
+      .get("autoBackupEnabled") as { value?: string } | undefined;
+
+    if (!row || typeof row.value !== "string") {
+      return false;
+    }
+
+    return JSON.parse(row.value) === true;
+  } catch {
+    return false;
+  }
+}
+
+function shouldSkipAutomaticBackup(reason: string) {
+  if (!isAutomaticBackupReason(reason)) {
+    return false;
+  }
+
+  if (isSqliteAutoBackupDisabled()) {
+    return true;
+  }
+
+  return !isAutoBackupEnabledInSettings();
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -103,7 +136,7 @@ export function backupDbFile(reason = "auto") {
   try {
     if (isBuildPhase || isCloud) return null;
     if (!SQLITE_FILE || !fs.existsSync(SQLITE_FILE)) return null;
-    if (reason !== "manual" && isSqliteAutoBackupDisabled()) return null;
+    if (shouldSkipAutomaticBackup(reason)) return null;
 
     const stat = fs.statSync(SQLITE_FILE);
     if (stat.size < 4096) {
@@ -166,7 +199,7 @@ export function backupDbFile(reason = "auto") {
 export async function backupDbFileBlocking(reason = "manual") {
   if (isBuildPhase || isCloud) return null;
   if (!SQLITE_FILE || !fs.existsSync(SQLITE_FILE)) return null;
-  if (reason !== "manual" && isSqliteAutoBackupDisabled()) return null;
+  if (shouldSkipAutomaticBackup(reason)) return null;
 
   const stat = fs.statSync(SQLITE_FILE);
   if (stat.size < 4096) {

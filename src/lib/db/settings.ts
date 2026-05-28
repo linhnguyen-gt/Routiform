@@ -45,6 +45,7 @@ export async function getSettings() {
     cloudEnabled: false,
     stickyRoundRobinLimit: 3,
     requireLogin: true,
+    autoBackupEnabled: false,
     hiddenSidebarItems: [],
     alwaysPreserveClientCache: "auto",
     idempotencyWindowMs: 5000,

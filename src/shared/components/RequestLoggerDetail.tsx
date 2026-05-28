@@ -15,8 +15,108 @@ import {
 
 // ─── Payload Code Block ─────────────────────────────────────────────────────
 
-function PayloadSection({ title, json, onCopy }) {
+function toRecord(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+
+function truncateText(value, max = 180) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  if (!normalized) return null;
+  return normalized.length > max ? `${normalized.slice(0, max)}...` : normalized;
+}
+
+function formatSummaryValue(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") return value.toLocaleString();
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return `${value.length} items`;
+  if (typeof value === "object") return "Object";
+  return String(value);
+}
+
+function buildPayloadSummary(payload) {
+  if (!payload) return { stats: [], notes: [] };
+
+  if (Array.isArray(payload)) {
+    return {
+      stats: [{ label: "Items", value: `${payload.length}` }],
+      notes: [],
+    };
+  }
+
+  const record = toRecord(payload);
+  if (!record) {
+    return {
+      stats: [{ label: "Value", value: formatSummaryValue(payload) }],
+      notes: [],
+    };
+  }
+
+  const stats = [];
+  const notes = [];
+  const data = Array.isArray(record.data) ? record.data : null;
+  const usage = toRecord(record.usage);
+  const error = toRecord(record.error);
+  const firstDataItem = data && data.length > 0 ? toRecord(data[0]) : null;
+
+  if (record.model) stats.push({ label: "Model", value: formatSummaryValue(record.model) });
+  if (record.size) stats.push({ label: "Size", value: formatSummaryValue(record.size) });
+  if (record.quality) stats.push({ label: "Quality", value: formatSummaryValue(record.quality) });
+  if (record.style) stats.push({ label: "Style", value: formatSummaryValue(record.style) });
+  if (record.n) stats.push({ label: "Count", value: formatSummaryValue(record.n) });
+  if (record.created) stats.push({ label: "Created", value: formatSummaryValue(record.created) });
+  if (record.response_format) {
+    stats.push({ label: "Format", value: formatSummaryValue(record.response_format) });
+  }
+
+  if (data) {
+    stats.push({ label: "Results", value: `${data.length}` });
+    if (firstDataItem?.url) {
+      stats.push({ label: "Output", value: "Image URLs" });
+    } else if (firstDataItem?.b64_json) {
+      stats.push({ label: "Output", value: "Base64 images" });
+    }
+  }
+
+  if (usage) {
+    if (usage.input_tokens !== undefined) {
+      stats.push({ label: "Input", value: formatSummaryValue(usage.input_tokens) });
+    }
+    if (usage.output_tokens !== undefined) {
+      stats.push({ label: "Output", value: formatSummaryValue(usage.output_tokens) });
+    }
+    if (usage.total_tokens !== undefined) {
+      stats.push({ label: "Total", value: formatSummaryValue(usage.total_tokens) });
+    }
+  }
+
+  const promptPreview = truncateText(record.prompt, 220);
+  if (promptPreview) notes.push({ label: "Prompt", value: promptPreview });
+
+  const revisedPrompt =
+    truncateText(record.revised_prompt, 220) || truncateText(firstDataItem?.revised_prompt, 220);
+  if (revisedPrompt) notes.push({ label: "Revised Prompt", value: revisedPrompt });
+
+  const firstUrl = truncateText(firstDataItem?.url, 220);
+  if (firstUrl) notes.push({ label: "First URL", value: firstUrl });
+
+  const errorMessage =
+    truncateText(error?.message, 220) ||
+    truncateText(record.message, 220) ||
+    truncateText(record.error, 220);
+  if (errorMessage) notes.push({ label: "Error", value: errorMessage });
+
+  return {
+    stats: stats.slice(0, 8),
+    notes: notes.slice(0, 4),
+  };
+}
+
+function PayloadSection({ title, payload, json, onCopy }) {
   const [copied, setCopied] = useState(false);
+  const summary = buildPayloadSummary(payload);
 
   const handleCopy = async () => {
     const success = await onCopy();
@@ -27,7 +127,7 @@ function PayloadSection({ title, json, onCopy }) {
   };
 
   return (
-    <div>
+    <div className="rounded-xl border border-border bg-bg-subtle/60 p-4">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-[11px] text-text-muted uppercase tracking-wider font-bold">{title}</h3>
         <button
@@ -41,9 +141,47 @@ function PayloadSection({ title, json, onCopy }) {
           {copied ? "Copied!" : "Copy"}
         </button>
       </div>
-      <pre className="p-4 rounded-xl bg-black/5 dark:bg-black/30 border border-border overflow-x-auto text-xs font-mono text-text-main max-h-[600px] overflow-y-auto leading-relaxed whitespace-pre-wrap break-words">
-        {json}
-      </pre>
+
+      {summary.stats.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+          {summary.stats.map((item) => (
+            <div
+              key={`${title}-${item.label}`}
+              className="rounded-lg border border-border bg-bg px-3 py-2"
+            >
+              <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1">
+                {item.label}
+              </div>
+              <div className="text-sm font-medium text-text-main break-words">{item.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {summary.notes.length > 0 && (
+        <div className="space-y-2 mb-3">
+          {summary.notes.map((item) => (
+            <div
+              key={`${title}-${item.label}-note`}
+              className="rounded-lg bg-black/5 dark:bg-black/20 px-3 py-2"
+            >
+              <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1">
+                {item.label}
+              </div>
+              <div className="text-sm text-text-main break-words">{item.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <details className="rounded-lg border border-border bg-black/5 dark:bg-black/20">
+        <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-text-muted hover:text-text-main transition-colors">
+          View raw JSON
+        </summary>
+        <pre className="border-t border-border p-4 overflow-x-auto text-xs font-mono text-text-main max-h-[420px] overflow-y-auto leading-relaxed whitespace-pre-wrap break-words">
+          {json}
+        </pre>
+      </details>
     </div>
   );
 }
@@ -110,6 +248,7 @@ export default function RequestLoggerDetail({ log, detail, loading, onClose, onC
         .map(([key, title]) => ({
           key,
           title,
+          payload: pipelinePayloads[key],
           json: toPrettyJson(pipelinePayloads[key]),
         }))
         .filter((section) => section.json)
@@ -369,6 +508,7 @@ export default function RequestLoggerDetail({ log, detail, loading, onClose, onC
                   <PayloadSection
                     key={section.key}
                     title={section.title}
+                    payload={section.payload}
                     json={section.json}
                     onCopy={() => onCopy(section.json)}
                   />
@@ -377,6 +517,7 @@ export default function RequestLoggerDetail({ log, detail, loading, onClose, onC
               {payloadSections.length === 0 && responseJson && (
                 <PayloadSection
                   title="Response Payload (Legacy)"
+                  payload={detail?.responseBody}
                   json={responseJson}
                   onCopy={() => onCopy(responseJson)}
                 />
@@ -385,6 +526,7 @@ export default function RequestLoggerDetail({ log, detail, loading, onClose, onC
               {payloadSections.length === 0 && requestJson && (
                 <PayloadSection
                   title="Request Payload (Legacy)"
+                  payload={detail?.requestBody}
                   json={requestJson}
                   onCopy={() => onCopy(requestJson)}
                 />

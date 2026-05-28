@@ -9,6 +9,7 @@ import {
   getDbBackupMaxFiles,
   getProxyLogMaxEntries,
 } from "@/lib/logEnv";
+import { getSettings } from "@/lib/db/settings";
 
 /**
  * GET /api/storage/health — Return database storage information.
@@ -16,6 +17,7 @@ import {
  */
 export async function GET() {
   try {
+    const settings = (await getSettings()) as Record<string, unknown>;
     const dataDir = resolveDataDir({});
     const dbFilePath = path.join(dataDir, "storage.sqlite");
     const backupsDir = path.join(dataDir, "db_backups");
@@ -63,6 +65,7 @@ export async function GET() {
       sizeBytes,
       lastBackupAt,
       backupCount,
+      autoBackupEnabled: settings.autoBackupEnabled === true,
       retentionDays: {
         app: getAppLogRetentionDays(),
         call: getCallLogRetentionDays(),

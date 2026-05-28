@@ -73,6 +73,18 @@ describe("/api/settings", () => {
     expect(calledWith.hiddenSidebarItems).toEqual([]);
   });
 
+  it("updates autoBackupEnabled via PATCH", async () => {
+    const req = createPatchRequest({ autoBackupEnabled: true });
+    const res = await PATCH(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.autoBackupEnabled).toBe(true);
+    expect(updateSettings).toHaveBeenCalledOnce();
+    const calledWith = (updateSettings as unknown as { mock: { calls: unknown[][] } }).mock
+      .calls[0][0] as Record<string, unknown>;
+    expect(calledWith.autoBackupEnabled).toBe(true);
+  });
+
   it("returns no-store headers on PATCH", async () => {
     const req = createPatchRequest({ debugMode: true });
     const res = await PATCH(req);
