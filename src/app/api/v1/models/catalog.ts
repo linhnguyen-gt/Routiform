@@ -375,6 +375,7 @@ export async function getUnifiedModelsResponse(
             ...(modelType ? { type: modelType } : {}),
             ...(modelType === "audio" ? { subtype: "transcription" } : {}),
             ...(sm.inputTokenLimit ? { context_length: sm.inputTokenLimit } : {}),
+            ...(sm.outputTokenLimit ? { max_output_tokens: sm.outputTokenLimit } : {}),
             ...(endpoints.length > 1 || !endpoints.includes("chat")
               ? { supported_endpoints: endpoints }
               : {}),
@@ -392,6 +393,7 @@ export async function getUnifiedModelsResponse(
               type: "audio",
               subtype: "speech",
               ...(sm.inputTokenLimit ? { context_length: sm.inputTokenLimit } : {}),
+              ...(sm.outputTokenLimit ? { max_output_tokens: sm.outputTokenLimit } : {}),
               ...(endpoints.length > 1 || !endpoints.includes("chat")
                 ? { supported_endpoints: endpoints }
                 : {}),
@@ -566,6 +568,9 @@ export async function getUnifiedModelsResponse(
             ...(typeof (model as Record<string, unknown>).inputTokenLimit === "number"
               ? { context_length: (model as Record<string, unknown>).inputTokenLimit }
               : {}),
+            ...(typeof (model as Record<string, unknown>).outputTokenLimit === "number"
+              ? { max_output_tokens: (model as Record<string, unknown>).outputTokenLimit }
+              : {}),
             ...(visionFields || {}),
           });
 
@@ -590,6 +595,9 @@ export async function getUnifiedModelsResponse(
               ...(modelType ? { type: modelType } : {}),
               ...(typeof (model as Record<string, unknown>).inputTokenLimit === "number"
                 ? { context_length: (model as Record<string, unknown>).inputTokenLimit }
+                : {}),
+              ...(typeof (model as Record<string, unknown>).outputTokenLimit === "number"
+                ? { max_output_tokens: (model as Record<string, unknown>).outputTokenLimit }
                 : {}),
               ...(providerVisionFields || {}),
             });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { runWithProxyContext } from "@routiform/open-sse/utils/proxyFetch.ts";
 import { safeOutboundFetch } from "@/lib/network/safeOutboundFetch";
 import { buildNvidiaModelsUrl } from "./nvidia-models-url";
+import { normalizeProviderListedModels } from "./normalize-provider-listed-models";
 import { buildXiaomiMimoTokenPlanModelsUrl } from "./xiaomi-mimo-token-plan-models-url";
 import { getProviderBaseUrl } from "./json-utils";
 import { PROVIDER_MODELS_CONFIG } from "./provider-models-config";
@@ -90,7 +91,10 @@ export async function handleConfiguredProviderModels(
     }
 
     const data = (await response.json()) as Record<string, unknown>;
-    const pageModels = config.parseResponse(data);
+    const parsedModels = config.parseResponse(data);
+    const pageModels = normalizeProviderListedModels(
+      Array.isArray(parsedModels) ? parsedModels : []
+    );
     allModels = allModels.concat(pageModels);
 
     const nextPageToken = typeof data.nextPageToken === "string" ? data.nextPageToken : undefined;

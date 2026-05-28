@@ -223,3 +223,61 @@ test("model sync route preserves cline model metadata and detects metadata updat
     globalThis.fetch = originalFetch;
   }
 });
+
+test("model sync route detects token limit metadata updates", async () => {
+  await resetStorage();
+
+  const connection = await providersDb.createProviderConnection({
+    provider: "openrouter",
+    authType: "apikey",
+    name: "MAIN",
+    displayName: "OpenRouter Main",
+    apiKey: "test-key",
+  });
+
+  await modelsDb.replaceCustomModels("openrouter", [
+    {
+      id: "custom-model-3",
+      name: "Custom Model 3",
+      source: "auto-sync",
+      inputTokenLimit: 128000,
+      outputTokenLimit: 4096,
+    },
+  ]);
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    assert.equal(String(url), `http://localhost/api/providers/${connection.id}/models`);
+    return Response.json({
+      models: [
+        {
+          id: "custom-model-3",
+          name: "Custom Model 3",
+          inputTokenLimit: 256000,
+          outputTokenLimit: 8192,
+        },
+      ],
+    });
+  };
+
+  try {
+    const response = await modelSyncRoute.POST(
+      new Request(`http://localhost/api/providers/${connection.id}/sync-models`, {
+        method: "POST",
+        headers: scheduler.buildModelSyncInternalHeaders(),
+      }),
+      { params: { id: connection.id } }
+    );
+
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.logged, true);
+    assert.equal(body.modelChanges.updated, 1);
+
+    const stored = await modelsDb.getCustomModels("openrouter");
+    assert.equal(stored[0].inputTokenLimit, 256000);
+    assert.equal(stored[0].outputTokenLimit, 8192);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
