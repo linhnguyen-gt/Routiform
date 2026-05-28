@@ -1945,6 +1945,7 @@
     "strategy": "Strategy",
     "preserveClientCache": "Preserve Client Cache",
     "enabled": "Enabled",
+    "disabled": "Disabled",
     "loading": "Loading...",
     "saving": "Saving...",
     "save": "Save",
