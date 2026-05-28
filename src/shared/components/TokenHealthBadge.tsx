@@ -6,10 +6,13 @@ import { useTranslations } from "next-intl";
  * TokenHealthBadge — Batch G
  *
  * Small badge in the Header showing token health status.
- * Polls /api/token-health every 60s.
+ * Polls /api/token-health periodically while the dashboard tab is visible.
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useVisiblePolling } from "@/shared/hooks/useVisiblePolling";
+
+const TOKEN_HEALTH_POLL_INTERVAL_MS = 120_000;
 
 const STATUS_MAP = {
   healthy: { icon: "check_circle", color: "#22c55e", tooltip: "All tokens healthy" },
@@ -23,23 +26,19 @@ export default function TokenHealthBadge() {
   const [health, setHealth] = useState(null);
   const [showTooltip, setShowTooltip] = useState(false);
 
-  useEffect(() => {
-    const fetchHealth = async () => {
-      try {
-        const res = await fetch("/api/token-health");
-        if (res.ok) {
-          const data = await res.json();
-          setHealth(data);
-        }
-      } catch {
-        // silent
+  const fetchHealth = async () => {
+    try {
+      const res = await fetch("/api/token-health");
+      if (res.ok) {
+        const data = await res.json();
+        setHealth(data);
       }
-    };
+    } catch {
+      // silent
+    }
+  };
 
-    fetchHealth();
-    const interval = setInterval(fetchHealth, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  useVisiblePolling(fetchHealth, { intervalMs: TOKEN_HEALTH_POLL_INTERVAL_MS });
 
   if (!health || health.total === 0) return null;
 

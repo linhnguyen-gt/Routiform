@@ -13,8 +13,9 @@ import { useTranslations } from "next-intl";
 
 import { useState, useEffect, useRef } from "react";
 import Card from "./Card";
+import { useVisiblePolling } from "@/shared/hooks/useVisiblePolling";
 
-const REFRESH_INTERVAL = 10000; // 10s
+const REFRESH_INTERVAL = 30_000;
 
 function formatUptime(seconds) {
   if (!seconds) return "N/A";
@@ -58,30 +59,28 @@ export default function SystemMonitor({ compact = false }) {
   const [error, setError] = useState(false);
   const mountedRef = useRef(true);
 
+  async function poll() {
+    try {
+      const res = await fetch("/api/monitoring/health");
+      if (!mountedRef.current) return;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!mountedRef.current) return;
+      setMetrics(data);
+      setError(false);
+    } catch {
+      if (mountedRef.current) setError(true);
+    }
+  }
+
   useEffect(() => {
     mountedRef.current = true;
-
-    async function poll() {
-      try {
-        const res = await fetch("/api/monitoring/health");
-        if (!mountedRef.current) return;
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!mountedRef.current) return;
-        setMetrics(data);
-        setError(false);
-      } catch {
-        if (mountedRef.current) setError(true);
-      }
-    }
-
-    poll();
-    const interval = setInterval(poll, REFRESH_INTERVAL);
     return () => {
       mountedRef.current = false;
-      clearInterval(interval);
     };
   }, []);
+
+  useVisiblePolling(poll, { intervalMs: REFRESH_INTERVAL });
 
   if (error && !metrics) {
     return (

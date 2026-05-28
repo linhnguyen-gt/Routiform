@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Card from "./Card";
 import ProxyLogDetail from "./ProxyLogDetail";
+import { useVisiblePolling } from "@/shared/hooks/useVisiblePolling";
 import {
   TYPE_COLORS,
   LEVEL_COLORS,
@@ -36,6 +37,7 @@ const COLUMNS = [
 ];
 
 const DEFAULT_VISIBLE = Object.fromEntries(COLUMNS.map((c) => [c.key, true]));
+const AUTO_REFRESH_INTERVAL_MS = 15_000;
 
 export default function ProxyLogger() {
   const [logs, setLogs] = useState([]);
@@ -48,7 +50,6 @@ export default function ProxyLogger() {
   const [selectedLevel, setSelectedLevel] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [selectedLog, setSelectedLog] = useState(null);
-  const intervalRef = useRef(null);
   const hasLoadedRef = useRef(false);
 
   const [visibleColumns, setVisibleColumns] = useState(() => {
@@ -105,15 +106,11 @@ export default function ProxyLogger() {
     fetchLogs(showLoading);
   }, [fetchLogs]);
 
-  useEffect(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (recording) {
-      intervalRef.current = setInterval(() => fetchLogs(false), 3000);
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [recording, fetchLogs]);
+  useVisiblePolling(() => fetchLogs(false), {
+    enabled: recording,
+    intervalMs: AUTO_REFRESH_INTERVAL_MS,
+    runOnMount: false,
+  });
 
   const sortedLogs = useMemo(() => {
     const arr = [...logs];

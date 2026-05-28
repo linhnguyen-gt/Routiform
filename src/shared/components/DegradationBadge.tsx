@@ -1,30 +1,29 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { useVisiblePolling } from "@/shared/hooks/useVisiblePolling";
+
+const DEGRADATION_POLL_INTERVAL_MS = 120_000;
 
 export default function DegradationBadge() {
   const [isDegraded, setDegraded] = useState(false);
   const t = useTranslations("common"); // Or a specific namespace if needed
 
-  useEffect(() => {
-    const checkDegradation = async () => {
-      try {
-        const res = await fetch("/api/health/degradation?summary=true");
-        if (res.ok) {
-          const data = await res.json();
-          setDegraded(data.isDegraded);
-        }
-      } catch (_err) {
-        // Ignore error
+  const checkDegradation = async () => {
+    try {
+      const res = await fetch("/api/health/degradation?summary=true");
+      if (res.ok) {
+        const data = await res.json();
+        setDegraded(data.isDegraded);
       }
-    };
+    } catch (_err) {
+      // Ignore error
+    }
+  };
 
-    checkDegradation();
-    const interval = setInterval(checkDegradation, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  useVisiblePolling(checkDegradation, { intervalMs: DEGRADATION_POLL_INTERVAL_MS });
 
   if (!isDegraded) return null;
 

@@ -12,10 +12,13 @@
  * - Latency telemetry & prompt cache
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Button, Card } from "@/shared/components";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
+import { useVisiblePolling } from "@/shared/hooks/useVisiblePolling";
 import { useTranslations } from "next-intl";
+
+const HEALTH_PAGE_REFRESH_INTERVAL_MS = 30_000;
 
 interface DegradationFeature {
   feature: string;
@@ -120,15 +123,12 @@ export default function HealthPage() {
     if (results[3].status === "fulfilled") setDegradation(results[3].value);
   }, []);
 
-  useEffect(() => {
+  const refreshHealthPage = useCallback(() => {
     fetchHealth();
     fetchExtras();
-    const interval = setInterval(() => {
-      fetchHealth();
-      fetchExtras();
-    }, 15000);
-    return () => clearInterval(interval);
   }, [fetchHealth, fetchExtras]);
+
+  useVisiblePolling(refreshHealthPage, { intervalMs: HEALTH_PAGE_REFRESH_INTERVAL_MS });
 
   const handleResetHealth = async () => {
     if (!confirm(t("resetConfirm"))) return;
@@ -137,8 +137,7 @@ export default function HealthPage() {
       const res = await fetch("/api/monitoring/health", { method: "DELETE" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       // Refresh health data immediately
-      await fetchHealth();
-      await fetchExtras();
+      await Promise.all([fetchHealth(), fetchExtras()]);
     } catch (err) {
       console.error("Failed to reset health:", err);
     } finally {
