@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
-import os from "os";
 import { getRuntimePorts } from "@/lib/runtime/ports";
-import { getOpenCodeConfigPath } from "@/shared/services/cliRuntime";
+import { getCliConfigHome, getOpenCodeConfigPath } from "@/shared/services/cliRuntime";
 import { mergeOpenCodeConfig } from "@/shared/services/opencodeConfig";
 import {
   guideSettingsSaveSchema,
@@ -72,7 +71,7 @@ export async function POST(request, { params }) {
  */
 async function saveContinueConfig({ baseUrl, apiKey, model }) {
   const { apiPort } = getRuntimePorts();
-  const configPath = path.join(os.homedir(), ".continue", "config.json");
+  const configPath = path.join(getCliConfigHome(), ".continue", "config.json");
   const configDir = path.dirname(configPath);
 
   // Ensure dir exists
@@ -152,7 +151,7 @@ async function saveContinueConfig({ baseUrl, apiKey, model }) {
  * Qwen Code reads this file for its API configuration.
  */
 async function saveQwenConfig({ baseUrl, apiKey, model }) {
-  const configPath = path.join(os.homedir(), ".qwen", "settings.json");
+  const configPath = path.join(getCliConfigHome(), ".qwen", "settings.json");
   const configDir = path.dirname(configPath);
 
   await fs.mkdir(configDir, { recursive: true });

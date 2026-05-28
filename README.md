@@ -230,19 +230,26 @@ docker run -d \
   --restart unless-stopped \
   -p 20128:20128 \
   -p 20129:20129 \
-  -p 443:443 \
   -e DATA_DIR=/app/data \
   -e INITIAL_PASSWORD="change_your_password" \
-  -e DEVIN_BIN=/root/.local/bin/devin \
   -v routiform-data:/app/data \
-  -v "$HOME/.local/share/devin/credentials.toml:/root/.local/share/devin/credentials.toml:ro" \
-  -v "$HOME/.claude:/root/.claude" \
-  -v "$HOME/.openclaw:/root/.openclaw" \
-  -v "$HOME/.config/opencode:/root/.config/opencode" \
-  -v "$HOME/.continue:/root/.continue" \
-  -v "$HOME/.aws:/root/.aws" \
   linhnguyen0944/routiform:cli
 ```
+
+If you want the dashboard and `/dashboard/cli-tools` to detect your host CLI configs
+without cloning this repo, use the published full-mode compose file instead:
+
+```bash
+curl -L -o docker-compose.full.yml \
+  https://raw.githubusercontent.com/linhnguyen-gt/Routiform/main/docker-compose.full.yml
+
+INITIAL_PASSWORD="change_your_password" \
+docker compose -f docker-compose.full.yml up -d
+```
+
+That full-mode compose mounts common host config directories for Claude, Codex,
+OpenCode, Continue, Cursor, Cline, Kilo, OpenClaw, Qwen, Hermes, Qoder, Devin,
+and AWS so the dashboard can detect them more accurately inside Docker.
 
 > **MITM support in Docker:** The MITM proxy (Antigravity, Kiro etc.) can run inside Docker but requires **manual host setup** since the container cannot modify your host's `/etc/hosts` or system keychain. After starting the MITM from the dashboard, run these on your host:
 
@@ -257,9 +264,9 @@ sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keyc
 
 If you use `npm install -g routiform` instead, MITM works out of the box — it runs directly on your host with full DNS and keychain access.
 
-If you want to use Devin in Docker, mount only `credentials.toml` from the host so
-the Linux CLI inside the container can reuse your existing credentials without
-overwriting the bundled Linux install:
+If you want to use Devin in plain `docker run` mode, mount only `credentials.toml`
+from the host so the Linux CLI inside the container can reuse your existing
+credentials without overwriting the bundled Linux install:
 
 ```bash
 -e DEVIN_BIN=/root/.local/bin/devin \

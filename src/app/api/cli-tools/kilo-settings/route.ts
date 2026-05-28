@@ -3,22 +3,26 @@
 import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
-import os from "os";
-import { ensureCliConfigWriteAllowed, getCliRuntimeStatus } from "@/shared/services/cliRuntime";
+import {
+  ensureCliConfigWriteAllowed,
+  getCliConfigHome,
+  getCliRuntimeStatus,
+} from "@/shared/services/cliRuntime";
 import { createBackup } from "@/shared/services/backupService";
 import { saveCliToolLastConfigured, deleteCliToolLastConfigured } from "@/lib/db/cliToolState";
 import { cliModelConfigSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { getApiKeyById } from "@/lib/localDb";
 
-const KILO_DATA_DIR = path.join(os.homedir(), ".local", "share", "kilo");
-const AUTH_PATH = path.join(KILO_DATA_DIR, "auth.json");
-const _KILO_CONFIG_DIR = path.join(os.homedir(), ".config", "kilo");
+const getKiloDataDir = () => path.join(getCliConfigHome(), ".local", "share", "kilo");
+const getAuthPath = () => path.join(getKiloDataDir(), "auth.json");
+const getVsCodeSettingsPath = () =>
+  path.join(getCliConfigHome(), ".config", "Code", "User", "settings.json");
 
 // Read auth.json
 const readAuth = async () => {
   try {
-    const content = await fs.readFile(AUTH_PATH, "utf-8");
+    const content = await fs.readFile(getAuthPath(), "utf-8");
     return JSON.parse(content);
   } catch (error) {
     if (error.code === "ENOENT") return null;
@@ -42,7 +46,7 @@ export async function GET() {
   try {
     const runtime = await getCliRuntimeStatus("kilo");
 
-    if (!runtime.installed || !runtime.runnable) {
+    if (!runtime.installed) {
       return NextResponse.json({
         installed: runtime.installed,
         runnable: runtime.runnable,
@@ -51,25 +55,17 @@ export async function GET() {
         runtimeMode: runtime.runtimeMode,
         reason: runtime.reason,
         settings: null,
-        message:
-          runtime.installed && !runtime.runnable
-            ? "Kilo Code CLI is installed but not runnable"
-            : "Kilo Code CLI is not installed",
+        message: "Kilo Code CLI is not installed",
       });
     }
 
     const auth = await readAuth();
+    const authPath = getAuthPath();
+    const vscodeSettingsPath = getVsCodeSettingsPath();
 
     // Read kilo VS Code extension settings if available
     let extensionSettings = null;
     try {
-      const vscodeSettingsPath = path.join(
-        os.homedir(),
-        ".config",
-        "Code",
-        "User",
-        "settings.json"
-      );
       const raw = await fs.readFile(vscodeSettingsPath, "utf-8");
       const allSettings = JSON.parse(raw);
       // Extract kilo-related settings
@@ -99,7 +95,10 @@ export async function GET() {
         extensionSettings,
       },
       hasRoutiform: hasRoutiformConfig(auth),
-      authPath: AUTH_PATH,
+      authPath,
+      message: runtime.runnable
+        ? "Kilo Code CLI is installed and runnable"
+        : "Kilo config detected, but the CLI is not runnable in this environment",
     });
   } catch (error) {
     console.log("Error checking kilo settings:", error);
@@ -150,16 +149,19 @@ export async function POST(request) {
       }
     }
 
+    const kiloDataDir = getKiloDataDir();
+    const authPath = getAuthPath();
+
     // Ensure directories exist
-    await fs.mkdir(KILO_DATA_DIR, { recursive: true });
+    await fs.mkdir(kiloDataDir, { recursive: true });
 
     // Backup auth before modifying
-    await createBackup("kilo", AUTH_PATH);
+    await createBackup("kilo", authPath);
 
     // Read existing auth
     let auth = {};
     try {
-      const existing = await fs.readFile(AUTH_PATH, "utf-8");
+      const existing = await fs.readFile(authPath, "utf-8");
       auth = JSON.parse(existing);
     } catch {
       /* No existing auth */
@@ -176,17 +178,11 @@ export async function POST(request) {
       model: model,
     };
 
-    await fs.writeFile(AUTH_PATH, JSON.stringify(auth, null, 2));
+    await fs.writeFile(authPath, JSON.stringify(auth, null, 2));
 
     // Also try to update VS Code extension settings if available
     try {
-      const vscodeSettingsPath = path.join(
-        os.homedir(),
-        ".config",
-        "Code",
-        "User",
-        "settings.json"
-      );
+      const vscodeSettingsPath = getVsCodeSettingsPath();
       let vscodeSettings = {};
       try {
         const raw = await fs.readFile(vscodeSettingsPath, "utf-8");
@@ -218,7 +214,7 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       message: "Kilo Code settings applied successfully!",
-      authPath: AUTH_PATH,
+      authPath,
     });
   } catch (error) {
     console.log("Error updating kilo settings:", error);
@@ -234,13 +230,15 @@ export async function DELETE() {
       return NextResponse.json({ error: writeGuard }, { status: 403 });
     }
 
+    const authPath = getAuthPath();
+
     // Backup before reset
-    await createBackup("kilo", AUTH_PATH);
+    await createBackup("kilo", authPath);
 
     // Read existing auth
     let auth = {};
     try {
-      const existing = await fs.readFile(AUTH_PATH, "utf-8");
+      const existing = await fs.readFile(authPath, "utf-8");
       auth = JSON.parse(existing);
     } catch (error) {
       if (error.code === "ENOENT") {
@@ -253,17 +251,11 @@ export async function DELETE() {
     delete auth["openai-compatible"];
     delete auth["routiform"];
 
-    await fs.writeFile(AUTH_PATH, JSON.stringify(auth, null, 2));
+    await fs.writeFile(authPath, JSON.stringify(auth, null, 2));
 
     // Also clean up VS Code extension settings
     try {
-      const vscodeSettingsPath = path.join(
-        os.homedir(),
-        ".config",
-        "Code",
-        "User",
-        "settings.json"
-      );
+      const vscodeSettingsPath = getVsCodeSettingsPath();
       const raw = await fs.readFile(vscodeSettingsPath, "utf-8");
       const vscodeSettings = JSON.parse(raw);
       delete vscodeSettings["kilocode.customProvider"];

@@ -25,6 +25,23 @@ Claude / Codex / OpenCode / Cline / KiloCode / Continue / Kiro / Cursor / Copilo
 - Model switching without reconfiguring every tool
 - Works locally and on remote servers (VPS)
 
+### Docker full mode
+
+If you run Routiform from Docker and want `/dashboard/cli-tools` to detect host-side
+CLI configs without cloning the repo, use the published compose file:
+
+```bash
+curl -L -o docker-compose.full.yml \
+  https://raw.githubusercontent.com/linhnguyen-gt/Routiform/main/docker-compose.full.yml
+
+INITIAL_PASSWORD="change_your_password" \
+docker compose -f docker-compose.full.yml up -d
+```
+
+This mounts common host config directories into the container so the dashboard can
+detect installed/configured tools more accurately even when a host CLI binary is not
+directly runnable inside the Linux container.
+
 ---
 
 ## Supported Tools (Dashboard Source of Truth)

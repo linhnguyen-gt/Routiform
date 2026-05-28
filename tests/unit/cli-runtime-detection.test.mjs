@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const { getCliRuntimeStatus, CLI_TOOL_IDS } =
+const { getCliRuntimeStatus, getCliConfigPaths, resolveOpencodeConfigPath, CLI_TOOL_IDS } =
   await import("../../src/shared/services/cliRuntime.ts");
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -202,26 +202,24 @@ describe("windsurf tool — guide-only integration", () => {
 
 // ─── resolveOpencodeConfigPath — cross-platform ─────────────────
 
-const { resolveOpencodeConfigPath: resolveOpencodeConfigPathFn } =
-  await import("../../src/shared/services/cliRuntime.ts");
-
 describe("resolveOpencodeConfigPath — cross-platform", () => {
   it("should resolve on Linux with XDG_CONFIG_HOME", () => {
-    const result = resolveOpencodeConfigPathFn(
-      "linux",
-      { XDG_CONFIG_HOME: "/tmp/xdg" },
-      "/home/dev"
-    );
+    const result = resolveOpencodeConfigPath("linux", { XDG_CONFIG_HOME: "/tmp/xdg" }, "/home/dev");
     assert.equal(result, path.join("/tmp/xdg", "opencode", "opencode.json"));
   });
 
   it("should resolve on Linux with default .config", () => {
-    const result = resolveOpencodeConfigPathFn("linux", {}, "/home/dev");
+    const result = resolveOpencodeConfigPath("linux", {}, "/home/dev");
     assert.equal(result, path.join("/home/dev", ".config", "opencode", "opencode.json"));
   });
 
+  it("should resolve on Linux with CLI_CONFIG_HOME when XDG_CONFIG_HOME is absent", () => {
+    const result = resolveOpencodeConfigPath("linux", { CLI_CONFIG_HOME: "/host-home" }, "/root");
+    assert.equal(result, path.join("/host-home", ".config", "opencode", "opencode.json"));
+  });
+
   it("should resolve on Windows with APPDATA", () => {
-    const result = resolveOpencodeConfigPathFn(
+    const result = resolveOpencodeConfigPath(
       "win32",
       { APPDATA: "C:\\Users\\dev\\AppData\\Roaming" },
       "C:\\Users\\dev"
@@ -233,10 +231,60 @@ describe("resolveOpencodeConfigPath — cross-platform", () => {
   });
 
   it("should fallback to home/AppData/Roaming on Windows without APPDATA", () => {
-    const result = resolveOpencodeConfigPathFn("win32", {}, "C:\\Users\\dev");
+    const result = resolveOpencodeConfigPath("win32", {}, "C:\\Users\\dev");
     assert.equal(
       result,
       path.join("C:\\Users\\dev", "AppData", "Roaming", "opencode", "opencode.json")
     );
+  });
+});
+
+describe("CLI_CONFIG_HOME support", () => {
+  it("should honor host-mounted CLI_CONFIG_HOME for config paths", () => {
+    const previous = process.env.CLI_CONFIG_HOME;
+    process.env.CLI_CONFIG_HOME = "/host-home";
+
+    try {
+      const codexPaths = getCliConfigPaths("codex");
+      assert.equal(codexPaths.config, path.join("/host-home", ".codex", "config.toml"));
+      assert.equal(codexPaths.auth, path.join("/host-home", ".codex", "auth.json"));
+    } finally {
+      if (previous !== undefined) process.env.CLI_CONFIG_HOME = previous;
+      else delete process.env.CLI_CONFIG_HOME;
+    }
+  });
+});
+
+describe("config-footprint fallback detection", () => {
+  let tmpDir;
+
+  before(() => {
+    tmpDir = createTempDir();
+  });
+
+  after(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("should mark opencode as installed when config exists but binary is unavailable", async () => {
+    const previousHome = process.env.CLI_CONFIG_HOME;
+    const previousBin = process.env.CLI_OPENCODE_BIN;
+    const configPath = path.join(tmpDir, ".config", "opencode", "opencode.json");
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(configPath, JSON.stringify({ providers: {} }, null, 2));
+    process.env.CLI_CONFIG_HOME = tmpDir;
+    process.env.CLI_OPENCODE_BIN = path.join(tmpDir, "missing-opencode-binary");
+
+    try {
+      const result = await getCliRuntimeStatus("opencode");
+      assert.equal(result.installed, true);
+      assert.equal(result.runnable, false);
+      assert.equal(result.reason, "config_detected");
+    } finally {
+      if (previousHome !== undefined) process.env.CLI_CONFIG_HOME = previousHome;
+      else delete process.env.CLI_CONFIG_HOME;
+      if (previousBin !== undefined) process.env.CLI_OPENCODE_BIN = previousBin;
+      else delete process.env.CLI_OPENCODE_BIN;
+    }
   });
 });

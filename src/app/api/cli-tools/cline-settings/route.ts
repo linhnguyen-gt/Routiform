@@ -3,22 +3,25 @@
 import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
-import os from "os";
-import { ensureCliConfigWriteAllowed, getCliRuntimeStatus } from "@/shared/services/cliRuntime";
+import {
+  ensureCliConfigWriteAllowed,
+  getCliConfigHome,
+  getCliRuntimeStatus,
+} from "@/shared/services/cliRuntime";
 import { createBackup } from "@/shared/services/backupService";
 import { saveCliToolLastConfigured, deleteCliToolLastConfigured } from "@/lib/db/cliToolState";
 import { cliModelConfigSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { getApiKeyById } from "@/lib/localDb";
 
-const CLINE_DATA_DIR = path.join(os.homedir(), ".cline", "data");
-const GLOBAL_STATE_PATH = path.join(CLINE_DATA_DIR, "globalState.json");
-const SECRETS_PATH = path.join(CLINE_DATA_DIR, "secrets.json");
+const getClineDataDir = () => path.join(getCliConfigHome(), ".cline", "data");
+const getGlobalStatePath = () => path.join(getClineDataDir(), "globalState.json");
+const getSecretsPath = () => path.join(getClineDataDir(), "secrets.json");
 
 // Read globalState.json
 const readGlobalState = async () => {
   try {
-    const content = await fs.readFile(GLOBAL_STATE_PATH, "utf-8");
+    const content = await fs.readFile(getGlobalStatePath(), "utf-8");
     return JSON.parse(content);
   } catch (error: unknown) {
     if (error && typeof error === "object" && "code" in error && error.code === "ENOENT")
@@ -30,7 +33,7 @@ const readGlobalState = async () => {
 // Read secrets.json
 const readSecrets = async () => {
   try {
-    const content = await fs.readFile(SECRETS_PATH, "utf-8");
+    const content = await fs.readFile(getSecretsPath(), "utf-8");
     return JSON.parse(content);
   } catch (error: unknown) {
     if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return {};
@@ -58,7 +61,7 @@ export async function GET() {
   try {
     const runtime = await getCliRuntimeStatus("cline");
 
-    if (!runtime.installed || !runtime.runnable) {
+    if (!runtime.installed) {
       return NextResponse.json({
         installed: runtime.installed,
         runnable: runtime.runnable,
@@ -67,15 +70,14 @@ export async function GET() {
         runtimeMode: runtime.runtimeMode,
         reason: runtime.reason,
         settings: null,
-        message:
-          runtime.installed && !runtime.runnable
-            ? "Cline CLI is installed but not runnable"
-            : "Cline CLI is not installed",
+        message: "Cline CLI is not installed",
       });
     }
 
     const globalState = await readGlobalState();
     const _secrets = await readSecrets();
+    const globalStatePath = getGlobalStatePath();
+    const secretsPath = getSecretsPath();
 
     return NextResponse.json({
       installed: runtime.installed,
@@ -92,8 +94,11 @@ export async function GET() {
         planModeOpenAiModelId: globalState?.planModeOpenAiModelId,
       },
       hasRoutiform: hasRoutiformConfig(globalState),
-      globalStatePath: GLOBAL_STATE_PATH,
-      secretsPath: SECRETS_PATH,
+      globalStatePath,
+      secretsPath,
+      message: runtime.runnable
+        ? "Cline CLI is installed and runnable"
+        : "Cline config detected, but the CLI is not runnable in this environment",
     });
   } catch (error) {
     console.log("Error checking cline settings:", error);
@@ -141,17 +146,21 @@ export async function POST(request: Request) {
       }
     }
 
+    const clineDataDir = getClineDataDir();
+    const globalStatePath = getGlobalStatePath();
+    const secretsPath = getSecretsPath();
+
     // Ensure directory exists
-    await fs.mkdir(CLINE_DATA_DIR, { recursive: true });
+    await fs.mkdir(clineDataDir, { recursive: true });
 
     // Backup current files before modifying
-    await createBackup("cline", GLOBAL_STATE_PATH);
-    await createBackup("cline", SECRETS_PATH);
+    await createBackup("cline", globalStatePath);
+    await createBackup("cline", secretsPath);
 
     // Read existing globalState or create new
     let globalState: Record<string, unknown> = {};
     try {
-      const existing = await fs.readFile(GLOBAL_STATE_PATH, "utf-8");
+      const existing = await fs.readFile(globalStatePath, "utf-8");
       globalState = JSON.parse(existing);
     } catch {
       /* No existing config */
@@ -168,12 +177,12 @@ export async function POST(request: Request) {
     globalState.planModeOpenAiModelId = model;
 
     // Write globalState
-    await fs.writeFile(GLOBAL_STATE_PATH, JSON.stringify(globalState, null, 2));
+    await fs.writeFile(globalStatePath, JSON.stringify(globalState, null, 2));
 
     // Write API key to secrets
     let secrets: Record<string, unknown> = {};
     try {
-      const existing = await fs.readFile(SECRETS_PATH, "utf-8");
+      const existing = await fs.readFile(secretsPath, "utf-8");
       secrets = JSON.parse(existing);
     } catch {
       /* No existing secrets */
@@ -181,7 +190,7 @@ export async function POST(request: Request) {
 
     secrets.openAiApiKey = apiKey || "sk_routiform";
 
-    await fs.writeFile(SECRETS_PATH, JSON.stringify(secrets, null, 2));
+    await fs.writeFile(secretsPath, JSON.stringify(secrets, null, 2));
 
     // Persist last-configured timestamp
     try {
@@ -193,7 +202,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: "Cline settings applied successfully!",
-      globalStatePath: GLOBAL_STATE_PATH,
+      globalStatePath,
     });
   } catch (error) {
     console.log("Error updating cline settings:", error);
@@ -209,14 +218,17 @@ export async function DELETE() {
       return NextResponse.json({ error: writeGuard }, { status: 403 });
     }
 
+    const globalStatePath = getGlobalStatePath();
+    const secretsPath = getSecretsPath();
+
     // Backup before reset
-    await createBackup("cline", GLOBAL_STATE_PATH);
-    await createBackup("cline", SECRETS_PATH);
+    await createBackup("cline", globalStatePath);
+    await createBackup("cline", secretsPath);
 
     // Read existing state
     let globalState: Record<string, unknown> = {};
     try {
-      const existing = await fs.readFile(GLOBAL_STATE_PATH, "utf-8");
+      const existing = await fs.readFile(globalStatePath, "utf-8");
       globalState = JSON.parse(existing);
     } catch (error: unknown) {
       if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
@@ -235,19 +247,19 @@ export async function DELETE() {
       globalState.planModeApiProvider = "cline";
     }
 
-    await fs.writeFile(GLOBAL_STATE_PATH, JSON.stringify(globalState, null, 2));
+    await fs.writeFile(globalStatePath, JSON.stringify(globalState, null, 2));
 
     // Remove API key from secrets
     let secrets: Record<string, unknown> = {};
     try {
-      const existing = await fs.readFile(SECRETS_PATH, "utf-8");
+      const existing = await fs.readFile(secretsPath, "utf-8");
       secrets = JSON.parse(existing);
     } catch {
       /* ignore */
     }
 
     delete secrets.openAiApiKey;
-    await fs.writeFile(SECRETS_PATH, JSON.stringify(secrets, null, 2));
+    await fs.writeFile(secretsPath, JSON.stringify(secrets, null, 2));
 
     // Clear last-configured timestamp
     try {
