@@ -10,6 +10,7 @@ process.env.DATA_DIR = TEST_DATA_DIR;
 const core = await import("../../src/lib/db/core.ts");
 const providersDb = await import("../../src/lib/db/providers.ts");
 const chatRoute = await import("../../src/app/api/v1/chat/completions/route.ts");
+const quotaCache = await import("../../src/domain/quotaCache.ts");
 const { generateSignature, invalidateBySignature, setCachedResponse } =
   await import("../../src/lib/semanticCache.ts");
 const { clearModelUnavailability, resetAllAvailability, setModelUnavailable } =
@@ -50,6 +51,35 @@ async function seedHealthyConnection() {
   });
 }
 
+async function seedQuotaLimitedConnection() {
+  const connection = await providersDb.createProviderConnection({
+    provider: "openai",
+    authType: "apikey",
+    name: "openai-quota-limited-test",
+    apiKey: "sk-quota-limited-test",
+    isActive: true,
+    testStatus: "active",
+    providerSpecificData: {
+      limitPolicy: {
+        enabled: true,
+        thresholdPercent: 90,
+        windows: ["daily"],
+      },
+    },
+  });
+
+  quotaCache.setQuotaCache(connection.id, "openai", {
+    daily: {
+      used: 100,
+      total: 100,
+      remainingPercentage: 0,
+      resetAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+  });
+
+  return connection;
+}
+
 function makeRequest(extraHeaders = {}) {
   return new Request("http://localhost/v1/chat/completions", {
     method: "POST",
@@ -85,8 +115,9 @@ test.after(() => {
   fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
 });
 
-test("combo live test bypasses local cooldown and breaker state to perform a real upstream request", async () => {
-  const created = await seedSuppressedConnection();
+test("combo live test bypasses model cooldown and breaker but skips suppressed accounts", async () => {
+  const suppressed = await seedSuppressedConnection();
+  const healthy = await seedHealthyConnection();
 
   setModelUnavailable("openai", "gpt-4o-mini", 60_000, "test cooldown");
   const breaker = getCircuitBreaker("openai");
@@ -120,18 +151,63 @@ test("combo live test bypasses local cooldown and breaker state to perform a rea
   assert.equal(fetchCalls.length, 0);
 
   const liveResponse = await chatRoute.POST(
-    makeRequest({ "X-Internal-Test": "combo-health-check" })
+    makeRequest({
+      "X-Internal-Test": "combo-health-check",
+      "X-Routiform-No-Cache": "true",
+      "X-Request-Id": "combo-test-suppressed-skip",
+    })
   );
   const liveBody = await liveResponse.json();
 
   assert.equal(liveResponse.status, 200);
   assert.equal(fetchCalls.length, 1);
   assert.match(fetchCalls[0].url, /\/chat\/completions$/);
-  assert.equal(fetchCalls[0].init.headers.Authorization, "Bearer sk-live-test");
+  assert.equal(fetchCalls[0].init.headers.Authorization, "Bearer sk-cache-test");
   assert.equal(liveBody.choices[0].message.content, "OK");
 
-  const updated = await providersDb.getProviderConnectionById(created.id);
-  assert.equal(updated.testStatus, "active");
+  const suppressedAfter = await providersDb.getProviderConnectionById(suppressed.id);
+  assert.equal(suppressedAfter.testStatus, "credits_exhausted");
+
+  const healthyAfter = await providersDb.getProviderConnectionById(healthy.id);
+  assert.equal(healthyAfter.testStatus, "active");
+});
+
+test("combo live test respects account quota policy and uses an eligible fallback", async () => {
+  await seedQuotaLimitedConnection();
+  const healthy = await seedHealthyConnection();
+
+  const fetchCalls = [];
+  globalThis.fetch = async (url, init = {}) => {
+    fetchCalls.push({ url: String(url), init });
+    return Response.json({
+      id: "chatcmpl-quota-policy-test",
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: "OK",
+          },
+        },
+      ],
+    });
+  };
+
+  const liveResponse = await chatRoute.POST(
+    makeRequest({
+      "X-Internal-Test": "combo-health-check",
+      "X-Routiform-No-Cache": "true",
+      "X-Request-Id": "combo-test-quota-policy",
+    })
+  );
+  const liveBody = await liveResponse.json();
+
+  assert.equal(liveResponse.status, 200);
+  assert.equal(fetchCalls.length, 1);
+  assert.equal(fetchCalls[0].init.headers.Authorization, "Bearer sk-cache-test");
+  assert.equal(liveBody.choices[0].message.content, "OK");
+
+  const healthyAfter = await providersDb.getProviderConnectionById(healthy.id);
+  assert.equal(healthyAfter.testStatus, "active");
 });
 
 test("combo live test bypasses semantic cache and forces a fresh upstream request", async () => {

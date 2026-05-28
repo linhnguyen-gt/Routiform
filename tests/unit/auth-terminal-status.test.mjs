@@ -62,7 +62,7 @@ test("getProviderCredentials returns null when all active connections are termin
   assert.equal(selected, null);
 });
 
-test("getProviderCredentials can reuse a locally suppressed connection for combo live tests", async () => {
+test("getProviderCredentials can reuse a locally suppressed connection by explicit override", async () => {
   await resetStorage();
 
   const conn = await providersDb.createProviderConnection({

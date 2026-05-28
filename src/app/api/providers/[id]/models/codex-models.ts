@@ -67,9 +67,6 @@ export function mapCodexModelsFromApi(data: unknown, includeHidden: boolean): Ar
       ? record.data
       : [];
 
-  console.log("[Codex Models] Raw API response:", JSON.stringify(data, null, 2));
-  console.log("[Codex Models] Raw models count:", rawModels.length);
-
   const mapped = rawModels
     .map((item) => {
       const model = asRecord(item);
@@ -95,28 +92,12 @@ export function mapCodexModelsFromApi(data: unknown, includeHidden: boolean): Ar
 
   const withoutDisabled = mapped.filter((model) => {
     const id = typeof model.id === "string" ? model.id : "";
-    const isDisabled = DISABLED_CODEX_MODEL_IDS.has(id);
-    if (isDisabled) {
-      console.log("[Codex Models] Filtered out disabled model:", id);
-    }
-    return !isDisabled;
+    return !DISABLED_CODEX_MODEL_IDS.has(id);
   });
-
-  console.log("[Codex Models] After mapping:", mapped.length);
-  console.log("[Codex Models] After disabled filter:", withoutDisabled.length);
 
   const visible = includeHidden
     ? withoutDisabled
     : withoutDisabled.filter((model) => model.hidden !== true);
-
-  console.log(
-    "[Codex Models] After hidden filter (includeHidden=" + includeHidden + "):",
-    visible.length
-  );
-  console.log(
-    "[Codex Models] Final models:",
-    visible.map((m) => ({ id: m.id, name: m.name, hidden: m.hidden }))
-  );
 
   return mergeCodexModels(visible);
 }

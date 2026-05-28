@@ -462,14 +462,9 @@ async function handleSingleModelChat(
 
   while (true) {
     const credentialOptions =
-      forceLiveComboTest || triedConnectionIds.length > 0
+      triedConnectionIds.length > 0
         ? {
-            ...(forceLiveComboTest
-              ? { allowSuppressedConnections: true, bypassQuotaPolicy: true }
-              : {}),
-            ...(triedConnectionIds.length > 0
-              ? { excludedConnectionIds: [...triedConnectionIds] }
-              : {}),
+            excludedConnectionIds: [...triedConnectionIds],
           }
         : undefined;
 
