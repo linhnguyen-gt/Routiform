@@ -86,5 +86,8 @@ export function getModelsByProviderId(providerId: string): RegistryModel[] {
  * of hardcoding model lists per provider.
  */
 export function getClaudeCodeDefaultModels(): RegistryModel[] {
-  return getClaudeLatestFallbackModels();
+  return getClaudeLatestFallbackModels().filter(
+    (m): m is typeof m & { id: string; name: string } =>
+      typeof m.id === "string" && typeof m.name === "string"
+  ) as RegistryModel[];
 }
