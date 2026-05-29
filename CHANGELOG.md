@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.31.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.30.4...v3.31.0) (2026-05-29)
+
+
+### Features
+
+* **dashboard:** improve logs and storage controls ([b64bf56](https://github.com/linhnguyen-gt/Routiform/commit/b64bf56417cae48656b9817af521b02808d1258d))
+* **models:** sync provider token limits ([42a741a](https://github.com/linhnguyen-gt/Routiform/commit/42a741a920a8b28edbae531de29839f670780b65))
+* **ui:** refresh docs and sidebar surfaces ([16c5012](https://github.com/linhnguyen-gt/Routiform/commit/16c5012865737132024d97e6539bcef6dacdd088))
+
+
+### Bug Fixes
+
+* **build:** avoid open-sse alias in db settings ([bf672ae](https://github.com/linhnguyen-gt/Routiform/commit/bf672aeefba38acb5b257dcf51ff05e1d97171f7))
+* **cli-runtime:** respect CLI_CONFIG_HOME in opencode config path resolution ([88c1ffc](https://github.com/linhnguyen-gt/Routiform/commit/88c1ffc6fc2314ac83aa23fa6f74b6c1c33ae539))
+* **cli-tools:** support docker full-mode detection ([ea12e50](https://github.com/linhnguyen-gt/Routiform/commit/ea12e5030ec299fcda989693aa09bbd31e7e5c02))
+* **i18n:** add missing disabled key to settings namespace ([dcc06bc](https://github.com/linhnguyen-gt/Routiform/commit/dcc06bc05e22260d9187ff00806f73546f795c51))
+* **routing:** respect account limits in live tests ([1ac48ad](https://github.com/linhnguyen-gt/Routiform/commit/1ac48addf986df5a5c3fb1682a7e34880e4bebf8))
+
 ### [3.30.4](https://github.com/linhnguyen-gt/Routiform/compare/v3.30.3...v3.30.4) (2026-05-28)
 
 
