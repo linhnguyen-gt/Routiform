@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
+import { syncToCloud } from "@/lib/cloudSync";
 import { KiroService } from "@/lib/oauth/services/kiro";
 import { createProviderConnection, isCloudEnabled, resolveProxyForProvider } from "@/models";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
-import { syncToCloud } from "@/lib/cloudSync";
-import { kiroImportSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { kiroImportSchema } from "@/shared/validation/schemas";
 import { runWithProxyContext } from "@routiform/open-sse/utils/proxyFetch.ts";
+import { NextResponse } from "next/server";
 
 /**
  * POST /api/oauth/kiro/import
@@ -47,7 +47,24 @@ export async function POST(request: Request) {
     // Extract email from JWT if available
     const email = kiroService.extractEmailFromJWT(tokenData.accessToken);
 
-    // Save to database
+    // Save to database — include client credentials for IDC/Builder ID tokens
+    const providerSpecificData: Record<string, unknown> = {
+      authMethod: tokenData.authMethod || "imported",
+      provider: "Imported",
+    };
+
+    // If IDC/Builder ID auth, store client credentials for future token refreshes
+    if (tokenData.clientId && tokenData.clientSecret) {
+      providerSpecificData.clientId = tokenData.clientId;
+      providerSpecificData.clientSecret = tokenData.clientSecret;
+      providerSpecificData.clientSecretExpiresAt = tokenData.clientSecretExpiresAt;
+      providerSpecificData.region = tokenData.region || "us-east-1";
+    }
+
+    if (tokenData.profileArn) {
+      providerSpecificData.profileArn = tokenData.profileArn;
+    }
+
     const connection: Record<string, unknown> = await createProviderConnection({
       provider: "kiro",
       authType: "oauth",
@@ -55,11 +72,7 @@ export async function POST(request: Request) {
       refreshToken: tokenData.refreshToken,
       expiresAt: new Date(Date.now() + tokenData.expiresIn * 1000).toISOString(),
       email: email || null,
-      providerSpecificData: {
-        profileArn: tokenData.profileArn,
-        authMethod: "imported",
-        provider: "Imported",
-      },
+      providerSpecificData,
       testStatus: "active",
     });
 
