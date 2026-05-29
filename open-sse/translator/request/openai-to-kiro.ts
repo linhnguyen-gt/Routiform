@@ -103,6 +103,23 @@ type KiroPayload = {
 type KiroCredentials = { providerSpecificData?: { profileArn?: string } } & JsonRecord;
 
 /**
+ * Detect Claude Code's system prompt which is irrelevant for Kiro.
+ * These prompts waste tokens and have no effect on Kiro's behavior.
+ */
+function isClaudeCodeSystemPrompt(text: string): boolean {
+  if (!text) return false;
+  // Claude Code system prompt markers
+  if (
+    text.includes("You are Claude Code") ||
+    text.includes("Anthropic's official CLI for Claude") ||
+    text.includes("x-anthropic-billing-header:")
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Convert OpenAI messages to Kiro format
  * Rules: system/tool/user -> user role, merge consecutive same roles
  */
@@ -123,11 +140,15 @@ function convertMessages(messages: OpenAIMessage[], tools: OpenAITool[], model: 
 
   // Extract system messages first — Kiro has no dedicated system field,
   // so we prepend them to the current (last user) message, matching kiro-gateway behavior.
+  // However, strip Claude Code's verbose system prompt as it wastes tokens and has no
+  // effect on Kiro's behavior (Kiro uses its own system instructions).
   let systemPrompt = "";
   const nonSystemMessages: OpenAIMessage[] = [];
   for (const msg of messages) {
     if (msg.role === "system") {
       const text = typeof msg.content === "string" ? msg.content : "";
+      // Skip Claude Code's system prompt — it's irrelevant for Kiro
+      if (isClaudeCodeSystemPrompt(text)) continue;
       systemPrompt += systemPrompt ? `\n\n${text}` : text;
     } else {
       nonSystemMessages.push(msg);
