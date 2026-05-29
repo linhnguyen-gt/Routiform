@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Card, Button, Badge } from "@/shared/components";
+import { Card, Button, Badge, Toggle } from "@/shared/components";
 import { useLocale, useTranslations } from "next-intl";
 
 export default function SystemStorageTab() {
@@ -13,6 +13,8 @@ export default function SystemStorageTab() {
   const [confirmRestoreId, setConfirmRestoreId] = useState(null);
   const [manualBackupLoading, setManualBackupLoading] = useState(false);
   const [manualBackupStatus, setManualBackupStatus] = useState({ type: "", message: "" });
+  const [autoBackupSaving, setAutoBackupSaving] = useState(false);
+  const [autoBackupStatus, setAutoBackupStatus] = useState({ type: "", message: "" });
   const [exportDbLoading, setExportDbLoading] = useState(false);
   const [exportAllLoading, setExportAllLoading] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
@@ -43,8 +45,12 @@ export default function SystemStorageTab() {
       call: 10000,
       proxy: 10000,
     },
+    autoBackupEnabled: false,
     lastBackupAt: null,
   });
+
+  const getSettingsText = (key: string, fallback: string) =>
+    typeof t.has === "function" && t.has(key) ? t(key) : fallback;
 
   const toUiMessage = (value: unknown, fallback: string) => {
     if (typeof value === "string") {
@@ -125,6 +131,60 @@ export default function SystemStorageTab() {
       setManualBackupStatus({ type: "error", message: t("errorOccurred") });
     } finally {
       setManualBackupLoading(false);
+    }
+  };
+
+  const handleAutoBackupToggle = async (nextEnabled: boolean) => {
+    const previous = storageHealth.autoBackupEnabled;
+    setAutoBackupSaving(true);
+    setAutoBackupStatus({ type: "", message: "" });
+    setStorageHealth((prev) => ({ ...prev, autoBackupEnabled: nextEnabled }));
+
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoBackupEnabled: nextEnabled }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setStorageHealth((prev) => ({ ...prev, autoBackupEnabled: previous }));
+        setAutoBackupStatus({
+          type: "error",
+          message: toUiMessage(
+            data.error,
+            getSettingsText("autoBackupUpdateFailed", "Failed to update auto backup setting.")
+          ),
+        });
+        return;
+      }
+
+      setStorageHealth((prev) => ({
+        ...prev,
+        autoBackupEnabled: data.autoBackupEnabled === true,
+      }));
+      setAutoBackupStatus({
+        type: "success",
+        message: nextEnabled
+          ? getSettingsText(
+              "autoBackupEnabledMessage",
+              "Automatic snapshot backups are now enabled."
+            )
+          : getSettingsText(
+              "autoBackupDisabledMessage",
+              "Automatic snapshot backups are now disabled."
+            ),
+      });
+      await loadStorageHealth();
+    } catch {
+      setStorageHealth((prev) => ({ ...prev, autoBackupEnabled: previous }));
+      setAutoBackupStatus({
+        type: "error",
+        message: getSettingsText("autoBackupUpdateFailed", "Failed to update auto backup setting."),
+      });
+    } finally {
+      setAutoBackupSaving(false);
     }
   };
 
@@ -373,6 +433,20 @@ export default function SystemStorageTab() {
     return reason;
   };
 
+  const backupRetentionText = storageHealth.autoBackupEnabled
+    ? t("backupRetentionDesc")
+    : getSettingsText(
+        "backupRetentionDescDisabled",
+        "Automatic data-change snapshots are off. Manual backups still work, and restore/import safety backups are still created before destructive operations."
+      );
+
+  const emptyBackupsText = storageHealth.autoBackupEnabled
+    ? t("noBackupsYet")
+    : getSettingsText(
+        "noBackupsYetAutoBackupOff",
+        "No backups available yet. Automatic snapshots are off until you enable Auto backup."
+      );
+
   return (
     <Card>
       <div className="flex items-center gap-3 mb-4">
@@ -433,6 +507,56 @@ export default function SystemStorageTab() {
           </div>
         </div>
       </div>
+
+      <div className="p-3 rounded-lg bg-bg border border-border mb-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="max-w-2xl">
+            <p className="text-sm font-medium text-text-main">
+              {getSettingsText("autoBackupTitle", "Auto backup")}
+            </p>
+            <p className="text-xs text-text-muted mt-1">
+              {getSettingsText(
+                "autoBackupDesc",
+                "Create background SQLite snapshots when data changes. Manual backups still work even when this is off."
+              )}
+            </p>
+            <p className="text-xs text-text-muted mt-1">
+              {getSettingsText(
+                "autoBackupSafetyNote",
+                "Safety backups before restore/import remain enabled."
+              )}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge variant={storageHealth.autoBackupEnabled ? "success" : "default"} size="sm">
+              {storageHealth.autoBackupEnabled ? t("enabled") : t("disabled")}
+            </Badge>
+            <Toggle
+              checked={storageHealth.autoBackupEnabled}
+              onChange={handleAutoBackupToggle}
+              disabled={autoBackupSaving}
+            />
+          </div>
+        </div>
+      </div>
+
+      {autoBackupStatus.message && (
+        <div
+          className={`p-3 rounded-lg mb-4 text-sm ${
+            autoBackupStatus.type === "success"
+              ? "bg-green-500/10 text-green-500 border border-green-500/20"
+              : "bg-red-500/10 text-red-500 border border-red-500/20"
+          }`}
+          role="alert"
+        >
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+              {autoBackupStatus.type === "success" ? "check_circle" : "error"}
+            </span>
+            {autoBackupStatus.message}
+          </div>
+        </div>
+      )}
 
       {/* Export / Import */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -796,7 +920,7 @@ export default function SystemStorageTab() {
             {backupsExpanded ? t("hide") : t("viewBackups")}
           </Button>
         </div>
-        <p className="text-xs text-text-muted mb-3">{t("backupRetentionDesc")}</p>
+        <p className="text-xs text-text-muted mb-3">{backupRetentionText}</p>
 
         {restoreStatus.message && (
           <div
@@ -836,7 +960,7 @@ export default function SystemStorageTab() {
                 >
                   folder_off
                 </span>
-                {t("noBackupsYet")}
+                {emptyBackupsText}
               </div>
             ) : (
               <>

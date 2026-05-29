@@ -7,6 +7,12 @@ import type { PersistProviderAccountErrorStateOptions } from "../types/chat-core
 
 const log = createLogger("provider-account-error-state");
 
+function formatLocalTime(value: string) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
 export async function persistProviderAccountErrorState({
   connectionId,
   provider,
@@ -76,7 +82,8 @@ export async function persistProviderAccountErrorState({
           `[provider] Node ${connectionId} model-only rate limited (${statusCode}) for ${model} - ${Math.ceil((retryAfterMs || COOLDOWN_MS.rateLimit) / 1000)}s (connection stays active)`
         );
       } else {
-        const rateLimitedUntil = new Date(Date.now() + retryAfterMs).toISOString();
+        const retryMs = retryAfterMs || COOLDOWN_MS.rateLimit;
+        const rateLimitedUntil = new Date(Date.now() + retryMs).toISOString();
         await updateProviderConnection(connectionId, {
           rateLimitedUntil: rateLimitedUntil,
           testStatus: "credits_exhausted",
@@ -87,7 +94,7 @@ export async function persistProviderAccountErrorState({
           lastHealthCheckAt: null,
         });
         console.warn(
-          `[provider] Node ${connectionId} rate limited (${statusCode}) - Next available at ${rateLimitedUntil}`
+          `[provider] Node ${connectionId} rate limited (${statusCode}) - Next available at ${rateLimitedUntil} (local ${formatLocalTime(rateLimitedUntil)})`
         );
       }
     } else if (errorType === PROVIDER_ERROR_TYPES.QUOTA_EXHAUSTED) {

@@ -11,6 +11,76 @@ const CLAUDE_CONFIG = {
   apiVersion: "2023-06-01",
 };
 
+function normalizeClaudePlanValue(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function extractClaudePlanLabel(data: JsonRecord): string | null {
+  const directCandidates = [
+    data.tier,
+    data.plan,
+    data.plan_type,
+    data.planType,
+    data.subscription_type,
+    data.subscriptionType,
+  ];
+
+  for (const candidate of directCandidates) {
+    const normalized = normalizeClaudePlanValue(candidate);
+    if (normalized) return normalized;
+  }
+
+  const subscription = toRecord(data.subscription);
+  const subscriptionCandidates = [
+    subscription.type,
+    subscription.plan,
+    subscription.tier,
+    subscription.subscription_type,
+    subscription.subscriptionType,
+  ];
+
+  for (const candidate of subscriptionCandidates) {
+    const normalized = normalizeClaudePlanValue(candidate);
+    if (normalized) return normalized;
+  }
+
+  const account = toRecord(data.account);
+  const accountCandidates = [
+    account.plan,
+    account.tier,
+    account.plan_type,
+    account.planType,
+    account.subscription_type,
+    account.subscriptionType,
+  ];
+
+  for (const candidate of accountCandidates) {
+    const normalized = normalizeClaudePlanValue(candidate);
+    if (normalized) return normalized;
+  }
+
+  return null;
+}
+
+async function fetchClaudeSettingsPlan(accessToken: string): Promise<string | null> {
+  const settingsResponse = await fetch(CLAUDE_CONFIG.settingsUrl, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "anthropic-version": CLAUDE_CONFIG.apiVersion,
+    },
+  });
+
+  if (!settingsResponse.ok) {
+    return null;
+  }
+
+  const settings = await settingsResponse.json();
+  return extractClaudePlanLabel(toRecord(settings));
+}
+
 /**
  * Claude Usage - Try to fetch from Anthropic API
  */
@@ -68,16 +138,10 @@ export async function getClaudeUsage(accessToken) {
 
       // Try to extract plan tier from the OAuth response
       const planRaw =
-        typeof data.tier === "string"
-          ? data.tier
-          : typeof data.plan === "string"
-            ? data.plan
-            : typeof data.subscription_type === "string"
-              ? data.subscription_type
-              : null;
+        extractClaudePlanLabel(toRecord(data)) || (await fetchClaudeSettingsPlan(accessToken));
 
       return {
-        plan: planRaw || "Claude Code",
+        plan: planRaw,
         quotas,
         extraUsage: data.extra_usage ?? null,
       };
@@ -109,6 +173,7 @@ async function getClaudeUsageLegacy(accessToken) {
 
     if (settingsResponse.ok) {
       const settings = await settingsResponse.json();
+      const plan = extractClaudePlanLabel(toRecord(settings));
 
       if (settings.organization_id) {
         const usageResponse = await fetch(
@@ -125,7 +190,7 @@ async function getClaudeUsageLegacy(accessToken) {
         if (usageResponse.ok) {
           const usage = await usageResponse.json();
           return {
-            plan: settings.plan || "Unknown",
+            plan,
             organization: settings.organization_name,
             quotas: usage,
           };
@@ -133,7 +198,7 @@ async function getClaudeUsageLegacy(accessToken) {
       }
 
       return {
-        plan: settings.plan || "Unknown",
+        plan,
         organization: settings.organization_name,
         message: "Claude connected. Usage details require admin access.",
       };

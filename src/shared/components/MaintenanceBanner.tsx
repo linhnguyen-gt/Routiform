@@ -8,9 +8,13 @@
  * comes back online.
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
+import { useVisiblePolling } from "@/shared/hooks/useVisiblePolling";
+
+const HEALTHY_CHECK_INTERVAL_MS = 60_000;
+const RECOVERY_CHECK_INTERVAL_MS = 15_000;
 
 export default function MaintenanceBanner() {
   const [show, setShow] = useState(false);
@@ -19,44 +23,41 @@ export default function MaintenanceBanner() {
   const dismissedUntilRecoveryRef = useRef(false);
   const t = useTranslations("common");
 
-  useEffect(() => {
-    const checkHealth = async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-      try {
-        const res = await fetch("/api/monitoring/health", {
-          signal: controller.signal,
-          cache: "no-store",
-        });
-        if (res.ok) {
-          consecutiveFailuresRef.current = 0;
-          dismissedUntilRecoveryRef.current = false;
-          setShow(false);
-          setMessage("");
-        } else {
-          consecutiveFailuresRef.current += 1;
-          // Require at least 2 failed checks to avoid transient false positives.
-          if (consecutiveFailuresRef.current >= 2 && !dismissedUntilRecoveryRef.current) {
-            setShow(true);
-            setMessage(t("maintenanceServerIssues"));
-          }
-        }
-      } catch {
+  const checkHealth = async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    try {
+      const res = await fetch("/api/monitoring/health", {
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      if (res.ok) {
+        consecutiveFailuresRef.current = 0;
+        dismissedUntilRecoveryRef.current = false;
+        setShow(false);
+        setMessage("");
+      } else {
         consecutiveFailuresRef.current += 1;
+        // Require at least 2 failed checks to avoid transient false positives.
         if (consecutiveFailuresRef.current >= 2 && !dismissedUntilRecoveryRef.current) {
           setShow(true);
-          setMessage(t("maintenanceServerUnreachable"));
+          setMessage(t("maintenanceServerIssues"));
         }
-      } finally {
-        clearTimeout(timeoutId);
       }
-    };
+    } catch {
+      consecutiveFailuresRef.current += 1;
+      if (consecutiveFailuresRef.current >= 2 && !dismissedUntilRecoveryRef.current) {
+        setShow(true);
+        setMessage(t("maintenanceServerUnreachable"));
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
 
-    // Run immediately on mount, then every 10 seconds
-    checkHealth();
-    const interval = setInterval(checkHealth, 10000);
-    return () => clearInterval(interval);
-  }, [t]);
+  useVisiblePolling(checkHealth, {
+    intervalMs: show ? RECOVERY_CHECK_INTERVAL_MS : HEALTHY_CHECK_INTERVAL_MS,
+  });
 
   if (!show) return null;
 

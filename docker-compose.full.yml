@@ -1,0 +1,67 @@
+services:
+  routiform:
+    container_name: routiform
+    image: ${ROUTIFORM_IMAGE:-linhnguyen0944/routiform:cli}
+    pull_policy: always
+    restart: unless-stopped
+    stop_grace_period: 40s
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 20128
+      DASHBOARD_PORT: 20128
+      API_PORT: 20129
+      API_HOST: 0.0.0.0
+      DATA_DIR: /app/data
+      DOCKER: "true"
+      INITIAL_PASSWORD: ${INITIAL_PASSWORD:-change_your_password}
+      DEVIN_BIN: /root/.local/bin/devin
+      CLI_ALLOW_CONFIG_WRITES: "true"
+      CLI_CONFIG_HOME: /host-home
+      XDG_CONFIG_HOME: /host-home/.config
+    ports:
+      - "${ROUTIFORM_DASHBOARD_PORT:-20128}:20128"
+      - "${ROUTIFORM_API_PORT:-20129}:20129"
+    volumes:
+      - routiform-data:/app/data
+      - ${HOME}/.claude:/host-home/.claude
+      - ${HOME}/.claude:/root/.claude
+      - ${HOME}/.codex:/host-home/.codex
+      - ${HOME}/.codex:/root/.codex
+      - ${HOME}/.openclaw:/host-home/.openclaw
+      - ${HOME}/.openclaw:/root/.openclaw
+      - ${HOME}/.continue:/host-home/.continue
+      - ${HOME}/.continue:/root/.continue
+      - ${HOME}/.config/opencode:/host-home/.config/opencode
+      - ${HOME}/.config/opencode:/root/.config/opencode
+      - ${HOME}/.cursor:/host-home/.cursor
+      - ${HOME}/.cursor:/root/.cursor
+      - ${HOME}/.config/cursor:/host-home/.config/cursor
+      - ${HOME}/.config/cursor:/root/.config/cursor
+      - ${HOME}/.cline:/host-home/.cline
+      - ${HOME}/.cline:/root/.cline
+      - ${HOME}/.local/share/kilo:/host-home/.local/share/kilo
+      - ${HOME}/.local/share/kilo:/root/.local/share/kilo
+      - ${HOME}/.factory:/host-home/.factory
+      - ${HOME}/.factory:/root/.factory
+      - ${HOME}/.qwen:/host-home/.qwen
+      - ${HOME}/.qwen:/root/.qwen
+      - ${HOME}/.hermes:/host-home/.hermes
+      - ${HOME}/.hermes:/root/.hermes
+      - ${HOME}/.qoder:/host-home/.qoder
+      - ${HOME}/.qoder:/root/.qoder
+      - ${HOME}/.local/share/devin:/host-home/.local/share/devin
+      - ${HOME}/.local/share/devin:/root/.local/share/devin
+      - ${HOME}/.aws:/root/.aws
+      - ${HOME}/.config/Code/User:/host-home/.config/Code/User
+      - ${HOME}/.config/Code/User:/root/.config/Code/User
+    healthcheck:
+      test: ["CMD", "node", "healthcheck.mjs"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  routiform-data:
+    name: routiform-data

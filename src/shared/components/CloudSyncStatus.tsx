@@ -12,6 +12,9 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useVisiblePolling } from "@/shared/hooks/useVisiblePolling";
+
+const CLOUD_SYNC_POLL_INTERVAL_MS = 120_000;
 
 const STATUS_CONFIG = {
   connected: { icon: "cloud_done", color: "text-green-500", label: "Cloud" },
@@ -52,19 +55,20 @@ export default function CloudSyncStatus({ collapsed = false }) {
   useEffect(() => {
     mountedRef.current = true;
 
-    // Schedule initial poll outside of effect body to avoid setState-in-effect lint
-    queueMicrotask(poll);
-    const interval = setInterval(poll, 30000);
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
-    // Listen for immediate re-poll events from EndpointPageClient
+  useVisiblePolling(poll, { intervalMs: CLOUD_SYNC_POLL_INTERVAL_MS });
+
+  useEffect(() => {
     const handleCloudChange = () => {
       setTimeout(poll, 500); // Small delay to let backend settle
     };
     globalThis.addEventListener("cloud-status-changed", handleCloudChange);
 
     return () => {
-      mountedRef.current = false;
-      clearInterval(interval);
       globalThis.removeEventListener("cloud-status-changed", handleCloudChange);
     };
   }, [poll]);

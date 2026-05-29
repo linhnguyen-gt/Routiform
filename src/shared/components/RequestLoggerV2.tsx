@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import Card from "./Card";
 import RequestLoggerDetail from "./RequestLoggerDetail";
 import { copyToClipboard } from "@/shared/utils/clipboard";
+import { useVisiblePolling } from "@/shared/hooks/useVisiblePolling";
 import {
   PROTOCOL_COLORS,
   PROVIDER_COLORS,
@@ -37,6 +38,8 @@ const DEFAULT_VISIBLE: Record<string, boolean> = {
   duration: true,
   time: true,
 };
+
+const AUTO_REFRESH_INTERVAL_MS = 15_000;
 
 function sanitizeFilenamePart(value) {
   return String(value || "log")
@@ -231,7 +234,6 @@ export default function RequestLoggerV2() {
   const [detailData, setDetailData] = useState(null);
   const [detailLoggingEnabled, setDetailLoggingEnabled] = useState(false);
   const [detailLoggingLoading, setDetailLoggingLoading] = useState(false);
-  const intervalRef = useRef(null);
   const hasLoadedRef = useRef(false);
   const logsSignatureRef = useRef("");
   const [providerNodes, setProviderNodes] = useState([]);
@@ -320,16 +322,11 @@ export default function RequestLoggerV2() {
       .catch(() => {});
   }, []);
 
-  // Auto-refresh
-  useEffect(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (recording) {
-      intervalRef.current = setInterval(() => fetchLogs(false), 3000);
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [recording, fetchLogs]);
+  useVisiblePolling(() => fetchLogs(false), {
+    enabled: recording,
+    intervalMs: AUTO_REFRESH_INTERVAL_MS,
+    runOnMount: false,
+  });
 
   const filteredLogs = useMemo(() => {
     if (activeFilter === "combo") return logs.filter((l) => l.comboName);

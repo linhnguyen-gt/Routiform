@@ -486,13 +486,13 @@ export async function getProviderCredentials(
       if (excluded || rateLimited) {
         log.debug(
           "AUTH",
-          `  → ${c.id?.slice(0, 8)} | ${excluded ? "excluded" : ""} ${rateLimited ? `rateLimited until ${c.rateLimitedUntil}` : ""}${allowSuppressedConnections && rateLimited ? " (retained for combo live test)" : ""}`
+          `  → ${c.id?.slice(0, 8)} | ${excluded ? "excluded" : ""} ${rateLimited ? `rateLimited until ${c.rateLimitedUntil}` : ""}${allowSuppressedConnections && rateLimited ? " (retained by explicit override)" : ""}`
         );
       } else if (terminalStatus) {
         log.debug(
           "AUTH",
           allowSuppressedConnections
-            ? `  → ${c.id?.slice(0, 8)} | retained terminal status=${c.testStatus} for combo live test`
+            ? `  → ${c.id?.slice(0, 8)} | retained terminal status=${c.testStatus} by explicit override`
             : `  → ${c.id?.slice(0, 8)} | skipped terminal status=${c.testStatus}`
         );
       } else if (codexScopeLimited) {
@@ -500,7 +500,7 @@ export async function getProviderCredentials(
         log.debug(
           "AUTH",
           allowSuppressedConnections
-            ? `  → ${c.id?.slice(0, 8)} | retained codex scope-limited account until ${scopeUntil} for combo live test`
+            ? `  → ${c.id?.slice(0, 8)} | retained codex scope-limited account until ${scopeUntil} by explicit override`
             : `  → ${c.id?.slice(0, 8)} | codex scope-limited until ${scopeUntil}`
         );
       }
@@ -558,7 +558,7 @@ export async function getProviderCredentials(
         return false;
       });
     } else if (availableConnections.length > 0) {
-      log.debug("AUTH", `${provider} | bypassing quota policy for combo live test`);
+      log.debug("AUTH", `${provider} | bypassing quota policy by explicit override`);
     }
 
     if (blockedByPolicy.length > 0) {

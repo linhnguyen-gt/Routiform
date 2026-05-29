@@ -132,7 +132,7 @@ export async function GET() {
         if (!statuses[toolId]) {
           return;
         }
-        if (!statuses[toolId].installed || !statuses[toolId].runnable) {
+        if (!statuses[toolId].installed) {
           statuses[toolId].configStatus = "not_installed";
           return;
         }

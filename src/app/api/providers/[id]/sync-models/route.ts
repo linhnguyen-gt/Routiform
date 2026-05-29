@@ -79,6 +79,14 @@ function normalizeModelForComparison(model: unknown) {
     source,
     apiFormat,
     supportedEndpoints,
+    ...(typeof record.inputTokenLimit === "number"
+      ? { inputTokenLimit: record.inputTokenLimit }
+      : {}),
+    ...(typeof record.outputTokenLimit === "number"
+      ? { outputTokenLimit: record.outputTokenLimit }
+      : {}),
+    ...(typeof record.description === "string" ? { description: record.description } : {}),
+    ...(record.supportsThinking === true ? { supportsThinking: true } : {}),
     ...(clineMeta ? { clineMeta } : {}),
   };
 }

@@ -373,6 +373,16 @@ export default function ProviderLimits() {
     return sortedGroups;
   }, [groupBy, visibleConnections, t]);
 
+  const getPlanBadgeLabel = useCallback(
+    (provider: string, tierMeta: { key?: string; label?: string }, resolvedPlan: string | null) => {
+      if (provider === "claude" && !resolvedPlan && tierMeta?.key === "unknown") {
+        return t("noPlanFromProvider");
+      }
+      return tierMeta?.label || t("tierUnknown");
+    },
+    [t]
+  );
+
   const handleSetGroupBy = (value: "none" | "environment") => {
     setGroupBy(value);
     localStorage.setItem(LS_GROUP_BY, value);
@@ -538,6 +548,7 @@ export default function ProviderLimits() {
             };
             const tierMeta = tierByConnection[conn.id] || normalizePlanTier(null);
             const resolvedPlan = resolvedPlanByConnection[conn.id];
+            const planBadgeLabel = getPlanBadgeLabel(conn.provider, tierMeta, resolvedPlan);
             const refreshedAt = lastRefreshedAt[conn.id];
 
             return (
@@ -581,7 +592,7 @@ export default function ProviderLimits() {
                               dot
                               className="h-5 leading-none"
                             >
-                              {tierMeta.label}
+                              {planBadgeLabel}
                             </Badge>
                           </span>
                           <span className="text-[11px] leading-none text-text-muted">

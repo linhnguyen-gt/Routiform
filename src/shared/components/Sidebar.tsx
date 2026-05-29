@@ -143,20 +143,33 @@ export default function Sidebar({
   const renderNavLink = (item) => {
     const active = !item.external && activeHref === item.href;
     const className = cn(
-      "flex items-center gap-3 rounded-lg transition-all group",
-      collapsed ? "justify-center px-2 py-2.5" : "px-4 py-2",
+      "group relative flex items-center gap-3 rounded-2xl border transition-all duration-200",
+      collapsed ? "justify-center px-2 py-3" : "px-3.5 py-3",
       active
-        ? "bg-primary/10 text-primary"
-        : "text-text-muted hover:bg-surface/50 hover:text-text-main"
+        ? "border-primary/20 bg-primary/10 text-primary shadow-[0_10px_30px_rgba(59,130,246,0.12)]"
+        : "border-transparent text-text-muted hover:border-border/60 hover:bg-surface/70 hover:text-text-main"
     );
     const iconClassName = cn(
-      "material-symbols-outlined text-[18px]",
-      active ? "fill-1" : "group-hover:text-primary transition-colors"
+      "material-symbols-outlined text-[18px] transition-all duration-200",
+      active ? "fill-1 text-primary" : "group-hover:text-primary group-hover:translate-x-0.5"
     );
     const content = (
       <>
+        {!collapsed && (
+          <span
+            className={cn(
+              "absolute left-0 top-1/2 h-8 w-[3px] -translate-y-1/2 rounded-r-full transition-opacity duration-200",
+              active ? "bg-primary opacity-100" : "opacity-0"
+            )}
+            aria-hidden="true"
+          />
+        )}
         <span className={iconClassName}>{item.icon}</span>
-        {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
+        {!collapsed && (
+          <span className={cn("text-sm font-medium", active ? "text-primary" : "text-current")}>
+            {item.label}
+          </span>
+        )}
       </>
     );
 
@@ -193,7 +206,7 @@ export default function Sidebar({
     <>
       <aside
         className={cn(
-          "flex flex-col h-full border-r border-black/5 dark:border-white/5 bg-vibrancy backdrop-blur-xl transition-all duration-300 ease-in-out",
+          "flex h-full flex-col border-r border-black/5 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(248,250,252,0.94))] backdrop-blur-xl transition-all duration-300 ease-in-out dark:border-white/5 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.95),rgba(2,6,23,0.98))]",
           collapsed ? "w-16" : "w-72"
         )}
       >
@@ -205,18 +218,19 @@ export default function Sidebar({
         </a>
         <div
           className={cn(
-            "flex items-center pt-5 pb-2",
-            collapsed ? "px-3 justify-center" : "px-6 justify-end"
+            "flex items-center pt-4 pb-2",
+            collapsed ? "justify-center px-3" : "justify-end px-5"
           )}
         >
           {onToggleCollapse && (
             <button
+              type="button"
               onClick={onToggleCollapse}
               title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
               aria-expanded={!collapsed}
               aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
               className={cn(
-                "p-1 rounded-md text-text-muted/50 hover:text-text-muted hover:bg-black/5 dark:hover:bg-white/5 transition-colors",
+                "rounded-xl border border-transparent p-2 text-text-muted/60 transition-colors hover:border-border/60 hover:bg-surface/70 hover:text-text-main",
                 collapsed && "mt-2"
               )}
             >
@@ -227,55 +241,68 @@ export default function Sidebar({
           )}
         </div>
 
-        <div className={cn("py-4", collapsed ? "px-2" : "px-6")}>
+        <div className={cn("py-4", collapsed ? "px-2" : "px-5")}>
           <Link
             href="/dashboard"
-            className={cn("flex items-center", collapsed ? "justify-center" : "gap-3")}
+            className={cn(
+              "group block rounded-[22px] border border-border/50 bg-white/70 p-3 shadow-[0_12px_36px_rgba(15,23,42,0.06)] transition-all duration-200 hover:border-border/70 hover:shadow-[0_16px_40px_rgba(15,23,42,0.08)] dark:bg-white/[0.04] dark:shadow-none",
+              collapsed ? "px-2.5 py-3" : ""
+            )}
           >
-            <div className="flex items-center justify-center size-9 rounded-lg bg-linear-to-br from-[#A78BFA] to-[#6366F1] shrink-0">
-              {customLogo ? (
-                <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={customLogo}
-                    alt={customAppName || APP_CONFIG.name}
-                    className="size-5 object-contain"
-                  />
-                </>
-              ) : (
-                <RoutiformLogo size={20} className="text-white" />
+            <div className={cn("flex items-center", collapsed ? "justify-center" : "gap-3")}>
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-[#2563EB] via-[#3B82F6] to-[#6366F1] shadow-[0_10px_25px_rgba(59,130,246,0.35)]">
+                {customLogo ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={customLogo}
+                      alt={customAppName || APP_CONFIG.name}
+                      className="size-5 object-contain"
+                    />
+                  </>
+                ) : (
+                  <RoutiformLogo size={20} className="text-white" />
+                )}
+              </div>
+              {!collapsed && (
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h1 className="truncate text-base font-semibold tracking-tight text-text-main">
+                      {customAppName || APP_CONFIG.name}
+                    </h1>
+                    <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+                      v{APP_CONFIG.version}
+                    </span>
+                  </div>
+                  <span className="mt-1 block text-xs text-text-muted">Unified AI gateway</span>
+                </div>
               )}
             </div>
-            {!collapsed && (
-              <div className="flex flex-col">
-                <h1 className="text-lg font-semibold tracking-tight text-text-main">
-                  {customAppName || APP_CONFIG.name}
-                </h1>
-                <span className="text-xs text-text-muted">v{APP_CONFIG.version}</span>
-              </div>
-            )}
           </Link>
         </div>
 
         <nav
           aria-label="Main navigation"
           className={cn(
-            "flex-1 py-2 space-y-1 overflow-y-auto custom-scrollbar",
-            collapsed ? "px-2" : "px-4"
+            "custom-scrollbar flex-1 space-y-2 overflow-y-auto py-2",
+            collapsed ? "px-2" : "px-3"
           )}
         >
           {visibleSections.map((section) => {
             const showTitle = section.showTitleInSidebar !== false;
 
             return (
-              <div key={section.id} className={showTitle ? "pt-4 mt-2" : undefined}>
+              <div
+                key={section.id}
+                className={showTitle ? "mt-2 pt-4 first:mt-0 first:pt-0" : undefined}
+              >
                 {!collapsed && showTitle && (
-                  <p className="px-4 text-xs font-semibold text-text-muted/60 uppercase tracking-wider mb-2">
+                  <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-text-muted/70">
                     {section.title}
                   </p>
                 )}
                 {collapsed && showTitle && (
-                  <div className="border-t border-black/5 dark:border-white/5 mb-2" />
+                  <div className="mx-1 mb-2 border-t border-black/5 dark:border-white/5" />
                 )}
                 {section.items.map(renderNavLink)}
               </div>
@@ -288,33 +315,42 @@ export default function Sidebar({
         <div
           className={cn(
             "border-t border-black/5 dark:border-white/5",
-            collapsed ? "p-2 flex flex-col gap-1" : "p-3 flex gap-2"
+            collapsed ? "flex flex-col gap-2 p-2" : "p-3"
           )}
         >
-          <button
-            onClick={() => setShowRestartModal(true)}
-            title={t("restart")}
+          <div
             className={cn(
-              "flex items-center justify-center gap-2 rounded-lg font-medium transition-all",
-              "text-amber-500 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40",
-              collapsed ? "p-2" : "flex-1 px-3 py-2 text-sm"
+              "rounded-2xl border border-border/50 bg-white/60 shadow-[0_-4px_18px_rgba(15,23,42,0.04)] dark:bg-white/[0.03] dark:shadow-none",
+              collapsed ? "p-1.5" : "grid grid-cols-2 gap-2 p-2"
             )}
           >
-            <span className="material-symbols-outlined text-[18px]">restart_alt</span>
-            {!collapsed && t("restart")}
-          </button>
-          <button
-            onClick={() => setShowShutdownModal(true)}
-            title={t("shutdown")}
-            className={cn(
-              "flex items-center justify-center gap-2 rounded-lg font-medium transition-all",
-              "text-red-500 hover:bg-red-500/10 border border-red-500/20 hover:border-red-500/40",
-              collapsed ? "p-2" : "flex-1 px-3 py-2 text-sm"
-            )}
-          >
-            <span className="material-symbols-outlined text-[18px]">power_settings_new</span>
-            {!collapsed && t("shutdown")}
-          </button>
+            <button
+              type="button"
+              onClick={() => setShowRestartModal(true)}
+              title={t("restart")}
+              className={cn(
+                "flex items-center justify-center gap-2 rounded-xl border font-medium transition-all duration-200",
+                "border-amber-500/20 text-amber-600 hover:border-amber-500/40 hover:bg-amber-500/10 dark:text-amber-400",
+                collapsed ? "min-h-11 w-full px-0 py-2.5" : "min-h-11 px-3 py-2 text-sm"
+              )}
+            >
+              <span className="material-symbols-outlined text-[18px]">restart_alt</span>
+              {!collapsed && t("restart")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowShutdownModal(true)}
+              title={t("shutdown")}
+              className={cn(
+                "flex items-center justify-center gap-2 rounded-xl border font-medium transition-all duration-200",
+                "border-red-500/20 text-red-600 hover:border-red-500/40 hover:bg-red-500/10 dark:text-red-400",
+                collapsed ? "mt-2 min-h-11 w-full px-0 py-2.5" : "min-h-11 px-3 py-2 text-sm"
+              )}
+            >
+              <span className="material-symbols-outlined text-[18px]">power_settings_new</span>
+              {!collapsed && t("shutdown")}
+            </button>
+          </div>
         </div>
       </aside>
 

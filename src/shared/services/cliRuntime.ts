@@ -155,6 +155,19 @@ const parseBoolean = (value: unknown, defaultValue = true) => {
   return !FALSE_VALUES.has(String(value).trim().toLowerCase());
 };
 
+const normalizeSafeAbsolutePath = (value: string | undefined): string => {
+  if (!value) return "";
+
+  const trimmed = value.trim();
+  if (!trimmed || !path.isAbsolute(trimmed)) return "";
+  if (DANGEROUS_PATH_CHARS.some((c) => trimmed.includes(c))) return "";
+
+  const normalized = path.normalize(trimmed);
+  if (normalized.includes("..")) return "";
+
+  return normalized;
+};
+
 const runProcess = (
   command: string,
   args: string[],
@@ -718,32 +731,27 @@ export const ensureCliConfigWriteAllowed = () => {
 };
 
 export const getCliConfigHome = () => {
-  const override = String(process.env.CLI_CONFIG_HOME || "").trim();
-  if (!override) return os.homedir();
+  const override = normalizeSafeAbsolutePath(process.env.CLI_CONFIG_HOME);
+  return override || os.homedir();
+};
 
-  // Must be absolute
-  if (!path.isAbsolute(override)) return os.homedir();
+export const getCliXdgConfigHome = (
+  env: NodeJS.ProcessEnv = process.env,
+  homeDir = getCliConfigHome()
+) => {
+  const xdgConfigHome = normalizeSafeAbsolutePath(String(env.XDG_CONFIG_HOME || ""));
+  if (xdgConfigHome) return xdgConfigHome;
 
-  // Must not contain dangerous characters
-  if (DANGEROUS_PATH_CHARS.some((c) => override.includes(c))) return os.homedir();
+  const cliConfigHome = normalizeSafeAbsolutePath(String(env.CLI_CONFIG_HOME || ""));
+  if (cliConfigHome) return path.join(cliConfigHome, ".config");
 
-  // Must not contain path traversal
-  if (path.normalize(override).includes("..")) return os.homedir();
-
-  // Must be within user's home directory (prevent reading from system dirs)
-  const home = os.homedir();
-  const normalized = path.normalize(override);
-  if (!isPathWithin(normalized, home)) {
-    return home; // Silently fall back to home
-  }
-
-  return normalized;
+  return path.join(homeDir, ".config");
 };
 
 export const resolveOpencodeConfigDir = (
   platform = process.platform,
   env: NodeJS.ProcessEnv = process.env,
-  homeDir = os.homedir()
+  homeDir = getCliConfigHome()
 ) => {
   const isWin = platform === "win32";
   if (isWin) {
@@ -751,14 +759,13 @@ export const resolveOpencodeConfigDir = (
     return appData || path.join(homeDir, "AppData", "Roaming");
   }
 
-  const xdgConfigHome = String(env.XDG_CONFIG_HOME || "").trim();
-  return xdgConfigHome || path.join(homeDir, ".config");
+  return getCliXdgConfigHome(env, homeDir);
 };
 
 export const resolveOpencodeConfigPath = (
   platform = process.platform,
   env: NodeJS.ProcessEnv = process.env,
-  homeDir = os.homedir()
+  homeDir = getCliConfigHome()
 ) => path.join(resolveOpencodeConfigDir(platform, env, homeDir), "opencode", "opencode.json");
 
 export const getOpenCodeConfigPath = () => resolveOpencodeConfigPath();
@@ -787,6 +794,19 @@ export const getCliPrimaryConfigPath = (toolId: string) => {
   if (!paths) return null;
   const firstKey = Object.keys(paths)[0];
   return firstKey ? paths[firstKey] : null;
+};
+
+const hasCliConfigFootprint = async (toolId: string) => {
+  const paths = Object.values(getCliConfigPaths(toolId) || {});
+  for (const configPath of paths) {
+    try {
+      await fs.access(String(configPath), fs.constants.F_OK);
+      return true;
+    } catch {
+      // Try the next known footprint path.
+    }
+  }
+  return false;
 };
 
 export const getCliRuntimeStatus = async (toolId: string) => {
@@ -829,6 +849,18 @@ export const getCliRuntimeStatus = async (toolId: string) => {
   const command = located.command;
 
   if (!located.installed) {
+    if (await hasCliConfigFootprint(toolId)) {
+      return {
+        installed: true,
+        runnable: false,
+        command,
+        commandPath: null,
+        reason: "config_detected",
+        runtimeMode,
+        requiresBinary,
+      };
+    }
+
     return {
       installed: false,
       runnable: false,
