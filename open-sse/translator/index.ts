@@ -1,5 +1,9 @@
+import { normalizeThinkingConfig } from "../services/provider.ts";
+import { lookupReasoning, requiresReasoningReplay } from "../services/reasoningCache.ts";
+import { normalizeRoles } from "../services/roleNormalizer.ts";
+import { applyThinkingBudget } from "../services/thinkingBudget.ts";
+import { bootstrapTranslatorRegistry } from "./bootstrap.ts";
 import { FORMATS } from "./formats.ts";
-import { ensureToolCallIds, fixMissingToolResponses } from "./helpers/toolCallHelper.ts";
 import { prepareClaudeRequest } from "./helpers/claudeHelper.ts";
 import { filterToOpenAIFormat } from "./helpers/openaiHelper.ts";
 import {
@@ -10,12 +14,8 @@ import {
   isReasoner,
   sanitizeToolDescriptions,
 } from "./helpers/schemaCoercion.ts";
+import { ensureToolCallIds, fixMissingToolResponses } from "./helpers/toolCallHelper.ts";
 import { getRequestTranslator, getResponseTranslator } from "./registry.ts";
-import { bootstrapTranslatorRegistry } from "./bootstrap.ts";
-import { normalizeThinkingConfig } from "../services/provider.ts";
-import { applyThinkingBudget } from "../services/thinkingBudget.ts";
-import { normalizeRoles } from "../services/roleNormalizer.ts";
-import { lookupReasoning, requiresReasoningReplay } from "../services/reasoningCache.ts";
 
 bootstrapTranslatorRegistry();
 export { register } from "./registry.ts";
@@ -136,6 +136,15 @@ export function translateRequest(
         const toOpenAI = getRequestTranslator(sourceFormat, FORMATS.OPENAI);
         if (toOpenAI) {
           result = toOpenAI(model, result, stream, credentials);
+
+          // Strip system messages early when targeting Kiro — they are irrelevant
+          // and waste tokens (Kiro uses its own internal system instructions).
+          if (targetFormat === FORMATS.KIRO && Array.isArray(result.messages)) {
+            result.messages = result.messages.filter(
+              (msg: Record<string, unknown>) => msg.role !== "system"
+            );
+          }
+
           // Log OpenAI intermediate format
           reqLogger?.logOpenAIRequest?.(result);
         }

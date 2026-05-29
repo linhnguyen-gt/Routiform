@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { Card, Button, ModelSelectModal, ManualConfigModal } from "@/shared/components";
+import { Button, Card, ManualConfigModal, ModelSelectModal } from "@/shared/components";
 import {
   buildClaudeCliDefaultModelMap,
   getClaudeCliConfigStatus,
   setClaudeCode1mSuffix,
   stripClaudeCode1mSuffix,
 } from "@/shared/services/claudeCodeConfig";
-import Image from "next/image";
-import CliStatusBadge from "./CliStatusBadge";
 import { useTranslations } from "next-intl";
+import Image from "next/image";
+import { useCallback, useEffect, useRef, useState } from "react";
+import CliStatusBadge from "./CliStatusBadge";
 
 const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
 
@@ -184,12 +184,12 @@ export default function ClaudeToolCard({
 
   const getEffectiveBaseUrl = () => {
     const url = customBaseUrl || baseUrl;
-    return url.endsWith("/v1") ? url : `${url}/v1`;
+    // Claude Code appends /v1/messages itself — don't add /v1 here
+    return url.replace(/\/+$/, "");
   };
 
   const getDisplayUrl = () => {
-    const url = customBaseUrl || baseUrl;
-    return url.endsWith("/v1") ? url : `${url}/v1`;
+    return customBaseUrl || baseUrl;
   };
 
   const handleApplySettings = async () => {
