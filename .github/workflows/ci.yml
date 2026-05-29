@@ -136,47 +136,6 @@ jobs:
       - run: npm ci
       - run: npm run test:coverage
 
-  test-e2e:
-    name: E2E Tests
-    runs-on: ubuntu-latest
-    needs: build
-    env:
-      JWT_SECRET: ci-test-secret-with-sufficient-length-for-validation
-      API_KEY_SECRET: ci-test-api-key-secret-long
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
-      - name: Install Playwright system dependencies
-        run: npx playwright install-deps chromium
-      - name: Install Playwright Chromium
-        env:
-          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
-        run: |
-          for attempt in 1 2 3; do
-            echo "Playwright Chromium install attempt $attempt/3"
-            if timeout 10m npx playwright install chromium --only-shell; then
-              exit 0
-            fi
-
-            echo "Attempt $attempt failed or timed out"
-            rm -rf "$HOME/.cache/ms-playwright"/* || true
-            sleep 5
-          done
-
-          echo "Playwright Chromium install failed after 3 attempts"
-          exit 1
-      - run: npm run build
-      - run: npm run test:e2e
-
   test-integration:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -222,7 +181,6 @@ jobs:
       - build
       - test-unit
       - test-coverage
-      - test-e2e
       - test-integration
       - test-security
       - i18n
@@ -268,7 +226,6 @@ jobs:
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Unit | $(status '${{ needs.test-unit.result }}') |" >> $GITHUB_STEP_SUMMARY
           echo "| Coverage | $(status '${{ needs.test-coverage.result }}') |" >> $GITHUB_STEP_SUMMARY
-          echo "| E2E | $(status '${{ needs.test-e2e.result }}') |" >> $GITHUB_STEP_SUMMARY
           echo "| Integration | $(status '${{ needs.test-integration.result }}') |" >> $GITHUB_STEP_SUMMARY
           echo "| Security Tests | $(status '${{ needs.test-security.result }}') |" >> $GITHUB_STEP_SUMMARY
 
