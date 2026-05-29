@@ -1,19 +1,19 @@
 "use server";
 
-import { NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
+import { deleteCliToolLastConfigured, saveCliToolLastConfigured } from "@/lib/db/cliToolState";
+import { getApiKeyById } from "@/lib/localDb";
+import { createBackup } from "@/shared/services/backupService";
 import {
   ensureCliConfigWriteAllowed,
   getCliPrimaryConfigPath,
   getCliRuntimeStatus,
 } from "@/shared/services/cliRuntime";
-import { createBackup } from "@/shared/services/backupService";
-import { saveCliToolLastConfigured, deleteCliToolLastConfigured } from "@/lib/db/cliToolState";
-import { cliSettingsEnvSchema } from "@/shared/validation/schemas";
-import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
-import { getApiKeyById } from "@/lib/localDb";
 import { parseCliToolConfigJson } from "@/shared/utils/parseCliToolConfigJson";
+import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { cliSettingsEnvSchema } from "@/shared/validation/schemas";
+import fs from "fs/promises";
+import { NextResponse } from "next/server";
+import path from "path";
 
 // Get claude settings path based on OS
 const getClaudeSettingsPath = () => getCliPrimaryConfigPath("claude");
@@ -154,11 +154,10 @@ export async function POST(request: Request) {
       }
     }
 
-    // Normalize ANTHROPIC_BASE_URL to ensure /v1 suffix
+    // Normalize ANTHROPIC_BASE_URL — strip trailing slash only.
+    // Claude Code SDK appends /v1/messages itself, so no /v1 suffix needed.
     if (env.ANTHROPIC_BASE_URL) {
-      env.ANTHROPIC_BASE_URL = env.ANTHROPIC_BASE_URL.endsWith("/v1")
-        ? env.ANTHROPIC_BASE_URL
-        : `${env.ANTHROPIC_BASE_URL}/v1`;
+      env.ANTHROPIC_BASE_URL = env.ANTHROPIC_BASE_URL.replace(/\/+$/, "");
     }
 
     // Merge new env with existing settings

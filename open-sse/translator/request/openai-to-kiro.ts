@@ -123,12 +123,14 @@ function convertMessages(messages: OpenAIMessage[], tools: OpenAITool[], model: 
 
   // Extract system messages first — Kiro has no dedicated system field,
   // so we prepend them to the current (last user) message, matching kiro-gateway behavior.
+  // However, strip ALL system messages when targeting Kiro — they waste tokens and have no
+  // effect on Kiro's behavior (Kiro uses its own system instructions internally).
   let systemPrompt = "";
   const nonSystemMessages: OpenAIMessage[] = [];
   for (const msg of messages) {
     if (msg.role === "system") {
-      const text = typeof msg.content === "string" ? msg.content : "";
-      systemPrompt += systemPrompt ? `\n\n${text}` : text;
+      // Skip all system messages for Kiro — they are irrelevant and waste tokens
+      continue;
     } else {
       nonSystemMessages.push(msg);
     }
