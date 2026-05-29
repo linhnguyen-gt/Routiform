@@ -152,28 +152,18 @@ jobs:
       - run: npm ci
       - name: Cache Playwright browsers
         uses: actions/cache@v4
+        id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
-      - name: Install Playwright system dependencies
-        run: npx playwright install-deps chromium
       - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         env:
-          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
-        run: |
-          for attempt in 1 2 3; do
-            echo "Playwright Chromium install attempt $attempt/3"
-            if timeout 10m npx playwright install chromium --only-shell; then
-              exit 0
-            fi
-
-            echo "Attempt $attempt failed or timed out"
-            rm -rf "$HOME/.cache/ms-playwright"/* || true
-            sleep 5
-          done
-
-          echo "Playwright Chromium install failed after 3 attempts"
-          exit 1
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "180000"
+        run: npx playwright install --with-deps chromium
+      - name: Install Playwright system dependencies (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - run: npm run build
       - run: npm run test:e2e
 
