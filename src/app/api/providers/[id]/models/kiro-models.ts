@@ -104,3 +104,66 @@ export function mapKiroModelsFromApi(data: unknown, includeHidden: boolean): Arr
 
   return mergeKiroModels(visible);
 }
+
+/**
+ * Map models from the GET /ListAvailableModels REST API response.
+ * This endpoint returns rich model metadata including tokenLimits, rateMultiplier, etc.
+ */
+export function mapKiroModelsFromListApi(data: unknown): Array<JsonRecord> {
+  const record = asRecord(data);
+  const rawModels = Array.isArray(record.models) ? record.models : [];
+
+  if (rawModels.length === 0) return [];
+
+  const mapped: Array<JsonRecord> = rawModels
+    .map((item) => {
+      const model = asRecord(item);
+      const modelId = typeof model.modelId === "string" ? model.modelId.trim() : "";
+      const modelName = typeof model.modelName === "string" ? model.modelName.trim() : "";
+      if (!modelId) return null;
+
+      const rateMultiplier = typeof model.rateMultiplier === "number" ? model.rateMultiplier : null;
+      const rateUnit = typeof model.rateUnit === "string" ? model.rateUnit : "Credit";
+      const description = typeof model.description === "string" ? model.description : undefined;
+
+      // Build display name with credits info
+      const creditsLabel =
+        rateMultiplier !== null
+          ? ` (${rateMultiplier.toFixed(2)}x ${rateUnit.toLowerCase()}s)`
+          : "";
+      const displayName = `${modelName || modelId}${creditsLabel}`;
+
+      // Extract token limits
+      const tokenLimits = asRecord(model.tokenLimits);
+      const maxInputTokens =
+        typeof tokenLimits.maxInputTokens === "number" ? tokenLimits.maxInputTokens : undefined;
+      const maxOutputTokens =
+        typeof tokenLimits.maxOutputTokens === "number" ? tokenLimits.maxOutputTokens : undefined;
+
+      // Extract supported input types
+      const supportedInputTypes = Array.isArray(model.supportedInputTypes)
+        ? model.supportedInputTypes.filter((t: unknown) => typeof t === "string")
+        : undefined;
+
+      // Check for thinking support from additionalModelRequestFieldsSchema
+      const schema = asRecord(model.additionalModelRequestFieldsSchema);
+      const schemaProps = asRecord(schema.properties);
+      const supportsThinking = !!schemaProps.thinking;
+
+      return {
+        id: modelId,
+        name: displayName,
+        hidden: false,
+        owned_by: "kiro",
+        ...(description ? { description } : {}),
+        ...(maxInputTokens ? { inputTokenLimit: maxInputTokens } : {}),
+        ...(maxOutputTokens ? { outputTokenLimit: maxOutputTokens, maxOutputTokens } : {}),
+        ...(supportsThinking ? { supportsThinking: true } : {}),
+        ...(supportedInputTypes && supportedInputTypes.length > 0 ? { supportedInputTypes } : {}),
+        ...(rateMultiplier !== null ? { rateMultiplier } : {}),
+      };
+    })
+    .filter((model) => model !== null) as Array<JsonRecord>;
+
+  return mapped;
+}

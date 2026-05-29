@@ -1,3 +1,6 @@
+import { readFile, readdir } from "fs/promises";
+import { homedir } from "os";
+import { join } from "path";
 import { KIRO_CONFIG } from "../constants/oauth";
 
 /**
@@ -219,6 +222,7 @@ export class KiroService {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify({
         refreshToken,
@@ -241,6 +245,10 @@ export class KiroService {
 
   /**
    * Validate and import refresh token
+   * Tries multiple strategies:
+   * 1. Read client credentials from AWS SSO cache (for IDC/Builder ID tokens)
+   * 2. Try social auth refresh endpoint (for Google/GitHub tokens)
+   * 3. Register fresh OIDC client and try (last resort for Builder ID)
    */
   async validateImportToken(refreshToken: string) {
     // Validate token format
@@ -248,7 +256,39 @@ export class KiroService {
       throw new Error("Invalid token format. Token should start with aorAAAAAG...");
     }
 
-    // Try to refresh to validate
+    const errors: string[] = [];
+
+    // Strategy 1: Try to find matching client credentials from AWS SSO cache
+    // This handles IDC and Builder ID tokens that were created with a specific client
+    try {
+      const cacheData = await this.findSSOCacheCredentials(refreshToken);
+      if (cacheData) {
+        const result = await this.refreshToken(refreshToken, {
+          authMethod: cacheData.authMethod || "idc",
+          clientId: cacheData.clientId,
+          clientSecret: cacheData.clientSecret,
+          region: cacheData.region || "us-east-1",
+        });
+
+        return {
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken || refreshToken,
+          profileArn: (result as Record<string, unknown>).profileArn as string | undefined,
+          expiresIn: result.expiresIn,
+          authMethod: cacheData.authMethod || "idc",
+          clientId: cacheData.clientId,
+          clientSecret: cacheData.clientSecret,
+          clientSecretExpiresAt: cacheData.clientSecretExpiresAt,
+          region: cacheData.region || "us-east-1",
+        };
+      }
+    } catch (cacheError: unknown) {
+      errors.push(
+        `SSO cache: ${cacheError instanceof Error ? cacheError.message : String(cacheError)}`
+      );
+    }
+
+    // Strategy 2: Try social auth refresh endpoint (Google/GitHub imported tokens)
     try {
       const result = await this.refreshToken(refreshToken);
       return {
@@ -258,11 +298,139 @@ export class KiroService {
         expiresIn: result.expiresIn,
         authMethod: "imported",
       };
-    } catch (error: unknown) {
-      throw new Error(
-        `Token validation failed: ${error instanceof Error ? error.message : String(error)}`
+    } catch (socialError: unknown) {
+      errors.push(
+        `Social auth: ${socialError instanceof Error ? socialError.message : String(socialError)}`
       );
     }
+
+    // Strategy 3: Register a fresh OIDC client (works for Builder ID, not IDC)
+    try {
+      const client = await this.registerClient("us-east-1");
+      const result = await this.refreshToken(refreshToken, {
+        authMethod: "builder-id",
+        clientId: client.clientId,
+        clientSecret: client.clientSecret,
+        region: "us-east-1",
+      });
+
+      return {
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken || refreshToken,
+        profileArn: (result as Record<string, unknown>).profileArn as string | undefined,
+        expiresIn: result.expiresIn,
+        authMethod: "builder-id",
+        clientId: client.clientId,
+        clientSecret: client.clientSecret,
+        clientSecretExpiresAt: client.clientSecretExpiresAt,
+      };
+    } catch (awsError: unknown) {
+      errors.push(`AWS SSO: ${awsError instanceof Error ? awsError.message : String(awsError)}`);
+    }
+
+    throw new Error(`Token validation failed: ${errors.join(" | ")}`);
+  }
+
+  /**
+   * Find client credentials from AWS SSO cache that match the given refresh token.
+   * Kiro IDE stores:
+   * - kiro-auth-token.json: { refreshToken, clientIdHash, authMethod, region }
+   * - <clientIdHash>.json: { clientId, clientSecret, expiresAt }
+   */
+  private async findSSOCacheCredentials(refreshToken: string): Promise<{
+    clientId: string;
+    clientSecret: string;
+    clientSecretExpiresAt?: string;
+    authMethod?: string;
+    region?: string;
+  } | null> {
+    const dataDir = process.env.DATA_DIR || join(homedir(), ".routiform");
+    const candidatePaths = [
+      join(homedir(), ".aws/sso/cache"),
+      join(dataDir, ".aws/sso/cache"),
+      process.env.AWS_SSO_CACHE_PATH,
+      "/root/.aws/sso/cache",
+      "/app/.aws/sso/cache",
+    ].filter((p): p is string => Boolean(p));
+
+    for (const cachePath of candidatePaths) {
+      let files: string[];
+      try {
+        files = await readdir(cachePath);
+      } catch {
+        continue;
+      }
+
+      // Look for kiro-auth-token.json or kiro-auth-token-cli.json
+      const tokenFiles = ["kiro-auth-token.json", "kiro-auth-token-cli.json"];
+
+      for (const tokenFile of tokenFiles) {
+        if (!files.includes(tokenFile)) continue;
+
+        try {
+          const content = await readFile(join(cachePath, tokenFile), "utf-8");
+          const tokenData = JSON.parse(content);
+
+          // Check if this token file matches the refresh token we're importing
+          if (tokenData.refreshToken !== refreshToken) continue;
+
+          // Found matching token file — now get client credentials
+          const clientIdHash = tokenData.clientIdHash;
+          if (!clientIdHash) continue;
+
+          const clientFile = `${clientIdHash}.json`;
+          if (!files.includes(clientFile)) continue;
+
+          const clientContent = await readFile(join(cachePath, clientFile), "utf-8");
+          const clientData = JSON.parse(clientContent);
+
+          if (clientData.clientId && clientData.clientSecret) {
+            return {
+              clientId: clientData.clientId,
+              clientSecret: clientData.clientSecret,
+              clientSecretExpiresAt: clientData.expiresAt,
+              authMethod: tokenData.authMethod?.toLowerCase() === "idc" ? "idc" : "builder-id",
+              region: tokenData.region || "us-east-1",
+            };
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      // Fallback: scan all JSON files for matching refreshToken + find client by hash
+      for (const file of files) {
+        if (!file.endsWith(".json") || file.startsWith("kiro-auth-token")) continue;
+
+        try {
+          const content = await readFile(join(cachePath, file), "utf-8");
+          const data = JSON.parse(content);
+
+          // This might be a token file with refreshToken and clientIdHash
+          if (data.refreshToken === refreshToken && data.clientIdHash) {
+            const clientFile = `${data.clientIdHash}.json`;
+            if (!files.includes(clientFile)) continue;
+
+            const clientContent = await readFile(join(cachePath, clientFile), "utf-8");
+            const clientData = JSON.parse(clientContent);
+
+            if (clientData.clientId && clientData.clientSecret) {
+              return {
+                clientId: clientData.clientId,
+                clientSecret: clientData.clientSecret,
+                clientSecretExpiresAt: clientData.expiresAt,
+                authMethod: data.authMethod?.toLowerCase() === "idc" ? "idc" : "builder-id",
+                region: data.region || "us-east-1",
+              };
+            }
+          }
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    return null;
   }
 
   /**
