@@ -269,11 +269,13 @@ describe("config-footprint fallback detection", () => {
   it("should mark opencode as installed when config exists but binary is unavailable", async () => {
     const previousHome = process.env.CLI_CONFIG_HOME;
     const previousBin = process.env.CLI_OPENCODE_BIN;
+    const previousXdg = process.env.XDG_CONFIG_HOME;
     const configPath = path.join(tmpDir, ".config", "opencode", "opencode.json");
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
     fs.writeFileSync(configPath, JSON.stringify({ providers: {} }, null, 2));
     process.env.CLI_CONFIG_HOME = tmpDir;
     process.env.CLI_OPENCODE_BIN = path.join(tmpDir, "missing-opencode-binary");
+    delete process.env.XDG_CONFIG_HOME;
 
     try {
       const result = await getCliRuntimeStatus("opencode");
@@ -285,6 +287,7 @@ describe("config-footprint fallback detection", () => {
       else delete process.env.CLI_CONFIG_HOME;
       if (previousBin !== undefined) process.env.CLI_OPENCODE_BIN = previousBin;
       else delete process.env.CLI_OPENCODE_BIN;
+      if (previousXdg !== undefined) process.env.XDG_CONFIG_HOME = previousXdg;
     }
   });
 });

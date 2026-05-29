@@ -765,7 +765,7 @@ export const resolveOpencodeConfigDir = (
 export const resolveOpencodeConfigPath = (
   platform = process.platform,
   env: NodeJS.ProcessEnv = process.env,
-  homeDir = os.homedir()
+  homeDir = getCliConfigHome()
 ) => path.join(resolveOpencodeConfigDir(platform, env, homeDir), "opencode", "opencode.json");
 
 export const getOpenCodeConfigPath = () => resolveOpencodeConfigPath();
