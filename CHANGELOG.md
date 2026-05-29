@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.31.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.31.0...v3.31.1) (2026-05-29)
+
+
+### Bug Fixes
+
+* **kiro:** support IDC token import & fetch models from live API ([bbf9432](https://github.com/linhnguyen-gt/Routiform/commit/bbf94322969ea324af42b1afa707f446271d5cf9))
+
 ## [3.31.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.30.4...v3.31.0) (2026-05-29)
 
 
