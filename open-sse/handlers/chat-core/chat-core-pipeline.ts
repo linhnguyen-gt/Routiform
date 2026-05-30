@@ -12,7 +12,14 @@ export type ChatCoreHandlerResult = Record<string, unknown> & {
 /** Arguments for handleChatCore / pipeline (same shape as the public handler). */
 export type HandleChatCoreArgs = {
   body: Record<string, unknown>;
-  modelInfo: { provider: string; model: string; extendedContext?: boolean };
+  modelInfo: {
+    provider: string;
+    model: string;
+    extendedContext?: boolean;
+    sourceFormat?: string;
+    targetFormat?: string;
+    format?: string;
+  };
   requestedModelOverride?: string;
   credentials: Record<string, unknown>;
   log?: unknown;
@@ -27,6 +34,9 @@ export type HandleChatCoreArgs = {
   comboStrategy?: string | null;
   isCombo?: boolean;
   combo?: unknown | null;
+  sourceFormat?: string;
+  targetFormat?: string;
+  isResponsesEndpoint?: boolean;
 };
 
 /** Mutable pipeline bag passed through chat-core phases (internal refactor). */
