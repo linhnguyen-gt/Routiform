@@ -70,6 +70,12 @@ export async function translateInboundRequestBody({
     if (nativeCodexPassthrough) {
       translatedBody = { ...body, _nativeCodexPassthrough: true };
       log?.debug?.("FORMAT", "native codex passthrough enabled");
+    } else if (
+      sourceFormat === FORMATS.OPENAI_RESPONSES &&
+      targetFormat === FORMATS.OPENAI_RESPONSES
+    ) {
+      translatedBody = { ...body };
+      log?.debug?.("FORMAT", "native responses passthrough enabled");
     } else if (isClaudeCodeCompatible) {
       let normalizedForCc = { ...body };
 

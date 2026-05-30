@@ -188,12 +188,16 @@ function convertSystemToDeveloperRole(body: Record<string, unknown>): void {
   }
 }
 
-function stripStoredItemReferences(body: Record<string, unknown>): void {
+function stripStoredItemReferences(
+  body: Record<string, unknown>,
+  options: { preservePreviousResponseId?: boolean } = {}
+): void {
   const prev = body.previous_response_id;
   const preservePreviousResponseId =
-    typeof prev === "string" &&
-    prev.length > 0 &&
-    (!Array.isArray(body.input) || body.input.length === 0);
+    options.preservePreviousResponseId === true ||
+    (typeof prev === "string" &&
+      prev.length > 0 &&
+      (!Array.isArray(body.input) || body.input.length === 0));
   if (!preservePreviousResponseId) {
     delete body.previous_response_id;
   }
@@ -335,7 +339,7 @@ export class CodexExecutor extends BaseExecutor {
 
     // Strip server-generated IDs from multi-turn input.
     // system→developer must apply on BOTH passthrough+translated paths.
-    stripStoredItemReferences(body);
+    stripStoredItemReferences(body, { preservePreviousResponseId: nativeCodexPassthrough });
     convertSystemToDeveloperRole(body);
 
     const requestServiceTier = normalizeServiceTierValue(body.service_tier);
