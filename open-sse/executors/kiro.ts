@@ -29,6 +29,7 @@ type KiroStreamState = {
   contextUsagePercentage?: number;
   hasContextUsage?: boolean;
   hasMeteringEvent?: boolean;
+  thinkingInjected?: boolean;
   usage?: UsageSummary;
 };
 
@@ -137,6 +138,29 @@ export class KiroExecutor extends BaseExecutor {
 
     const transformStream = new TransformStream({
       async transform(chunk, controller) {
+        // Inject a synthetic thinking indicator on first chunk arrival.
+        // This makes Claude Code CLI show a thinking spinner instead of "⏺ ..."
+        // while waiting for Kiro to return the first text content.
+        if (chunkIndex === 0 && !state.thinkingInjected) {
+          state.thinkingInjected = true;
+          const thinkingChunk: JsonRecord = {
+            id: responseId,
+            object: "chat.completion.chunk",
+            created,
+            model,
+            choices: [
+              {
+                index: 0,
+                delta: { role: "assistant", reasoning_content: " " },
+                finish_reason: null,
+              },
+            ],
+          };
+          controller.enqueue(
+            new TextEncoder().encode(`data: ${JSON.stringify(thinkingChunk)}\n\n`)
+          );
+        }
+
         // Append to buffer
         const newBuffer = new Uint8Array(buffer.length + chunk.length);
         newBuffer.set(buffer);
