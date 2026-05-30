@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.32.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.31.2...v3.32.0) (2026-05-30)
+
+
+### Features
+
+* **responses:** preserve native responses passthrough ([4b7a91a](https://github.com/linhnguyen-gt/Routiform/commit/4b7a91a763d870360dd13e111c25a0d4edc3d23c))
+
+
+### Bug Fixes
+
+* **kiro:** show thinking while awaiting stream content ([ea7b019](https://github.com/linhnguyen-gt/Routiform/commit/ea7b019510e9717d74424826da20eb3bd682af10))
+
 ### [3.31.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.31.1...v3.31.2) (2026-05-29)
 
 
