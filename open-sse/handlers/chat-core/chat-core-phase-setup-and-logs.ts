@@ -42,10 +42,17 @@ export async function chatCorePhaseSetupAndLogs(p: ChatCorePipeline): Promise<Ph
 
   const endpointPath = String(clientRawRequest?.endpoint || "");
   p.endpointPath = endpointPath;
-  const sourceFormat = detectFormatFromEndpoint(p.body, endpointPath);
+  const modelInfoFormat =
+    p.modelInfo && typeof p.modelInfo === "object" ? p.modelInfo.sourceFormat : undefined;
+  const sourceFormat =
+    p.sourceFormat ||
+    (typeof modelInfoFormat === "string" ? modelInfoFormat : "") ||
+    detectFormatFromEndpoint(p.body, endpointPath);
   p.sourceFormat = sourceFormat;
   p.isResponsesEndpoint =
-    /\/responses(?=\/|$)/i.test(endpointPath) || /^responses(?=\/|$)/i.test(endpointPath);
+    p.isResponsesEndpoint === true ||
+    /\/responses(?=\/|$)/i.test(endpointPath) ||
+    /^responses(?=\/|$)/i.test(endpointPath);
   const nativeCodexPassthrough = shouldUseNativeCodexPassthrough({
     provider: p.provider,
     sourceFormat,
@@ -78,7 +85,14 @@ export async function chatCorePhaseSetupAndLogs(p: ChatCorePipeline): Promise<Ph
 
   const alias = PROVIDER_ID_TO_ALIAS[p.provider] || p.provider;
   const modelTargetFormat = getModelTargetFormat(alias, resolvedModel);
+  const modelInfoTargetFormat =
+    p.modelInfo && typeof p.modelInfo === "object" ? p.modelInfo.targetFormat : undefined;
+  const modelInfoFormatTarget =
+    p.modelInfo && typeof p.modelInfo === "object" ? p.modelInfo.format : undefined;
   const targetFormat =
+    p.targetFormat ||
+    (typeof modelInfoTargetFormat === "string" ? modelInfoTargetFormat : "") ||
+    (typeof modelInfoFormatTarget === "string" ? modelInfoFormatTarget : "") ||
     modelTargetFormat ||
     getTargetFormat(p.provider, credentials?.providerSpecificData, { sourceFormat });
   p.targetFormat = targetFormat;
