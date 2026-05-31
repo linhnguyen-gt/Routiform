@@ -52,6 +52,11 @@ export default function OpenClawToolCard({
   const [message, setMessage] = useState(null);
   const [selectedApiKey, setSelectedApiKey] = useState("");
   const [selectedModels, setSelectedModels] = useState([]);
+  // Routiform provider API protocol: "openai-completions" (default) | "anthropic-messages"
+  // Default reflects OpenClaw's most common upstream — OpenAI Chat Completions —
+  // and avoids surprising users who route through routiform's OpenAI-compatible
+  // endpoint without realizing the legacy default was anthropic-messages.
+  const [selectedApi, setSelectedApi] = useState("openai-completions");
   const [modelDraft, setModelDraft] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [modelAliases, setModelAliases] = useState({});
@@ -123,6 +128,10 @@ export default function OpenClawToolCard({
         if (provider.apiKey && apiKeys?.some((k) => k.key === provider.apiKey)) {
           setSelectedApiKey(provider.apiKey);
         }
+        // Restore previously persisted API protocol when loading existing settings.
+        if (provider.api === "anthropic-messages" || provider.api === "openai-completions") {
+          setSelectedApi(provider.api);
+        }
       } else {
         setSelectedModels([]);
         setModelDraft("");
@@ -183,6 +192,7 @@ export default function OpenClawToolCard({
           apiKey: keyToUse,
           model: selectedModels[0] || "",
           models: selectedModels,
+          api: selectedApi,
         }),
       });
       const data = await res.json();
@@ -286,7 +296,7 @@ export default function OpenClawToolCard({
           routiform: {
             baseUrl: getEffectiveBaseUrl(),
             apiKey: keyToUse,
-            api: "anthropic-messages",
+            api: selectedApi,
             models: selectedModels.length
               ? selectedModels.map((modelId) => ({
                   id: modelId,
@@ -446,6 +456,24 @@ export default function OpenClawToolCard({
                       {cloudEnabled ? t("noApiKeysCreateOne") : t("defaultRoutiformKey")}
                     </span>
                   )}
+                </div>
+
+                {/* API Protocol */}
+                <div className="flex items-center gap-2">
+                  <span className="w-32 shrink-0 text-sm font-semibold text-text-main text-right">
+                    {t("apiProtocol")}
+                  </span>
+                  <span className="material-symbols-outlined text-text-muted text-[14px]">
+                    arrow_forward
+                  </span>
+                  <select
+                    value={selectedApi}
+                    onChange={(e) => setSelectedApi(e.target.value)}
+                    className="flex-1 px-2 py-1.5 bg-surface rounded text-xs border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  >
+                    <option value="openai-completions">openai-completions</option>
+                    <option value="anthropic-messages">anthropic-messages</option>
+                  </select>
                 </div>
 
                 {/* Model */}

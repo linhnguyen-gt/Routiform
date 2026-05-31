@@ -517,6 +517,7 @@
     "modelMapping": "Model Mapping",
     "baseUrl": "Base URL",
     "apiKey": "API Key",
+    "apiProtocol": "API Protocol",
     "configured": "Configured",
     "notConfigured": "Not configured",
     "notInstalled": "Not installed",
