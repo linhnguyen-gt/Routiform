@@ -313,10 +313,19 @@ export function buildComboTestRequestBody(modelStr: string) {
   return {
     model: modelStr,
     messages: [{ role: "user", content: "Reply with OK only." }],
-    // Reasoning models (Gemini 2.5, DeepSeek-R1, etc.) may spend budget on thinking first;
-    // 64 was too small and produced empty `content` with HTTP 200 via Cline.
-    max_tokens: 256,
-    stream: false,
+    // Reasoning models (Gemini 2.5, Gemini 3 *-agent, DeepSeek-R1, etc.) burn
+    // budget on internal thinking first. 256 was too small for Gemini 3
+    // *-agent tiers (which reserve ~234 thought tokens just to plan a
+    // one-word answer) — the budget ran out mid-thinking and the upstream
+    // never produced visible content, surfacing as a probe timeout. 1024
+    // leaves ~800 tokens after the typical thought reserve.
+    max_tokens: 1024,
+    // Stream the probe end-to-end. Routiform's antigravity executor ALWAYS
+    // hits the upstream streaming endpoint regardless of this flag, but
+    // `stream: true` keeps the SSE pipe open through chatCore — so partial
+    // chunks reach the test route before the upstream fully completes,
+    // letting probes succeed at first-token-time instead of last-token-time.
+    stream: true,
   };
 }
 

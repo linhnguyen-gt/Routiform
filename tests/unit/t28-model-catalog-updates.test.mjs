@@ -27,20 +27,24 @@ test("T28: antigravity legacy GPT-OSS alias resolves to the current canonical ID
   assert.equal(legacy.model, "gpt-oss-120b");
 });
 
-test("T28: antigravity legacy internal agent aliases resolve to the current canonical IDs", async () => {
+test("T28: antigravity passes agent IDs through to the upstream without tier downcast", async () => {
+  // Agent IDs (gemini-3-flash-agent, gemini-pro-agent) used to be silently
+  // remapped to a specific tier ("-low" / "-high"). That made the test/Health
+  // UI hit a different tier than production traffic. The map was removed so
+  // IDs now flow through to upstream as-is — see fix/antigravity-strip-alias-downcasts.
   const flash = await getModelInfoCore("antigravity/gemini-3-flash-agent", {});
   assert.equal(flash.provider, "antigravity");
-  assert.equal(flash.model, "gemini-3.5-flash-low");
+  assert.equal(flash.model, "gemini-3-flash-agent");
 
   const pro = await getModelInfoCore("antigravity/gemini-pro-agent", {});
   assert.equal(pro.provider, "antigravity");
-  assert.equal(pro.model, "gemini-3.1-pro-high");
+  assert.equal(pro.model, "gemini-pro-agent");
 });
 
-test("T28: antigravity unstable high-tier rows resolve to the high-tier IDs", async () => {
+test("T28: antigravity bare/high IDs reach upstream unchanged (no -low downcast)", async () => {
   const flash = await getModelInfoCore("antigravity/gemini-3.5-flash", {});
   assert.equal(flash.provider, "antigravity");
-  assert.equal(flash.model, "gemini-3.5-flash-low");
+  assert.equal(flash.model, "gemini-3.5-flash");
 
   const pro = await getModelInfoCore("antigravity/gemini-3.1-pro-high", {});
   assert.equal(pro.provider, "antigravity");

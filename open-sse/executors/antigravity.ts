@@ -9,21 +9,244 @@ import {
 import { scrubProxyAndFingerprintHeaders } from "../services/antigravityHeaderScrub.ts";
 import { antigravityUserAgent, googApiClientHeader } from "../services/antigravityHeaders.ts";
 import { obfuscateSensitiveWords } from "../services/antigravityObfuscation.ts";
+import { cleanJSONSchemaForAntigravity } from "../translator/helpers/geminiHelper.ts";
 import { normalizePlaceholderOnlyAssistantText } from "../utils/assistantContent.ts";
 import { BaseExecutor, mergeUpstreamExtraHeaders } from "./base.ts";
 
 const MAX_RETRY_AFTER_MS = 60_000;
 const LONG_RETRY_THRESHOLD_MS = 60_000;
 
-const BARE_PRO_IDS = new Set(["gemini-3.1-pro"]);
-const ANTIGRAVITY_UPSTREAM_MODEL_ALIASES: Record<string, string> = {
-  "gemini-3-flash-agent": "gemini-3.5-flash-low",
-  "gemini-3.5-flash": "gemini-3.5-flash-low",
-  "gemini-3.5-flash-low": "gemini-3.5-flash-low",
-  "gemini-pro-agent": "gemini-3.1-pro-high",
-  "gemini-3.1-pro-high": "gemini-3.1-pro-low",
-  "gpt-oss-120b": "gpt-oss-120b-medium",
+// ─── Runtime projectId resolution (loadCodeAssist + onboardUser) ─────────────
+// Mirrors gemini-cli executor pattern. Antigravity OAuth normally stores a
+// projectId during postExchange, but stale/empty values surface as a hard 422
+// from transformRequest. Resolving at runtime turns those into auto-recovery
+// instead of forcing the user to "reconnect OAuth".
+const LOAD_CODE_ASSIST_URL = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
+const ONBOARD_USER_URL = "https://cloudcode-pa.googleapis.com/v1internal:onboardUser";
+const PROJECT_TTL_MS = 30_000;
+const MAX_PROJECT_CACHE_SIZE = 100;
+const LOAD_CODE_ASSIST_TIMEOUT_MS = 10_000;
+const ONBOARD_TIMEOUT_MS = 10_000;
+const ONBOARD_DELAY_MS = 5_000;
+const DEFAULT_ONBOARD_TIER = "free-tier";
+const PROJECT_LOAD_METADATA = Object.freeze({
+  ideType: "IDE_UNSPECIFIED",
+  platform: "PLATFORM_UNSPECIFIED",
+  pluginType: "GEMINI",
+});
+const ONBOARD_METADATA = Object.freeze({
+  ideType: "IDE_UNSPECIFIED",
+  pluginType: "GEMINI",
+});
+
+const antigravityProjectCache = new Map<string, { projectId: string; expiresAt: number }>();
+const antigravityInflightProjectRefresh = new Map<string, Promise<string | null>>();
+
+type LoadCodeAssistResponse = {
+  cloudaicompanionProject?: string | { id?: string };
+  allowedTiers?: Array<{ id?: string; isDefault?: boolean }>;
 };
+type OnboardResponse = {
+  done?: boolean;
+  managedProjectId?: string;
+  defaultTierId?: string;
+  response?: { cloudaicompanionProject?: string | { id?: string } };
+};
+
+function extractCloudCodeProject(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "";
+  const proj = (payload as LoadCodeAssistResponse).cloudaicompanionProject;
+  if (typeof proj === "string") return proj.trim();
+  if (proj && typeof proj === "object" && typeof proj.id === "string") return proj.id.trim();
+  return "";
+}
+
+function extractDefaultTierId(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return DEFAULT_ONBOARD_TIER;
+  const data = payload as LoadCodeAssistResponse & OnboardResponse;
+  if (Array.isArray(data.allowedTiers)) {
+    for (const tier of data.allowedTiers) {
+      if (tier?.isDefault && typeof tier.id === "string" && tier.id.trim()) {
+        return tier.id.trim();
+      }
+    }
+  }
+  if (typeof data.defaultTierId === "string" && data.defaultTierId.trim()) {
+    return data.defaultTierId.trim();
+  }
+  return DEFAULT_ONBOARD_TIER;
+}
+
+function buildProjectResolutionHeaders(accessToken: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+    "User-Agent": antigravityUserAgent(),
+    "X-Goog-Api-Client": googApiClientHeader(),
+    "Client-Metadata": `{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}`,
+  };
+}
+
+async function onboardManagedProject(
+  accessToken: string,
+  tierId: string,
+  initialProjectId: string,
+  log?: { warn?: (scope: string, message: string) => void }
+): Promise<string | null> {
+  // Up to 3 polls — onboarding may return done=false initially.
+  let resolved = initialProjectId || "";
+  for (let i = 0; i < 3; i++) {
+    if (i > 0) await new Promise((resolve) => setTimeout(resolve, ONBOARD_DELAY_MS));
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), ONBOARD_TIMEOUT_MS);
+      let response: Response;
+      try {
+        response = await fetch(ONBOARD_USER_URL, {
+          method: "POST",
+          headers: buildProjectResolutionHeaders(accessToken),
+          body: JSON.stringify({
+            tierId,
+            metadata: ONBOARD_METADATA,
+            ...(resolved ? { cloudaicompanionProject: resolved } : {}),
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      if (!response.ok) {
+        log?.warn?.("AG_ONBOARD", `attempt ${i + 1}/3 → ${response.status}`);
+        continue;
+      }
+
+      const data = (await response.json().catch(() => ({}))) as OnboardResponse;
+      const respProject = extractCloudCodeProject(data.response || {});
+      if (respProject) resolved = respProject;
+      if (data.managedProjectId && typeof data.managedProjectId === "string") {
+        resolved = data.managedProjectId.trim() || resolved;
+      }
+      if (data.done === true && resolved) return resolved;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      log?.warn?.("AG_ONBOARD", `attempt ${i + 1}/3 error: ${msg}`);
+    }
+  }
+
+  return resolved || null;
+}
+
+async function doResolveAntigravityProject(
+  accessToken: string,
+  log?: {
+    debug?: (scope: string, message: string) => void;
+    warn?: (scope: string, message: string) => void;
+  }
+): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), LOAD_CODE_ASSIST_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(LOAD_CODE_ASSIST_URL, {
+        method: "POST",
+        headers: buildProjectResolutionHeaders(accessToken),
+        body: JSON.stringify({ metadata: PROJECT_LOAD_METADATA }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    if (!response.ok) {
+      log?.warn?.("AG_LOAD_CODE_ASSIST", `${response.status} — falling back to stored projectId`);
+      return null;
+    }
+
+    const data = (await response.json().catch(() => ({}))) as LoadCodeAssistResponse;
+    let projectId = extractCloudCodeProject(data);
+    const tierId = extractDefaultTierId(data);
+
+    if (!projectId) {
+      log?.debug?.("AG_LOAD_CODE_ASSIST", "no cloudaicompanionProject — attempting onboardUser");
+    }
+
+    // Always run onboardUser when project is missing OR tier needs activation.
+    // Accounts that just signed up have an empty `cloudaicompanionProject` until
+    // onboardUser completes.
+    const onboarded = await onboardManagedProject(accessToken, tierId, projectId, log);
+    if (onboarded) projectId = onboarded;
+
+    if (!projectId) {
+      log?.warn?.("AG_LOAD_CODE_ASSIST", "could not resolve project — falling back");
+      return null;
+    }
+
+    if (antigravityProjectCache.size >= MAX_PROJECT_CACHE_SIZE) {
+      const now = Date.now();
+      for (const [key, val] of antigravityProjectCache) {
+        if (val.expiresAt <= now) antigravityProjectCache.delete(key);
+      }
+      if (antigravityProjectCache.size >= MAX_PROJECT_CACHE_SIZE) {
+        const firstKey = antigravityProjectCache.keys().next().value;
+        if (firstKey !== undefined) antigravityProjectCache.delete(firstKey);
+      }
+    }
+    antigravityProjectCache.set(accessToken, {
+      projectId,
+      expiresAt: Date.now() + PROJECT_TTL_MS,
+    });
+
+    return projectId;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    log?.warn?.("AG_LOAD_CODE_ASSIST", `failed (${msg}) — falling back to stored projectId`);
+    return null;
+  }
+}
+
+async function resolveAntigravityProject(
+  accessToken: string,
+  log?: {
+    debug?: (scope: string, message: string) => void;
+    warn?: (scope: string, message: string) => void;
+  }
+): Promise<string | null> {
+  if (!accessToken) return null;
+
+  const cached = antigravityProjectCache.get(accessToken);
+  if (cached && cached.expiresAt > Date.now()) return cached.projectId;
+
+  const inflight = antigravityInflightProjectRefresh.get(accessToken);
+  if (inflight) return inflight;
+
+  const promise = doResolveAntigravityProject(accessToken, log);
+  antigravityInflightProjectRefresh.set(accessToken, promise);
+  try {
+    return await promise;
+  } finally {
+    antigravityInflightProjectRefresh.delete(accessToken);
+  }
+}
+
+/**
+ * Strip provider prefixes (e.g. "antigravity/model" → "model").
+ * Ensures the model name sent to the upstream API never contains a routing prefix.
+ *
+ * NOTE: We intentionally do NOT rewrite tier suffixes here. Earlier revisions
+ * silently downcast bare/agent IDs to the "-low" tier, which made the test/Health
+ * UI hit exhausted quotas while production traffic (which already sends explicit
+ * tiers) worked. Source of truth for valid model IDs is the upstream
+ * `v1internal:fetchAvailableModels` response — see
+ * `src/lib/providers/antigravityLiveModels.ts`. If a bare ID reaches the upstream
+ * and it rejects with 400, surface that to the caller instead of remapping it.
+ */
+function cleanModelName(model: string): string {
+  if (!model) return model;
+  return model.includes("/") ? model.split("/").pop()! : model;
+}
 
 type AntigravityCollectedStream = {
   textContent: string;
@@ -31,22 +254,6 @@ type AntigravityCollectedStream = {
   usage: Record<string, unknown> | null;
   remainingCredits: Array<{ creditType: string; creditAmount: string }> | null;
 };
-
-/**
- * Strip provider prefixes (e.g. "antigravity/model" → "model").
- * Ensures the model name sent to the upstream API never contains a routing prefix.
- */
-function cleanModelName(model: string): string {
-  if (!model) return model;
-  let clean = model.includes("/") ? model.split("/").pop()! : model;
-  // Normalize bare Pro IDs to the Low tier (matching OpenClaw convention).
-  // The upstream API requires an explicit tier suffix; bare IDs cause errors.
-  if (BARE_PRO_IDS.has(clean)) {
-    clean = `${clean}-low`;
-  }
-  clean = ANTIGRAVITY_UPSTREAM_MODEL_ALIASES[clean] || clean;
-  return clean;
-}
 
 function processAntigravitySSEPayload(
   payload: string,
@@ -145,10 +352,7 @@ export class AntigravityExecutor extends BaseExecutor {
     return cleaned;
   }
 
-  transformRequest(model, body, stream, credentials) {
-    // TODO: Consider removing project override like gemini-cli.ts — stored projectId
-    // can become stale for Cloud Code accounts, causing 403 "has not been used in project X".
-    // Antigravity accounts may have more stable project IDs, but the risk exists.
+  async transformRequest(model, body, stream, credentials, log?) {
     const bodyProjectId = body?.project;
     const credentialsProjectId = credentials?.projectId;
     const allowBodyProjectOverride = process.env.ROUTIFORM_ALLOW_BODY_PROJECT_OVERRIDE === "1";
@@ -156,16 +360,30 @@ export class AntigravityExecutor extends BaseExecutor {
     // Default: prefer OAuth-stored projectId over incoming body.project to avoid
     // stale/wrong client-side values causing 404/403 from Cloud Code endpoints.
     // Opt-in escape hatch: set ROUTIFORM_ALLOW_BODY_PROJECT_OVERRIDE=1.
-    const projectId =
+    let projectId =
       allowBodyProjectOverride && bodyProjectId
         ? bodyProjectId
         : credentialsProjectId || bodyProjectId;
 
+    // Runtime fallback: if stored/body projectId is missing or empty, ask
+    // Google Cloud Code (loadCodeAssist + onboardUser) for the account's
+    // managed project. Mirrors the gemini-cli executor — turns "Missing
+    // projectId" 422s into auto-recovery without forcing OAuth reconnect.
+    if (
+      (!projectId || (typeof projectId === "string" && !projectId.trim())) &&
+      credentials?.accessToken
+    ) {
+      const resolved = await resolveAntigravityProject(credentials.accessToken, log);
+      if (resolved) projectId = resolved;
+    }
+
     if (!projectId) {
       // (#489) Return a structured error instead of throwing — gives the client a clear signal
       // to show a "Reconnect OAuth" prompt rather than an opaque "Internal Server Error".
+      // Note: this fires only after runtime loadCodeAssist + onboardUser also fail
+      // (e.g. revoked scopes, network outage, or upstream 5xx).
       const errorMsg =
-        "Missing Google projectId for Antigravity account. Please reconnect OAuth in Providers → Antigravity so Routiform can fetch your Cloud Code project.";
+        "Could not resolve a Google Cloud Code project for this Antigravity account. Try reconnecting OAuth in Providers → Antigravity, or retry — onboarding may still be propagating.";
       const errorBody = {
         error: {
           message: errorMsg,
@@ -215,6 +433,27 @@ export class AntigravityExecutor extends BaseExecutor {
     };
 
     const upstreamModel = cleanModelName(model);
+
+    // Defense-in-depth: sanitize tool parameter schemas before sending upstream.
+    // Some clients (opencode, certain Cursor builds) pass raw Zod schemas as
+    // `tool.parameters`, which carry internal markers like `_def`, `~standard`,
+    // `_zod` that Antigravity rejects with 400 "Unknown name". Translators
+    // already run `cleanJSONSchemaForAntigravity` for known formats, but
+    // running it again here costs one cheap pass and guards against new
+    // ingestion paths that bypass the translator.
+    const requestTools = (transformedRequest as Record<string, unknown>).tools;
+    if (Array.isArray(requestTools)) {
+      for (const group of requestTools) {
+        const decls = (group as { functionDeclarations?: unknown[] })?.functionDeclarations;
+        if (!Array.isArray(decls)) continue;
+        for (const decl of decls) {
+          const fn = decl as { parameters?: unknown };
+          if (fn?.parameters && typeof fn.parameters === "object") {
+            fn.parameters = cleanJSONSchemaForAntigravity(fn.parameters);
+          }
+        }
+      }
+    }
 
     // Obfuscate sensitive client names in user content (e.g. "OpenCode", "Cursor")
     const requestContents = transformedRequest.contents;
@@ -351,7 +590,13 @@ export class AntigravityExecutor extends BaseExecutor {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
 
-    const SSE_COLLECT_TIMEOUT_MS = 120_000;
+    // 25s — short enough that test routes (20-30s outer timeout) get a 504
+    // synthesized BEFORE the outer abort fires, with a structured error body.
+    // Was 120s, which made any genuinely slow upstream cascade into
+    // "[502]: This job timed out after 120000 ms" (from Bottleneck) and bury
+    // the actual reason. Real chat traffic uses streaming and never hits this
+    // path; only non-streaming clients (probes, dashboard test) collect SSE.
+    const SSE_COLLECT_TIMEOUT_MS = 25_000;
 
     const collect = async () => {
       const collected: AntigravityCollectedStream = {
@@ -448,7 +693,13 @@ export class AntigravityExecutor extends BaseExecutor {
       const url = this.buildUrl(model, upstreamStream, urlIndex);
       const headers = this.buildHeaders(credentials, upstreamStream);
       mergeUpstreamExtraHeaders(headers, upstreamExtraHeaders);
-      const transformResult = await this.transformRequest(model, body, upstreamStream, credentials);
+      const transformResult = await this.transformRequest(
+        model,
+        body,
+        upstreamStream,
+        credentials,
+        log
+      );
 
       if (transformResult instanceof Response) {
         return { response: transformResult, url, headers, transformedBody: body };
