@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 
 import { AntigravityExecutor } from "../../open-sse/executors/antigravity.ts";
 
-test("T44: Antigravity preserves thoughtSignature for functionCall turns", () => {
+test("T44: Antigravity preserves thoughtSignature for functionCall turns", async () => {
   const executor = new AntigravityExecutor();
-  const transformed = executor.transformRequest(
+  const transformed = await executor.transformRequest(
     "gemini-3-flash",
     {
       request: {
@@ -51,9 +51,9 @@ test("T44: Antigravity preserves thoughtSignature for functionCall turns", () =>
   );
 });
 
-test("T44: Antigravity still strips standalone thoughtSignature without tool calls", () => {
+test("T44: Antigravity still strips standalone thoughtSignature without tool calls", async () => {
   const executor = new AntigravityExecutor();
-  const transformed = executor.transformRequest(
+  const transformed = await executor.transformRequest(
     "gemini-3-flash",
     {
       request: {
@@ -72,9 +72,13 @@ test("T44: Antigravity still strips standalone thoughtSignature without tool cal
   assert.deepEqual(transformed.request.contents[0].parts, [{ text: "plain text" }]);
 });
 
-test("T44: Antigravity normalizes Gemini Pro High model IDs to their callable upstream ID", () => {
+test("T44: Antigravity passes Gemini Pro High model IDs through to upstream as-is", async () => {
+  // Earlier revisions silently downcast `gemini-3.1-pro-high` → `gemini-3.1-pro-low`
+  // via PROVIDER_MODEL_ALIASES. That hid quota errors and made test/Health probes
+  // hit a different tier than production traffic. The map was removed; the executor
+  // now strips only the `antigravity/` provider prefix and forwards the rest.
   const executor = new AntigravityExecutor();
-  const transformed = executor.transformRequest(
+  const transformed = await executor.transformRequest(
     "antigravity/gemini-3.1-pro-high",
     {
       request: {
@@ -85,5 +89,5 @@ test("T44: Antigravity normalizes Gemini Pro High model IDs to their callable up
     { projectId: "test-project" }
   );
 
-  assert.equal(transformed.model, "gemini-3.1-pro-low");
+  assert.equal(transformed.model, "gemini-3.1-pro-high");
 });

@@ -51,9 +51,13 @@ const PROVIDER_MODEL_ALIASES = {
     "nvidia/gpt-oss-120b": "openai/gpt-oss-120b",
   },
   antigravity: {
-    "gemini-3-flash-agent": "gemini-3.5-flash-low",
-    "gemini-pro-agent": "gemini-3.1-pro-high",
-    "gemini-3.5-flash": "gemini-3.5-flash-low",
+    // Antigravity model IDs are passed through as-is. Earlier revisions used
+    // this map to silently downcast bare/agent IDs to "-low" tier — that hid
+    // legitimate quota errors and made the test/Health UI hit the wrong tier.
+    // Source of truth for valid IDs is the upstream
+    // `v1internal:fetchAvailableModels` response — see
+    // `src/lib/providers/antigravityLiveModels.ts`. Add an entry here only if
+    // the upstream itself drops a model ID and a deprecation alias is needed.
     "gpt-oss-120b-medium": "gpt-oss-120b",
   },
 };

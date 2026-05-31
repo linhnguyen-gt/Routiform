@@ -55,6 +55,13 @@ export const UNSUPPORTED_SCHEMA_CONSTRAINTS = [
   "strokeColor",
   "strokeThickness",
   "textColor",
+  // Zod / Standard Schema internal markers (clients sometimes pass raw Zod
+  // schemas as tool.parameters instead of JSON Schema). Antigravity rejects
+  // these with "Unknown name '_def'" / "Unknown name '~standard'".
+  "_def",
+  "~standard",
+  "_zod",
+  "~validate",
 ];
 
 // Default safety settings

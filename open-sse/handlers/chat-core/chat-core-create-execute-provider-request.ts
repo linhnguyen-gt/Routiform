@@ -196,38 +196,55 @@ export async function createExecuteProviderRequestBundle({
         }
       }
 
-      const rawResult = await withRateLimit(provider, connectionId, modelToCall, async () => {
-        let attempts = 0;
-        const maxAttempts = provider === "qwen" ? 3 : 1;
+      const rawResult = await withRateLimit(
+        provider,
+        connectionId,
+        modelToCall,
+        async () => {
+          let attempts = 0;
+          const maxAttempts = provider === "qwen" ? 3 : 1;
 
-        while (attempts < maxAttempts) {
-          const res = await executor.execute({
-            model: modelToCall,
-            body: bodyToSend,
-            stream: upstreamStream,
-            credentials: getExecutionCredentials(),
-            signal: streamController.signal,
-            log,
-            extendedContext,
-            upstreamExtraHeaders: buildUpstreamHeadersForExecute(modelToCall),
-          });
+          while (attempts < maxAttempts) {
+            const res = await executor.execute({
+              model: modelToCall,
+              body: bodyToSend,
+              stream: upstreamStream,
+              credentials: getExecutionCredentials(),
+              signal: streamController.signal,
+              log,
+              extendedContext,
+              upstreamExtraHeaders: buildUpstreamHeadersForExecute(modelToCall),
+            });
 
-          if (provider === "qwen" && res.response.status === 429 && attempts < maxAttempts - 1) {
-            const bodyPeek = await res.response
-              .clone()
-              .text()
-              .catch(() => "");
-            if (bodyPeek.toLowerCase().includes("exceeded your current quota")) {
-              const delay = 1500 * (attempts + 1);
-              log?.warn?.("QWEN_RETRY", `Quota 429 hit. Retrying in ${delay}ms...`);
-              await new Promise((r) => setTimeout(r, delay));
-              attempts++;
-              continue;
+            if (provider === "qwen" && res.response.status === 429 && attempts < maxAttempts - 1) {
+              const bodyPeek = await res.response
+                .clone()
+                .text()
+                .catch(() => "");
+              if (bodyPeek.toLowerCase().includes("exceeded your current quota")) {
+                const delay = 1500 * (attempts + 1);
+                log?.warn?.("QWEN_RETRY", `Quota 429 hit. Retrying in ${delay}ms...`);
+                await new Promise((r) => setTimeout(r, delay));
+                attempts++;
+                continue;
+              }
             }
+            return res;
           }
-          return res;
+        },
+        // Bypass rate-limiter for combo health-check probes. Probes carry the
+        // `X-Internal-Test: combo-health-check` header (set by /api/models/test,
+        // /api/combos/test, /api/providers/[id]/test) and must NOT share queue
+        // budget with user traffic — otherwise they sit in Bottleneck's queue
+        // until the 120s job expiration fires, surfacing as
+        // "[502]: This job timed out after 120000 ms" even when the upstream
+        // model is healthy.
+        {
+          bypass:
+            buildUpstreamHeadersForExecute(modelToCall)?.["X-Internal-Test"] ===
+            "combo-health-check",
         }
-      });
+      );
 
       if (stream) return rawResult;
 

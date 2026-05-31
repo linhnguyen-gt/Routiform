@@ -267,7 +267,13 @@ function getLimiter(provider, connectionId, model = null) {
  * @param {Function} fn - The async function to execute (e.g., executor.execute)
  * @returns {Promise<unknown>} Result of fn()
  */
-export async function withRateLimit(provider, connectionId, model, fn) {
+export async function withRateLimit(provider, connectionId, model, fn, options) {
+  // Health-check probes (combo/provider/model test routes) carry an explicit
+  // bypass flag — they must NOT enter Bottleneck's queue, which holds jobs up
+  // to JOB_EXPIRATION_MS (120s) and surfaces as "This job timed out after
+  // 120000 ms" 502s even when the upstream is healthy.
+  if (options?.bypass) return fn();
+
   if (!enabledConnections.has(connectionId)) {
     return fn();
   }
