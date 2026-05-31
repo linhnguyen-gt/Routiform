@@ -5,6 +5,7 @@ import { Card, Button } from "@/shared/components";
 import { useNotificationStore } from "@/store/notificationStore";
 import { useLocale, useTranslations } from "next-intl";
 import AutoDisableCard from "./AutoDisableCard";
+import DedupeCard from "./DedupeCard";
 
 // ─── State colors and labels ──────────────────────────────────────────────
 const STATE_STYLES = {
@@ -674,6 +675,8 @@ export default function ResilienceTab() {
       />
       {/* 4. Policies & Locked Identifiers (from previous Security tab) */}
       <PoliciesCard />
+      {/* 5. Request deduplication (plan 260531-1214-request-dedupe) */}
+      <DedupeCard />
     </div>
   );
 }

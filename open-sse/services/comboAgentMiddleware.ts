@@ -41,9 +41,18 @@ interface Message {
 const CACHE_TAG_PATTERN = /(?:\\n|\n)?<routiformModel>([^<]+)<\/routiformModel>(?:\\n|\n)?/;
 
 /**
- * Inject the model tag into the last assistant message (or append a new one).
- * Only modifies string content — does not touch array content to avoid breaking
- * Claude/Gemini multi-part message formats.
+ * Inject the model tag into the last assistant message.
+ *
+ * Pin is best-effort. We only append the tag onto an existing assistant string-
+ * content message. Earlier versions appended a SYNTHETIC second assistant
+ * message when no eligible target existed (issues #474, #721); that produced
+ * duplicate-message artifacts in clients that render every assistant entry as
+ * a distinct bubble (notably the OpenClaw control UI — see plan
+ * 260531-1214-request-dedupe). Since the X-Routiform-Model HTTP header now
+ * carries the same pin signal upstream-side, the synthetic-message fallback is
+ * unnecessary and is removed here.
+ *
+ * Returns the messages unchanged when no eligible target exists.
  */
 export function injectModelTag(messages: Message[], providerModel: string): Message[] {
   // Remove any existing tag first to avoid duplication on context compaction
@@ -54,29 +63,19 @@ export function injectModelTag(messages: Message[], providerModel: string): Mess
     return msg;
   });
 
-  // Find last assistant message with string content
+  // Find last assistant message with string content. If none qualifies, we
+  // return without injecting — the header-side pin (X-Routiform-Model) is still
+  // applied by the streaming handler.
   const lastAssistantIdx = cleaned.map((m) => m.role).lastIndexOf("assistant");
-
-  // #474: If no assistant message exists yet (first turn), append a synthetic one
-  // so the tag is present when the client sends the next request with the response.
   if (lastAssistantIdx === -1) {
-    return [
-      ...cleaned,
-      { role: "assistant", content: `<routiformModel>${providerModel}</routiformModel>` },
-    ];
+    return cleaned;
   }
 
   const msg = cleaned[lastAssistantIdx];
-  // Fix #721: Handle messages where content is not a string (tool_calls responses).
-  // In this case, append a synthetic assistant message with the tag so the pin
-  // roundtrips through the conversation history.
   if (typeof msg.content !== "string") {
-    // If the message has tool_calls but no string content, append a new assistant
-    // message with the tag rather than silently failing.
-    return [
-      ...cleaned,
-      { role: "assistant", content: `<routiformModel>${providerModel}</routiformModel>` },
-    ];
+    // tool_calls response — non-string content. Skip in-message pin to avoid
+    // creating a second assistant message; rely on the header path instead.
+    return cleaned;
   }
 
   const tagged = [...cleaned];

@@ -5,6 +5,8 @@
  * Most specific wins.
  */
 
+import type { DedupMode } from "./requestDedup.ts";
+
 const DEFAULT_COMBO_CONFIG = {
   strategy: "priority",
   maxRetries: 1,
@@ -17,6 +19,35 @@ const DEFAULT_COMBO_CONFIG = {
   maxComboDepth: 3,
   trackMetrics: true,
 };
+
+export interface ComboDedupeOverride {
+  mode?: DedupMode;
+  ttlMs?: number;
+  enabled?: boolean;
+}
+
+/**
+ * Read dedupe override from combo config.
+ * Returns null when the combo has no opinion (caller should fall back to runtime config).
+ */
+export function readComboDedupeOverride(
+  combo: { config?: { dedupe?: unknown } | null } | null | undefined
+): ComboDedupeOverride | null {
+  const raw = combo?.config?.dedupe;
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const out: ComboDedupeOverride = {};
+  if (r.mode === "off" || r.mode === "shadow" || r.mode === "enforce") {
+    out.mode = r.mode;
+  }
+  if (typeof r.ttlMs === "number" && Number.isFinite(r.ttlMs) && r.ttlMs > 0) {
+    out.ttlMs = r.ttlMs;
+  }
+  if (typeof r.enabled === "boolean") {
+    out.enabled = r.enabled;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
 
 /**
  * Resolve effective config for a combo, applying cascade:

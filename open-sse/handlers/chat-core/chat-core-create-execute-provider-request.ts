@@ -1,11 +1,24 @@
 import { getDefaultParams, getForceParams } from "../../config/registry-params.ts";
 import { FORMATS } from "../../translator/formats.ts";
 import { withRateLimit } from "../../services/rateLimitManager.ts";
-import { computeRequestHash, deduplicate, shouldDeduplicate } from "../../services/requestDedup.ts";
+import {
+  computeRequestHash,
+  detectSideEffect,
+  getDedupConfig,
+  readDedupeControls,
+  shouldDeduplicate,
+  withInflightDedupe,
+} from "../../services/requestDedup.ts";
+import { readComboDedupeOverride } from "../../services/comboConfig.ts";
 import { providerSupportsCaching } from "../../utils/cacheControlPolicy.ts";
 import { createStreamController } from "../../utils/streamHandler.ts";
 import { resolveExecutorWithProxy } from "../services/upstream-proxy-resolver.ts";
-import type { HandlerLogger, JsonRecord, ProviderCredentials } from "../types/chat-core.ts";
+import type {
+  HandlerLogger,
+  JsonRecord,
+  ProviderCredentials,
+  RawRequestLike,
+} from "../types/chat-core.ts";
 
 export async function createExecuteProviderRequestBundle({
   provider,
@@ -24,6 +37,8 @@ export async function createExecuteProviderRequestBundle({
   log,
   onDisconnect,
   buildUpstreamHeadersForExecute,
+  clientRawRequest,
+  combo,
 }: {
   provider: string;
   model: string;
@@ -41,6 +56,8 @@ export async function createExecuteProviderRequestBundle({
   log: HandlerLogger | null | undefined;
   onDisconnect?: () => void;
   buildUpstreamHeadersForExecute: (modelToCall: string) => Record<string, string>;
+  clientRawRequest?: RawRequestLike | null;
+  combo?: { config?: { dedupe?: unknown } | null } | null;
 }) {
   const executor = await resolveExecutorWithProxy({
     provider,
@@ -77,9 +94,40 @@ export async function createExecuteProviderRequestBundle({
 
   const streamController = createStreamController({ onDisconnect, log, provider, model });
 
+  // Build the payload used for dedupe fingerprinting. Includes provider+model
+  // and stream flag so non-stream and stream variants of the same request
+  // never share an inflight slot.
   const dedupRequestBody = { ...translatedBody, model: `${provider}/${model}`, stream };
-  const dedupEnabled = shouldDeduplicate(dedupRequestBody);
-  const dedupHash = dedupEnabled ? computeRequestHash(dedupRequestBody) : null;
+
+  // Read per-request dedupe overrides from inbound headers exactly once.
+  // Side-effect detection looks at the body shape (last message role=tool ⇒ skip).
+  const headerControls = readDedupeControls(clientRawRequest?.headers ?? null);
+  const sideEffect = detectSideEffect(translatedBody);
+
+  // Compose combo-level override on top of runtime config.
+  // Header bypass / mode=off are decided by `withInflightDedupe`; here we only
+  // pre-build the per-call options snapshot.
+  const comboOverride = readComboDedupeOverride(combo ?? null);
+  const baseDedupConfig = getDedupConfig();
+  const effectiveDedupConfig = comboOverride
+    ? {
+        ...baseDedupConfig,
+        ...(comboOverride.enabled !== undefined ? { enabled: comboOverride.enabled } : {}),
+        ...(comboOverride.mode ? { mode: comboOverride.mode } : {}),
+        ...(comboOverride.ttlMs ? { ttlMs: comboOverride.ttlMs } : {}),
+      }
+    : baseDedupConfig;
+
+  const dedupEligible = shouldDeduplicate(dedupRequestBody, effectiveDedupConfig);
+  const dedupBypass = headerControls.bypass || sideEffect || !dedupEligible;
+  const dedupBypassReason = headerControls.bypass
+    ? headerControls.bypassReason
+    : sideEffect
+      ? "tool-result"
+      : !dedupEligible
+        ? "ineligible"
+        : null;
+  const dedupHash = computeRequestHash(dedupRequestBody);
 
   const executeProviderRequest = async (modelToCall = effectiveModel, allowDedup = false) => {
     const execute = async () => {
@@ -194,12 +242,24 @@ export async function createExecuteProviderRequestBundle({
       };
     };
 
-    if (allowDedup && dedupEnabled && dedupHash) {
-      const dedupResult = await deduplicate(dedupHash, execute);
+    if (allowDedup && !dedupBypass) {
+      const dedupResult = await withInflightDedupe(dedupRequestBody, execute, {
+        keyOverride: headerControls.idempotencyKey,
+        ttlMs: headerControls.ttlMsOverride ?? effectiveDedupConfig.ttlMs,
+        config: effectiveDedupConfig,
+        log: log ? { info: (t, m) => log.info?.(t, m), debug: (t, m) => log.debug?.(t, m) } : null,
+      });
       if (dedupResult.wasDeduplicated) {
-        log?.debug?.("DEDUP", `Joined in-flight request hash=${dedupHash}`);
+        log?.debug?.(
+          "DEDUP",
+          `Joined in-flight request hash=${dedupResult.hash} mode=${dedupResult.mode}`
+        );
       }
       return dedupResult.result;
+    }
+
+    if (allowDedup && dedupBypass && dedupBypassReason) {
+      log?.debug?.("DEDUP", `Bypass dedupe hash=${dedupHash} reason=${dedupBypassReason}`);
     }
 
     return execute();

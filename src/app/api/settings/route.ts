@@ -7,6 +7,7 @@ import { getRuntimePorts } from "@/lib/runtime/ports";
 import { updateSettingsSchema } from "@/shared/validation/settingsSchemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { setCliCompatProviders } from "../../../../open-sse/config/cliFingerprints";
+import { setDedupConfig } from "../../../../open-sse/services/requestDedup";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 import { validateProxyUrl, upsertUpstreamProxyConfig } from "@/lib/db/upstreamProxy";
 
@@ -27,6 +28,11 @@ export async function GET() {
     // Sync CLI fingerprint providers to runtime cache on load
     if (settings.cliCompatProviders) {
       setCliCompatProviders(settings.cliCompatProviders as string[]);
+    }
+
+    // Sync request dedupe runtime config on load
+    if (settings.dedupeConfig && typeof settings.dedupeConfig === "object") {
+      setDedupConfig(settings.dedupeConfig as Parameters<typeof setDedupConfig>[0]);
     }
 
     const runtimePorts = getRuntimePorts();
@@ -159,6 +165,11 @@ export async function PATCH(request) {
     // Sync CLI fingerprint providers to runtime cache
     if ("cliCompatProviders" in body) {
       setCliCompatProviders(body.cliCompatProviders || []);
+    }
+
+    // Sync request dedupe runtime config when user updates settings
+    if ("dedupeConfig" in body && body.dedupeConfig) {
+      setDedupConfig(body.dedupeConfig as Parameters<typeof setDedupConfig>[0]);
     }
 
     // Sync cache control settings to runtime cache
