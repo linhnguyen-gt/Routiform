@@ -22,6 +22,7 @@ const openClawSettingsSchema = z
     apiKey: z.string().optional(),
     model: z.string().trim().min(1, "baseUrl and model are required").optional(),
     models: z.array(z.string().trim().min(1)).optional(),
+    api: z.enum(["anthropic-messages", "openai-completions"]).optional(),
   })
   .superRefine((value, ctx) => {
     if (!value.model && (!Array.isArray(value.models) || value.models.length === 0)) {
@@ -123,6 +124,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
     let { baseUrl, apiKey, model, models } = validation.data;
+    // Default API protocol matches the OpenClaw card UI default. Existing
+    // installs that previously hardcoded `anthropic-messages` keep working
+    // because the dashboard now restores the persisted `api` value on load.
+    const apiProtocol: "anthropic-messages" | "openai-completions" =
+      validation.data.api ?? "openai-completions";
 
     const normalizedModels = Array.from(
       new Set(
@@ -191,7 +197,7 @@ export async function POST(request: Request) {
     settingsProviders["routiform"] = {
       baseUrl: normalizedBaseUrl,
       apiKey: apiKey || "your_api_key",
-      api: "anthropic-messages",
+      api: apiProtocol,
       models: normalizedModels.map((modelId) => ({
         id: modelId,
         name: modelId.split("/").pop() || modelId,
