@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.33.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.32.0...v3.33.0) (2026-05-31)
+
+
+### Features
+
+* **dedupe:** add proxy-level request deduplication ([4fd341e](https://github.com/linhnguyen-gt/Routiform/commit/4fd341eedd6670d760522481c84b6f150e973a0b)), closes [#10377](https://github.com/linhnguyen-gt/Routiform/issues/10377)
+* **openclaw:** add API protocol dropdown (anthropic-messages | openai-completions) ([20fa51a](https://github.com/linhnguyen-gt/Routiform/commit/20fa51a59e3e4040969eea01a3f13559b16360e6))
+
+
+### Bug Fixes
+
+* **antigravity:** resolve project at runtime and harden test probes ([512084d](https://github.com/linhnguyen-gt/Routiform/commit/512084d7d331773055127848c9978ee2a74d7dc0))
+
 ## [3.32.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.31.2...v3.32.0) (2026-05-30)
 
 
