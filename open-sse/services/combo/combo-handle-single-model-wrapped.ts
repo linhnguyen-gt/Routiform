@@ -44,7 +44,6 @@ export function createHandleSingleModelWrapped(
     }
 
     if (!res.body) return res;
-    const tagContent = `<routiformModel>${modelStr}</routiformModel>`;
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
     let tagInjected = false;
@@ -58,8 +57,14 @@ export function createHandleSingleModelWrapped(
 
         const text = decoder.decode(chunk, { stream: true });
 
+        // Best-effort in-stream pin: only append the tag onto the FIRST chunk
+        // that already carries a content delta. We never emit a tag-only delta
+        // chunk — that pattern caused some clients (notably OpenClaw control
+        // UI) to render the tag as a separate empty assistant bubble, doubling
+        // the visible message count (see plan 260531-1214-request-dedupe).
         const contentMatch = text.match(/"content":"([^"]+)/);
         if (contentMatch) {
+          const tagContent = `<routiformModel>${modelStr}</routiformModel>`;
           const injected = text.replace(
             /"content":"([^"]+)/,
             `"content":"${tagContent.replace(/"/g, '\\"')}$1`
@@ -69,38 +74,12 @@ export function createHandleSingleModelWrapped(
           return;
         }
 
-        if (text.includes('"finish_reason"') && !text.includes('"finish_reason":null')) {
-          const tagChunk = `data: ${JSON.stringify({
-            choices: [
-              {
-                delta: { content: tagContent },
-                index: 0,
-                finish_reason: null,
-              },
-            ],
-          })}\n\n`;
-          tagInjected = true;
-          controller.enqueue(encoder.encode(tagChunk));
-          controller.enqueue(chunk);
-          return;
-        }
-
         controller.enqueue(chunk);
       },
-      flush(controller) {
-        if (!tagInjected) {
-          const tagChunk = `data: ${JSON.stringify({
-            choices: [
-              {
-                delta: { content: tagContent },
-                index: 0,
-                finish_reason: null,
-              },
-            ],
-          })}\n\n`;
-          controller.enqueue(encoder.encode(tagChunk));
-        }
-      },
+      // Intentionally no flush() injection: when the upstream response has no
+      // content delta (pure tool_calls), the X-Routiform-Model header below is
+      // the only pin signal sent to the client. This avoids the duplicate
+      // assistant-bubble artifact reported with tag-only deltas.
     });
 
     const sanitizeDecoder = new TextDecoder();
@@ -137,7 +116,6 @@ export function createHandleSingleModelWrapped(
 
     const transformedStream = res.body.pipeThrough(transform).pipeThrough(sanitize);
     const headers = new Headers(res.headers);
-    headers.set("X-Routiform-Model", modelStr);
     headers.set("X-Routiform-Model", modelStr);
     return new Response(transformedStream, {
       status: res.status,

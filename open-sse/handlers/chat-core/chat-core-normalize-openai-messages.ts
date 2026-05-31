@@ -1,4 +1,6 @@
 import { FORMATS } from "../../translator/formats.ts";
+import { dedupeConsecutiveMessages } from "../../services/dedupeConsecutiveMessages.ts";
+import { recordMessageDedupe } from "../../services/requestDedup.ts";
 import type { HandlerLogger } from "../types/chat-core.ts";
 
 /**
@@ -22,6 +24,20 @@ export function normalizeOpenAiStyleMessagesForTranslation(
   targetFormat: string,
   log: HandlerLogger | null | undefined
 ): void {
+  // Generic safety net: collapse adjacent duplicate user/tool messages that some
+  // misbehaving clients/gateways emit (see plan 260531-1214-request-dedupe).
+  // Conservative — only adjacent duplicates of user/tool roles are removed.
+  if (Array.isArray(translatedBody.messages) && translatedBody.messages.length > 1) {
+    const { messages: deduped, removed } = dedupeConsecutiveMessages(
+      translatedBody.messages as Array<Record<string, unknown>>
+    );
+    if (removed > 0) {
+      translatedBody.messages = deduped;
+      recordMessageDedupe(removed);
+      log?.info?.("DEDUP-MSG", `Collapsed ${removed} adjacent duplicate user/tool message(s)`);
+    }
+  }
+
   if (Array.isArray(translatedBody.messages)) {
     for (const msg of translatedBody.messages) {
       if (Array.isArray(msg.content)) {

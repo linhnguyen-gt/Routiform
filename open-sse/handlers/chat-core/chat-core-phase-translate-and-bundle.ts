@@ -204,6 +204,10 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
     buildUpstreamHeadersForExecute: p.buildUpstreamHeadersForExecute as (
       modelToCall: string
     ) => Record<string, string>,
+    clientRawRequest: p.clientRawRequest as Parameters<
+      typeof createExecuteProviderRequestBundle
+    >[0]["clientRawRequest"],
+    combo: (p.combo ?? null) as Parameters<typeof createExecuteProviderRequestBundle>[0]["combo"],
   });
 
   p.executor = bundle.executor;

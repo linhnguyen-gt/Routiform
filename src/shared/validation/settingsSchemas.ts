@@ -88,4 +88,17 @@ export const updateSettingsSchema = z.object({
   modelReasoningDefaults: z.record(z.string().max(300), z.string().max(20)).optional(),
   /** Oversized request handling before upstream (Dashboard → AI) */
   contextValidation: z.enum(["passthrough", "auto-compress"]).optional(),
+  /**
+   * Request deduplication config (plan 260531-1214-request-dedupe).
+   * Generic, opt-out chokepoint that prevents duplicate concurrent requests
+   * (from buggy clients/gateways) from costing tokens twice at the proxy.
+   */
+  dedupeConfig: z
+    .object({
+      enabled: z.boolean().optional(),
+      mode: z.enum(["off", "shadow", "enforce"]).optional(),
+      ttlMs: z.number().int().min(500).max(5000).optional(),
+      maxTemperatureForDedup: z.number().min(0).max(2).optional(),
+    })
+    .optional(),
 });
