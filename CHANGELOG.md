@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.34.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.33.0...v3.34.0) (2026-06-01)
+
+
+### Features
+
+* **kiro:** forward real reasoning content instead of synthetic spinner ([e0eaa6b](https://github.com/linhnguyen-gt/Routiform/commit/e0eaa6be6a591b39bc33c6824f7997971f75b736))
+* **qoder:** full provider rewrite with device-flow OAuth + COSY signing ([edaa04d](https://github.com/linhnguyen-gt/Routiform/commit/edaa04d4ba341f48e1f6ab52350bd8c189aabe50))
+
+
+### Bug Fixes
+
+* **ollama-cloud:** per-model lock for 403 subscription errors ([a4b6473](https://github.com/linhnguyen-gt/Routiform/commit/a4b647381cc5b1fa5fed3929bd3aa61d997103ba))
+
 ## [3.33.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.32.0...v3.33.0) (2026-05-31)
 
 
