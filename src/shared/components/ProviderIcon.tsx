@@ -165,6 +165,7 @@ const KNOWN_PNGS = new Set([
   "openrouter",
   "perplexity-search",
   "perplexity",
+  "qoder",
   "qwen",
   "roo",
   "serper-search",
@@ -216,7 +217,7 @@ const KNOWN_SVGS = new Set([
 const PNG_ALIASES: Record<string, string> = {
   "deepgram-ai": "deepgram.png",
   glmt: "glm.png",
-  if: "qoder.png",
+  qd: "qoder.png",
   opencode: "opencode.png",
   "opencode-zen": "opencode.png",
   "opencode-go": "opencode.png",

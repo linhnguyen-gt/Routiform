@@ -169,28 +169,28 @@ export const OAUTH_PROVIDERS: Record<string, RegistryEntry> = {
 
   qoder: {
     id: "qoder",
-    alias: "if",
+    alias: "qd",
     format: "openai",
     executor: "qoder",
-    baseUrl: "https://api.qoder.com/v1/chat/completions",
-    authType: "apikey",
+    // Executor builds the real signed URL itself; baseUrl kept for
+    // introspection helpers but ignored by the executor path.
+    baseUrl: "https://api3.qoder.sh/algo/api/v2/service/pro/sse/agent_chat_generation",
+    authType: "oauth",
     authHeader: "bearer",
     defaultContextLength: CONTEXT_CONFIG.defaultLimit,
-    headers: {
-      "User-Agent": "Qoder-Cli",
-    },
+    headers: {},
     oauth: {
-      clientIdEnv: "QODER_OAUTH_CLIENT_ID",
-      clientSecretEnv: "QODER_OAUTH_CLIENT_SECRET",
-      tokenUrl: process.env.QODER_OAUTH_TOKEN_URL || "",
-      authUrl: process.env.QODER_OAUTH_AUTHORIZE_URL || "",
+      // Device-token flow lives entirely in src/lib/oauth/services/qoder.ts;
+      // no client_id/client_secret needed.
+      tokenUrl: "https://openapi.qoder.sh/api/v1/deviceToken/poll",
+      authUrl: "https://qoder.com/device/selectAccounts",
     },
     models: [
-      { id: "qwen-coder-qoder-1.0", name: "Qwen-Coder-Qoder-1.0" },
-      { id: "qwen3.5-plus", name: "Qwen3.5-Plus" },
-      { id: "glm-5", name: "GLM-5" },
-      { id: "kimi-k2.5", name: "Kimi-K2.5", forceParams: { temperature: 1 } },
-      { id: "minimax-m2.5", name: "MiniMax-M2.5" },
+      // Minimal fallback — live catalog (handle-qoder-models.ts) overrides
+      // this list per account. Hard-coding the full server catalog would
+      // require manual sync each time Qoder publishes new keys.
+      { id: "auto", name: "Auto — Smart Routing" },
+      { id: "ultimate", name: "Ultimate — Expert Reasoning" },
     ],
   },
 

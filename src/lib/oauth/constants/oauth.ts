@@ -64,30 +64,20 @@ export const QWEN_CONFIG = {
   codeChallengeMethod: "S256",
 };
 
-// Qoder OAuth Configuration (Authorization Code)
-const QODER_OAUTH_AUTHORIZE_URL = process.env.QODER_OAUTH_AUTHORIZE_URL || "";
-const QODER_OAUTH_TOKEN_URL = process.env.QODER_OAUTH_TOKEN_URL || "";
-const QODER_OAUTH_USERINFO_URL = process.env.QODER_OAUTH_USERINFO_URL || "";
-const QODER_OAUTH_CLIENT_ID = process.env.QODER_OAUTH_CLIENT_ID || "";
-const QODER_OAUTH_CLIENT_SECRET = process.env.QODER_OAUTH_CLIENT_SECRET || "";
-const QODER_OAUTH_ENABLED =
-  !!QODER_OAUTH_AUTHORIZE_URL &&
-  !!QODER_OAUTH_TOKEN_URL &&
-  !!QODER_OAUTH_USERINFO_URL &&
-  !!QODER_OAUTH_CLIENT_ID &&
-  !!QODER_OAUTH_CLIENT_SECRET;
-
+// Qoder OAuth Configuration (Device Token Flow with PKCE).
+// Device tokens are long-lived (~30 days for access, ~360 for refresh).
+// The upstream refresh endpoint at center.qoder.sh returns 403 for our
+// flow — we accept that and surface it to the user as "re-login" instead
+// of attempting to silently rotate.
 export const QODER_CONFIG = {
-  enabled: QODER_OAUTH_ENABLED,
-  clientId: QODER_OAUTH_CLIENT_ID,
-  clientSecret: QODER_OAUTH_CLIENT_SECRET,
-  authorizeUrl: QODER_OAUTH_AUTHORIZE_URL,
-  tokenUrl: QODER_OAUTH_TOKEN_URL,
-  userInfoUrl: QODER_OAUTH_USERINFO_URL,
-  extraParams: {
-    loginMethod: "phone",
-    type: "phone",
-  },
+  openApiBaseUrl: "https://openapi.qoder.sh",
+  centerBaseUrl: "https://center.qoder.sh",
+  chatBaseUrl: "https://api3.qoder.sh",
+  deviceTokenUrl: "https://openapi.qoder.sh/api/v1/deviceToken/poll",
+  refreshUrl: "https://center.qoder.sh/algo/api/v3/user/refresh_token",
+  userInfoUrl: "https://openapi.qoder.sh/api/v1/userinfo",
+  quotaUsageUrl: "https://openapi.qoder.sh/api/v2/quota/usage",
+  loginUrl: "https://qoder.com/device/selectAccounts",
 };
 
 // Kimi Coding OAuth Configuration (Device Code Flow)

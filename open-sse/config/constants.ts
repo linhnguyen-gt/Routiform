@@ -48,8 +48,10 @@ export const OAUTH_ENDPOINTS = {
     auth: "https://chat.qwen.ai/api/v1/oauth2/device/code", // From CLIProxyAPI
   },
   qoder: {
-    token: process.env.QODER_OAUTH_TOKEN_URL || "",
-    auth: process.env.QODER_OAUTH_AUTHORIZE_URL || "",
+    // Device-token poll endpoint; the new src/lib/qoder/* path constructs
+    // the full URL with nonce/verifier params on each call.
+    token: "https://openapi.qoder.sh/api/v1/deviceToken/poll",
+    auth: "https://qoder.com/device/selectAccounts",
   },
   github: {
     token: "https://github.com/login/oauth/access_token",

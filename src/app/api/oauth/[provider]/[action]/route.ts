@@ -104,8 +104,16 @@ export async function GET(
 
       // Request device code (through proxy if configured)
       let deviceData;
-      if (provider === "github" || provider === "kiro" || provider === "kilocode") {
-        // GitHub, Kiro, and KiloCode don't use PKCE for device code
+      if (
+        provider === "github" ||
+        provider === "kiro" ||
+        provider === "kilocode" ||
+        provider === "qoder"
+      ) {
+        // GitHub, Kiro, KiloCode don't use PKCE for device code.
+        // Qoder generates its own PKCE pair inside requestDeviceCode
+        // (see src/lib/oauth/services/qoder.ts) — the auth-data PKCE
+        // would silently overwrite Qoder's verifier.
         deviceData = await runWithProxyContext(proxy, () =>
           (requestDeviceCode as Function)(provider)
         );
@@ -116,10 +124,13 @@ export async function GET(
         );
       }
 
-      return NextResponse.json({
-        ...deviceData,
-        codeVerifier: authData.codeVerifier,
-      });
+      // For most providers, attach the auth-data PKCE verifier so the modal
+      // can later POST it back. Qoder already includes its own verifier
+      // (codeVerifier is part of QoderDeviceFlowInit), so don't clobber it.
+      const responsePayload =
+        provider === "qoder" ? deviceData : { ...deviceData, codeVerifier: authData.codeVerifier };
+
+      return NextResponse.json(responsePayload);
     }
 
     if (action === "start-callback-server") {

@@ -43,7 +43,10 @@ test("merged OAuth providers include free-tier OAuth only (PAT-only free provide
   );
 });
 
-test("merged API key providers include PAT-based free providers (e.g. Qoder)", () => {
+test("merged API key providers no longer include Qoder (now OAuth-first)", () => {
+  // After the device-flow OAuth rewrite, Qoder moved out of
+  // FREE_APIKEY_PROVIDER_IDS — it should appear under the OAuth merged
+  // list, not the API key one.
   const getProviderStats = () => ({ total: 0 });
   const entries = providerPageUtils.buildMergedApiKeyProviderEntries(
     providers.APIKEY_PROVIDERS,
@@ -51,9 +54,7 @@ test("merged API key providers include PAT-based free providers (e.g. Qoder)", (
     getProviderStats
   );
   const qoder = entries.find((e) => e.providerId === "qoder");
-  assert.ok(qoder, "Qoder should appear under API key merged list");
-  assert.equal(qoder.displayAuthType, "apikey");
-  assert.equal(qoder.toggleAuthType, "apikey");
+  assert.equal(qoder, undefined, "Qoder must not appear under API key merged list anymore");
 });
 
 test("configured-only filter keeps only providers with saved connections", () => {
