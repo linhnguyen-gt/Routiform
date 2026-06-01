@@ -811,9 +811,30 @@ export async function markAccountUnavailable(
     // ── Per-model lockout for providers with independent model quotas ──
     // Providers like Gemini AI Studio have per-model quotas. A 429/404 on one
     // model must NOT lock out other models on the same API key.
-    if (hasPerModelQuota(provider) && model && (status === 429 || status === 404)) {
-      const reason = status === 404 ? "not_found" : "rate_limited";
-      const cooldown = status === 404 ? COOLDOWN_MS.notFoundLocal : COOLDOWN_MS.rateLimit;
+    //
+    // Ollama Cloud also gates 403 "subscription required" per model — the
+    // free tier allows some models but not others, so we treat 403 with a
+    // subscription/upgrade message the same way (lock only the offending
+    // model, keep the connection active for other models).
+    const isSubscriptionLike =
+      status === 403 &&
+      typeof errorText === "string" &&
+      /(subscription|upgrade for access|requires a subscription|high volume|capacity is being added)/i.test(
+        errorText
+      );
+    if (
+      hasPerModelQuota(provider) &&
+      model &&
+      (status === 429 || status === 404 || isSubscriptionLike)
+    ) {
+      let reason = "rate_limited";
+      let cooldown = COOLDOWN_MS.rateLimit;
+      if (status === 404) {
+        reason = "not_found";
+        cooldown = COOLDOWN_MS.notFoundLocal;
+      } else if (isSubscriptionLike) {
+        reason = "subscription_required";
+      }
       lockModel(provider, connectionId, model, reason, cooldown);
       // Update last error for observability (without changing terminal status)
       updateProviderConnection(connectionId, {
