@@ -74,6 +74,7 @@ type KiroUserInputMessage = {
   userIntent?: string;
   images?: KiroImage[];
   userInputMessageContext?: KiroUserInputMessageContext;
+  additionalModelRequestFields?: Record<string, unknown>;
 };
 type KiroAssistantResponseMessage = {
   content: string;
@@ -433,6 +434,19 @@ export function buildKiroPayload(
   const temperature = body.temperature;
   const topP = body.top_p;
 
+  // Detect if thinking should be enabled.
+  // Kiro Claude models (4.6+) support thinking via additionalModelRequestFields.
+  // Enable adaptive thinking when client sends reasoning_effort or thinking config,
+  // or when model name suggests thinking capability.
+  const hasReasoningEffort =
+    typeof body.reasoning_effort === "string" && body.reasoning_effort !== "none";
+  const hasThinkingConfig =
+    body.thinking &&
+    typeof body.thinking === "object" &&
+    (body.thinking as Record<string, unknown>).type !== "disabled";
+  const isThinkingCapableModel = /^claude-(opus|sonnet)-4\.[6-9]/.test(model);
+  const enableThinking = hasReasoningEffort || hasThinkingConfig || isThinkingCapableModel;
+
   const { history, currentMessage, systemPrompt } = convertMessages(messages, tools, model);
 
   const profileArn = credentials?.providerSpecificData?.profileArn || "";
@@ -457,6 +471,14 @@ export function buildKiroPayload(
           origin: "AI_EDITOR",
           ...(currentMessage?.userInputMessage?.userInputMessageContext && {
             userInputMessageContext: currentMessage.userInputMessage.userInputMessageContext,
+          }),
+          ...(enableThinking && {
+            additionalModelRequestFields: {
+              thinking: {
+                type: "adaptive",
+                display: "summarized",
+              },
+            },
           }),
         },
       },
