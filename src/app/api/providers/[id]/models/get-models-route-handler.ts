@@ -14,7 +14,6 @@ import { handleKiroModels } from "./handle-kiro-models";
 import { handleOpenAICompatibleModels } from "./handle-openai-compatible-models";
 import { handleOpencodeGoModels } from "./handle-opencode-go-models";
 import { handleQoderModels } from "./handle-qoder-models";
-import { handleQwenOauthModels } from "./handle-qwen-oauth-models";
 import { handleStaticRegistryModels } from "./handle-static-registry-models";
 import { toModelsRouteError } from "./models-route-error";
 
@@ -42,7 +41,6 @@ export async function handleGetModels(
       (await handleAnthropicCompatibleModels(ctx)) ??
       (await handleQoderModels(ctx)) ??
       (await handleStaticRegistryModels(ctx)) ??
-      (await handleQwenOauthModels(ctx)) ??
       (await handleConfiguredProviderModels(ctx))
     );
   } catch (error) {

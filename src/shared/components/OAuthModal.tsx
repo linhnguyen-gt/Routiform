@@ -177,10 +177,9 @@ export default function OAuthModal({
     try {
       setError(null);
 
-      // Device code flow (GitHub, Qwen, Kiro, Kimi Coding, KiloCode, Qoder)
+      // Device code flow (GitHub, Kiro, Kimi Coding, KiloCode, Qoder)
       if (
         provider === "github" ||
-        provider === "qwen" ||
         provider === "kiro" ||
         provider === "kimi-coding" ||
         provider === "kilocode" ||

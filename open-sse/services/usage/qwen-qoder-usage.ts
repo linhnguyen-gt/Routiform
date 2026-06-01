@@ -1,26 +1,5 @@
 import { QODER_QUOTA_USAGE_URL } from "@/lib/qoder/constants";
 
-type QwenProviderData = { resourceUrl?: string } | null | undefined;
-
-/**
- * Qwen Usage
- */
-export async function getQwenUsage(
-  _accessToken: string | undefined,
-  providerSpecificData: QwenProviderData
-): Promise<{ message: string }> {
-  try {
-    const resourceUrl = providerSpecificData?.resourceUrl;
-    if (!resourceUrl) {
-      return { message: "Qwen connected. No resource URL available." };
-    }
-    // Qwen may have usage endpoint at resource URL
-    return { message: "Qwen connected. Usage tracked per request." };
-  } catch (_error) {
-    return { message: "Unable to fetch Qwen usage." };
-  }
-}
-
 type QuotaRecord = {
   total: number;
   used: number;

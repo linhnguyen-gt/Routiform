@@ -65,13 +65,6 @@ test("T28: github registry exposes Gemini 3.1 Pro Preview and keeps legacy alias
   assert.equal(legacy.model, "gemini-3.1-pro-preview");
 });
 
-test("T28: qwen registry uses native chat.qwen.ai base URL", () => {
-  assert.equal(
-    REGISTRY.qwen.baseUrl,
-    "https://chat.qwen.ai/api/v1/services/aigc/text-generation/generation"
-  );
-});
-
 test("T28: vertex catalog includes partner models when vertex executor is available", () => {
   const vertexIds = REGISTRY.vertex.models.map((m) => m.id);
 

@@ -34,7 +34,6 @@ const FALLBACK_ALIAS_TO_PROVIDER = {
   kc: "kilocode",
   kmc: "kimi-coding",
   kr: "kiro",
-  qw: "qwen",
 };
 
 const LIVE_SYNC_MODEL_PROVIDERS = new Set(["claude", "gemini"]);

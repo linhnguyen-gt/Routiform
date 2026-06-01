@@ -2,7 +2,6 @@ import type { ProviderMap } from "./types";
 
 export const FREE_PROVIDERS = {
   qoder: { id: "qoder", alias: "qd", name: "Qoder", icon: "water_drop", color: "#EC4899" },
-  qwen: { id: "qwen", alias: "qw", name: "Qwen Code", icon: "psychology", color: "#10B981" },
   "gemini-cli": {
     id: "gemini-cli",
     alias: "gemini-cli",
@@ -18,5 +17,5 @@ export const FREE_PROVIDERS = {
 
 // Qoder previously lived here as PAT-only. After the device-flow OAuth
 // upgrade (see open-sse/executors/qoder.ts + src/lib/oauth/services/qoder.ts),
-// qoder is OAuth-first like kiro/qwen, so it's no longer in this set.
+// qoder is OAuth-first like kiro, so it's no longer in this set.
 export const FREE_APIKEY_PROVIDER_IDS = new Set<string>([]);

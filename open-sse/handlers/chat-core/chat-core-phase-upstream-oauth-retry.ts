@@ -1,6 +1,5 @@
 import { HTTP_STATUS } from "../../config/constants.ts";
 import { refreshWithRetry } from "../../services/tokenRefresh.ts";
-import { parseUpstreamError } from "../../utils/error.ts";
 import type { ChatCorePipeline } from "./chat-core-pipeline.ts";
 
 export async function chatCorePhaseUpstreamOauthRetry(p: ChatCorePipeline): Promise<void> {
@@ -42,28 +41,12 @@ export async function chatCorePhaseUpstreamOauthRetry(p: ChatCorePipeline): Prom
   let parsedRetryAfterMs: number | null = null;
   let upstreamErrorBody: unknown = null;
 
-  if (p.provider === "qwen" && providerResponse.status === HTTP_STATUS.BAD_REQUEST) {
-    const errorDetails = await parseUpstreamError(providerResponse, p.provider);
-    parsedStatusCode = errorDetails.statusCode;
-    parsedMessage = errorDetails.message;
-    parsedRetryAfterMs = errorDetails.retryAfterMs;
-    upstreamErrorBody = errorDetails.responseBody;
-    upstreamErrorParsed = true;
-  }
-
-  const isQwenExpiredError =
-    p.provider === "qwen" &&
-    parsedStatusCode === HTTP_STATUS.BAD_REQUEST &&
-    parsedMessage &&
-    parsedMessage.toLowerCase().includes("session has expired");
-
   const streamOptionsOnlyFailed = false;
   const canOAuthRefresh = credentials?.refreshToken && typeof credentials.refreshToken === "string";
 
   if (
     (providerResponse.status === HTTP_STATUS.UNAUTHORIZED ||
-      providerResponse.status === HTTP_STATUS.FORBIDDEN ||
-      isQwenExpiredError) &&
+      providerResponse.status === HTTP_STATUS.FORBIDDEN) &&
     !streamOptionsOnlyFailed &&
     canOAuthRefresh
   ) {
@@ -123,6 +106,5 @@ export async function chatCorePhaseUpstreamOauthRetry(p: ChatCorePipeline): Prom
   p.parsedMessage = parsedMessage;
   p.parsedRetryAfterMs = parsedRetryAfterMs;
   p.upstreamErrorBody = upstreamErrorBody;
-  p.isQwenExpiredError = isQwenExpiredError;
   p.streamOptionsOnlyFailed = streamOptionsOnlyFailed;
 }

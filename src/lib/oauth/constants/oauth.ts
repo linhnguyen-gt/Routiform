@@ -55,15 +55,6 @@ export const GEMINI_CONFIG = {
   ],
 };
 
-// Qwen OAuth Configuration (Device Code Flow with PKCE)
-export const QWEN_CONFIG = {
-  clientId: process.env.QWEN_OAUTH_CLIENT_ID || "f0304373b74a44d2b584a3fb70ca9e56",
-  deviceCodeUrl: "https://chat.qwen.ai/api/v1/oauth2/device/code",
-  tokenUrl: "https://chat.qwen.ai/api/v1/oauth2/token",
-  scope: "openid profile email model.completion",
-  codeChallengeMethod: "S256",
-};
-
 // Qoder OAuth Configuration (Device Token Flow with PKCE).
 // Device tokens are long-lived (~30 days for access, ~360 for refresh).
 // The upstream refresh endpoint at center.qoder.sh returns 403 for our
@@ -235,7 +226,6 @@ export const PROVIDERS = {
   CLAUDE: "claude",
   CODEX: "codex",
   GEMINI: "gemini-cli",
-  QWEN: "qwen",
   QODER: "qoder",
   ANTIGRAVITY: "antigravity",
   OPENAI: "openai",

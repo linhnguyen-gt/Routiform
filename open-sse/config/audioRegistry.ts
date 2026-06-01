@@ -91,15 +91,6 @@ export const AUDIO_TRANSCRIPTION_PROVIDERS: Record<string, AudioProvider> = {
       { id: "openai/whisper-small", name: "Whisper Small (HF)" },
     ],
   },
-
-  qwen: {
-    id: "qwen",
-    baseUrl: "http://localhost:8000/v1/audio/transcriptions",
-    authType: "none",
-    authHeader: "none",
-    format: "openai",
-    models: [{ id: "qwen3-asr", name: "Qwen3 ASR" }],
-  },
 };
 
 export const AUDIO_SPEECH_PROVIDERS: Record<string, AudioProvider> = {
@@ -189,15 +180,6 @@ export const AUDIO_SPEECH_PROVIDERS: Record<string, AudioProvider> = {
     authHeader: "none",
     format: "tortoise",
     models: [{ id: "tortoise-v2", name: "Tortoise v2" }],
-  },
-
-  qwen: {
-    id: "qwen",
-    baseUrl: "http://localhost:8000/v1/audio/speech",
-    authType: "none",
-    authHeader: "none",
-    format: "openai",
-    models: [{ id: "qwen3-tts", name: "Qwen3 TTS" }],
   },
 
   // ── Cloud TTS Providers (#248) ────────────────────────────────────────────
