@@ -324,7 +324,9 @@ export function useProviderDetailOrchestrator() {
     !!(OAUTH_PROVIDERS as Record<string, unknown>)[providerId];
   const providerSupportsPat = supportsApiKeyOnFreeProvider(providerId);
   const isOAuth = providerSupportsOAuth && !providerSupportsPat;
-  const allowQoderOAuthUi = providerId !== "qoder";
+  // Qoder now supports device-flow OAuth (openapi.qoder.sh poll). Keep
+  // the flag so existing call sites don't break, but allow the UI.
+  const allowQoderOAuthUi = true;
   const isManagedAvailableModelsProvider = isCompatible;
   const supportsAutoSync = supportsProviderModelAutoSync(providerId);
 

@@ -7,7 +7,6 @@ import {
   refreshAccessToken as _refreshAccessToken,
   refreshClaudeOAuthToken as _refreshClaudeOAuthToken,
   refreshGoogleToken as _refreshGoogleToken,
-  refreshQwenToken as _refreshQwenToken,
   refreshCodexToken as _refreshCodexToken,
   refreshIflowToken as _refreshIflowToken,
   refreshGitHubToken as _refreshGitHubToken,
@@ -43,11 +42,6 @@ export const refreshGoogleToken = async (
 ) => {
   const proxy = await resolveProxyForProvider(provider);
   return _refreshGoogleToken(refreshToken, clientId, clientSecret, log, proxy);
-};
-
-export const refreshQwenToken = async (refreshToken: string) => {
-  const proxy = await resolveProxyForProvider("qwen");
-  return _refreshQwenToken(refreshToken, log, proxy);
 };
 
 export const refreshCodexToken = async (refreshToken: string) => {

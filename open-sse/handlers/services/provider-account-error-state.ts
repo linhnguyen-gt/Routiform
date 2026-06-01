@@ -35,16 +35,32 @@ export async function persistProviderAccountErrorState({
         lowerMessage.includes("upgrade for access")
       ) {
         const retryMs = retryAfterMs || COOLDOWN_MS.rateLimit;
-        await updateProviderConnection(connectionId, {
-          rateLimitedUntil: new Date(Date.now() + retryMs).toISOString(),
-          testStatus: "unavailable",
-          lastErrorType: "rate_limited",
-          lastError: message,
-          errorCode: statusCode,
-        });
-        console.warn(
-          `[provider] Node ${connectionId.slice(0, 8)} subscription/capacity 403 — treating as temporary rate limit (${Math.ceil(retryMs / 1000)}s cooldown)`
+        // Subscription gating is per-model (e.g. ollama-cloud free tier
+        // allows some models but blocks others). Prefer a per-model lock so
+        // testing other models on the same connection isn't blocked.
+        const lockedPerModel = lockModelIfPerModelQuota(
+          provider,
+          connectionId,
+          model || null,
+          message || "subscription required",
+          retryMs
         );
+        if (lockedPerModel) {
+          console.warn(
+            `[provider] Node ${connectionId.slice(0, 8)} model ${model} 403 subscription — per-model cooldown ${Math.ceil(retryMs / 1000)}s`
+          );
+        } else {
+          await updateProviderConnection(connectionId, {
+            rateLimitedUntil: new Date(Date.now() + retryMs).toISOString(),
+            testStatus: "unavailable",
+            lastErrorType: "rate_limited",
+            lastError: message,
+            errorCode: statusCode,
+          });
+          console.warn(
+            `[provider] Node ${connectionId.slice(0, 8)} subscription/capacity 403 — connection-level cooldown ${Math.ceil(retryMs / 1000)}s`
+          );
+        }
       } else {
         await updateProviderConnection(connectionId, {
           isActive: false,

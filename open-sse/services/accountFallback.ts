@@ -136,7 +136,11 @@ export function lockModel(provider, connectionId, model, reason, cooldownMs) {
  * Gemini AI Studio has per-model quotas; passthrough providers have independent model limits.
  */
 export function hasPerModelQuota(provider: string): boolean {
-  if (provider === "gemini" || provider === "github") return true;
+  // gemini/github gate quota per-model. Ollama Cloud also blocks individual
+  // models behind subscription (e.g. glm-5.1 needs paid plan, while smaller
+  // models work on the free tier) — locking the whole connection on one
+  // gated model would falsely block testing the others.
+  if (provider === "gemini" || provider === "github" || provider === "ollama-cloud") return true;
   try {
     const { getPassthroughProviders } = require("../config/providerRegistry.ts");
     return getPassthroughProviders().has(provider);

@@ -108,10 +108,10 @@ export async function sanitizeRequestInput(
     log?.info?.("TOOLS", "Enforced tool_choice=required for URL fetch request");
   }
 
-  // Qwen/Kiro/Cline often reject tool_choice="required" and named tool_choice objects
+  // Kiro/Cline often reject tool_choice="required" and named tool_choice objects
   // on thinking/tool streams. Keep tool usage enabled but let upstream choose automatically.
   if (
-    (provider === "qwen" || provider === "kiro" || provider === "cline") &&
+    (provider === "kiro" || provider === "cline") &&
     (body.tool_choice === "required" ||
       (body.tool_choice &&
         typeof body.tool_choice === "object" &&

@@ -4,6 +4,7 @@
 
 import { GITHUB_CONFIG } from "@/lib/oauth/constants/oauth";
 import { getKiroUsage as getKiroUsageFromOpenSse } from "@routiform/open-sse/services/usage.ts";
+import { getQoderUsage } from "@routiform/open-sse/services/usage/qwen-qoder-usage.ts";
 
 /**
  * Get usage data for a provider connection
@@ -24,10 +25,8 @@ export async function getUsageForProvider(connection) {
       return await getClaudeUsage(accessToken);
     case "codex":
       return await getCodexUsage(accessToken, providerSpecificData);
-    case "qwen":
-      return await getQwenUsage(accessToken, providerSpecificData);
     case "qoder":
-      return await getIflowUsage(accessToken);
+      return await getQoderUsage(accessToken);
     case "kiro":
       return await getKiroUsageFromOpenSse(connection);
     default:
@@ -216,30 +215,7 @@ async function getCodexUsage(accessToken, providerSpecificData: Record<string, u
 }
 
 /**
- * Qwen Usage
+ * Qoder usage now lives in open-sse/services/usage/qwen-qoder-usage.ts
+ * (real call to openapi.qoder.sh/api/v2/quota/usage). The local stub was
+ * removed when qoder was upgraded to the device-flow + COSY architecture.
  */
-async function getQwenUsage(accessToken, providerSpecificData) {
-  try {
-    const resourceUrl = providerSpecificData?.resourceUrl;
-    if (!resourceUrl) {
-      return { message: "Qwen connected. No resource URL available." };
-    }
-
-    // Qwen may have usage endpoint at resource URL
-    return { message: "Qwen connected. Usage tracked per request." };
-  } catch (_error) {
-    return { message: "Unable to fetch Qwen usage." };
-  }
-}
-
-/**
- * Qoder Usage
- */
-async function getIflowUsage(_accessToken: string) {
-  try {
-    // Qoder may have usage endpoint
-    return { message: "Qoder connected. Usage tracked per request." };
-  } catch (_error) {
-    return { message: "Unable to fetch Qoder usage." };
-  }
-}

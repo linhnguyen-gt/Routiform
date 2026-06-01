@@ -1,224 +1,253 @@
-import crypto from "crypto";
-import open from "open";
-import { QODER_CONFIG } from "../constants/oauth";
-import { getServerCredentials } from "../config/index";
-import { startLocalServer } from "../utils/server";
-import { spinner as createSpinner } from "../utils/ui";
-
 /**
  * Qoder OAuth Service
- * Uses Authorization Code flow with Basic Auth
+ * Implements the device-token flow:
+ *   1. Generate PKCE pair + nonce + machine_id locally.
+ *   2. Open https://qoder.com/device/selectAccounts?challenge=...&nonce=...
+ *      in the user's browser.
+ *   3. Poll openapi.qoder.sh/api/v1/deviceToken/poll until the user authorizes
+ *      and the upstream returns a `dt-...` access token.
+ *
+ * Tokens live ~30 days; refresh is a no-op (the upstream refresh endpoint
+ * returns 403 for our flow). Users re-run login when expired.
+ *
+ * The COSY signing / WAF-bypass body encoding / chat protocol live separately
+ * in src/lib/qoder/ because they're used by every signed request, not just
+ * OAuth.
  */
+
+import crypto from "crypto";
+import { v4 as uuidv4 } from "uuid";
+
+import { QODER_CONFIG } from "../constants/oauth";
+
+// Timeout for OAuth helper calls. The OAuth modal polls every 2s for up to
+// 5 minutes; an individual request that stalls beyond this is treated as a
+// failed poll attempt and the next poll iteration retries.
+const FETCH_TIMEOUT_MS = 15_000;
+
+type QoderPkcePair = { verifier: string; challenge: string };
+
+export type QoderDeviceFlowInit = {
+  verificationUriComplete: string;
+  codeVerifier: string;
+  nonce: string;
+  machineId: string;
+};
+
+export type QoderPollResult =
+  | { status: "pending" }
+  | {
+      status: "ok";
+      accessToken: string;
+      refreshToken: string;
+      userId: string;
+      expireTime: number;
+      rawResponse: Record<string, unknown>;
+    };
+
+export type QoderUserInfo = {
+  name: string;
+  email: string;
+  organizationId?: string;
+};
+
+function base64Url(buf: Buffer): string {
+  return buf.toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+}
+
+/**
+ * Wrap fetch with an AbortController-based timeout. Without this, a stalled
+ * upstream socket hangs on Node's default keepalive timeout (minutes) and
+ * abandoned polls accumulate hung sockets.
+ */
+async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort("timeout"), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export class QoderService {
-  config: Record<string, unknown>;
-
-  constructor() {
-    this.config = QODER_CONFIG;
+  /**
+   * Generate a PKCE verifier + S256 challenge pair.
+   * Uses 32 random bytes (matches qodercli/Veria).
+   */
+  generatePkcePair(): QoderPkcePair {
+    const verifier = base64Url(crypto.randomBytes(32));
+    const challenge = base64Url(crypto.createHash("sha256").update(verifier).digest());
+    return { verifier, challenge };
   }
 
   /**
-   * Build Qoder authorization URL
+   * Initiate the device flow. Returns the URL to open in a browser plus the
+   * verifier/nonce/machineId we'll need to poll and to sign future requests.
    */
-  buildAuthUrl(redirectUri: string, state: string) {
-    if (!this.config?.enabled || !this.config?.authorizeUrl) {
-      throw new Error(
-        "Qoder browser OAuth is experimental and disabled by default. Configure QODER_OAUTH_* environment variables or use a Personal Access Token."
-      );
-    }
+  initiateDeviceFlow(): QoderDeviceFlowInit {
+    const { verifier, challenge } = this.generatePkcePair();
+    const nonce = uuidv4();
+    const machineId = uuidv4();
 
-    const extraParams = this.config.extraParams as Record<string, unknown> | undefined;
     const params = new URLSearchParams({
-      loginMethod: String(extraParams?.loginMethod || ""),
-      type: String(extraParams?.type || ""),
-      redirect: redirectUri,
-      state: state,
-      client_id: String(this.config.clientId),
+      challenge,
+      challenge_method: "S256",
+      machine_id: machineId,
+      nonce,
     });
 
-    return `${this.config.authorizeUrl}?${params.toString()}`;
+    return {
+      verificationUriComplete: `${QODER_CONFIG.loginUrl}?${params.toString()}`,
+      codeVerifier: verifier,
+      nonce,
+      machineId,
+    };
   }
 
   /**
-   * Exchange authorization code for tokens
+   * Single poll attempt. Returns one of:
+   *   { status: "pending" }       — keep polling
+   *   { status: "ok", token, ... } — user authorized, tokens captured
+   *   throws Error                 — terminal failure
+   *
+   * Upstream returns 202/404 while waiting; 200 with a JSON body when done.
    */
-  async exchangeCode(code: string, redirectUri: string) {
-    if (!this.config?.enabled || !this.config?.tokenUrl) {
-      throw new Error(
-        "Qoder browser OAuth is experimental and disabled by default. Configure QODER_OAUTH_* environment variables or use a Personal Access Token."
-      );
+  async pollDeviceToken({
+    nonce,
+    codeVerifier,
+  }: {
+    nonce: string;
+    codeVerifier: string;
+  }): Promise<QoderPollResult> {
+    if (!nonce || !codeVerifier) {
+      throw new Error("pollDeviceToken: missing nonce or code verifier");
+    }
+    const url = `${QODER_CONFIG.deviceTokenUrl}?nonce=${encodeURIComponent(nonce)}&verifier=${encodeURIComponent(codeVerifier)}&challenge_method=S256`;
+
+    const response = await fetchWithTimeout(url, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Go-http-client/2.0",
+      },
+    });
+
+    // Pending — server has registered the device code but the user hasn't
+    // finished the browser flow yet. Both 202 and 404 mean "keep polling".
+    if (response.status === 202 || response.status === 404) {
+      return { status: "pending" };
     }
 
-    // Create Basic Auth header
-    const basicAuth = Buffer.from(
-      `${String(this.config.clientId)}:${String(this.config.clientSecret)}`
-    ).toString("base64");
-
-    const response = await fetch(String(this.config.tokenUrl), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-        Authorization: `Basic ${basicAuth}`,
-      },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        code: code,
-        redirect_uri: redirectUri,
-        client_id: String(this.config.clientId),
-        client_secret: String(this.config.clientSecret),
-      }),
-    });
+    const text = await response.text();
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Token exchange failed: ${error}`);
-    }
-
-    return await response.json();
-  }
-
-  /**
-   * Get user info from Qoder
-   */
-  async getUserInfo(accessToken: string) {
-    if (!this.config?.enabled || !this.config?.userInfoUrl) {
-      throw new Error(
-        "Qoder browser OAuth is experimental and disabled by default. Configure QODER_OAUTH_* environment variables or use a Personal Access Token."
-      );
-    }
-
-    const response = await fetch(
-      `${this.config.userInfoUrl}?accessToken=${encodeURIComponent(accessToken)}`,
-      {
-        headers: {
-          Accept: "application/json",
-        },
+      let message = `Qoder device token poll failed: HTTP ${response.status}`;
+      try {
+        const body = JSON.parse(text) as { message?: string };
+        if (body.message) message = `Qoder device token poll failed: ${body.message}`;
+      } catch {
+        /* ignore */
       }
+      throw new Error(message);
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      body = JSON.parse(text) as Record<string, unknown>;
+    } catch (err: unknown) {
+      const m = err instanceof Error ? err.message : String(err);
+      throw new Error(`Qoder device token poll: invalid JSON response (${m})`);
+    }
+
+    // Defensive: 200 + empty token means the upstream changed shape.
+    const token = typeof body.token === "string" ? body.token : "";
+    if (!token) {
+      throw new Error("Qoder device token poll returned 200 but no token");
+    }
+
+    const expireMs = QoderService.parseExpiry(
+      body.expires_at as number | string | undefined,
+      body.expires_in as number | undefined
     );
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Failed to get user info: ${error}`);
-    }
-
-    const result = await response.json();
-
-    if (!result.success) {
-      throw new Error("Failed to get user info");
-    }
-
-    return result.data;
+    return {
+      status: "ok",
+      accessToken: token,
+      refreshToken: typeof body.refresh_token === "string" ? body.refresh_token : "",
+      userId: typeof body.user_id === "string" ? body.user_id : "",
+      expireTime: expireMs,
+      rawResponse: body,
+    };
   }
 
   /**
-   * Save Qoder tokens to server
+   * Fetch profile info for the freshly-issued token. Best-effort — failures
+   * shouldn't block login; returning empty strings is fine.
    */
-  async saveTokens(tokens: Record<string, unknown>, userInfo: unknown) {
-    const { server, token, userId } = getServerCredentials();
-
-    const user = userInfo as Record<string, unknown> | null;
-    const response = await fetch(`${server}/api/cli/providers/qoder`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        "X-User-Id": userId,
-      },
-      body: JSON.stringify({
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-        expiresIn: tokens.expires_in,
-        apiKey: user?.apiKey,
-        email: String(user?.email || user?.phone || ""),
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Failed to save tokens");
-    }
-
-    return await response.json();
-  }
-
-  /**
-   * Complete Qoder OAuth flow
-   */
-  async connect() {
-    const spinner = createSpinner("Starting Qoder OAuth...").start();
-
+  async fetchUserInfo(accessToken: string): Promise<QoderUserInfo> {
     try {
-      spinner.text = "Starting local server...";
-
-      // Start local server for callback
-      let callbackParams: Record<string, string> | null = null;
-      const { port, close } = await startLocalServer((params) => {
-        callbackParams = params;
+      const response = await fetchWithTimeout(QODER_CONFIG.userInfoUrl, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json",
+          "User-Agent": "Go-http-client/2.0",
+        },
       });
-
-      const redirectUri = `http://localhost:${port}/callback`;
-      spinner.succeed(`Local server started on port ${port}`);
-
-      // Generate state
-      const state = crypto.randomBytes(32).toString("base64url");
-
-      // Build authorization URL
-      const authUrl = this.buildAuthUrl(redirectUri, state);
-
-      console.log("\nOpening browser for Qoder authentication...");
-      console.log(`If browser doesn't open, visit:\n${authUrl}\n`);
-
-      // Open browser
-      await open(authUrl);
-
-      // Wait for callback
-      spinner.start("Waiting for Qoder authorization...");
-
-      await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Authentication timeout (5 minutes)"));
-        }, 300000);
-
-        const checkInterval = setInterval(() => {
-          if (callbackParams) {
-            clearInterval(checkInterval);
-            clearTimeout(timeout);
-            resolve(undefined);
-          }
-        }, 100);
-      });
-
-      close();
-
-      if (callbackParams.error) {
-        throw new Error(callbackParams.error_description || callbackParams.error);
-      }
-
-      if (!callbackParams.code) {
-        throw new Error("No authorization code received");
-      }
-
-      spinner.start("Exchanging code for tokens...");
-
-      // Exchange code for tokens
-      const tokens = await this.exchangeCode(callbackParams.code, redirectUri);
-
-      spinner.text = "Fetching user info...";
-
-      // Get user info (includes API key)
-      const userInfo = await this.getUserInfo(tokens.access_token);
-
-      spinner.text = "Saving tokens to server...";
-
-      // Save tokens to server
-      await this.saveTokens(tokens, userInfo);
-
-      spinner.succeed(`Qoder connected successfully! (${userInfo.email || userInfo.phone})`);
-      return true;
-    } catch (error: unknown) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      spinner.fail(`Failed: ${errMsg}`);
-      throw error;
+      if (!response.ok) return { name: "", email: "" };
+      const body = (await response.json()) as Record<string, unknown>;
+      return {
+        name: String(body.name || body.username || "").trim(),
+        email: String(body.email || "").trim(),
+        organizationId: String(body.organization_id || "").trim(),
+      };
+    } catch {
+      return { name: "", email: "" };
     }
+  }
+
+  /**
+   * Convert the upstream's expiry hint into a Unix-millisecond timestamp.
+   * Accepts:
+   *   - numeric (ms-epoch): returned as-is
+   *   - numeric string of ms-epoch: e.g. "1781594470000"
+   *   - RFC3339 string: e.g. "2026-06-16T07:15:04Z"
+   *   - seconds-from-now via expiresInSeconds (>= 0)
+   * Falls back to "now + 30 days" when both are missing.
+   *
+   * Order matters: try numeric (string or number) before Date.parse, since
+   * Date.parse accepts short numeric strings like "2026" as years and would
+   * otherwise return a misleading year-2026 timestamp instead of falling
+   * through to the integer branch.
+   */
+  static parseExpiry(
+    expiresAt: number | string | null | undefined,
+    expiresInSeconds: number | null | undefined
+  ): number {
+    if (typeof expiresAt === "number" && Number.isFinite(expiresAt) && expiresAt > 0) {
+      return expiresAt;
+    }
+    const trimmed = typeof expiresAt === "string" ? expiresAt.trim() : "";
+    if (trimmed) {
+      // Pure numeric string → ms-epoch (don't let Date.parse swallow short
+      // numerics as years).
+      if (/^\d+$/.test(trimmed)) {
+        const ms = Number.parseInt(trimmed, 10);
+        if (Number.isFinite(ms) && ms > 0) return ms;
+      }
+      const parsed = Date.parse(trimmed);
+      if (!Number.isNaN(parsed)) return parsed;
+    }
+    // expiresInSeconds === 0 means "already expired"; honor that by returning
+    // the current time rather than fabricating a 30-day default.
+    if (
+      typeof expiresInSeconds === "number" &&
+      Number.isFinite(expiresInSeconds) &&
+      expiresInSeconds >= 0
+    ) {
+      return Date.now() + expiresInSeconds * 1000;
+    }
+    return Date.now() + 30 * 24 * 60 * 60 * 1000;
   }
 }

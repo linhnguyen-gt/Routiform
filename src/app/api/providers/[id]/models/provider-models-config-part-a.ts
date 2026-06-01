@@ -67,17 +67,6 @@ export const providerModelsConfigPartA: Record<string, ProviderModelsConfigEntry
     },
   },
   // gemini-cli handled via retrieveUserQuota (see GET handler)
-  qwen: {
-    url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models",
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    authHeader: "Authorization",
-    authPrefix: "Bearer ",
-    parseResponse: (data) => {
-      const dataObj = data as { data?: unknown[] };
-      return dataObj.data || [];
-    },
-  },
   antigravity: {
     url: "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:models",
     method: "POST",

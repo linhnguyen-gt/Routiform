@@ -4,7 +4,7 @@ import { getCodexUsage } from "./codex-usage.ts";
 import { getGeminiUsage } from "./gemini-usage.ts";
 import { getGitHubUsage } from "./github-usage.ts";
 import { getGlmUsage } from "./glm-usage.ts";
-import { getIflowUsage, getQwenUsage } from "./qwen-qoder-usage.ts";
+import { getQoderUsage } from "./qwen-qoder-usage.ts";
 import { getKimiUsage } from "./kimi-usage.ts";
 import { getKiroUsage } from "./kiro-usage.ts";
 
@@ -31,10 +31,8 @@ export async function getUsageForProvider(connection) {
       return await getKiroUsage(connection);
     case "kimi-coding":
       return await getKimiUsage(accessToken);
-    case "qwen":
-      return await getQwenUsage(accessToken, providerSpecificData);
     case "qoder":
-      return await getIflowUsage(accessToken);
+      return await getQoderUsage(accessToken);
     case "glm":
       return await getGlmUsage(apiKey, providerSpecificData);
     default:

@@ -261,7 +261,6 @@ const PROVIDER_MODELS: Record<
       name: "HuggingFace",
       models: [{ id: "huggingface/espnet/kan-bayashi_ljspeech_vits", name: "VITS LJSpeech" }],
     },
-    { id: "qwen", name: "Qwen", models: [{ id: "qwen/qwen3-tts", name: "Qwen3 TTS" }] },
   ],
   transcription: [
     {
@@ -309,7 +308,6 @@ const PROVIDER_MODELS: Record<
       name: "HuggingFace",
       models: [{ id: "huggingface/openai/whisper-large-v3", name: "Whisper Large v3 (HF)" }],
     },
-    { id: "qwen", name: "Qwen", models: [{ id: "qwen/qwen3-asr", name: "Qwen3 ASR" }] },
   ],
 };
 
@@ -787,7 +785,7 @@ export default function MediaPageClient() {
         {/* Credential hint — only when we know this provider has no stored key/token */}
         {credentialsLoaded &&
           selectedProvider &&
-          !["sdwebui", "comfyui", "qwen"].includes(selectedProvider) &&
+          !["sdwebui", "comfyui"].includes(selectedProvider) &&
           !providersWithCredentials.has(selectedProvider) && (
             <p className="text-xs text-text-muted flex items-center gap-1.5">
               <span className="material-symbols-outlined text-[14px] text-amber-500">info</span>

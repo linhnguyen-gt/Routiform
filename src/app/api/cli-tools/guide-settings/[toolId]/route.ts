@@ -52,8 +52,6 @@ export async function POST(request, { params }) {
         // OpenCode reads opencode.json (see getOpenCodeConfigPath); merge the managed
         // Routiform OpenAI/Anthropic provider entries without touching unrelated providers.
         return await saveOpenCodeConfig({ baseUrl, apiKey, model, models });
-      case "qwen":
-        return await saveQwenConfig({ baseUrl, apiKey, model });
       default:
         return NextResponse.json(
           { error: `Direct config save not supported for: ${toolId}` },
@@ -146,42 +144,6 @@ async function saveContinueConfig({ baseUrl, apiKey, model }) {
   });
 }
 
-/**
- * Save Qwen Code config to ~/.qwen/settings.json
- * Qwen Code reads this file for its API configuration.
- */
-async function saveQwenConfig({ baseUrl, apiKey, model }) {
-  const configPath = path.join(getCliConfigHome(), ".qwen", "settings.json");
-  const configDir = path.dirname(configPath);
-
-  await fs.mkdir(configDir, { recursive: true });
-
-  const normalizedBaseUrl = String(baseUrl || "")
-    .trim()
-    .replace(/\/+$/, "");
-
-  let existingConfig: Record<string, unknown> = {};
-  try {
-    const raw = await fs.readFile(configPath, "utf-8");
-    existingConfig = JSON.parse(raw);
-  } catch {
-    // No existing config or invalid JSON — start fresh
-  }
-
-  existingConfig.apiBaseUrl = normalizedBaseUrl;
-  existingConfig.apiKey = apiKey || "";
-  if (model) {
-    existingConfig.defaultModel = model;
-  }
-
-  await fs.writeFile(configPath, JSON.stringify(existingConfig, null, 2), "utf-8");
-
-  return NextResponse.json({
-    success: true,
-    message: `Qwen Code config saved to ${configPath}`,
-    configPath,
-  });
-}
 /**
  * - Linux/macOS: ~/.config/opencode/opencode.json (XDG_CONFIG_HOME aware)
  * - Windows: %APPDATA%/opencode/opencode.json

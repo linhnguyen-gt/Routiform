@@ -11,7 +11,6 @@ import {
 import { translateRequest } from "../../open-sse/translator/index.ts";
 import { GithubExecutor } from "../../open-sse/executors/github.ts";
 import { DefaultExecutor } from "../../open-sse/executors/default.ts";
-import { QwenExecutor } from "../../open-sse/executors/qwen.ts";
 import { CodexExecutor } from "../../open-sse/executors/codex.ts";
 import { translateNonStreamingResponse } from "../../open-sse/handlers/responseTranslator.ts";
 import { extractUsageFromResponse } from "../../open-sse/handlers/usageExtractor.ts";
@@ -147,35 +146,6 @@ test("DefaultExecutor uses x-api-key for kimi-coding-apikey", () => {
 
   assert.equal(headers["x-api-key"], "sk-kimi-test");
   assert.equal(headers.Authorization, undefined);
-});
-
-test("QwenExecutor: always portal /v1/chat/completions; QwenCode headers (9router-style)", () => {
-  const executor = new QwenExecutor();
-  const url = executor.buildUrl("coder-model", false, 0, {
-    accessToken: "tok",
-    providerSpecificData: { resourceUrl: "dashscope.aliyuncs.com" },
-  });
-  assert.equal(url, "https://portal.qwen.ai/v1/chat/completions");
-
-  const headers = executor.buildHeaders(
-    { accessToken: "tok", providerSpecificData: { resourceUrl: "dashscope.aliyuncs.com" } },
-    false
-  );
-  assert.equal(headers["X-Dashscope-AuthType"], "qwen-oauth");
-  assert.equal(headers.Accept, "application/json");
-});
-
-test("QwenExecutor: prepends system stub and stream_options when streaming", () => {
-  const executor = new QwenExecutor();
-  const out = executor.transformRequest(
-    "coder-model",
-    { messages: [{ role: "user", content: "hi" }], stream: true },
-    true,
-    {}
-  );
-  assert.equal(out.stream_options?.include_usage, true);
-  assert.equal(out.messages?.length, 2);
-  assert.equal(out.messages?.[0]?.role, "system");
 });
 
 test("DefaultExecutor execute honors connection-level custom User-Agent", async () => {

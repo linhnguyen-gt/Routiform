@@ -13,7 +13,6 @@ export const IMPLEMENTED_CLI_FINGERPRINT_PROVIDER_IDS = [
   "github",
   "antigravity",
   "gemini-cli",
-  "qwen",
 ] as const;
 
 export const CLI_COMPAT_DISPLAY_PROVIDER_IDS = [
@@ -21,7 +20,6 @@ export const CLI_COMPAT_DISPLAY_PROVIDER_IDS = [
   "copilot",
   "antigravity",
   "gemini-cli",
-  "qwen",
 ] as const;
 
 const TOOL_ID_TO_PROVIDER_ID: Record<string, string> = {
@@ -46,10 +44,6 @@ export const CLI_COMPAT_PROVIDER_DISPLAY: Record<string, { name: string; descrip
     name: "Gemini CLI",
     description: "Google Gemini CLI compatibility",
   },
-  qwen: {
-    name: "Qwen Code / Qoder",
-    description: "Qwen Code and Qoder CLI compatibility",
-  },
 };
 
 const DERIVED_PROVIDER_IDS = Object.values(CLI_TOOLS)
@@ -58,7 +52,7 @@ const DERIVED_PROVIDER_IDS = Object.values(CLI_TOOLS)
   )
   .filter((providerId) => providerId !== "continue");
 
-const LEGACY_PROVIDER_IDS = ["copilot", "kimi-coding", "qwen"];
+const LEGACY_PROVIDER_IDS = ["copilot", "kimi-coding"];
 
 export const CLI_COMPAT_PROVIDER_IDS = Array.from(
   new Set([...DERIVED_PROVIDER_IDS, ...LEGACY_PROVIDER_IDS])

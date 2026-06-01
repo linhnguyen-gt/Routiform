@@ -332,83 +332,6 @@ export async function refreshGoogleToken(
 }
 
 /**
- * Specialized refresh for Qwen OAuth tokens
- */
-export async function refreshQwenToken(refreshToken, log, proxyConfig = null) {
-  const endpoint = OAUTH_ENDPOINTS.qwen.token;
-
-  try {
-    const response = await runWithProxyContext(proxyConfig, () =>
-      fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Accept: "application/json",
-        },
-        body: new URLSearchParams({
-          grant_type: "refresh_token",
-          refresh_token: refreshToken,
-          client_id: PROVIDERS.qwen.clientId,
-        }),
-      })
-    );
-
-    if (response.status === 200) {
-      const tokens = await response.json();
-
-      log?.info?.("TOKEN_REFRESH", "Successfully refreshed Qwen token", {
-        hasNewAccessToken: !!tokens.access_token,
-        hasNewRefreshToken: !!tokens.refresh_token,
-        expiresIn: tokens.expires_in,
-      });
-
-      return {
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token || refreshToken,
-        expiresIn: tokens.expires_in,
-        providerSpecificData: tokens.resource_url
-          ? { resourceUrl: tokens.resource_url }
-          : undefined,
-      };
-    } else {
-      const errorText = await response.text().catch(() => "");
-
-      // Detect unrecoverable invalid_request (expired/revoked refresh token or bad client_id)
-      let errorCode = null;
-      try {
-        const parsed = JSON.parse(errorText);
-        errorCode = parsed?.error;
-      } catch {
-        // not JSON, ignore
-      }
-
-      if (errorCode === "invalid_request") {
-        log?.error?.(
-          "TOKEN_REFRESH",
-          "Qwen refresh token is invalid or expired. Re-authentication required.",
-          {
-            status: response.status,
-          }
-        );
-        return { error: "invalid_request" };
-      }
-
-      log?.warn?.("TOKEN_REFRESH", `Error with Qwen endpoint`, {
-        status: response.status,
-        error: errorText,
-      });
-    }
-  } catch (error) {
-    log?.warn?.("TOKEN_REFRESH", `Network error trying Qwen endpoint`, {
-      error: error.message,
-    });
-  }
-
-  log?.error?.("TOKEN_REFRESH", "Failed to refresh Qwen token");
-  return null;
-}
-
-/**
  * Specialized refresh for Codex (OpenAI) OAuth tokens.
  * OpenAI uses rotating (one-time-use) refresh tokens.
  * Returns { error: 'refresh_token_reused' } when the token has already been consumed,
@@ -754,9 +677,6 @@ async function _getAccessTokenInternal(provider, credentials, log, proxyConfig =
     case "codex":
       return await refreshCodexToken(credentials.refreshToken, log, proxyConfig);
 
-    case "qwen":
-      return await refreshQwenToken(credentials.refreshToken, log, proxyConfig);
-
     case "qoder":
       return await refreshIflowToken(credentials.refreshToken, log, proxyConfig);
 
@@ -793,7 +713,6 @@ export function supportsTokenRefresh(provider) {
     "antigravity",
     "claude",
     "codex",
-    "qwen",
     "qoder",
     "github",
     "kiro",
@@ -882,7 +801,6 @@ export function formatProviderCredentials(provider, credentials, log) {
       };
 
     case "codex":
-    case "qwen":
     case "qoder":
     case "openai":
     case "openrouter":

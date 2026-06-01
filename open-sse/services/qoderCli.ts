@@ -3,17 +3,21 @@ import crypto from "crypto";
 
 const _DEFAULT_TIMEOUT_MS = 45_000;
 const _DEFAULT_MAX_TURNS = "1";
-const QODER_DEFAULT_MODEL = "qwen-coder-qoder-1.0";
+const QODER_DEFAULT_MODEL = "auto";
 
+// Minimal fallback for the model picker BEFORE the user has connected an
+// OAuth account. Once connected, the live catalog (resolveQoderModels →
+// /algo/api/v2/model/list) is the source of truth — see
+// open-sse/services/qoderModels.ts and src/app/api/providers/[id]/models/
+// handle-qoder-models.ts.
+//
+// The two tier IDs below are the universally-available smart-routing wrappers
+// listed at https://docs.qoder.com/user-guide/chat/model-tier-selector.
+// Frontier models (qmodel/dmodel/...) are intentionally NOT hard-coded — the
+// server publishes them per-account and naming conventions evolve over time.
 export const QODER_STATIC_MODELS = [
-  { id: "qoder-rome-30ba3b", name: "Qoder Rome" },
-  { id: "deepseek-r1", name: "DeepSeek-R1" },
-  { id: "qwen3-max", name: "Qwen3-Max" },
-  { id: "qwen-coder-qoder-1.0", name: "Qwen-Coder-Qoder-1.0" },
-  { id: "qwen3.5-plus", name: "Qwen3.5-Plus" },
-  { id: "glm-5", name: "GLM-5" },
-  { id: "kimi-k2.5", name: "Kimi-K2.5" },
-  { id: "minimax-m2.5", name: "MiniMax-M2.5" },
+  { id: "auto", name: "Auto — Smart Routing" },
+  { id: "ultimate", name: "Ultimate — Expert Reasoning" },
 ];
 
 type JsonRecord = Record<string, unknown>;
@@ -87,19 +91,12 @@ export function getStaticQoderModels() {
 }
 
 export function mapQoderModelToLevel(model: string | null | undefined): string | null {
+  // Live catalog is authoritative; this helper just passes through whatever
+  // the caller had (used by analytics/UI helpers — not by the executor).
   const normalized = String(model || "")
     .trim()
     .toLowerCase();
-  if (!normalized) return null;
-  if (normalized.includes("qoder-rome")) return "qmodel";
-  if (normalized.includes("deepseek-r1")) return "ultimate";
-  if (normalized.includes("qwen3-max")) return "performance";
-  if (normalized.includes("qwen-coder-qoder")) return "qmodel";
-  if (normalized.includes("qwen3.5-plus")) return "performance";
-  if (normalized.includes("glm-5")) return "ultimate";
-  if (normalized.includes("kimi-k2.5")) return "kmodel";
-  if (normalized.includes("minimax-m2.5")) return "performance";
-  return "auto";
+  return normalized || null;
 }
 
 function flattenMessageContent(content: unknown): string {
@@ -411,7 +408,7 @@ export async function validateQoderCliPat({
     QODER_DEFAULT_MODEL;
 
   const bodyStr = JSON.stringify({
-    model: modelId || "coder-model",
+    model: modelId || "auto",
     messages: [{ role: "user", content: "hi" }],
     stream: false,
   });

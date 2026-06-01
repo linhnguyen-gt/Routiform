@@ -177,13 +177,13 @@ export default function OAuthModal({
     try {
       setError(null);
 
-      // Device code flow (GitHub, Qwen, Kiro, Kimi Coding, KiloCode)
+      // Device code flow (GitHub, Kiro, Kimi Coding, KiloCode, Qoder)
       if (
         provider === "github" ||
-        provider === "qwen" ||
         provider === "kiro" ||
         provider === "kimi-coding" ||
-        provider === "kilocode"
+        provider === "kilocode" ||
+        provider === "qoder"
       ) {
         setIsDeviceCode(true);
         setStep("waiting");
@@ -206,10 +206,17 @@ export default function OAuthModal({
         if (verifyUrl) window.open(verifyUrl, "oauth_verify");
 
         // Start polling - pass extraData for Kiro (contains _clientId, _clientSecret)
-        const extraData =
-          provider === "kiro"
-            ? { _clientId: data._clientId, _clientSecret: data._clientSecret }
-            : null;
+        // and Qoder (contains _qoderNonce, _qoderMachineId for COSY signing).
+        let extraData: Record<string, unknown> | null = null;
+        if (provider === "kiro") {
+          extraData = { _clientId: data._clientId, _clientSecret: data._clientSecret };
+        } else if (provider === "qoder") {
+          extraData = {
+            _qoderNonce: data._qoderNonce,
+            _qoderMachineId: data._qoderMachineId,
+            _qoderVerifier: data.codeVerifier,
+          };
+        }
         startPolling(data.device_code, data.codeVerifier, data.interval || 5, extraData);
         return;
       }
