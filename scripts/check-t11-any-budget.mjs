@@ -31,7 +31,6 @@ const budget = [
   { file: "open-sse/services/comboMetrics.ts", maxAny: 0 },
   { file: "open-sse/services/sessionManager.ts", maxAny: 0 },
   { file: "open-sse/services/provider.ts", maxAny: 0 },
-  { file: "open-sse/services/contextManager.ts", maxAny: 0 },
   { file: "open-sse/services/comboConfig.ts", maxAny: 0 },
   { file: "open-sse/services/accountSelector.ts", maxAny: 0 },
   { file: "open-sse/services/wildcardRouter.ts", maxAny: 0 },

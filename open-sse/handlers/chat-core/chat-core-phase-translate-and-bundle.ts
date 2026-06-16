@@ -8,18 +8,14 @@ import {
 } from "../../utils/aiSdkCompat.ts";
 import { shouldPreserveCacheControl } from "../../utils/cacheControlPolicy.ts";
 import { createRequestLogger } from "../../utils/requestLogger.ts";
+import { compressMessages, formatRtkLog } from "../../rtk/index.ts";
+import { isProxyContextCompressionEnabled } from "../../services/contextValidationSettings.ts";
 import { sanitizeRequestInput } from "../phases/input-sanitizer.ts";
 import { checkSemanticCache } from "../phases/semantic-cache-handler.ts";
-import { validateAndCompressContext } from "../phases/context-validator.ts";
 import { createBuildUpstreamHeadersForExecute } from "./chat-core-build-upstream-headers.ts";
 import { createExecuteProviderRequestBundle } from "./chat-core-create-execute-provider-request.ts";
 import { extractToolNameMapAndTuneTranslatedBody } from "./chat-core-post-translate-tune.ts";
-import type {
-  HandlerLogger,
-  JsonRecord,
-  ProviderCredentials,
-  RawRequestLike,
-} from "../types/chat-core.ts";
+import type { HandlerLogger, ProviderCredentials, RawRequestLike } from "../types/chat-core.ts";
 import type { RoutingStrategyValue } from "../../../src/shared/constants/routingStrategies.ts";
 import { translateInboundRequestBody } from "./chat-core-translate-inbound-body.ts";
 import type { ChatCorePipeline } from "./chat-core-pipeline.ts";
@@ -92,23 +88,6 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
     unknown
   >;
 
-  const contextResult = await validateAndCompressContext({
-    body: p.body,
-    provider: p.provider,
-    model: p.effectiveModel,
-    combo: p.combo as JsonRecord | null,
-    comboName: p.comboName,
-    reqLogger,
-    log,
-    persistFailureUsage: p.persistFailureUsage,
-  });
-
-  if (!contextResult.valid) {
-    return { done: true, result: contextResult.error };
-  }
-
-  p.body = contextResult.body as Record<string, unknown>;
-
   if (p.targetFormat === FORMATS.OPENAI_RESPONSES) {
     if (p.body.max_tokens !== undefined && p.body.max_output_tokens === undefined) {
       p.body.max_output_tokens = p.body.max_tokens;
@@ -173,6 +152,16 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
   }
   let translatedBody = translateResult.translatedBody as Record<string, unknown>;
   p.translatedBody = translatedBody;
+
+  // RTK Token Saver: lossless, structural compression of tool_result content.
+  // Gated by the same toggle the old context validator used (Dashboard AI request context).
+  const rtkEnabled = await isProxyContextCompressionEnabled();
+  const rtkStats = compressMessages(translatedBody, rtkEnabled);
+  const rtkLine = formatRtkLog(rtkStats);
+  if (rtkLine) {
+    log?.info?.("RTK", rtkLine);
+  }
+
   p.ccSessionId = translateResult.ccSessionId;
 
   p.toolNameMap = extractToolNameMapAndTuneTranslatedBody({

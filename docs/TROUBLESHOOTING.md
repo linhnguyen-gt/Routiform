@@ -138,17 +138,17 @@ Set `ENABLE_REQUEST_LOGS=true` in your `.env` file. Logs appear under `logs/` di
 If a request is rejected for context size:
 
 1. Go to **Dashboard → AI → Request context**
-2. Enable **auto-compress** if you want the proxy to shrink oversized payloads before forwarding them upstream
-3. Retry the request and inspect request logs / dashboard telemetry
+2. Enable **auto-compress** if you want the proxy to compact supported large tool results before forwarding them upstream
+3. Retry the request and inspect request logs for an `[RTK] saved ...` line
 
-Current auto-compress behavior is designed to preserve high-signal context more safely:
+Current auto-compress behavior uses RTK Token Saver, which is lossless and structural:
 
-- tool output trimming keeps error and warning lines when possible
-- recent and important messages are prioritized over low-value history
-- dropped history can be replaced with a structured summary of goals, constraints, decisions, prior errors, and open issues
-- compression telemetry records dropped messages, truncated tool outputs, compressed thinking blocks, summary insertion, and system truncation
+- supported `tool_result` payloads include diffs, git status, grep/find/ls/tree output, build logs, duplicate logs, search lists, and large numbered reads
+- error tool results are preserved unchanged
+- regular conversation history, thinking blocks, system prompts, schemas, and unsupported blobs are not trimmed or dropped
+- the provider remains authoritative for the final context limit; oversized requests may still fail or use the existing upstream fallback path
 
-If the request still exceeds the provider limit after compression, reduce very large tool outputs, oversized schemas, or long conversation history before retrying.
+If the request still exceeds the provider limit after RTK compaction, reduce very large unsupported tool outputs, oversized schemas, or long conversation history before retrying.
 
 ### Check Provider Health
 

@@ -221,15 +221,16 @@ The **orchestration layer** — coordinates translation, execution, streaming, a
 
 **Phase Handlers** (`phases/` subdirectory):
 
-| File                            | Purpose                                                                                                                                                                                                                                                                                      |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `idempotency-check.ts`          | Duplicate request detection using idempotency keys from request headers. Returns cached response if key matches previous request.                                                                                                                                                            |
-| `input-sanitizer.ts`            | Request normalization: strips empty name fields, enforces media/URL tools, downgrades incompatible tool_choice values, injects memory context when enabled.                                                                                                                                  |
-| `semantic-cache-handler.ts`     | Semantic cache lookup based on request signature. Returns cached response for identical requests within time window.                                                                                                                                                                         |
-| `background-task-redirector.ts` | Routes async/background tasks to appropriate handlers based on request characteristics.                                                                                                                                                                                                      |
-| `context-validator.ts`          | Context window validation and compression. Ensures request fits within model limits, applies 7-layer compression pipeline when needed. Tracks compression telemetry (dropped messages, truncated tools, compressed thinking, summary insertion, system truncation) for dashboard visibility. |
-| `model-fallback-handler.ts`     | Model-level fallback logic. Attempts alternative models when primary model fails with fallback-eligible errors.                                                                                                                                                                              |
-| `emergency-fallback-handler.ts` | Last-resort fallback strategies when all primary and model-level fallbacks are exhausted.                                                                                                                                                                                                    |
+| File                            | Purpose                                                                                                                                                     |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `idempotency-check.ts`          | Duplicate request detection using idempotency keys from request headers. Returns cached response if key matches previous request.                           |
+| `input-sanitizer.ts`            | Request normalization: strips empty name fields, enforces media/URL tools, downgrades incompatible tool_choice values, injects memory context when enabled. |
+| `semantic-cache-handler.ts`     | Semantic cache lookup based on request signature. Returns cached response for identical requests within time window.                                        |
+| `background-task-redirector.ts` | Routes async/background tasks to appropriate handlers based on request characteristics.                                                                     |
+| `model-fallback-handler.ts`     | Model-level fallback logic. Attempts alternative models when primary model fails with fallback-eligible errors.                                             |
+| `emergency-fallback-handler.ts` | Last-resort fallback strategies when all primary and model-level fallbacks are exhausted.                                                                   |
+
+RTK Token Saver (`open-sse/rtk/`) runs from `chat-core-phase-translate-and-bundle.ts` after inbound translation. When Request context is set to `auto-compress`, it losslessly compacts supported large `tool_result` payloads such as diffs, grep/find/ls/tree output, build logs, duplicate logs, search lists, and numbered file reads.
 
 **Handler Utilities** (`utils/` subdirectory):
 

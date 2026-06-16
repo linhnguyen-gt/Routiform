@@ -193,14 +193,14 @@ Main flow modules:
 
 - Entry: `src/sse/handlers/chat.ts`
 - Core orchestration: `open-sse/handlers/chatCore.ts` (2,094 lines, modularized)
-- Request phases: `open-sse/handlers/phases/*` (7 modules)
+- Request phases: `open-sse/handlers/phases/*` (6 modules)
   - `idempotency-check.ts` — duplicate request detection
   - `input-sanitizer.ts` — request normalization and memory injection
   - `semantic-cache-handler.ts` — semantic cache lookup
   - `background-task-redirector.ts` — async task routing
-  - `context-validator.ts` — context window validation and compression (compresses against raw model limit, then revalidates with safe limit). Passes compression telemetry (dropped messages, truncated tools, compressed thinking blocks, summary insertion, system truncation) to reqLogger for dashboard visibility.
   - `model-fallback-handler.ts` — model-level fallback logic
   - `emergency-fallback-handler.ts` — last-resort fallback strategies
+- RTK Token Saver: `open-sse/rtk/*` runs after inbound translation in `chat-core-phase-translate-and-bundle.ts`, losslessly compacting supported large `tool_result` payloads when Request context is set to `auto-compress`.
 - Handler utilities: `open-sse/handlers/utils/*` (3 modules)
   - `cache-log-helpers.ts` — cache usage logging utilities
   - `claude-passthrough-helpers.ts` — Claude tool name mapping
@@ -227,7 +227,7 @@ Main flow modules:
 Services (business logic):
 
 - Account selection/scoring: `open-sse/services/accountSelector.ts`
-- Context lifecycle management: `open-sse/services/contextManager.ts` — 7-layer compression pipeline with importance-aware history purification, signal-aware tool trimming, content-type-aware token estimation, and structured compression summaries
+- RTK Token Saver: `open-sse/rtk/` — lossless structural compaction for supported large `tool_result` payloads, wired after inbound translation and gated by Request context `auto-compress`
 - IP filter enforcement: `open-sse/services/ipFilter.ts`
 - Session tracking: `open-sse/services/sessionManager.ts`
 - Request deduplication: `open-sse/services/signatureCache.ts`

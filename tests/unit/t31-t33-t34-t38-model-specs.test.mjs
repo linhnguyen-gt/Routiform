@@ -15,7 +15,6 @@ const {
   getDefaultThinkingBudget,
   capThinkingBudget,
 } = await import("../../src/shared/constants/modelSpecs.ts");
-const { getTokenLimit } = await import("../../open-sse/services/context-manager/token-limits.ts");
 
 test("T31: antigravity provider route is the only catalog source", () => {
   assert.equal(getStaticModelsForProvider("antigravity"), undefined);
@@ -73,5 +72,5 @@ test("T38: GPT-5 family uses the 400k / 128k OpenAI limits", () => {
   assert.equal(gpt5Codex.maxOutputTokens, 128000);
   assert.equal(gpt5Mini.contextWindow, 400000);
   assert.equal(gpt5Mini.maxOutputTokens, 128000);
-  assert.equal(getTokenLimit("openai", "gpt-5"), 400000);
+  assert.equal(getModelSpec("gpt-5").contextWindow, 400000);
 });

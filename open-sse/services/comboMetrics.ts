@@ -11,9 +11,6 @@ interface ModelMetrics {
   totalLatencyMs: number;
   lastStatus: "ok" | "error" | null;
   lastUsedAt: string | null;
-  contextCompressions?: number;
-  contextRejections?: number;
-  totalCompressionRatio?: number;
 }
 
 /** Last terminal failure snapshot for observability (logs + dashboard). */
@@ -36,22 +33,17 @@ interface ComboMetricsEntry {
   intentCounts: Record<string, number>;
   byModel: Record<string, ModelMetrics>;
   lastRoutingFailure: ComboLastRoutingFailure | null;
-  contextCompressions?: number;
-  contextRejections?: number;
-  totalCompressionRatio?: number;
 }
 
 interface ComboMetricsView extends ComboMetricsEntry {
   avgLatencyMs: number;
   successRate: number;
   fallbackRate: number;
-  avgCompressionRatio?: number;
   byModel: Record<
     string,
     ModelMetrics & {
       avgLatencyMs: number;
       successRate: number;
-      avgCompressionRatio?: number;
     }
   >;
 }
@@ -105,9 +97,6 @@ export function recordComboRequest(
       intentCounts: {},
       byModel: {},
       lastRoutingFailure: null,
-      contextCompressions: 0,
-      contextRejections: 0,
-      totalCompressionRatio: 0,
     });
   }
 
@@ -154,9 +143,6 @@ export function recordComboRequest(
         totalLatencyMs: 0,
         lastStatus: null,
         lastUsedAt: null,
-        contextCompressions: 0,
-        contextRejections: 0,
-        totalCompressionRatio: 0,
       };
     }
     const modelMetric = combo.byModel[modelStr];
@@ -192,10 +178,6 @@ export function getComboMetrics(comboName: string): ComboMetricsView | null {
       combo.totalRequests > 0 ? Math.round((combo.totalSuccesses / combo.totalRequests) * 100) : 0,
     fallbackRate:
       combo.totalRequests > 0 ? Math.round((combo.totalFallbacks / combo.totalRequests) * 100) : 0,
-    avgCompressionRatio:
-      combo.contextCompressions && combo.contextCompressions > 0
-        ? Math.round((combo.totalCompressionRatio || 0) / combo.contextCompressions)
-        : undefined,
     intentCounts: { ...combo.intentCounts },
     byModel: Object.fromEntries(
       Object.entries(combo.byModel).map(([model, m]) => [
@@ -204,10 +186,6 @@ export function getComboMetrics(comboName: string): ComboMetricsView | null {
           ...m,
           avgLatencyMs: m.requests > 0 ? Math.round(m.totalLatencyMs / m.requests) : 0,
           successRate: m.requests > 0 ? Math.round((m.successes / m.requests) * 100) : 0,
-          avgCompressionRatio:
-            m.contextCompressions && m.contextCompressions > 0
-              ? Math.round((m.totalCompressionRatio || 0) / m.contextCompressions)
-              : undefined,
         },
       ])
     ),
@@ -227,114 +205,6 @@ export function getAllComboMetrics(): Record<string, ComboMetricsView | null> {
 }
 
 /**
- * Record context compression event
- * @param {string} comboName
- * @param {string} modelStr
- * @param {number} originalTokens
- * @param {number} finalTokens
- */
-export function recordContextCompression(
-  comboName: string,
-  modelStr: string | null,
-  originalTokens: number,
-  finalTokens: number
-): void {
-  if (!metrics.has(comboName)) {
-    metrics.set(comboName, {
-      totalRequests: 0,
-      totalSuccesses: 0,
-      totalFailures: 0,
-      totalFallbacks: 0,
-      totalLatencyMs: 0,
-      strategy: "priority",
-      lastUsedAt: null,
-      intentCounts: {},
-      byModel: {},
-      lastRoutingFailure: null,
-      contextCompressions: 0,
-      contextRejections: 0,
-      totalCompressionRatio: 0,
-    });
-  }
-
-  const combo = metrics.get(comboName);
-  if (!combo) return;
-
-  combo.contextCompressions = (combo.contextCompressions || 0) + 1;
-  const ratio = originalTokens > 0 ? Math.round((finalTokens / originalTokens) * 100) : 100;
-  combo.totalCompressionRatio = (combo.totalCompressionRatio || 0) + ratio;
-
-  // Per-model tracking
-  if (modelStr) {
-    if (!combo.byModel[modelStr]) {
-      combo.byModel[modelStr] = {
-        requests: 0,
-        successes: 0,
-        failures: 0,
-        totalLatencyMs: 0,
-        lastStatus: null,
-        lastUsedAt: null,
-        contextCompressions: 0,
-        contextRejections: 0,
-        totalCompressionRatio: 0,
-      };
-    }
-    const modelMetric = combo.byModel[modelStr];
-    modelMetric.contextCompressions = (modelMetric.contextCompressions || 0) + 1;
-    modelMetric.totalCompressionRatio = (modelMetric.totalCompressionRatio || 0) + ratio;
-  }
-}
-
-/**
- * Record context rejection (request exceeded limit even after compression)
- * @param {string} comboName
- * @param {string} modelStr
- */
-export function recordContextRejection(comboName: string, modelStr: string | null): void {
-  if (!metrics.has(comboName)) {
-    metrics.set(comboName, {
-      totalRequests: 0,
-      totalSuccesses: 0,
-      totalFailures: 0,
-      totalFallbacks: 0,
-      totalLatencyMs: 0,
-      strategy: "priority",
-      lastUsedAt: null,
-      intentCounts: {},
-      byModel: {},
-      lastRoutingFailure: null,
-      contextCompressions: 0,
-      contextRejections: 0,
-      totalCompressionRatio: 0,
-    });
-  }
-
-  const combo = metrics.get(comboName);
-  if (!combo) return;
-
-  combo.contextRejections = (combo.contextRejections || 0) + 1;
-
-  // Per-model tracking
-  if (modelStr) {
-    if (!combo.byModel[modelStr]) {
-      combo.byModel[modelStr] = {
-        requests: 0,
-        successes: 0,
-        failures: 0,
-        totalLatencyMs: 0,
-        lastStatus: null,
-        lastUsedAt: null,
-        contextCompressions: 0,
-        contextRejections: 0,
-        totalCompressionRatio: 0,
-      };
-    }
-    const modelMetric = combo.byModel[modelStr];
-    modelMetric.contextRejections = (modelMetric.contextRejections || 0) + 1;
-  }
-}
-
-/**
  * Record detected prompt intent for a combo (used by multilingual routing analytics).
  */
 export function recordComboIntent(comboName: string, intent: string): void {
@@ -350,9 +220,6 @@ export function recordComboIntent(comboName: string, intent: string): void {
       intentCounts: {},
       byModel: {},
       lastRoutingFailure: null,
-      contextCompressions: 0,
-      contextRejections: 0,
-      totalCompressionRatio: 0,
     });
   }
 

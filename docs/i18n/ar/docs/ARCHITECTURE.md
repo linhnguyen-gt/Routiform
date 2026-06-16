@@ -213,7 +213,7 @@ Main flow modules:
 Services (business logic):
 
 - Account selection/scoring: `open-sse/services/accountSelector.ts`
-- Context lifecycle management: `open-sse/services/contextManager.ts`
+- RTK Token Saver: `open-sse/rtk/` — lossless structural compaction for supported large `tool_result` payloads, wired after inbound translation and gated by Request context `auto-compress`
 - IP filter enforcement: `open-sse/services/ipFilter.ts`
 - Session tracking: `open-sse/services/sessionManager.ts`
 - Request deduplication: `open-sse/services/signatureCache.ts`

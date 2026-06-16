@@ -1,5 +1,5 @@
 /**
- * UI-driven proxy context validation (vs oversized prompts).
+ * UI-driven proxy context compression toggle.
  * Reads from settings DB with short TTL to avoid per-request SQLite hits.
  */
 
@@ -13,7 +13,7 @@ export function invalidateContextValidationSettingsCache(): void {
 }
 
 /**
- * When true, `validateAndCompressContext` may compress oversized bodies.
+ * When true, RTK may losslessly shave large tool_result bodies before upstream dispatch.
  * Reads from DB `contextValidation` setting (managed via UI).
  */
 export async function isProxyContextCompressionEnabled(): Promise<boolean> {
