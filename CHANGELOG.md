@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.35.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.35.0...v3.35.1) (2026-06-19)
+
+
+### Bug Fixes
+
+* **chat:** probe sibling container for Open WebUI reachability in Docker mode ([b906896](https://github.com/linhnguyen-gt/Routiform/commit/b906896b17f5e452d4660f11edf0d20ab2c9c28d))
+* **chat:** propagate custom Open WebUI host port to browser URL ([efeb164](https://github.com/linhnguyen-gt/Routiform/commit/efeb16453afcc197da987440050bc2a1ac3a204b))
+
 ## [3.35.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.34.0...v3.35.0) (2026-06-19)
 
 
