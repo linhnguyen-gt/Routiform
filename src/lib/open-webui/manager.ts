@@ -12,6 +12,8 @@ const execFileAsync = promisify(execFile);
 
 const OPEN_WEBUI_PORT = 8080;
 const OPEN_WEBUI_VERSION = "v0.6.40";
+// Sibling container hostname on the shared Docker compose network
+const DOCKER_OPEN_WEBUI_HOST = "routiform-open-webui";
 const START_TIMEOUT_MS = 180000;
 const STOP_TIMEOUT_MS = 10000;
 const PORT_PROBE_TIMEOUT_MS = 1500;
@@ -209,7 +211,13 @@ async function ensureApiKey(): Promise<string> {
   return created.key;
 }
 
-export async function isPortReachable(port: number = OPEN_WEBUI_PORT): Promise<boolean> {
+export async function isPortReachable(
+  port: number = OPEN_WEBUI_PORT,
+  host?: string
+): Promise<boolean> {
+  // In Docker mode, Open WebUI runs as a sibling container — 127.0.0.1 from inside the
+  // routiform container only reaches routiform itself, never the sibling.
+  const targetHost = host ?? (isDockerMode() ? DOCKER_OPEN_WEBUI_HOST : "127.0.0.1");
   return new Promise((resolve) => {
     const socket = new net.Socket();
     const cleanup = () => {
@@ -229,7 +237,7 @@ export async function isPortReachable(port: number = OPEN_WEBUI_PORT): Promise<b
       cleanup();
       resolve(false);
     });
-    socket.connect(port, "127.0.0.1");
+    socket.connect(port, targetHost);
   });
 }
 
@@ -250,11 +258,28 @@ async function killPid(pid: number) {
 }
 
 export async function getOpenWebuiStatus(): Promise<OpenWebuiStatus> {
+  const dockerMode = isDockerMode();
+  const reachable = await isPortReachable();
+
+  // In Docker mode the compose service manages the Open WebUI process — no local PID tracking.
+  // Reachability over the compose network is the only signal we need.
+  if (dockerMode) {
+    return {
+      phase: reachable ? "running" : "stopped",
+      runtime: "docker",
+      dockerMode: true,
+      url: reachable ? `http://localhost:${OPEN_WEBUI_PORT}` : null,
+      reachable,
+      pid: null,
+      lastError: null,
+      logPath: getLogFilePath(),
+    };
+  }
+
   const runtime = await resolveRuntime();
   const state = await readState();
   const trustedPid = openWebuiPid || (state.ownerPid === process.pid ? state.pid : null);
   const running = isProcessAlive(trustedPid);
-  const reachable = await isPortReachable();
 
   let phase: OpenWebuiPhase;
   if (runtime === "not_available") {
@@ -276,7 +301,7 @@ export async function getOpenWebuiStatus(): Promise<OpenWebuiStatus> {
   return {
     phase,
     runtime,
-    dockerMode: isDockerMode(),
+    dockerMode: false,
     url: reachable ? `http://localhost:${OPEN_WEBUI_PORT}` : null,
     reachable,
     pid: running ? trustedPid : null,
