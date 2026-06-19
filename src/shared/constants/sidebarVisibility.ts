@@ -13,7 +13,6 @@ export const HIDEABLE_SIDEBAR_ITEM_IDS = [
   "cli-tools",
   "agents",
   "translator",
-  "playground",
   "media",
   "search-tools",
   "health",
@@ -68,7 +67,6 @@ const CLI_SIDEBAR_ITEMS: readonly SidebarItemDefinition[] = [
 
 const DEBUG_SIDEBAR_ITEMS: readonly SidebarItemDefinition[] = [
   { id: "translator", href: "/dashboard/translator", i18nKey: "translator", icon: "translate" },
-  { id: "playground", href: "/dashboard/playground", i18nKey: "playground", icon: "science" },
   {
     id: "search-tools",
     href: "/dashboard/search-tools",
