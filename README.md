@@ -286,6 +286,26 @@ npm install
 npm run dev
 ```
 
+### Built-in Chat menu (Open WebUI)
+
+The sidebar has a **Chat** entry that launches a local, no-login chat over your
+Routiform models via [Open WebUI](https://github.com/open-webui/open-webui).
+
+- **Option 1 / 2 / 4 (host installs):** Routiform auto-spawns Open WebUI as a
+  background subprocess on port `8080`. Requires `uv` + Python 3.11 (preferred) or
+  `pip install open-webui`. Routiform auto-provisions an API key named `open-webui`
+  and stops Open WebUI when Routiform stops.
+- **Option 3 (Docker):** Open WebUI runs as a sibling compose service defined in
+  `docker-compose.full.yml`. Bring it up with:
+
+  ```bash
+  docker compose -f docker-compose.full.yml up -d
+  ```
+
+  Set `OPEN_WEBUI_ROUTIFORM_KEY` to a key from API Manager (or rely on the
+  placeholder if Routiform doesn't enforce keys). The `/dashboard/chat` page
+  detects Docker mode and opens `http://localhost:8080` without spawning.
+
 ## First-run flow
 
 1. Open `/dashboard`

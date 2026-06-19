@@ -103,6 +103,14 @@ async function cleanup(): Promise<void> {
   } catch (err) {
     console.error("[Shutdown] Error during cleanup:", (err as Error).message);
   }
+
+  try {
+    const { stopOpenWebui } = await import("@/lib/open-webui/manager");
+    await stopOpenWebui();
+    console.log("[Shutdown] Open WebUI process stopped.");
+  } catch (err) {
+    console.error("[Shutdown] Error stopping Open WebUI:", (err as Error).message);
+  }
 }
 
 /**

@@ -1,5 +1,6 @@
 export const HIDEABLE_SIDEBAR_ITEM_IDS = [
   "home",
+  "chat",
   "endpoints",
   "api-manager",
   "providers",
@@ -46,6 +47,7 @@ export interface SidebarSectionDefinition {
 
 const PRIMARY_SIDEBAR_ITEMS: readonly SidebarItemDefinition[] = [
   { id: "home", href: "/dashboard", i18nKey: "home", icon: "home", exact: true },
+  { id: "chat", href: "/dashboard/chat", i18nKey: "chat", icon: "forum" },
   { id: "endpoints", href: "/dashboard/endpoint", i18nKey: "endpoints", icon: "api" },
   { id: "api-manager", href: "/dashboard/api-manager", i18nKey: "apiManager", icon: "vpn_key" },
   { id: "providers", href: "/dashboard/providers", i18nKey: "providers", icon: "dns" },

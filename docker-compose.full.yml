@@ -62,6 +62,27 @@ services:
       retries: 3
       start_period: 15s
 
+  open-webui:
+    container_name: routiform-open-webui
+    image: ghcr.io/open-webui/open-webui:v0.6.40
+    pull_policy: always
+    restart: unless-stopped
+    stop_grace_period: 20s
+    depends_on:
+      - routiform
+    environment:
+      WEBUI_AUTH: "False"
+      OPENAI_API_BASE_URL: "http://routiform:20129/v1"
+      OPENAI_API_KEY: "${OPEN_WEBUI_ROUTIFORM_KEY:-sk-routiform-local}"
+      PORT: "8080"
+      HOST: "0.0.0.0"
+    ports:
+      - "${OPEN_WEBUI_PORT:-8080}:8080"
+    volumes:
+      - open-webui-data:/app/backend/data
+
 volumes:
   routiform-data:
     name: routiform-data
+  open-webui-data:
+    name: routiform-open-webui-data
