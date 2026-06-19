@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.35.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.34.0...v3.35.0) (2026-06-19)
+
+
+### Features
+
+* **chat:** add Chat sidebar entry that auto-spawns Open WebUI ([439fd5c](https://github.com/linhnguyen-gt/Routiform/commit/439fd5cebd627ec7e053e1383acd97829351d65e))
+* **rtk:** replace context compression with RTK Token Saver ([b90ce12](https://github.com/linhnguyen-gt/Routiform/commit/b90ce1260a5acbb39fd9d8203525b72e39068e60))
+
+
+### Bug Fixes
+
+* **chat:** fix TDZ crash, add log tail during startup, fix error button label ([7a4e0bc](https://github.com/linhnguyen-gt/Routiform/commit/7a4e0bc0f992ba30ee29f9ad6abc50201b9774ce))
+
 ## [3.34.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.33.0...v3.34.0) (2026-06-01)
 
 
