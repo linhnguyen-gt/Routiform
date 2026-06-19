@@ -19,6 +19,10 @@ services:
       CLI_ALLOW_CONFIG_WRITES: "true"
       CLI_CONFIG_HOME: /host-home
       XDG_CONFIG_HOME: /host-home/.config
+      # Propagate the host-facing Open WebUI port so the Chat launcher builds the correct URL.
+      # If OPEN_WEBUI_PORT is overridden (e.g. to avoid a port conflict), this ensures
+      # the "Open chat" link points to the right port in the user's browser.
+      OPEN_WEBUI_HOST_PORT: ${OPEN_WEBUI_PORT:-8080}
     ports:
       - "${ROUTIFORM_DASHBOARD_PORT:-20128}:20128"
       - "${ROUTIFORM_API_PORT:-20129}:20129"

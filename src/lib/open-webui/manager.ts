@@ -264,11 +264,15 @@ export async function getOpenWebuiStatus(): Promise<OpenWebuiStatus> {
   // In Docker mode the compose service manages the Open WebUI process — no local PID tracking.
   // Reachability over the compose network is the only signal we need.
   if (dockerMode) {
+    // OPEN_WEBUI_HOST_PORT is the host-facing port (set via ${OPEN_WEBUI_PORT:-8080} in compose).
+    // It may differ from the container-internal port (always 8080) if the user changed the mapping
+    // to avoid a port conflict. We probe the internal port; we expose the host port in the URL.
+    const hostPort = parseInt(process.env.OPEN_WEBUI_HOST_PORT ?? String(OPEN_WEBUI_PORT), 10);
     return {
       phase: reachable ? "running" : "stopped",
       runtime: "docker",
       dockerMode: true,
-      url: reachable ? `http://localhost:${OPEN_WEBUI_PORT}` : null,
+      url: reachable ? `http://localhost:${hostPort}` : null,
       reachable,
       pid: null,
       lastError: null,

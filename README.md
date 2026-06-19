@@ -306,6 +306,14 @@ Routiform models via [Open WebUI](https://github.com/open-webui/open-webui).
   placeholder if Routiform doesn't enforce keys). The `/dashboard/chat` page
   detects Docker mode and opens `http://localhost:8080` without spawning.
 
+  If port `8080` is already in use on your machine, override it before starting:
+
+  ```bash
+  OPEN_WEBUI_PORT=9090 docker compose -f docker-compose.full.yml up -d
+  ```
+
+  The Chat launcher automatically opens the correct port — no extra config needed.
+
 ## First-run flow
 
 1. Open `/dashboard`
