@@ -153,7 +153,6 @@
     "media": "媒体",
     "settings": "设置",
     "translator": "翻译器",
-    "playground": "演练场",
     "searchTools": "搜索工具",
     "agents": "智能体",
     "docs": "文档",
@@ -3239,6 +3238,7 @@
     "dockerMode": "Routiform 正在 Docker 中运行。Open WebUI 作为同级 compose 服务运行。",
     "dockerHint": "如果聊天不可访问，请启动它：docker compose -f docker-compose.full.yml up -d",
     "retry": "重试",
+    "checkStatus": "检查状态",
     "loading": "正在检查状态…",
     "portLabel": "端口 8080"
   }

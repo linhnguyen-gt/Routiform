@@ -443,3 +443,13 @@ export async function stopOpenWebui(): Promise<OpenWebuiStatus> {
 export function isDockerInstallMode(): boolean {
   return isDockerMode();
 }
+
+export async function getOpenWebuiLogTail(maxLines: number = 40): Promise<string[]> {
+  try {
+    const content = await fs.readFile(getLogFilePath(), "utf8");
+    const lines = content.split("\n").filter((line) => line.length > 0);
+    return lines.slice(-maxLines);
+  } catch {
+    return [];
+  }
+}

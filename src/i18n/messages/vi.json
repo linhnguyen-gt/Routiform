@@ -153,7 +153,6 @@
     "media": "Phương tiện",
     "settings": "Cài đặt",
     "translator": "Người phiên dịch",
-    "playground": "Playground",
     "searchTools": "Search Tools",
     "agents": "Tác nhân",
     "docs": "Tài liệu",
@@ -3237,6 +3236,7 @@
     "dockerMode": "Routiform đang chạy trong Docker. Open WebUI chạy như service compose đi kèm.",
     "dockerHint": "Nếu chat không truy cập được, khởi động bằng: docker compose -f docker-compose.full.yml up -d",
     "retry": "Thử lại",
+    "checkStatus": "Kiểm tra trạng thái",
     "loading": "Đang kiểm tra trạng thái…",
     "portLabel": "Cổng 8080"
   }

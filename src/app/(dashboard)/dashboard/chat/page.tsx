@@ -34,6 +34,8 @@ export default function ChatLauncherPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [logLines, setLogLines] = useState<string[]>([]);
+  const logBoxRef = useRef<HTMLPreElement | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoOpenedRef = useRef(false);
 
@@ -102,6 +104,8 @@ export default function ChatLauncherPage() {
     };
   }, [fetchStatus, startOpenWebui]);
 
+  const phase = mapPhase(status, loading);
+
   useEffect(() => {
     if (pollRef.current) clearInterval(pollRef.current);
     if (phase === "running") {
@@ -118,7 +122,35 @@ export default function ChatLauncherPage() {
     };
   }, [phase, fetchStatus]);
 
-  const phase = mapPhase(status, loading);
+  useEffect(() => {
+    if (phase !== "starting") {
+      setLogLines([]);
+      return;
+    }
+    let cancelled = false;
+    const fetchLog = async () => {
+      try {
+        const res = await fetch("/api/open-webui/logs", { cache: "no-store" });
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as { lines: string[] };
+        if (!cancelled) setLogLines(data.lines);
+      } catch {
+        // best-effort log tail — ignore transient failures
+      }
+    };
+    void fetchLog();
+    const interval = setInterval(fetchLog, 1500);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [phase]);
+
+  useEffect(() => {
+    if (logBoxRef.current) {
+      logBoxRef.current.scrollTop = logBoxRef.current.scrollHeight;
+    }
+  }, [logLines]);
 
   useEffect(() => {
     if (phase === "running" && status?.url && !autoOpenedRef.current) {
@@ -206,6 +238,14 @@ export default function ChatLauncherPage() {
             <p className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300">
               {t("firstRunNotice")}
             </p>
+            {logLines.length > 0 && (
+              <pre
+                ref={logBoxRef}
+                className="max-h-48 overflow-y-auto rounded-lg bg-black/5 p-3 text-xs leading-relaxed text-text-muted dark:bg-white/5"
+              >
+                {logLines.join("\n")}
+              </pre>
+            )}
             <Button variant="secondary" onClick={stopOpenWebui} disabled={actionLoading}>
               {t("stop")}
             </Button>
@@ -257,7 +297,7 @@ export default function ChatLauncherPage() {
                 {t("retry")}
               </Button>
               <Button variant="secondary" onClick={() => fetchStatus()} disabled={actionLoading}>
-                {t("loading")}
+                {t("checkStatus")}
               </Button>
             </div>
           </div>
