@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.35.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.35.1...v3.35.2) (2026-06-20)
+
+
+### Bug Fixes
+
+* **chat:** add version query param to Open WebUI URL to bust stale index.html cache ([374ca1d](https://github.com/linhnguyen-gt/Routiform/commit/374ca1d9779d610f23f248ed2b0929eef7c12dc7))
+
 ### [3.35.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.35.0...v3.35.1) (2026-06-19)
 
 
