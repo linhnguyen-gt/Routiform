@@ -234,7 +234,7 @@ export async function registerNodejs(): Promise<void> {
       const { getApiKeys, createApiKey } = await import("@/lib/localDb");
       const { getConsistentMachineId } = await import("@/shared/utils/machineId");
       const { resolveDataDir } = await import("@/lib/dataPaths");
-      const { writeFileSync, existsSync } = await import("node:fs");
+      const { writeFileSync } = await import("node:fs");
       const { join } = await import("node:path");
 
       const keys = await getApiKeys();
