@@ -19,6 +19,11 @@
 #    Profile `base` = runner-base only (no Claude/Codex/etc. binaries) — detection will show "not installed".
 #    Profile `cli` = runner-cli + `npm install -g` for Claude Code, Codex, Droid, OpenClaw — use this for CLI cards.
 #
+#  Management CLI subcommands (server must be running):
+#    docker compose --profile cli exec routiform provider list
+#    docker compose --profile cli exec routiform key list --json
+#    docker compose --profile cli exec routiform status
+#
 #  Pre-built images (CI → Docker Hub / GHCR), same Dockerfile targets:
 #    linhnguyen0944/routiform:latest     → runner-base
 #    linhnguyen0944/routiform:cli        → runner-cli (CLI tools + dashboard)

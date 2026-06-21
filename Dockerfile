@@ -52,12 +52,16 @@ COPY --from=builder /app/scripts/run-standalone.mjs ./run-standalone.mjs
 COPY --from=builder /app/scripts/runtime-env.mjs ./runtime-env.mjs
 COPY --from=builder /app/scripts/bootstrap-env.mjs ./bootstrap-env.mjs
 COPY --from=builder /app/scripts/healthcheck.mjs ./healthcheck.mjs
+COPY scripts/docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x docker-entrypoint.sh \
+  && ln -s /app/bin/routiform.mjs /usr/local/bin/routiform
 
 EXPOSE 20128
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD ["node", "healthcheck.mjs"]
 
+ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["node", "run-standalone.mjs"]
 
 FROM runner-base AS runner-cli
