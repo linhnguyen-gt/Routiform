@@ -104,7 +104,7 @@ describe("chatCorePhaseTranslateAndBundle RTK integration", () => {
 
     expect(outcome).toEqual({ done: false });
     expect(content.length).toBeLessThan(diff.length);
-    expect(content).toContain("[full diff: rtk git diff --no-compact]");
+    expect(content).toContain("[diff truncated — re-read individual files for full hunks]");
     expect(bundledBody).toBe(translatedBody);
     expect(mocks.infoLog).toHaveBeenCalledWith("RTK", expect.stringContaining("[RTK] saved"));
     expect(mocks.infoLog).toHaveBeenCalledWith("RTK", expect.stringContaining("git-diff"));

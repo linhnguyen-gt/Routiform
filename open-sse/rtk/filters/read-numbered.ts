@@ -1,5 +1,7 @@
 // Handles Cursor/Codex read_file output: "  1|content\n  2|content".
-// Strategy: keep head+tail lines, drop the middle.
+// Strategy: keep head+tail lines, drop the middle with an actionable hint
+// that tells the model exactly which lines were omitted so it can re-fetch
+// them with offset/limit.
 import {
   SMART_TRUNCATE_HEAD,
   SMART_TRUNCATE_TAIL,
@@ -19,7 +21,13 @@ export const readNumbered: FilterFn = function readNumbered(input) {
   const tail = lines.slice(lines.length - SMART_TRUNCATE_TAIL);
   const cut = lines.length - head.length - tail.length;
 
-  return [...head, `... +${cut} lines truncated (file continues)`, ...tail].join("\n");
+  const omitStart = SMART_TRUNCATE_HEAD + 1;
+  const omitEnd = lines.length - SMART_TRUNCATE_TAIL;
+  return [
+    ...head,
+    `... +${cut} lines omitted (approx. lines ${omitStart}–${omitEnd}) — re-read with offset/limit to see omitted section`,
+    ...tail,
+  ].join("\n");
 };
 
 (readNumbered as FilterFn).filterName = "read-numbered";

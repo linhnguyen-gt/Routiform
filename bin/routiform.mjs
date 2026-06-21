@@ -91,6 +91,30 @@ const bootstrappedEnv = bootstrapEnv({ quiet: false });
 // ── Parse args ─────────────────────────────────────────────
 const args = process.argv.slice(2);
 
+// ── Management CLI dispatch ──────────────────────────────────
+// If the first arg is a known management noun, route to the CLI dispatcher
+// instead of the interactive server launcher.
+const MANAGEMENT_NOUNS = new Set([
+  "provider",
+  "key",
+  "combo",
+  "model",
+  "settings",
+  "status",
+  "usage",
+  "logs",
+]);
+if (args.length > 0 && MANAGEMENT_NOUNS.has(args[0])) {
+  try {
+    const { run } = await import("./cli/dispatch.mjs");
+    await run(args);
+  } catch (err) {
+    console.error("\x1b[31m✖ CLI error:\x1b[0m", err.message || err);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 if (args.includes("--help") || args.includes("-h")) {
   console.log(`
   \x1b[1m\x1b[36m⚡ Routiform\x1b[0m — Smart AI Router with Auto Fallback
@@ -104,6 +128,14 @@ if (args.includes("--help") || args.includes("-h")) {
     routiform --verbose       Show all logs even with menu
     routiform --help          Show this help
     routiform --version       Show version
+
+  \x1b[1mManagement CLI:\x1b[0m
+    routiform provider list       List providers
+    routiform key create <name>   Create an API key
+    routiform combo list           List combos
+    routiform status               Show server status
+    routiform settings get         Show settings
+    Run "routiform <noun> --help" for per-command help.
 
   \x1b[1mMCP Integration:\x1b[0m
     The --mcp flag starts an MCP server over stdio, exposing Routiform
@@ -181,12 +213,12 @@ const useMenu = isTTY && !noMenu;
 
 // ── Banner ─────────────────────────────────────────────────
 console.log(`
-\x1b[36m   ____                  _ ____              _
-   / __ \\                (_) __ \\            | |
-  | |  | |_ __ ___  _ __ _| |__) |___  _   _| |_ ___
-  | |  | | '_ \` _ \\| '_ \\ |  _  // _ \\| | | | __/ _ \\
-  | |__| | | | | | | | | | | | \\ \\ (_) | |_| | ||  __/
-   \\____/|_| |_| |_|_| |_|_|_|  \\_\\___/ \\__,_|\\__\\___|
+\x1b[36m
+  ____  _                            _ __
+ |  _ \\| |_ ___ _ __ ___    __ _ _ __| |\\ \\
+ | |_) | __/ _ \\ '_ \` _ \\  / _\` | '__| |/ /
+ |  _ <| || (_) | | | | | | (_| | |  |   <
+ |_| \\_\\\\__\\___/|_| |_| |_|\\__,_|_|  |_|\\_\\
 \x1b[0m`);
 
 // ── Node.js runtime note ───────────────────────────────────

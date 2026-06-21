@@ -6,10 +6,16 @@ export const GIT_DIFF_HUNK_MAX_LINES = 100; // per-hunk line cap
 export const GIT_DIFF_CONTEXT_KEEP = 3; // context lines around changes
 export const DEDUP_LINE_MAX = 2000; // dedupLog truncation cap
 
-// Per-command output caps
+// Per-command output caps (full profile defaults)
 export const GREP_PER_FILE_MAX = 10; // max matches shown per file
 export const FIND_PER_DIR_MAX = 10; // max files shown per dir
 export const FIND_TOTAL_DIR_MAX = 20; // max dirs shown total
+
+// Raised caps for "safe" profile (coding-agent clients): avoid false capping
+// when an agent relies on complete results to plan edits.
+export const GREP_PER_FILE_MAX_SAFE = 50;
+export const FIND_PER_DIR_MAX_SAFE = 50;
+export const FIND_TOTAL_DIR_MAX_SAFE = 100;
 
 // git status caps
 export const STATUS_MAX_FILES = 10; // max staged/modified files listed
@@ -51,6 +57,9 @@ export const TREE_MAX_LINES = 200;
 // Cursor Glob "Result of search in '...' (total N files):" list
 export const SEARCH_LIST_PER_DIR_MAX = 10;
 export const SEARCH_LIST_TOTAL_DIR_MAX = 20;
+// Raised caps for "safe" profile (coding-agent clients).
+export const SEARCH_LIST_PER_DIR_MAX_SAFE = 50;
+export const SEARCH_LIST_TOTAL_DIR_MAX_SAFE = 100;
 
 // Smart truncate fallback
 export const SMART_TRUNCATE_HEAD = 120; // lines kept from top

@@ -2050,7 +2050,7 @@
     "contextValidationPassthrough": "Passthrough",
     "contextValidationPassthroughDesc": "No proxy-side tool-result compaction (recommended for maximum fidelity).",
     "contextValidationAutoCompress": "Auto-compress",
-    "contextValidationAutoCompressDesc": "Compact large supported tool-result payloads such as diffs, grep output, file lists, logs, and build output before upstream dispatch.",
+    "contextValidationAutoCompressDesc": "Compact large tool outputs (git diffs, build logs, file trees) before upstream dispatch. Coding agents (Cursor, Claude Code, etc.) receive a conservative profile that preserves file content precision.",
     "passthrough": "Passthrough",
     "passthroughDesc": "No changes — client controls thinking budget",
     "auto": "Auto Combo",
@@ -3414,7 +3414,7 @@
     "firstRunNotice": "First launch downloads packages and can take a few minutes. Keep this tab open.",
     "running": "Open WebUI is running.",
     "openChat": "Open chat",
-    "openChatNewTab": "Open chat in new tab",
+    "openChatNewTab": "Open in new tab",
     "stop": "Stop Open WebUI",
     "stopped": "Open WebUI is stopped.",
     "start": "Start",
@@ -3429,6 +3429,8 @@
     "retry": "Retry",
     "checkStatus": "Check status",
     "loading": "Checking status…",
-    "portLabel": "Port 8080"
+    "portLabel": "Port 8080",
+    "reloadIframe": "Reload chat",
+    "chatBlocked": "Chat could not be embedded. Open it in a new tab, or check Open WebUI's frame-embedding settings."
   }
 }

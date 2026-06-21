@@ -314,6 +314,71 @@ Routiform models via [Open WebUI](https://github.com/open-webui/open-webui).
 
   The Chat launcher automatically opens the correct port — no extra config needed.
 
+## Management CLI
+
+Routiform includes terminal subcommands for day-to-day management without opening the dashboard.
+
+### Quick examples
+
+```bash
+routiform status                              # server up?, version, URLs
+routiform provider list                       # list providers
+routiform provider add --type openai --key sk-xxx --name "OpenAI"
+routiform key create my-key                    # create API key (shown once)
+routiform combo list                           # list combos
+routiform model list                           # list synced models
+routiform settings get                         # show settings
+routiform settings set requireLogin true       # set a safe-to-CLI setting
+routiform usage                                # usage summary (30d)
+routiform logs --tail 20                       # recent server logs
+```
+
+All commands support `--json` for raw JSON output (scripting), `--port <n>` to override the port, `--api-key <k>` for auth, and `--yes` to skip confirmation prompts.
+
+### Usage by install option
+
+**npm / npx:**
+
+```bash
+# Terminal 1: start server
+routiform
+
+# Terminal 2: run CLI subcommands
+routiform provider list
+```
+
+**Docker (server running in container):**
+
+```bash
+docker exec routiform provider list
+docker exec routiform status
+```
+
+**Host CLI → Docker server (npm on host, server in Docker with ports mapped):**
+
+```bash
+ROUTIFORM_API_KEY=<key> routiform provider list --port 20128
+```
+
+### Auth
+
+When login is enabled, the CLI automatically reads an API key from the local SQLite DB (`~/.routiform/storage.sqlite` or `DATA_DIR`). If no key exists, it instructs you to set `ROUTIFORM_API_KEY` or create one in the dashboard.
+
+### Available commands
+
+| Command | Description |
+|---------|-------------|
+| `routiform status` | Server status, version, URLs |
+| `routiform provider list\|show\|add\|rm\|test\|sync-models` | Provider management |
+| `routiform key list\|create\|reveal\|rm` | API key management |
+| `routiform combo list\|show\|create\|rm\|test` | Combo management |
+| `routiform model list [--provider <id>]` | Synced available models |
+| `routiform settings get\|set` | Settings (set uses whitelist of safe keys) |
+| `routiform usage` | Usage summary (30d) |
+| `routiform logs [--tail N]` | Recent server logs |
+
+OAuth provider login and visual analytics stay in the web dashboard.
+
 ## First-run flow
 
 1. Open `/dashboard`

@@ -1,11 +1,11 @@
 // Safe filter application.
 // On throw: pass through the raw output unchanged + warn to stderr.
-import type { FilterFn } from "./types.ts";
+import type { FilterFn, RtkFilterContext } from "./types.ts";
 
-export function safeApply(fn: FilterFn, text: string): string {
+export function safeApply(fn: FilterFn, text: string, ctx: RtkFilterContext): string {
   if (typeof fn !== "function") return text;
   try {
-    const out = fn(text);
+    const out = fn(text, ctx);
     if (typeof out !== "string") return text;
     return out;
   } catch (err) {
