@@ -1946,7 +1946,7 @@
     "contextValidationPassthrough": "直通",
     "contextValidationPassthroughDesc": "代理不压缩工具结果（推荐用于最大保真）。",
     "contextValidationAutoCompress": "自动压缩",
-    "contextValidationAutoCompressDesc": "在发送上游前压缩受支持的大型工具结果，例如 diff、grep 输出、文件列表、日志和构建输出。",
+    "contextValidationAutoCompressDesc": "在发送上游前压缩大型工具输出（git diff、构建日志、文件树）。编程类客户端（Cursor、Claude Code 等）会收到保留文件内容精度的保守配置。",
     "passthrough": "直通",
     "passthroughDesc": "没有变化——客户控制思维预算",
     "auto": "自动",

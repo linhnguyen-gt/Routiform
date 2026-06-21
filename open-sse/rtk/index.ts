@@ -3,7 +3,7 @@
 import { RAW_CAP, MIN_COMPRESS_SIZE } from "./constants.ts";
 import { autoDetectFilter } from "./autodetect.ts";
 import { safeApply } from "./apply-filter.ts";
-import type { RtkStats } from "./types.ts";
+import type { RtkProfile, RtkStats, RtkFilterContext } from "./types.ts";
 
 type MutableRecord = Record<string, unknown>;
 
@@ -11,17 +11,35 @@ function asRecord(value: unknown): MutableRecord | null {
   return value && typeof value === "object" ? (value as MutableRecord) : null;
 }
 
+// Filters that destroy semantic precision needed by coding agents
+// (middle-of-file cut, line-number-range loss). Skipped in "safe" mode —
+// the blob is passed through untouched if these are autodetected.
+const UNSAFE_FILTER_NAMES = new Set(["read-numbered", "smart-truncate"]);
+
+// Backward-compat shim: accept the legacy `enabled: boolean` second argument.
+// - boolean → treated as off (false) / full (true)
+// - RtkProfile → used directly
+type CompressArg = RtkProfile | boolean;
+
+function normalizeProfile(arg: CompressArg): RtkProfile {
+  if (typeof arg === "boolean") return arg ? "full" : "off";
+  return arg;
+}
+
 // Compress tool_result content in-place. Returns stats or null if disabled/failed.
 export function compressMessages(
   body: Record<string, unknown> | null | undefined,
-  enabled: boolean
+  arg: CompressArg
 ): RtkStats | null {
-  if (!enabled) return null;
+  const profile = normalizeProfile(arg);
+  if (profile === "off") return null;
   if (!body) return null;
+
+  const ctx: RtkFilterContext = { profile };
 
   // Kiro format: conversationState.history + conversationState.currentMessage
   if (body.conversationState) {
-    return compressKiroFormat(body);
+    return compressKiroFormat(body, ctx);
   }
 
   // Support both OpenAI/Claude "messages" and OpenAI Responses "input"
@@ -41,12 +59,12 @@ export function compressMessages(
       // Shape 4: OpenAI Responses — top-level { type:"function_call_output", output: string | [{type:"input_text", text}] }
       if (msg.type === "function_call_output") {
         if (typeof msg.output === "string") {
-          msg.output = compressText(msg.output, stats, "openai-responses-string");
+          msg.output = compressText(msg.output, stats, "openai-responses-string", ctx);
         } else if (Array.isArray(msg.output)) {
           for (let k = 0; k < msg.output.length; k++) {
             const part = asRecord(msg.output[k]);
             if (part && part.type === "input_text" && typeof part.text === "string") {
-              part.text = compressText(part.text, stats, "openai-responses-array");
+              part.text = compressText(part.text, stats, "openai-responses-array", ctx);
             }
           }
         }
@@ -55,7 +73,7 @@ export function compressMessages(
 
       // Shape 1: OpenAI tool message — { role:"tool", content: "string" }
       if (msg.role === "tool" && typeof msg.content === "string") {
-        msg.content = compressText(msg.content, stats, "openai-tool");
+        msg.content = compressText(msg.content, stats, "openai-tool", ctx);
         continue;
       }
 
@@ -66,7 +84,7 @@ export function compressMessages(
         for (let k = 0; k < msg.content.length; k++) {
           const part = asRecord(msg.content[k]);
           if (part && part.type === "text" && typeof part.text === "string") {
-            part.text = compressText(part.text, stats, "openai-tool-array");
+            part.text = compressText(part.text, stats, "openai-tool-array", ctx);
           }
         }
         continue;
@@ -80,13 +98,13 @@ export function compressMessages(
 
         if (typeof block.content === "string") {
           // Shape 2: claude string form
-          block.content = compressText(block.content, stats, "claude-string");
+          block.content = compressText(block.content, stats, "claude-string", ctx);
         } else if (Array.isArray(block.content)) {
           // Shape 3: claude array form — compress each text part
           for (let k = 0; k < block.content.length; k++) {
             const part = asRecord(block.content[k]);
             if (part && part.type === "text" && typeof part.text === "string") {
-              part.text = compressText(part.text, stats, "claude-array");
+              part.text = compressText(part.text, stats, "claude-array", ctx);
             }
           }
         }
@@ -100,7 +118,7 @@ export function compressMessages(
 }
 
 // Compress Kiro format: conversationState.history[].userInputMessage.userInputMessageContext.toolResults[].content[].text
-function compressKiroFormat(body: Record<string, unknown>): RtkStats | null {
+function compressKiroFormat(body: Record<string, unknown>, ctx: RtkFilterContext): RtkStats | null {
   const stats: RtkStats = { bytesBefore: 0, bytesAfter: 0, hits: [] };
   try {
     const state = asRecord(body.conversationState);
@@ -123,7 +141,7 @@ function compressKiroFormat(body: Record<string, unknown>): RtkStats | null {
         for (const rawPart of tr.content) {
           const part = asRecord(rawPart);
           if (part && typeof part.text === "string") {
-            part.text = compressText(part.text, stats, "kiro-tool-result");
+            part.text = compressText(part.text, stats, "kiro-tool-result", ctx);
           }
         }
       }
@@ -135,7 +153,7 @@ function compressKiroFormat(body: Record<string, unknown>): RtkStats | null {
   return stats;
 }
 
-function compressText(text: string, stats: RtkStats, shape: string): string {
+function compressText(text: string, stats: RtkStats, shape: string, ctx: RtkFilterContext): string {
   const bytesIn = text.length;
   stats.bytesBefore += bytesIn;
 
@@ -150,7 +168,14 @@ function compressText(text: string, stats: RtkStats, shape: string): string {
     return text;
   }
 
-  const out = safeApply(fn, text);
+  // Safe mode: skip filters that destroy semantic precision for coding agents.
+  // The blob is passed through untouched so the model sees the full content.
+  if (ctx.profile === "safe" && UNSAFE_FILTER_NAMES.has(fn.filterName || fn.name || "")) {
+    stats.bytesAfter += bytesIn;
+    return text;
+  }
+
+  const out = safeApply(fn, text, ctx);
 
   // Safety: never return empty, never grow the input
   if (!out || out.length === 0 || out.length >= bytesIn) {

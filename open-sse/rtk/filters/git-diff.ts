@@ -2,7 +2,7 @@
 import { GIT_DIFF_HUNK_MAX_LINES } from "../constants.ts";
 import type { FilterFn } from "../types.ts";
 
-export const gitDiff: FilterFn = function gitDiff(diff, maxLines: number = 500) {
+export const gitDiff: FilterFn = function gitDiff(diff, _ctx, maxLines: number = 500) {
   const result = [];
   let currentFile = "";
   let added = 0;
@@ -83,7 +83,7 @@ export const gitDiff: FilterFn = function gitDiff(diff, maxLines: number = 500) 
   }
 
   if (wasTruncated) {
-    result.push("[full diff: rtk git diff --no-compact]");
+    result.push("[diff truncated — re-read individual files for full hunks]");
   }
 
   return result.join("\n");

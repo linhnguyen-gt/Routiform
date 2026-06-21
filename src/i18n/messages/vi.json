@@ -1946,7 +1946,7 @@
     "contextValidationPassthrough": "Passthrough",
     "contextValidationPassthroughDesc": "Không nén tool result ở proxy (khuyến nghị để giữ nguyên nội dung tối đa).",
     "contextValidationAutoCompress": "Tự nén (auto-compress)",
-    "contextValidationAutoCompressDesc": "Nén các tool-result lớn được hỗ trợ như diff, kết quả grep, danh sách file, log và build output trước khi gửi upstream.",
+    "contextValidationAutoCompressDesc": "Nén các tool output lớn (git diff, build log, file tree) trước khi gửi upstream. Coding agent (Cursor, Claude Code, ...) nhận profile bảo thủ để giữ độ chính xác nội dung file.",
     "passthrough": "Truyền qua",
     "passthroughDesc": "Không có thay đổi - khách hàng kiểm soát ngân sách tư duy",
     "auto": "Tự động",

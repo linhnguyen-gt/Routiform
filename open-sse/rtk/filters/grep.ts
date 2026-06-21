@@ -1,9 +1,13 @@
 // Compact grep output.
 // Input format: "file:lineno:content" (split on the first 2 colons).
-import { GREP_PER_FILE_MAX } from "../constants.ts";
-import type { FilterFn } from "../types.ts";
+// In "safe" profile (coding-agent clients) the per-file cap is raised so the
+// agent does not believe it saw every match when results were capped.
+import { GREP_PER_FILE_MAX, GREP_PER_FILE_MAX_SAFE } from "../constants.ts";
+import type { FilterFn, RtkFilterContext } from "../types.ts";
 
-export const grep: FilterFn = function grep(input) {
+export const grep: FilterFn = function grep(input, ctx?: RtkFilterContext) {
+  const perFileMax = ctx && ctx.profile === "safe" ? GREP_PER_FILE_MAX_SAFE : GREP_PER_FILE_MAX;
+
   const byFile = new Map();
   let total = 0;
 
@@ -32,13 +36,13 @@ export const grep: FilterFn = function grep(input) {
   for (const file of files) {
     const matches = byFile.get(file);
     out += `[file] ${file} (${matches.length}):\n`;
-    const show = matches.slice(0, GREP_PER_FILE_MAX);
+    const show = matches.slice(0, perFileMax);
     for (const [lineNum, content] of show) {
       // Right-pad the line number to width 4, trim the content
       out += `  ${lineNum.padStart(4)}: ${content.trim()}\n`;
     }
-    if (matches.length > GREP_PER_FILE_MAX) {
-      out += `  +${matches.length - GREP_PER_FILE_MAX}\n`;
+    if (matches.length > perFileMax) {
+      out += `  +${matches.length - perFileMax} more matches not shown — narrow the search pattern or grep specific directories for full results\n`;
     }
     out += "\n";
   }

@@ -1,11 +1,22 @@
 // Compact "Result of search in '...' (total N files):\n- path\n- path" output
 // (Cursor Glob tool). Groups by parent dir like find, shows basenames.
-import { SEARCH_LIST_PER_DIR_MAX, SEARCH_LIST_TOTAL_DIR_MAX } from "../constants.ts";
-import type { FilterFn } from "../types.ts";
+// In "safe" profile (coding-agent clients) caps are raised so the agent
+// receives a more complete listing for refactors.
+import {
+  SEARCH_LIST_PER_DIR_MAX,
+  SEARCH_LIST_TOTAL_DIR_MAX,
+  SEARCH_LIST_PER_DIR_MAX_SAFE,
+  SEARCH_LIST_TOTAL_DIR_MAX_SAFE,
+} from "../constants.ts";
+import type { FilterFn, RtkFilterContext } from "../types.ts";
 
 const HEADER_RE = /^Result of search in '[^']*' \(total (\d+) files?\):/;
 
-export const searchList: FilterFn = function searchList(input) {
+export const searchList: FilterFn = function searchList(input, ctx?: RtkFilterContext) {
+  const safe = ctx && ctx.profile === "safe";
+  const perDirMax = safe ? SEARCH_LIST_PER_DIR_MAX_SAFE : SEARCH_LIST_PER_DIR_MAX;
+  const totalDirMax = safe ? SEARCH_LIST_TOTAL_DIR_MAX_SAFE : SEARCH_LIST_TOTAL_DIR_MAX;
+
   const lines = input.split("\n");
   if (lines.length === 0) return input;
 
@@ -33,17 +44,17 @@ export const searchList: FilterFn = function searchList(input) {
   const dirs = Array.from(byDir.keys()).sort();
   let out = `${header}\n${paths.length} files in ${dirs.length} dirs:\n\n`;
 
-  for (const dir of dirs.slice(0, SEARCH_LIST_TOTAL_DIR_MAX)) {
+  for (const dir of dirs.slice(0, totalDirMax)) {
     const names = byDir.get(dir);
     out += `${dir}/ (${names.length}):\n`;
-    for (const n of names.slice(0, SEARCH_LIST_PER_DIR_MAX)) out += `  ${n}\n`;
-    if (names.length > SEARCH_LIST_PER_DIR_MAX) {
-      out += `  +${names.length - SEARCH_LIST_PER_DIR_MAX}\n`;
+    for (const n of names.slice(0, perDirMax)) out += `  ${n}\n`;
+    if (names.length > perDirMax) {
+      out += `  +${names.length - perDirMax} more files not shown — search within a specific subdirectory for complete listing\n`;
     }
     out += "\n";
   }
-  if (dirs.length > SEARCH_LIST_TOTAL_DIR_MAX) {
-    out += `+${dirs.length - SEARCH_LIST_TOTAL_DIR_MAX} more dirs\n`;
+  if (dirs.length > totalDirMax) {
+    out += `+${dirs.length - totalDirMax} more directories not shown — narrow the search scope for complete listing\n`;
   }
 
   return out.replace(/\n+$/, "");

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { autoDetectFilter } from "../autodetect.ts";
 import { compressMessages, formatRtkLog } from "../index.ts";
+import { resolveRtkProfile } from "../profile-resolver.ts";
 import { buildOutput } from "../filters/build-output.ts";
 import { dedupLog } from "../filters/dedup-log.ts";
 import { find } from "../filters/find.ts";
@@ -13,6 +14,7 @@ import { readNumbered } from "../filters/read-numbered.ts";
 import { searchList } from "../filters/search-list.ts";
 import { smartTruncate } from "../filters/smart-truncate.ts";
 import { tree } from "../filters/tree.ts";
+import type { RtkFilterContext } from "../types.ts";
 
 function makeLongDiff(fileCount = 2, linesPerFile = 120): string {
   const out: string[] = [];
@@ -109,7 +111,7 @@ function makeSearchList(): string {
 
 function expectToolCompression(text: string, filter: string): void {
   const body = { messages: [{ role: "tool", content: text }] };
-  const stats = compressMessages(body, true);
+  const stats = compressMessages(body, "full");
   expect(stats).not.toBeNull();
   expect(stats?.hits[0]?.filter).toBe(filter);
   expect(stats?.bytesAfter).toBeLessThan(stats?.bytesBefore ?? 0);
@@ -187,7 +189,8 @@ describe("RTK filters", () => {
   it("smart-truncates large unstructured blobs when called directly", () => {
     const input = Array.from({ length: 400 }, (_, i) => `line ${i}`).join("\n");
     const out = smartTruncate(input);
-    expect(out).toContain("lines truncated");
+    expect(out).toContain("lines omitted");
+    expect(out).toContain("re-read this section");
     expect(out.length).toBeLessThan(input.length);
   });
 });
@@ -196,7 +199,7 @@ describe("compressMessages shapes", () => {
   it("compresses OpenAI tool string content", () => {
     const body = { messages: [{ role: "tool", content: makeLongDiff() }] };
     const before = String(body.messages[0].content);
-    const stats = compressMessages(body, true);
+    const stats = compressMessages(body, "full");
     expect(stats?.hits[0]).toMatchObject({ shape: "openai-tool", filter: "git-diff" });
     expect(body.messages[0].content.length).toBeLessThan(before.length);
   });
@@ -205,7 +208,7 @@ describe("compressMessages shapes", () => {
     const body = {
       messages: [{ role: "tool", content: [{ type: "text", text: makeGrepOutput() }] }],
     };
-    const stats = compressMessages(body, true);
+    const stats = compressMessages(body, "full");
     expect(stats?.hits[0]).toMatchObject({ shape: "openai-tool-array", filter: "grep" });
   });
 
@@ -213,7 +216,7 @@ describe("compressMessages shapes", () => {
     const body = {
       messages: [{ role: "user", content: [{ type: "tool_result", content: makeFindOutput() }] }],
     };
-    const stats = compressMessages(body, true);
+    const stats = compressMessages(body, "full");
     expect(stats?.hits[0]).toMatchObject({ shape: "claude-string", filter: "find" });
   });
 
@@ -226,7 +229,7 @@ describe("compressMessages shapes", () => {
         },
       ],
     };
-    const stats = compressMessages(body, true);
+    const stats = compressMessages(body, "full");
     expect(stats?.hits[0]).toMatchObject({ shape: "claude-array", filter: "build-output" });
   });
 
@@ -240,7 +243,7 @@ describe("compressMessages shapes", () => {
         },
       ],
     };
-    const stats = compressMessages(body, true);
+    const stats = compressMessages(body, "full");
     expect(stats?.hits.map((hit) => hit.shape)).toEqual([
       "openai-responses-string",
       "openai-responses-array",
@@ -268,7 +271,7 @@ describe("compressMessages shapes", () => {
         ],
       },
     };
-    const stats = compressMessages(body, true);
+    const stats = compressMessages(body, "full");
     expect(stats?.hits.map((hit) => hit.shape)).toEqual(["kiro-tool-result", "kiro-tool-result"]);
     expect(stats?.hits.map((hit) => hit.filter).sort()).toEqual(["build-output", "git-diff"]);
   });
@@ -278,14 +281,14 @@ describe("RTK safety gates", () => {
   it("returns null and leaves the body unchanged when disabled", () => {
     const diff = makeLongDiff();
     const body = { messages: [{ role: "tool", content: diff }] };
-    expect(compressMessages(body, false)).toBeNull();
+    expect(compressMessages(body, "off")).toBeNull();
     expect(body.messages[0].content).toBe(diff);
   });
 
   it("leaves tiny blobs untouched", () => {
     const body = { messages: [{ role: "tool", content: "diff --git a/x b/x\n@@ -1 +1 @@\n+a" }] };
     const before = body.messages[0].content;
-    const stats = compressMessages(body, true);
+    const stats = compressMessages(body, "full");
     expect(stats?.hits).toHaveLength(0);
     expect(body.messages[0].content).toBe(before);
   });
@@ -310,8 +313,8 @@ describe("RTK safety gates", () => {
         },
       },
     };
-    const claudeStats = compressMessages({ messages: body.messages }, true);
-    const kiroStats = compressMessages({ conversationState: body.conversationState }, true);
+    const claudeStats = compressMessages({ messages: body.messages }, "full");
+    const kiroStats = compressMessages({ conversationState: body.conversationState }, "full");
     expect(claudeStats?.hits).toHaveLength(0);
     expect(kiroStats?.hits).toHaveLength(0);
     expect(body.messages[0].content[0].content).toBe(claudeText);
@@ -341,14 +344,183 @@ describe("RTK safety gates", () => {
       "src/t.ts",
     ].join("\n");
     const body = { messages: [{ role: "tool", content: input }] };
-    const stats = compressMessages(body, true);
+    const stats = compressMessages(body, "full");
     expect(stats?.hits).toHaveLength(0);
     expect(body.messages[0].content).toBe(input);
   });
 
   it("formats RTK log lines", () => {
     const body = { messages: [{ role: "tool", content: makeLongDiff() }] };
-    const line = formatRtkLog(compressMessages(body, true));
+    const line = formatRtkLog(compressMessages(body, "full"));
     expect(line).toMatch(/^\[RTK\] saved \d+B \/ \d+B \([\d.]+%\) via \[git-diff\] hits=1$/);
+  });
+});
+
+describe("RTK profile resolver", () => {
+  it("returns 'off' when compression is disabled", () => {
+    expect(resolveRtkProfile(false, "cursor/1.0")).toBe("off");
+    expect(resolveRtkProfile(false, null)).toBe("off");
+    expect(resolveRtkProfile(false, undefined)).toBe("off");
+  });
+
+  it("returns 'safe' for known coding-agent user agents", () => {
+    for (const ua of [
+      "claude-code/1.0",
+      "Claude_Code/2.0",
+      "anthropic cli/3.0",
+      "openclaw/0.5",
+      "hermes/1.2",
+      "cursor/0.42",
+      "codex/0.1",
+      "cline/1.0",
+      "roo/1.0",
+      "windsurf/1.0",
+      "opencode/0.5",
+      "continue/0.8",
+      "kilocode/1.0",
+      "devin/1.0",
+    ]) {
+      expect(resolveRtkProfile(true, ua)).toBe("safe");
+    }
+  });
+
+  it("returns 'full' for unknown user agents when compression is enabled", () => {
+    expect(resolveRtkProfile(true, "curl/8.0")).toBe("full");
+    expect(resolveRtkProfile(true, "Mozilla/5.0 browser")).toBe("full");
+  });
+
+  it("returns 'full' when userAgent is null/undefined and compression is enabled", () => {
+    expect(resolveRtkProfile(true, null)).toBe("full");
+    expect(resolveRtkProfile(true, undefined)).toBe("full");
+    expect(resolveRtkProfile(true, "")).toBe("full");
+  });
+});
+
+describe("RTK safe profile", () => {
+  it("skips read-numbered in safe mode (passes content through unchanged)", () => {
+    const input = makeReadNumbered();
+    const body = { messages: [{ role: "tool", content: input }] };
+    const stats = compressMessages(body, "safe");
+    // read-numbered is in UNSAFE_FILTER_NAMES — safe mode must skip it
+    expect(stats?.hits).toHaveLength(0);
+    expect(body.messages[0].content).toBe(input);
+  });
+
+  it("skips smart-truncate in safe mode (passes content through unchanged)", () => {
+    const input = Array.from({ length: 400 }, (_, i) => `line ${i}`).join("\n");
+    const body = { messages: [{ role: "tool", content: input }] };
+    const stats = compressMessages(body, "safe");
+    expect(stats?.hits).toHaveLength(0);
+    expect(body.messages[0].content).toBe(input);
+  });
+
+  it("still compresses git-diff in safe mode (safe filter, not in skip list)", () => {
+    const input = makeLongDiff();
+    const body = { messages: [{ role: "tool", content: input }] };
+    const stats = compressMessages(body, "safe");
+    expect(stats?.hits[0]?.filter).toBe("git-diff");
+    expect(body.messages[0].content.length).toBeLessThan(input.length);
+  });
+
+  it("still compresses build-output in safe mode", () => {
+    const input = makeBuildOutput();
+    const body = { messages: [{ role: "tool", content: input }] };
+    const stats = compressMessages(body, "safe");
+    expect(stats?.hits[0]?.filter).toBe("build-output");
+  });
+
+  it("still compresses grep in safe mode but with raised per-file cap", () => {
+    // 40 matches in one file — exceeds full cap (10) but under safe cap (50)
+    const input = makeGrepOutput();
+    const body = { messages: [{ role: "tool", content: input }] };
+    const stats = compressMessages(body, "safe");
+    expect(stats?.hits[0]?.filter).toBe("grep");
+    const content = body.messages[0].content as string;
+    // In safe mode, all 40 matches in foo.js should be shown (no "+N more" hint for foo.js)
+    expect(content).not.toContain("+30 more matches not shown");
+    // bar.js has 10 matches — under both caps, no truncation hint expected
+    expect(content).not.toContain("+0 more matches");
+  });
+
+  it("still compresses find in safe mode but with raised caps", () => {
+    // 30 files in src/a — exceeds full per-dir cap (10) but under safe (50)
+    const input = makeFindOutput();
+    const body = { messages: [{ role: "tool", content: input }] };
+    const stats = compressMessages(body, "safe");
+    expect(stats?.hits[0]?.filter).toBe("find");
+    const content = body.messages[0].content as string;
+    expect(content).not.toContain("+20 more files not shown");
+  });
+});
+
+describe("RTK actionable hint format", () => {
+  it("git-diff hint no longer references the rtk CLI binary", () => {
+    const input = makeLongDiff(2, 200);
+    const body = { messages: [{ role: "tool", content: input }] };
+    compressMessages(body, "full");
+    const content = body.messages[0].content as string;
+    expect(content).toContain("[diff truncated — re-read individual files for full hunks]");
+    expect(content).not.toContain("rtk git diff --no-compact");
+    expect(content).not.toContain("--no-compact");
+  });
+
+  it("read-numbered hint includes approximate omitted line range", () => {
+    const input = makeReadNumbered();
+    const out = readNumbered(input);
+    expect(out).toContain("re-read with offset/limit");
+    expect(out).toMatch(/approx\. lines \d+–\d+/);
+    expect(out).not.toContain("(file continues)");
+  });
+
+  it("smart-truncate hint includes omit range and re-read guidance", () => {
+    const input = Array.from({ length: 400 }, (_, i) => `line ${i}`).join("\n");
+    const out = smartTruncate(input);
+    expect(out).toContain("re-read this section with a narrower line range");
+    expect(out).toMatch(/lines ~\d+–\d+/);
+    expect(out).not.toContain("lines truncated\n");
+  });
+
+  it("grep hint guides the model to narrow the search", () => {
+    // Build input with >50 matches in one file to exceed even the safe cap
+    const lines = Array.from({ length: 60 }, (_, i) => `src/foo.js:${i + 1}:const x = ${i};`);
+    const input = lines.join("\n");
+    const ctx: RtkFilterContext = { profile: "full" };
+    const out = grep(input, ctx);
+    expect(out).toContain("more matches not shown — narrow the search pattern");
+  });
+
+  it("find hint guides the model to search a subdirectory", () => {
+    const lines = Array.from({ length: 60 }, (_, i) => `./src/a/${i}.js`);
+    const input = lines.join("\n");
+    const ctx: RtkFilterContext = { profile: "full" };
+    const out = find(input, ctx);
+    expect(out).toContain("more files not shown — search within a specific subdirectory");
+  });
+
+  it("search-list hint guides the model to narrow scope", () => {
+    // Build >20 dirs to exceed full cap
+    const paths = [];
+    for (let d = 0; d < 30; d++) {
+      for (let f = 0; f < 3; f++) paths.push(`- src/dir${d}/file${f}.js`);
+    }
+    const input = `Result of search in '/x' (total 90 files):\n${paths.join("\n")}`;
+    const ctx: RtkFilterContext = { profile: "full" };
+    const out = searchList(input, ctx);
+    expect(out).toContain("more directories not shown — narrow the search scope");
+  });
+});
+
+describe("RTK backward-compat boolean shim", () => {
+  it("treats boolean true as 'full'", () => {
+    const body = { messages: [{ role: "tool", content: makeLongDiff() }] };
+    const statsBool = compressMessages(body, true);
+    const body2 = { messages: [{ role: "tool", content: makeLongDiff() }] };
+    const statsStr = compressMessages(body2, "full");
+    expect(statsBool?.hits.length).toBe(statsStr?.hits.length);
+  });
+
+  it("treats boolean false as 'off' (returns null)", () => {
+    const body = { messages: [{ role: "tool", content: makeLongDiff() }] };
+    expect(compressMessages(body, false)).toBeNull();
   });
 });

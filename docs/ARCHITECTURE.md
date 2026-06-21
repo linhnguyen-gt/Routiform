@@ -200,7 +200,7 @@ Main flow modules:
   - `background-task-redirector.ts` — async task routing
   - `model-fallback-handler.ts` — model-level fallback logic
   - `emergency-fallback-handler.ts` — last-resort fallback strategies
-- RTK Token Saver: `open-sse/rtk/*` runs after inbound translation in `chat-core-phase-translate-and-bundle.ts`, losslessly compacting supported large `tool_result` payloads when Request context is set to `auto-compress`.
+- RTK Token Saver: `open-sse/rtk/*` runs after inbound translation in `chat-core-phase-translate-and-bundle.ts`, losslessly compacting supported large `tool_result` payloads when Request context is set to `auto-compress`. Applies a profile system (`off`/`safe`/`full`) resolved from the client User-Agent by `open-sse/rtk/profile-resolver.ts`: coding-agent clients (Cursor, Claude Code, OpenClaw, Codex, etc.) get the `safe` profile which skips middle-cutting filters (`read-numbered`, `smart-truncate`) that would destroy edit precision and raises `grep`/`find`/`search-list` caps; unknown clients get `full` (all filters). Filter hints are tool-agnostic and guide the model to re-read omitted content with its own tools.
 - Handler utilities: `open-sse/handlers/utils/*` (3 modules)
   - `cache-log-helpers.ts` — cache usage logging utilities
   - `claude-passthrough-helpers.ts` — Claude tool name mapping
@@ -227,7 +227,7 @@ Main flow modules:
 Services (business logic):
 
 - Account selection/scoring: `open-sse/services/accountSelector.ts`
-- RTK Token Saver: `open-sse/rtk/` — lossless structural compaction for supported large `tool_result` payloads, wired after inbound translation and gated by Request context `auto-compress`
+- RTK Token Saver: `open-sse/rtk/` — lossless structural compaction for supported large `tool_result` payloads, wired after inbound translation and gated by Request context `auto-compress`; profile resolver (`open-sse/rtk/profile-resolver.ts`) selects `off`/`safe`/`full` from the client User-Agent to protect coding agents from precision-destroying filters
 - IP filter enforcement: `open-sse/services/ipFilter.ts`
 - Session tracking: `open-sse/services/sessionManager.ts`
 - Request deduplication: `open-sse/services/signatureCache.ts`
