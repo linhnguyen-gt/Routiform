@@ -195,6 +195,8 @@ function buildChildEnv(apiKey: string): NodeJS.ProcessEnv {
   childEnv.DATA_DIR = getOpenWebuiDir();
   childEnv.PORT = String(OPEN_WEBUI_PORT);
   childEnv.HOST = "0.0.0.0";
+  // Allow the dashboard to embed Open WebUI in an iframe instead of opening a new tab.
+  childEnv.ENABLE_FRAME_EMBEDDING = "true";
 
   return childEnv;
 }
