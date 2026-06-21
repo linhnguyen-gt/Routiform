@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.36.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.0...v3.36.1) (2026-06-21)
+
+
+### Bug Fixes
+
+* **docker:** auto-provision open-webui API key in Docker mode ([58e640f](https://github.com/linhnguyen-gt/Routiform/commit/58e640f2f2655a75247b63fb60986c5a27ebcfed))
+* **lint:** remove unused existsSync import in instrumentation-node ([64d37be](https://github.com/linhnguyen-gt/Routiform/commit/64d37be16567b336747bd9f5a51f3c26b64b0e66))
+
 ## [3.36.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.35.2...v3.36.0) (2026-06-21)
 
 
