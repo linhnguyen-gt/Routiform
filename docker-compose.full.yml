@@ -73,19 +73,33 @@ services:
     restart: unless-stopped
     stop_grace_period: 20s
     depends_on:
-      - routiform
+      routiform:
+        condition: service_healthy
     environment:
       WEBUI_AUTH: "False"
       OPENAI_API_BASE_URL: "http://routiform:20129/v1"
       OPENAI_API_KEY: "${OPEN_WEBUI_ROUTIFORM_KEY:-sk-routiform-local}"
       PORT: "8080"
       HOST: "0.0.0.0"
+    entrypoint:
+      - sh
+      - -c
+      - |
+        KEY_FILE=/data/open-webui-api-key.txt
+        if [ -f "$$KEY_FILE" ]; then
+          export OPENAI_API_KEY=$$(cat $$KEY_FILE)
+          echo "[open-webui] Using auto-provisioned Routiform API key"
+        else
+          echo "[open-webui] No auto-provisioned key found, using fallback"
+        fi
+        exec python -m open_webui
     ports:
       - "${OPEN_WEBUI_PORT:-8080}:8080"
     volumes:
       - open-webui-data:/app/backend/data
+      - routiform-data:/data:ro
 
-volumes:
+  volumes:
   routiform-data:
     name: routiform-data
   open-webui-data:
