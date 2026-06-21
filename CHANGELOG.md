@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.36.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.35.2...v3.36.0) (2026-06-21)
+
+
+### Features
+
+* **chat:** embed Open WebUI full-viewport in dashboard chat tab ([3d2324c](https://github.com/linhnguyen-gt/Routiform/commit/3d2324c02e717c9f92810c36956463d1ec6e0113))
+* **cli:** add management subcommands with Docker entrypoint ([44d08bb](https://github.com/linhnguyen-gt/Routiform/commit/44d08bb7e484882fb752d7868e75422de1bc48c5))
+* **rtk:** add off/safe/full profile system with actionable truncation hints ([52e2558](https://github.com/linhnguyen-gt/Routiform/commit/52e255845a6f4055d5e40fc69ad8dd06c1736d80))
+
 ### [3.35.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.35.1...v3.35.2) (2026-06-20)
 
 
