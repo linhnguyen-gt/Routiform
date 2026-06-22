@@ -1,3 +1,4 @@
+# Routiform — Full-mode Docker Compose (auto-provisions Open WebUI API key)
 services:
   routiform:
     container_name: routiform
