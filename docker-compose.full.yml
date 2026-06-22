@@ -82,7 +82,7 @@ services:
       OPENAI_API_KEY: "${OPEN_WEBUI_ROUTIFORM_KEY:-sk-routiform-local}"
       PORT: "8080"
       HOST: "0.0.0.0"
-    entrypoint:
+    command:
       - sh
       - -c
       - |
