@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.36.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.1...v3.36.2) (2026-06-22)
+
+
+### Bug Fixes
+
+* **docker:** add header comment to bust CDN cache for compose file ([9ecde0a](https://github.com/linhnguyen-gt/Routiform/commit/9ecde0a6584ad5776339ce80ee35be3af3e66988))
+* **docker:** fix volumes indentation in docker-compose.full.yml ([4b20663](https://github.com/linhnguyen-gt/Routiform/commit/4b206637e988a1bab24550c4ba41e1504ab0af73))
+
 ### [3.36.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.0...v3.36.1) (2026-06-21)
 
 
