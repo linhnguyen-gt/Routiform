@@ -93,7 +93,7 @@ services:
         else
           echo "[open-webui] No auto-provisioned key found, using fallback"
         fi
-        exec python -m open_webui
+        exec bash start.sh
     ports:
       - "${OPEN_WEBUI_PORT:-8080}:8080"
     volumes:
