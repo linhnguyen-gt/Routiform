@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.36.5](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.4...v3.36.5) (2026-06-22)
+
+
+### Bug Fixes
+
+* **chat:** append timestamp cache-buster to iframe URL ([9f19db2](https://github.com/linhnguyen-gt/Routiform/commit/9f19db22890fd4ff6788f9ed1636e6320eca97fa))
+
 ### [3.36.4](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.3...v3.36.4) (2026-06-22)
 
 
