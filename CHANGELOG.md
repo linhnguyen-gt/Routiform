@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.36.3](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.2...v3.36.3) (2026-06-22)
+
+
+### Bug Fixes
+
+* **docker:** use official open-webui entrypoint (bash start.sh) ([3f8b8cb](https://github.com/linhnguyen-gt/Routiform/commit/3f8b8cb83dc03af0166ee4b3dd7dfd8dbd7ad31d))
+
 ### [3.36.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.1...v3.36.2) (2026-06-22)
 
 
