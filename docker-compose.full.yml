@@ -99,7 +99,7 @@ services:
       - open-webui-data:/app/backend/data
       - routiform-data:/data:ro
 
-  volumes:
+volumes:
   routiform-data:
     name: routiform-data
   open-webui-data:
