@@ -217,7 +217,7 @@ export default function ChatLauncherPage() {
       {isRunning ? (
         <iframe
           ref={iframeRef}
-          src={status.url}
+          src={`${status.url}&_t=${Date.now()}`}
           title={t("title")}
           className="h-full w-full flex-1 border-0 bg-surface"
           sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
