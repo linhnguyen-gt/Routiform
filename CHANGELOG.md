@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.36.4](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.3...v3.36.4) (2026-06-22)
+
+
+### Bug Fixes
+
+* **chat:** force iframe remount on reload to bust cached assets ([251f51a](https://github.com/linhnguyen-gt/Routiform/commit/251f51a5933bdcc10d7768299a56701a19b6ffe1))
+* **docker:** use command instead of entrypoint for open-webui ([621c61f](https://github.com/linhnguyen-gt/Routiform/commit/621c61fe66897f17b048e431f3880705656feb74))
+
 ### [3.36.3](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.2...v3.36.3) (2026-06-22)
 
 
