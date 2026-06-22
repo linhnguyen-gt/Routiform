@@ -149,9 +149,13 @@ export default function ChatLauncherPage() {
     }
   }, [logLines]);
 
+  const [iframeKey, setIframeKey] = useState(0);
+
   const reloadIframe = () => {
     const el = iframeRef.current;
-    if (el && status?.url) el.src = status.url;
+    if (el && status?.url) {
+      setIframeKey((k) => k + 1);
+    }
   };
 
   const isRunning = phase === "running" && status?.url;
@@ -217,6 +221,7 @@ export default function ChatLauncherPage() {
           title={t("title")}
           className="h-full w-full flex-1 border-0 bg-surface"
           sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+          key={iframeKey}
         />
       ) : (
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10">
