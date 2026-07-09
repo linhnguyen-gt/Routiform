@@ -2,19 +2,12 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   FREE_TIER_CATALOG,
   summarizeFreeTierCatalog,
   type FreeTierKind,
 } from "@/shared/constants/freeTierCatalog";
-
-const KIND_LABEL: Record<FreeTierKind, string> = {
-  forever: "Free forever",
-  "signup-credit": "Signup credit",
-  daily: "Daily pool",
-  "rate-limited": "Rate-limited free",
-  "oauth-sub": "Subscription OAuth",
-};
 
 const KIND_CLASS: Record<FreeTierKind, string> = {
   forever: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
@@ -33,12 +26,39 @@ function formatTokens(n: number | null): string {
 }
 
 export default function FreeTiersPage() {
+  const t = useTranslations("freeTiers");
   const [filter, setFilter] = useState<"all" | FreeTierKind>("all");
   const summary = useMemo(() => summarizeFreeTierCatalog(), []);
   const rows = useMemo(() => {
     if (filter === "all") return FREE_TIER_CATALOG;
     return FREE_TIER_CATALOG.filter((e) => e.kind === filter);
   }, [filter]);
+
+  const kindLabel = (kind: FreeTierKind): string => {
+    switch (kind) {
+      case "forever":
+        return t("kindForever");
+      case "signup-credit":
+        return t("kindSignupCredit");
+      case "daily":
+        return t("kindDaily");
+      case "rate-limited":
+        return t("kindRateLimited");
+      case "oauth-sub":
+        return t("kindOauthSub");
+      default:
+        return kind;
+    }
+  };
+
+  const filters: Array<"all" | FreeTierKind> = [
+    "all",
+    "forever",
+    "signup-credit",
+    "daily",
+    "rate-limited",
+    "oauth-sub",
+  ];
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 pb-8">
@@ -48,59 +68,56 @@ export default function FreeTiersPage() {
           aria-hidden
         />
         <div className="relative">
-          <h1 className="text-2xl font-semibold tracking-tight text-text-main">Free tiers</h1>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-muted">
-            Documented free / freemium surfaces for providers already in your catalog. Static notes
-            only — not live remaining quota. Terms change; verify with each provider.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-text-main">{t("title")}</h1>
+          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-muted">{t("subtitle")}</p>
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-border/60 bg-surface p-4">
-          <p className="text-xs uppercase tracking-wide text-text-muted">Catalog entries</p>
+          <p className="text-xs uppercase tracking-wide text-text-muted">{t("catalogEntries")}</p>
           <p className="mt-1 text-2xl font-semibold text-text-main">{summary.total}</p>
         </div>
         <div className="rounded-xl border border-border/60 bg-surface p-4">
-          <p className="text-xs uppercase tracking-wide text-text-muted">Free forever</p>
+          <p className="text-xs uppercase tracking-wide text-text-muted">{t("freeForever")}</p>
           <p className="mt-1 text-2xl font-semibold text-text-main">{summary.forever}</p>
         </div>
         <div className="rounded-xl border border-border/60 bg-surface p-4">
-          <p className="text-xs uppercase tracking-wide text-text-muted">Known monthly tokens*</p>
+          <p className="text-xs uppercase tracking-wide text-text-muted">
+            {t("knownMonthlyTokens")}
+          </p>
           <p className="mt-1 text-2xl font-semibold text-text-main">
             {formatTokens(summary.approxKnownMonthlyTokens)}
           </p>
-          <p className="mt-1 text-[11px] text-text-muted">*Only entries with published estimates</p>
+          <p className="mt-1 text-[11px] text-text-muted">{t("knownMonthlyTokensHint")}</p>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {(["all", "forever", "signup-credit", "daily", "rate-limited", "oauth-sub"] as const).map(
-          (k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setFilter(k)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                filter === k
-                  ? "bg-primary text-white"
-                  : "bg-sidebar text-text-muted hover:text-text-main"
-              }`}
-            >
-              {k === "all" ? "All" : KIND_LABEL[k]}
-            </button>
-          )
-        )}
+        {filters.map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setFilter(k)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              filter === k
+                ? "bg-primary text-white"
+                : "bg-sidebar text-text-muted hover:text-text-main"
+            }`}
+          >
+            {k === "all" ? t("filterAll") : kindLabel(k)}
+          </button>
+        ))}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border/60 bg-surface">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border/60 bg-sidebar/40 text-xs uppercase tracking-wide text-text-muted">
             <tr>
-              <th className="px-4 py-3 font-medium">Provider</th>
-              <th className="px-4 py-3 font-medium">Kind</th>
-              <th className="px-4 py-3 font-medium">Summary</th>
-              <th className="px-4 py-3 font-medium">~Tokens/mo</th>
+              <th className="px-4 py-3 font-medium">{t("colProvider")}</th>
+              <th className="px-4 py-3 font-medium">{t("colKind")}</th>
+              <th className="px-4 py-3 font-medium">{t("colSummary")}</th>
+              <th className="px-4 py-3 font-medium">{t("colTokens")}</th>
             </tr>
           </thead>
           <tbody>
@@ -119,7 +136,7 @@ export default function FreeTiersPage() {
                   <span
                     className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${KIND_CLASS[row.kind]}`}
                   >
-                    {KIND_LABEL[row.kind]}
+                    {kindLabel(row.kind)}
                   </span>
                 </td>
                 <td className="px-4 py-3 align-top text-text-muted">

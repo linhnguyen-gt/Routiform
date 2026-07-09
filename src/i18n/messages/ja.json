@@ -191,7 +191,8 @@
     "themeCyan": "Cyan",
     "cliToolsShort": "ツール",
     "cache": "Cache",
-    "cacheShort": "Cache"
+    "cacheShort": "Cache",
+    "freeTiers": "無料枠"
   },
   "themesPage": {
     "title": "Themes",
@@ -1051,7 +1052,9 @@
     "p2c": "P2C",
     "p2cDesc": "Chooses the less-loaded of two random models per request (power-of-two choices).",
     "contextOpt": "Context-Opt",
-    "contextOptimizedDesc": "Routes using context-size and model-fit heuristics when enabled."
+    "contextOptimizedDesc": "Routes using context-size and model-fit heuristics when enabled.",
+    "headroom": "Headroom",
+    "headroomDesc": "空き容量が大きい（直近負荷が低い）モデルを優先します。"
   },
   "costs": {
     "title": "コスト",
@@ -2290,7 +2293,11 @@
     "skillsComingSoon": "Skills marketplace coming soon.",
     "memorySkillsTitle": "Memory & Skills",
     "memorySkillsDesc": "Persistent context & capabilities",
-    "days": "Days"
+    "days": "Days",
+    "headroom": "Headroom",
+    "headroomDesc": "空き容量が最も多いアカウントを優先します。",
+    "lkgp": "LKGP モード",
+    "lkgpDesc": "Last Known Good Provider（予測しやすい耐障害性）"
   },
   "translator": {
     "title": "翻訳者",
@@ -3198,5 +3205,49 @@
     "created": "Created",
     "expires": "Expires",
     "actions": "Actions"
+  },
+  "freeTiers": {
+    "title": "無料枠",
+    "subtitle": "カタログ内プロバイダの無料/フリーミアム情報。静的なメモであり、残量のリアルタイム表示ではありません。利用規約は変更されることがあります。",
+    "catalogEntries": "カタログ件数",
+    "freeForever": "永久無料",
+    "knownMonthlyTokens": "既知の月間 tokens*",
+    "knownMonthlyTokensHint": "*公開見積もりがある項目のみ",
+    "filterAll": "すべて",
+    "kindForever": "永久無料",
+    "kindSignupCredit": "登録クレジット",
+    "kindDaily": "日次枠",
+    "kindRateLimited": "レート制限付き無料",
+    "kindOauthSub": "サブスク OAuth",
+    "colProvider": "プロバイダ",
+    "colKind": "種別",
+    "colSummary": "概要",
+    "colTokens": "~Tokens/月"
+  },
+  "chatLauncher": {
+    "title": "Chat",
+    "subtitle": "A local no-login chat over your Routiform models, powered by Open WebUI.",
+    "starting": "Starting Open WebUI…",
+    "firstRunNotice": "First launch downloads packages and can take a few minutes. Keep this tab open.",
+    "running": "Open WebUI is running.",
+    "openChat": "Open chat",
+    "openChatNewTab": "Open in new tab",
+    "stop": "Stop Open WebUI",
+    "stopped": "Open WebUI is stopped.",
+    "start": "Start",
+    "error": "Open WebUI failed to start.",
+    "notAvailable": "Open WebUI runtime not detected.",
+    "installUv": "Install uv (recommended)",
+    "installPip": "Or install Open WebUI via pip",
+    "installHintUv": "Run: curl -LsSf https://astral.sh/uv/install.sh | sh — then reload this page.",
+    "installHintPip": "Run: pip install open-webui (Python 3.11 required) — then reload this page.",
+    "dockerMode": "Routiform is running in Docker. Open WebUI ships as a sibling compose service.",
+    "dockerHint": "If the chat is not reachable, bring it up with: docker compose -f docker-compose.full.yml up -d",
+    "retry": "Retry",
+    "checkStatus": "Check status",
+    "loading": "Checking status…",
+    "portLabel": "Port 8080",
+    "reloadIframe": "Reload chat",
+    "chatBlocked": "Chat could not be embedded. Open it in a new tab, or check Open WebUI's frame-embedding settings."
   }
 }

@@ -192,7 +192,8 @@
     "cliToolsShort": "工具",
     "cache": "缓存",
     "cacheShort": "缓存",
-    "chat": "聊天"
+    "chat": "聊天",
+    "freeTiers": "免费额度"
   },
   "themesPage": {
     "title": "主题",
@@ -1052,7 +1053,9 @@
     "p2c": "P2C",
     "p2cDesc": "每次请求从两个随机候选中选负载较低者（二次幂选择）。",
     "contextOpt": "上下文优化",
-    "contextOptimizedDesc": "启用时按上下文规模与模型适配度进行路由。"
+    "contextOptimizedDesc": "启用时按上下文规模与模型适配度进行路由。",
+    "headroom": "Headroom",
+    "headroomDesc": "优先选择剩余容量更大（近期负载更低）的模型。"
   },
   "costs": {
     "title": "成本",
@@ -2309,7 +2312,11 @@
     "skillsComingSoon": "Skills marketplace coming soon.",
     "memorySkillsTitle": "Memory & Skills",
     "memorySkillsDesc": "Persistent context & capabilities",
-    "days": "Days"
+    "days": "Days",
+    "headroom": "Headroom",
+    "headroomDesc": "优先选择剩余容量最大的账户。",
+    "lkgp": "LKGP 模式",
+    "lkgpDesc": "Last Known Good Provider（可预期的稳定性）"
   },
   "translator": {
     "title": "翻译者",
@@ -3240,6 +3247,26 @@
     "retry": "重试",
     "checkStatus": "检查状态",
     "loading": "正在检查状态…",
-    "portLabel": "端口 8080"
+    "portLabel": "端口 8080",
+    "reloadIframe": "重新加载聊天",
+    "chatBlocked": "无法嵌入聊天。请在新标签打开，或检查 Open WebUI 的 iframe 嵌入设置。"
+  },
+  "freeTiers": {
+    "title": "免费额度",
+    "subtitle": "已在目录中的提供商的免费/试用说明。仅为静态文档，非实时剩余配额。条款可能变更，请自行核实。",
+    "catalogEntries": "目录条目",
+    "freeForever": "永久免费",
+    "knownMonthlyTokens": "已知月度 tokens*",
+    "knownMonthlyTokensHint": "*仅包含已公布估算的条目",
+    "filterAll": "全部",
+    "kindForever": "永久免费",
+    "kindSignupCredit": "注册赠送",
+    "kindDaily": "每日额度",
+    "kindRateLimited": "限速免费",
+    "kindOauthSub": "订阅 OAuth",
+    "colProvider": "提供商",
+    "colKind": "类型",
+    "colSummary": "摘要",
+    "colTokens": "~Tokens/月"
   }
 }

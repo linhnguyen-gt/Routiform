@@ -2406,8 +2406,6 @@
     "lkgpCacheCleared": "LKGP cache cleared successfully",
     "lkgpCacheClearFailed": "Failed to clear LKGP cache",
     "days": "Days",
-    "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
     "maintenance": "Maintenance",
     "purgeExpiredLogs": "Purge Expired Logs",
     "purgeLogsFailed": "Failed to purge logs",
@@ -3439,5 +3437,23 @@
     "portLabel": "Port 8080",
     "reloadIframe": "Reload chat",
     "chatBlocked": "Chat could not be embedded. Open it in a new tab, or check Open WebUI's frame-embedding settings."
+  },
+  "freeTiers": {
+    "title": "Free tiers",
+    "subtitle": "Documented free / freemium surfaces for providers already in your catalog. Static notes only — not live remaining quota. Terms change; verify with each provider.",
+    "catalogEntries": "Catalog entries",
+    "freeForever": "Free forever",
+    "knownMonthlyTokens": "Known monthly tokens*",
+    "knownMonthlyTokensHint": "*Only entries with published estimates",
+    "filterAll": "All",
+    "kindForever": "Free forever",
+    "kindSignupCredit": "Signup credit",
+    "kindDaily": "Daily pool",
+    "kindRateLimited": "Rate-limited free",
+    "kindOauthSub": "Subscription OAuth",
+    "colProvider": "Provider",
+    "colKind": "Kind",
+    "colSummary": "Summary",
+    "colTokens": "~Tokens/mo"
   }
 }

@@ -191,7 +191,8 @@
     "themeCyan": "cian",
     "cliToolsShort": "Herramientas",
     "cache": "Cache",
-    "cacheShort": "Cache"
+    "cacheShort": "Cache",
+    "freeTiers": "Niveles gratuitos"
   },
   "themesPage": {
     "title": "Temas",
@@ -1051,7 +1052,9 @@
     "p2c": "P2C",
     "p2cDesc": "Chooses the less-loaded of two random models per request (power-of-two choices).",
     "contextOpt": "Context-Opt",
-    "contextOptimizedDesc": "Routes using context-size and model-fit heuristics when enabled."
+    "contextOptimizedDesc": "Routes using context-size and model-fit heuristics when enabled.",
+    "headroom": "Headroom",
+    "headroomDesc": "Prefiere modelos con más capacidad libre (menor carga reciente)."
   },
   "costs": {
     "title": "Costos",
@@ -2292,7 +2295,11 @@
     "skillsComingSoon": "Skills marketplace coming soon.",
     "memorySkillsTitle": "Memory & Skills",
     "memorySkillsDesc": "Persistent context & capabilities",
-    "days": "Days"
+    "days": "Days",
+    "headroom": "Headroom",
+    "headroomDesc": "Prefiere cuentas con más capacidad libre.",
+    "lkgp": "Modo LKGP",
+    "lkgpDesc": "Last Known Good Provider (resiliencia predecible)"
   },
   "translator": {
     "title": "Traductor",
@@ -3200,5 +3207,49 @@
     "created": "Created",
     "expires": "Expires",
     "actions": "Actions"
+  },
+  "freeTiers": {
+    "title": "Niveles gratuitos",
+    "subtitle": "Notas free/freemium de proveedores del catálogo. Solo notas estáticas — no es cuota restante en vivo. Los términos pueden cambiar.",
+    "catalogEntries": "Entradas del catálogo",
+    "freeForever": "Gratis para siempre",
+    "knownMonthlyTokens": "Tokens mensuales conocidos*",
+    "knownMonthlyTokensHint": "*Solo entradas con estimación publicada",
+    "filterAll": "Todos",
+    "kindForever": "Gratis para siempre",
+    "kindSignupCredit": "Crédito de registro",
+    "kindDaily": "Cupo diario",
+    "kindRateLimited": "Gratis con límite de tasa",
+    "kindOauthSub": "OAuth de suscripción",
+    "colProvider": "Proveedor",
+    "colKind": "Tipo",
+    "colSummary": "Resumen",
+    "colTokens": "~Tokens/mes"
+  },
+  "chatLauncher": {
+    "title": "Chat",
+    "subtitle": "A local no-login chat over your Routiform models, powered by Open WebUI.",
+    "starting": "Starting Open WebUI…",
+    "firstRunNotice": "First launch downloads packages and can take a few minutes. Keep this tab open.",
+    "running": "Open WebUI is running.",
+    "openChat": "Open chat",
+    "openChatNewTab": "Open in new tab",
+    "stop": "Stop Open WebUI",
+    "stopped": "Open WebUI is stopped.",
+    "start": "Start",
+    "error": "Open WebUI failed to start.",
+    "notAvailable": "Open WebUI runtime not detected.",
+    "installUv": "Install uv (recommended)",
+    "installPip": "Or install Open WebUI via pip",
+    "installHintUv": "Run: curl -LsSf https://astral.sh/uv/install.sh | sh — then reload this page.",
+    "installHintPip": "Run: pip install open-webui (Python 3.11 required) — then reload this page.",
+    "dockerMode": "Routiform is running in Docker. Open WebUI ships as a sibling compose service.",
+    "dockerHint": "If the chat is not reachable, bring it up with: docker compose -f docker-compose.full.yml up -d",
+    "retry": "Retry",
+    "checkStatus": "Check status",
+    "loading": "Checking status…",
+    "portLabel": "Port 8080",
+    "reloadIframe": "Reload chat",
+    "chatBlocked": "Chat could not be embedded. Open it in a new tab, or check Open WebUI's frame-embedding settings."
   }
 }

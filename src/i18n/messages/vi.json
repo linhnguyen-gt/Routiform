@@ -192,7 +192,8 @@
     "cliToolsShort": "Công cụ",
     "cache": "Cache",
     "cacheShort": "Cache",
-    "chat": "Chat"
+    "chat": "Chat",
+    "freeTiers": "Gói miễn phí"
   },
   "themesPage": {
     "title": "Themes",
@@ -1052,7 +1053,9 @@
     "p2c": "P2C",
     "p2cDesc": "Chooses the less-loaded of two random models per request (power-of-two choices).",
     "contextOpt": "Context-Opt",
-    "contextOptimizedDesc": "Routes using context-size and model-fit heuristics when enabled."
+    "contextOptimizedDesc": "Routes using context-size and model-fit heuristics when enabled.",
+    "headroom": "Headroom",
+    "headroomDesc": "Ưu tiên model còn nhiều dung lượng (tải gần đây thấp nhất)."
   },
   "costs": {
     "title": "Chi phí",
@@ -2307,7 +2310,11 @@
     "skillsComingSoon": "Skills marketplace coming soon.",
     "memorySkillsTitle": "Memory & Skills",
     "memorySkillsDesc": "Persistent context & capabilities",
-    "days": "Days"
+    "days": "Days",
+    "headroom": "Headroom",
+    "headroomDesc": "Ưu tiên tài khoản còn nhiều dung lượng trống.",
+    "lkgp": "Chế độ LKGP",
+    "lkgpDesc": "Last Known Good Provider (ổn định, dễ dự đoán)"
   },
   "translator": {
     "title": "Người phiên dịch",
@@ -3238,6 +3245,26 @@
     "retry": "Thử lại",
     "checkStatus": "Kiểm tra trạng thái",
     "loading": "Đang kiểm tra trạng thái…",
-    "portLabel": "Cổng 8080"
+    "portLabel": "Cổng 8080",
+    "reloadIframe": "Tải lại chat",
+    "chatBlocked": "Không nhúng được chat. Mở tab mới, hoặc kiểm tra cài đặt nhúng iframe của Open WebUI."
+  },
+  "freeTiers": {
+    "title": "Gói miễn phí",
+    "subtitle": "Ghi chú free/freemium cho các provider đã có trong catalog. Chỉ là tài liệu tĩnh — không phải quota realtime. Điều khoản có thể đổi; hãy kiểm tra từng provider.",
+    "catalogEntries": "Mục catalog",
+    "freeForever": "Miễn phí vĩnh viễn",
+    "knownMonthlyTokens": "Token/tháng đã biết*",
+    "knownMonthlyTokensHint": "*Chỉ các mục có ước lượng công bố",
+    "filterAll": "Tất cả",
+    "kindForever": "Miễn phí vĩnh viễn",
+    "kindSignupCredit": "Credit đăng ký",
+    "kindDaily": "Gói theo ngày",
+    "kindRateLimited": "Free có rate limit",
+    "kindOauthSub": "OAuth gói đăng ký",
+    "colProvider": "Provider",
+    "colKind": "Loại",
+    "colSummary": "Tóm tắt",
+    "colTokens": "~Token/tháng"
   }
 }
