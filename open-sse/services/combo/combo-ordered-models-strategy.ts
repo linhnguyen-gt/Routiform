@@ -19,6 +19,11 @@ import {
   sortModelsByCost,
   sortModelsByUsage,
 } from "./combo-sort-models.ts";
+import {
+  orderModelsByHeadroom,
+  orderModelsByLkgp,
+  orderModelsByP2c,
+} from "./combo-strategy-orderers.ts";
 
 type LogLike = {
   info: (tag: string, msg: string, meta?: unknown) => void;
@@ -177,6 +182,39 @@ export async function applyStrategyOrdering(
     } else {
       log.warn("COMBO", "Auto strategy has no candidates, keeping default ordering");
     }
+  } else if (strategy === "lkgp") {
+    try {
+      const { getLKGP } = await import("../../../src/lib/localDb");
+      const lkgpProvider = await getLKGP(combo.name, combo.id || combo.name);
+      const providerId =
+        typeof lkgpProvider === "string"
+          ? lkgpProvider
+          : lkgpProvider &&
+              typeof lkgpProvider === "object" &&
+              "provider" in (lkgpProvider as object)
+            ? String((lkgpProvider as { provider?: string }).provider || "")
+            : null;
+      if (providerId) {
+        const before = next[0];
+        next = orderModelsByLkgp(next, providerId);
+        if (next[0] !== before) {
+          log.info(
+            "COMBO",
+            `[LKGP] Prioritizing last known good provider ${providerId} for combo "${combo.name}" → ${next[0]}`
+          );
+        } else {
+          log.info(
+            "COMBO",
+            `[LKGP] Last known good provider ${providerId} already first for combo "${combo.name}"`
+          );
+        }
+      }
+    } catch (err) {
+      log.warn("COMBO", "Failed to retrieve Last Known Good Provider. This is non-fatal.", { err });
+    }
+  } else if (strategy === "fill-first") {
+    // Preserve configured priority order; drain each model before the next.
+    log.info("COMBO", `Fill-first ordering: preserving priority order (${next.length} models)`);
   } else if (strategy === "strict-random") {
     const selectedId = await getNextFromDeck(`combo:${combo.name}`, next);
     const rest = next.filter((m) => m !== selectedId);
@@ -185,9 +223,15 @@ export async function applyStrategyOrdering(
   } else if (strategy === "random") {
     next = fisherYatesShuffle([...next]);
     log.info("COMBO", `Random shuffle: ${next.length} models`);
+  } else if (strategy === "p2c") {
+    next = orderModelsByP2c(next, combo.name);
+    log.info("COMBO", `Power-of-two-choices ordering: selected ${next[0]}`);
   } else if (strategy === "least-used") {
     next = sortModelsByUsage(next, combo.name);
     log.info("COMBO", `Least-used ordering: ${next[0]} has fewest requests`);
+  } else if (strategy === "headroom") {
+    next = orderModelsByHeadroom(next, combo.name);
+    log.info("COMBO", `Headroom ordering: ${next[0]} has most free capacity (usage proxy)`);
   } else if (strategy === "cost-optimized") {
     next = await sortModelsByCost(next);
     log.info("COMBO", `Cost-optimized ordering: cheapest first (${next[0]})`);

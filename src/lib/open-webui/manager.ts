@@ -336,16 +336,18 @@ async function stopExisting() {
 }
 
 export async function startOpenWebui(): Promise<OpenWebuiStatus> {
-  const current = await getOpenWebuiStatus();
-  if (current.phase === "running") return current;
-  if (current.phase === "not_available") {
-    throw new Error(
-      "Open WebUI runtime not available. Install uv + Python 3.11 or open-webui (pip)."
-    );
-  }
+  // Join in-flight start before any await (avoids double-spawn race on concurrent POSTs).
   if (startPromise) return startPromise;
 
-  startPromise = (async () => {
+  const run = (async () => {
+    const current = await getOpenWebuiStatus();
+    if (current.phase === "running") return current;
+    if (current.phase === "not_available") {
+      throw new Error(
+        "Open WebUI runtime not available. Install uv + Python 3.11 or open-webui (pip)."
+      );
+    }
+
     const runtime = await resolveRuntime();
     const command = buildStartCommand(runtime);
     if (!command) {
@@ -449,8 +451,10 @@ export async function startOpenWebui(): Promise<OpenWebuiStatus> {
     return ready;
   })();
 
+  startPromise = run;
+
   try {
-    return await startPromise;
+    return await run;
   } catch (error) {
     await patchState({
       status: "error",
@@ -458,7 +462,7 @@ export async function startOpenWebui(): Promise<OpenWebuiStatus> {
     });
     throw error;
   } finally {
-    startPromise = null;
+    if (startPromise === run) startPromise = null;
   }
 }
 

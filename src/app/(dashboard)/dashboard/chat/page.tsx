@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
@@ -28,6 +28,15 @@ function mapPhase(status: StatusResponse | null, loading: boolean): Phase {
   return "stopped";
 }
 
+function statusFingerprint(s: StatusResponse): string {
+  return [s.phase, s.runtime, s.dockerMode, s.url, s.reachable, s.pid, s.lastError].join("|");
+}
+
+function withCacheBust(url: string, bust: number): string {
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}_rf=${bust}`;
+}
+
 export default function ChatLauncherPage() {
   const t = useTranslations("chatLauncher");
   const [status, setStatus] = useState<StatusResponse | null>(null);
@@ -38,6 +47,8 @@ export default function ChatLauncherPage() {
   const logBoxRef = useRef<HTMLPreElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoStartAttemptedRef = useRef(false);
+  const statusFpRef = useRef<string>("");
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -47,7 +58,12 @@ export default function ChatLauncherPage() {
         return null;
       }
       const data = (await res.json()) as StatusResponse;
-      setStatus(data);
+      const fp = statusFingerprint(data);
+      // Avoid re-render loops: polling every 10s must not change React state when unchanged.
+      if (fp !== statusFpRef.current) {
+        statusFpRef.current = fp;
+        setStatus(data);
+      }
       setError(null);
       return data;
     } catch (err) {
@@ -88,18 +104,21 @@ export default function ChatLauncherPage() {
   }, [fetchStatus]);
 
   useEffect(() => {
+    let cancelled = false;
     void fetchStatus().then((initial) => {
+      if (cancelled || !initial || autoStartAttemptedRef.current) return;
       if (
-        initial &&
         !initial.dockerMode &&
         initial.phase !== "running" &&
         initial.phase !== "starting" &&
         initial.phase !== "not_available"
       ) {
+        autoStartAttemptedRef.current = true;
         void startOpenWebui();
       }
     });
     return () => {
+      cancelled = true;
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [fetchStatus, startOpenWebui]);
@@ -149,16 +168,19 @@ export default function ChatLauncherPage() {
     }
   }, [logLines]);
 
+  // Cache-bust only when user clicks reload (or first mount of running iframe).
+  // NEVER put Date.now() in render — status polls re-render and would reload iframe forever.
   const [iframeKey, setIframeKey] = useState(0);
 
   const reloadIframe = () => {
-    const el = iframeRef.current;
-    if (el && status?.url) {
-      setIframeKey((k) => k + 1);
-    }
+    if (status?.url) setIframeKey((k) => k + 1);
   };
 
-  const isRunning = phase === "running" && status?.url;
+  const isRunning = phase === "running" && !!status?.url;
+  const iframeSrc = useMemo(() => {
+    if (!status?.url) return null;
+    return withCacheBust(status.url, iframeKey);
+  }, [status?.url, iframeKey]);
 
   return (
     <div className="fixed inset-0 z-50 flex h-screen w-full flex-col overflow-hidden bg-bg">
@@ -214,10 +236,10 @@ export default function ChatLauncherPage() {
       </header>
 
       {/* Body: iframe when running, otherwise the launcher card */}
-      {isRunning ? (
+      {isRunning && iframeSrc ? (
         <iframe
           ref={iframeRef}
-          src={`${status.url}&_t=${Date.now()}`}
+          src={iframeSrc}
           title={t("title")}
           className="h-full w-full flex-1 border-0 bg-surface"
           sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"

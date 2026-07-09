@@ -9,6 +9,7 @@ export const HIDEABLE_SIDEBAR_ITEM_IDS = [
   "costs",
   "analytics",
   "limits",
+  "free-tiers",
   "cache",
   "cli-tools",
   "agents",
@@ -55,6 +56,12 @@ const PRIMARY_SIDEBAR_ITEMS: readonly SidebarItemDefinition[] = [
   { id: "costs", href: "/dashboard/costs", i18nKey: "costs", icon: "account_balance_wallet" },
   { id: "analytics", href: "/dashboard/analytics", i18nKey: "analytics", icon: "analytics" },
   { id: "limits", href: "/dashboard/limits", i18nKey: "limits", icon: "tune" },
+  {
+    id: "free-tiers",
+    href: "/dashboard/free-tiers",
+    i18nKey: "freeTiers",
+    icon: "volunteer_activism",
+  },
   // exact: media lives under /dashboard/cache/media — prefix match would keep "cache" active there
   { id: "cache", href: "/dashboard/cache", i18nKey: "cache", icon: "cached", exact: true },
   { id: "media", href: "/dashboard/cache/media", i18nKey: "media", icon: "perm_media" },

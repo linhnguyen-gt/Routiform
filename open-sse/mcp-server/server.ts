@@ -23,6 +23,8 @@ import {
   routeRequestInput,
   costReportInput,
   listModelsCatalogInput,
+  listFreeTiersInput,
+  getCompressionInfoInput,
   webSearchInput,
   simulateRouteInput,
   setBudgetGuardInput,
@@ -771,6 +773,65 @@ export function createMcpServer(): McpServer {
     withScopeEnforcement("routiform_web_search", (args) =>
       handleWebSearch(webSearchInput.parse(args))
     )
+  );
+
+  server.registerTool(
+    "routiform_list_free_tiers",
+    {
+      description:
+        "Lists documented free / freemium provider tiers in the Routiform catalog (static notes, not live remaining quota).",
+      inputSchema: listFreeTiersInput,
+    },
+    withScopeEnforcement("routiform_list_free_tiers", async (args) => {
+      const start = Date.now();
+      try {
+        const parsed = listFreeTiersInput.parse(args ?? {});
+        const { FREE_TIER_CATALOG, summarizeFreeTierCatalog } =
+          await import("../../src/shared/constants/freeTierCatalog.ts");
+        const summary = summarizeFreeTierCatalog();
+        const entries = parsed.kind
+          ? FREE_TIER_CATALOG.filter((e) => e.kind === parsed.kind)
+          : [...FREE_TIER_CATALOG];
+        const result = {
+          ...summary,
+          total: entries.length,
+          entries: entries.map((e) => ({
+            providerId: e.providerId,
+            name: e.name,
+            kind: e.kind,
+            summary: e.summary,
+            approxTokensPerMonth: e.approxTokensPerMonth,
+            notes: e.notes,
+          })),
+        };
+        await logToolCall("routiform_list_free_tiers", parsed, result, Date.now() - start, true);
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await logToolCall("routiform_list_free_tiers", args, null, Date.now() - start, false, msg);
+        return { content: [{ type: "text" as const, text: `Error: ${msg}` }], isError: true };
+      }
+    })
+  );
+
+  server.registerTool(
+    "routiform_get_compression_info",
+    {
+      description:
+        "Describes the request compression stack (RTK → Caveman EN → inflation guard) and how it is gated.",
+      inputSchema: getCompressionInfoInput,
+    },
+    withScopeEnforcement("routiform_get_compression_info", async (args) => {
+      getCompressionInfoInput.parse(args ?? {});
+      const result = {
+        stack: ["rtk", "caveman-en", "inflation-guard"],
+        gate: "Dashboard AI request context: auto-compress | passthrough (isProxyContextCompressionEnabled)",
+        modes: ["off", "rtk", "stacked"],
+        header:
+          "X-Routiform-Compression (pipeline field compressionHeader; response wire-up optional)",
+      };
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    })
   );
 
   // ── Memory Tools ──────────────────────────────

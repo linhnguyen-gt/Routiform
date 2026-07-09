@@ -9,7 +9,7 @@ with **MCP Server** (25 tools) and **A2A v0.3 Protocol**.
 
 ## Stack
 
-- **Runtime**: Next.js 16 (App Router), Node.js ≥18 <25, ES Modules (`"type": "module"`)
+- **Runtime**: Next.js 16 (App Router), Node.js ≥22 (skip 23; allow 24–26), ES Modules (`"type": "module"`)
 - **Language**: TypeScript 5.9 (`src/`) + JavaScript (`open-sse/`)
 - **Database**: better-sqlite3 (SQLite) — `DATA_DIR` configurable, default `~/.routiform/` — **backup/restore: copy whole `DATA_DIR` (includes `storage.sqlite` + `server.env` with `STORAGE_ENCRYPTION_KEY`); copying only the `.sqlite` file breaks encrypted API keys** — see `docs/BACKUP_AND_RESTORE.md`
 - **Streaming**: SSE via `open-sse` internal workspace package

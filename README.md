@@ -195,7 +195,7 @@ See [`docs/A2A-SERVER.md`](docs/A2A-SERVER.md).
 
 Requirements:
 
-- Node.js `>=18 <25`
+- Node.js `>=22` (skip Node 23; Node 24–26 supported; see `engines` in package.json)
 
 ```bash
 npm install -g routiform
@@ -366,16 +366,16 @@ When login is enabled, the CLI automatically reads an API key from the local SQL
 
 ### Available commands
 
-| Command | Description |
-|---------|-------------|
-| `routiform status` | Server status, version, URLs |
-| `routiform provider list\|show\|add\|rm\|test\|sync-models` | Provider management |
-| `routiform key list\|create\|reveal\|rm` | API key management |
-| `routiform combo list\|show\|create\|rm\|test` | Combo management |
-| `routiform model list [--provider <id>]` | Synced available models |
-| `routiform settings get\|set` | Settings (set uses whitelist of safe keys) |
-| `routiform usage` | Usage summary (30d) |
-| `routiform logs [--tail N]` | Recent server logs |
+| Command                                                     | Description                                |
+| ----------------------------------------------------------- | ------------------------------------------ |
+| `routiform status`                                          | Server status, version, URLs               |
+| `routiform provider list\|show\|add\|rm\|test\|sync-models` | Provider management                        |
+| `routiform key list\|create\|reveal\|rm`                    | API key management                         |
+| `routiform combo list\|show\|create\|rm\|test`              | Combo management                           |
+| `routiform model list [--provider <id>]`                    | Synced available models                    |
+| `routiform settings get\|set`                               | Settings (set uses whitelist of safe keys) |
+| `routiform usage`                                           | Usage summary (30d)                        |
+| `routiform logs [--tail N]`                                 | Recent server logs                         |
 
 OAuth provider login and visual analytics stay in the web dashboard.
 

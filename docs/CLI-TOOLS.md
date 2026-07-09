@@ -93,7 +93,7 @@ Legacy IDs still accepted for compatibility: `copilot`, `kimi-coding`.
 
 ## Step 2 — Install CLI Tools
 
-All npm-based tools require Node.js 18+:
+All npm-based tools require Node.js 22+ (skip Node 23; Node 24+ OK):
 
 ```bash
 # Claude Code (Anthropic)

@@ -31,8 +31,8 @@ export const comboStrategySchema = z.enum([
   "auto",
   "fill-first",
   "p2c",
-  "auto",
   "lkgp",
+  "headroom",
   "context-optimized",
 ]);
 

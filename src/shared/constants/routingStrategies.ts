@@ -10,7 +10,8 @@ export type RoutingStrategyValue =
   | "strict-random"
   | "auto"
   | "context-optimized"
-  | "lkgp";
+  | "lkgp"
+  | "headroom";
 
 type RoutingStrategyOption = {
   value: RoutingStrategyValue;
@@ -99,6 +100,13 @@ export const ROUTING_STRATEGIES: RoutingStrategyOption[] = [
     icon: "verified",
   },
   {
+    value: "headroom",
+    labelKey: "headroom",
+    combosDescKey: "headroomDesc",
+    settingsDescKey: "headroomDesc",
+    icon: "battery_full",
+  },
+  {
     value: "context-optimized",
     labelKey: "contextOpt",
     combosDescKey: "contextOptimizedDesc",
@@ -120,4 +128,5 @@ export const SETTINGS_FALLBACK_STRATEGY_VALUES: RoutingStrategyValue[] = [
   "auto",
   "context-optimized",
   "lkgp",
+  "headroom",
 ];

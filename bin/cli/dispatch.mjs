@@ -2,7 +2,17 @@
 // Entry point called from bin/routiform.mjs when argv[2] is a management noun.
 import { printError } from "./output.mjs";
 
-const NOUNS = new Set(["provider", "key", "combo", "model", "settings", "status", "usage", "logs"]);
+const NOUNS = new Set([
+  "provider",
+  "key",
+  "combo",
+  "model",
+  "settings",
+  "status",
+  "usage",
+  "logs",
+  "setup",
+]);
 
 const HELP = `
 ${"\x1b[1m\x1b[36m"}Routiform CLI${"\x1b[0m"} — manage your Routiform proxy from the terminal.
@@ -34,6 +44,10 @@ ${"\x1b[1m"}Commands:${"\x1b[0m"}
   routiform settings set <key> <value>          Set a safe-to-CLI setting
   routiform usage                               Show usage summary (30d)
   routiform logs [--tail <N>]                   Show recent server logs
+  routiform setup claude [--port N] [--api-key K] [--dry-run]
+                                                Point Claude Code at Routiform
+  routiform setup codex [--port N] [--api-key K] [--model M] [--dry-run]
+                                                Point Codex CLI at Routiform
 
 ${"\x1b[1m"}Global flags:${"\x1b[0m"}
   --json          Output raw JSON (for scripting)
@@ -111,15 +125,20 @@ export async function run(argv) {
       const { logsHandler } = await import("./status.mjs");
       return logsHandler(verb, handlerArgs, flags);
     }
+    case "setup": {
+      const { setupHandler } = await import("./setup.mjs");
+      return setupHandler(verb, handlerArgs, flags);
+    }
   }
 }
 
 function parseGlobalFlags(args) {
-  const flags = { json: false, yes: false, port: null, apiKey: null };
+  const flags = { json: false, yes: false, dryRun: false, port: null, apiKey: null };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "--json") flags.json = true;
     else if (a === "--yes" || a === "-y") flags.yes = true;
+    else if (a === "--dry-run") flags.dryRun = true;
     else if (a === "--port") {
       flags.port = parseInt(args[i + 1], 10);
       i++;

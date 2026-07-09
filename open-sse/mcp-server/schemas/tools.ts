@@ -928,6 +928,71 @@ export const cacheFlushTool: McpToolDefinition<typeof cacheFlushInput, typeof ca
   sourceEndpoints: ["/api/cache"],
 };
 
+// --- Tool: routiform_list_free_tiers ---
+export const listFreeTiersInput = z.object({
+  kind: z
+    .enum(["forever", "signup-credit", "daily", "rate-limited", "oauth-sub"])
+    .optional()
+    .describe("Optional filter by free-tier kind"),
+});
+
+export const listFreeTiersOutput = z.object({
+  total: z.number(),
+  forever: z.number(),
+  oauthSub: z.number(),
+  approxKnownMonthlyTokens: z.number(),
+  entries: z.array(
+    z.object({
+      providerId: z.string(),
+      name: z.string(),
+      kind: z.string(),
+      summary: z.string(),
+      approxTokensPerMonth: z.number().nullable(),
+      notes: z.string().optional(),
+    })
+  ),
+});
+
+export const listFreeTiersTool: McpToolDefinition<
+  typeof listFreeTiersInput,
+  typeof listFreeTiersOutput
+> = {
+  name: "routiform_list_free_tiers",
+  description:
+    "Lists documented free / freemium provider tiers in the Routiform catalog (static notes, not live remaining quota).",
+  inputSchema: listFreeTiersInput,
+  outputSchema: listFreeTiersOutput,
+  scopes: ["read:providers"],
+  auditLevel: "basic",
+  phase: 1,
+  sourceEndpoints: ["/dashboard/free-tiers"],
+};
+
+// --- Tool: routiform_get_compression_info ---
+export const getCompressionInfoInput = z.object({}).describe("No parameters required");
+
+export const getCompressionInfoOutput = z.object({
+  stack: z.array(z.string()),
+  gate: z.string(),
+  modes: z.array(z.string()),
+  header: z.string(),
+});
+
+export const getCompressionInfoTool: McpToolDefinition<
+  typeof getCompressionInfoInput,
+  typeof getCompressionInfoOutput
+> = {
+  name: "routiform_get_compression_info",
+  description:
+    "Describes the request compression stack (RTK → Caveman EN → inflation guard) and how it is gated.",
+  inputSchema: getCompressionInfoInput,
+  outputSchema: getCompressionInfoOutput,
+  scopes: ["read:settings"],
+  auditLevel: "basic",
+  phase: 1,
+  sourceEndpoints: [],
+};
+
 // ============ Tool Registry ============
 
 /** All MCP tool definitions, ordered by phase then name */
@@ -940,6 +1005,8 @@ export const MCP_TOOLS = [
   routeRequestTool,
   costReportTool,
   listModelsCatalogTool,
+  listFreeTiersTool,
+  getCompressionInfoTool,
   webSearchTool,
   simulateRouteTool,
   setBudgetGuardTool,

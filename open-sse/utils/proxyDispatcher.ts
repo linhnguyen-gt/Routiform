@@ -254,6 +254,9 @@ export function createProxyDispatcher(proxyUrl: string): Dispatcher {
   } else {
     dispatcher = new ProxyAgent({
       uri: normalizedUrl,
+      // Explicit CONNECT tunnel for HTTP+HTTPS. undici 7.28 defaults this true;
+      // keep explicit so CONNECT-only proxies never get origin-forward (501).
+      proxyTunnel: true,
       ...dispatcherOptions,
     });
   }

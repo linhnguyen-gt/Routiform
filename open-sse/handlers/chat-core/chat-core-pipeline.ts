@@ -69,6 +69,8 @@ export type ChatCorePipeline = HandleChatCoreArgs & {
   isClaudeCodeCompatible?: boolean;
   upstreamStream?: boolean;
   translatedBody?: Record<string, unknown>;
+  /** Applied compression plan echo (e.g. for X-Routiform-Compression). */
+  compressionHeader?: string;
   ccSessionId?: string;
   toolNameMap?: unknown;
   executor?: unknown;

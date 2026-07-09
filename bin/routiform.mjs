@@ -103,6 +103,7 @@ const MANAGEMENT_NOUNS = new Set([
   "status",
   "usage",
   "logs",
+  "setup",
 ]);
 if (args.length > 0 && MANAGEMENT_NOUNS.has(args[0])) {
   try {
@@ -135,6 +136,8 @@ if (args.includes("--help") || args.includes("-h")) {
     routiform combo list           List combos
     routiform status               Show server status
     routiform settings get         Show settings
+    routiform setup claude         Point Claude Code at Routiform
+    routiform setup codex          Point Codex CLI at Routiform
     Run "routiform <noun> --help" for per-command help.
 
   \x1b[1mMCP Integration:\x1b[0m

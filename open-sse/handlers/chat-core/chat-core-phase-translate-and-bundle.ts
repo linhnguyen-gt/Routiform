@@ -8,8 +8,7 @@ import {
 } from "../../utils/aiSdkCompat.ts";
 import { shouldPreserveCacheControl } from "../../utils/cacheControlPolicy.ts";
 import { createRequestLogger } from "../../utils/requestLogger.ts";
-import { compressMessages, formatRtkLog } from "../../rtk/index.ts";
-import { resolveRtkProfile } from "../../rtk/profile-resolver.ts";
+import { applyStackedCompression, formatStackHeader } from "../../compression/index.ts";
 import { isProxyContextCompressionEnabled } from "../../services/contextValidationSettings.ts";
 import { sanitizeRequestInput } from "../phases/input-sanitizer.ts";
 import { checkSemanticCache } from "../phases/semantic-cache-handler.ts";
@@ -154,22 +153,35 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
   let translatedBody = translateResult.translatedBody as Record<string, unknown>;
   p.translatedBody = translatedBody;
 
-  // RTK Token Saver: lossless, structural compression of tool_result content.
-  // Gated by the same toggle the old context validator used (Dashboard AI request context).
-  // Profile (off|safe|full) is resolved from the client User-Agent — coding
-  // agents (Cursor, Claude Code, OpenClaw, etc.) get the "safe" profile which
-  // disables middle-cutting filters and raises caps so their edits stay precise.
+  // Stacked compression: RTK (tool_result) → Caveman EN (prose) → inflation guard.
+  // Gated by Dashboard AI request context (auto-compress vs passthrough).
+  // RTK profile (off|safe|full) is resolved from the client User-Agent.
   const compressionEnabled = await isProxyContextCompressionEnabled();
-  const rtkProfile = resolveRtkProfile(compressionEnabled, p.userAgent);
-  const rtkStats = compressMessages(translatedBody, rtkProfile);
-  const rtkLine = formatRtkLog(rtkStats);
-  if (rtkLine) {
-    log?.info?.("RTK", rtkLine);
-  } else if (rtkProfile !== "off" && rtkProfile !== "full") {
-    // Surface the profile being applied even when no hits fired so users can
-    // see in logs that a coding agent was detected.
-    log?.info?.("RTK", `profile=${rtkProfile} ua=${String(p.userAgent ?? "unknown").slice(0, 30)}`);
+  const stack = applyStackedCompression(translatedBody, {
+    enabled: compressionEnabled,
+    userAgent: p.userAgent,
+    caveman: true,
+  });
+  for (const line of stack.logs) {
+    const tag = line.startsWith("[Caveman]")
+      ? "Caveman"
+      : line.startsWith("[Compression]")
+        ? "Compression"
+        : "RTK";
+    log?.info?.(tag, line);
   }
+  if (
+    stack.mode !== "off" &&
+    stack.rtkProfile !== "off" &&
+    stack.rtkProfile !== "full" &&
+    !stack.logs.some((l) => l.startsWith("[RTK]"))
+  ) {
+    log?.info?.(
+      "RTK",
+      `profile=${stack.rtkProfile} ua=${String(p.userAgent ?? "unknown").slice(0, 30)}`
+    );
+  }
+  p.compressionHeader = formatStackHeader(stack);
 
   p.ccSessionId = translateResult.ccSessionId;
 
