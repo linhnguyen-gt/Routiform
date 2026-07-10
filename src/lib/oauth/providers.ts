@@ -36,9 +36,16 @@ export function generateAuthData(providerName, redirectUri) {
   const { codeVerifier, codeChallenge, state } = generatePKCE();
 
   let authUrl;
-  if (provider.flowType === "device_code" || provider.flowType === "import_token") {
+  if (provider.flowType === "import_token") {
     authUrl = null;
-  } else if (provider.flowType === "authorization_code_pkce") {
+  } else if (provider.flowType === "device_code" && typeof provider.buildAuthUrl !== "function") {
+    // Pure device-code providers (github, kimi, …) have no browser authorize URL.
+    // Providers that also expose buildAuthUrl (e.g. xai SuperGrok) support dual flow.
+    authUrl = null;
+  } else if (
+    provider.flowType === "authorization_code_pkce" ||
+    typeof provider.buildAuthUrl === "function"
+  ) {
     authUrl = provider.buildAuthUrl(provider.config, redirectUri, state, codeChallenge);
   } else {
     authUrl = provider.buildAuthUrl(provider.config, redirectUri, state);

@@ -177,6 +177,23 @@ export const KIRO_CONFIG = {
   authMethods: ["builder-id", "idc", "google", "github", "import"],
 };
 
+// xAI SuperGrok OAuth (Device Code + PKCE). Public Grok-CLI client_id —
+// xAI rejects non-allowlisted clients. Source: OpenCode plugin + Grok CLI.
+export const XAI_CONFIG = {
+  clientId: process.env.XAI_OAUTH_CLIENT_ID || "b1a00492-073a-47ea-816f-4c329264a828",
+  authorizeUrl: "https://auth.x.ai/oauth2/authorize",
+  tokenUrl: "https://auth.x.ai/oauth2/token",
+  deviceCodeUrl: "https://auth.x.ai/oauth2/device/code",
+  scope: "openid profile email offline_access grok-cli:access api:access",
+  redirectUri: "http://127.0.0.1:56121/callback",
+  codeChallengeMethod: "S256",
+  fixedPort: 56121,
+  extraParams: {
+    plan: "generic",
+    referrer: "routiform",
+  },
+};
+
 // Cursor OAuth Configuration (Import Token from Cursor IDE)
 // Cursor stores credentials in SQLite database: state.vscdb
 // Keys: cursorAuth/accessToken, storage.serviceMachineId
@@ -235,4 +252,5 @@ export const PROVIDERS = {
   KILOCODE: "kilocode",
   CLINE: "cline",
   DEVIN: "devin",
+  XAI: "xai",
 };

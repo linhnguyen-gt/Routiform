@@ -178,12 +178,14 @@ export default function OAuthModal({
       setError(null);
 
       // Device code flow (GitHub, Kiro, Kimi Coding, KiloCode, Qoder)
+      // xAI SuperGrok: device on remote; PKCE loopback on true localhost (below).
       if (
         provider === "github" ||
         provider === "kiro" ||
         provider === "kimi-coding" ||
         provider === "kilocode" ||
-        provider === "qoder"
+        provider === "qoder" ||
+        (provider === "xai" && !isLocalhost)
       ) {
         setIsDeviceCode(true);
         setStep("waiting");
@@ -223,13 +225,13 @@ export default function OAuthModal({
 
       let forceManual = false;
 
-      // Codex: on localhost use callback server on port 1455,
-      // on remote use standard auth code flow (callback server is unreachable)
-      if (provider === "codex") {
+      // Codex (port 1455) / xAI SuperGrok (port 56121): localhost uses pinned callback server.
+      // On remote, Codex falls through; xAI uses device code above.
+      if (provider === "codex" || (provider === "xai" && isLocalhost)) {
         if (isLocalhost) {
-          // Localhost: use callback server on port 1455 + polling
+          // Localhost: use pinned callback server + polling
           try {
-            const serverRes = await fetch(`/api/oauth/codex/start-callback-server`);
+            const serverRes = await fetch(`/api/oauth/${provider}/start-callback-server`);
             const serverData = await serverRes.json();
             if (!serverRes.ok) throw new Error(serverData.error);
 
@@ -247,7 +249,7 @@ export default function OAuthModal({
             for (let i = 0; i < maxAttempts; i++) {
               await new Promise((r) => setTimeout(r, 2000));
 
-              const pollRes = await fetch(`/api/oauth/codex/poll-callback`, {
+              const pollRes = await fetch(`/api/oauth/${provider}/poll-callback`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({}),
@@ -268,12 +270,33 @@ export default function OAuthModal({
 
             setPolling(false);
             throw new Error("Authorization timeout");
-          } catch (codexErr) {
-            console.warn(
-              "Codex callback server failed, falling back to standard manual flow",
-              codexErr
-            );
+          } catch (callbackErr) {
             setPolling(false);
+            // xAI: fall back to device code if port 56121 is busy or PKCE fails
+            if (provider === "xai") {
+              console.warn("xAI PKCE callback failed, falling back to device code", callbackErr);
+              setIsDeviceCode(true);
+              setStep("waiting");
+              const res = await fetch(`/api/oauth/xai/device-code`);
+              const data = await res.json();
+              if (!res.ok) {
+                throw new Error(
+                  typeof data.error === "object" && data.error !== null
+                    ? ((data.error as Record<string, unknown>).message as string) ||
+                        JSON.stringify(data.error)
+                    : data.error || "Device code request failed"
+                );
+              }
+              setDeviceData(data);
+              const verifyUrl = data.verification_uri_complete || data.verification_uri;
+              if (verifyUrl) window.open(verifyUrl, "oauth_verify");
+              startPolling(data.device_code, data.codeVerifier, data.interval || 5, null);
+              return;
+            }
+            console.warn(
+              "Callback server failed, falling back to standard manual flow",
+              callbackErr
+            );
             forceManual = true;
           }
         }

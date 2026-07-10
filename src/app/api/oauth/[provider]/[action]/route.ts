@@ -108,9 +108,10 @@ export async function GET(
         provider === "github" ||
         provider === "kiro" ||
         provider === "kilocode" ||
-        provider === "qoder"
+        provider === "qoder" ||
+        provider === "xai"
       ) {
-        // GitHub, Kiro, KiloCode don't use PKCE for device code.
+        // GitHub, Kiro, KiloCode, xAI don't use PKCE for device code.
         // Qoder generates its own PKCE pair inside requestDeviceCode
         // (see src/lib/oauth/services/qoder.ts) — the auth-data PKCE
         // would silently overwrite Qoder's verifier.
@@ -148,10 +149,19 @@ export async function GET(
  * Start Codex callback server on port 1455
  * Returns the auth URL and stores codeVerifier for later exchange
  */
+/** Providers that pin a local OAuth callback port (OpenCode/Grok CLI style). */
+const CALLBACK_SERVER_PROVIDERS: Record<string, { port: number; path: string; host: string }> = {
+  codex: { port: 1455, path: "/auth/callback", host: "localhost" },
+  xai: { port: 56121, path: "/callback", host: "127.0.0.1" },
+};
+
 async function handleStartCallbackServer(provider: string, _searchParams: URLSearchParams) {
-  if (provider !== "codex") {
+  const serverCfg = CALLBACK_SERVER_PROVIDERS[provider];
+  if (!serverCfg) {
     return NextResponse.json(
-      { error: "Callback server only supported for codex" },
+      {
+        error: `Callback server only supported for: ${Object.keys(CALLBACK_SERVER_PROVIDERS).join(", ")}`,
+      },
       { status: 400 }
     );
   }
@@ -167,15 +177,15 @@ async function handleStartCallbackServer(provider: string, _searchParams: URLSea
   globalThis.__codexCallbackState = null;
 
   try {
-    // Start temp server on port 1455
+    // Start temp server on provider-pinned port
     const { port, close } = await startLocalServer((params) => {
       // Write directly to globalThis so it survives module reloads
       if (globalThis.__codexCallbackState) {
         globalThis.__codexCallbackState.callbackParams = params;
       }
-    }, 1455);
+    }, serverCfg.port);
 
-    const redirectUri = `http://localhost:${port}/auth/callback`;
+    const redirectUri = `http://${serverCfg.host}:${port}${serverCfg.path}`;
     const authData = generateAuthData(provider, redirectUri);
 
     globalThis.__codexCallbackState = {
@@ -375,8 +385,13 @@ export async function POST(
 
       // Poll for token (through proxy if configured)
       let result;
-      if (provider === "github" || provider === "kimi-coding" || provider === "kilocode") {
-        // For providers that don't use PKCE (like GitHub, Kiro, Kimi Coding), don't pass codeVerifier
+      if (
+        provider === "github" ||
+        provider === "kimi-coding" ||
+        provider === "kilocode" ||
+        provider === "xai"
+      ) {
+        // For providers that don't use PKCE (like GitHub, Kimi Coding, xAI), don't pass codeVerifier
         result = await runWithProxyContext(proxy, () =>
           (pollForToken as Function)(provider, deviceCode)
         );
@@ -487,10 +502,12 @@ export async function POST(
     }
 
     if (action === "poll-callback") {
-      // Poll for Codex callback server result
-      if (provider !== "codex") {
+      // Poll for local callback server result (codex, xai, …)
+      if (!CALLBACK_SERVER_PROVIDERS[provider]) {
         return NextResponse.json(
-          { error: "poll-callback only supported for codex" },
+          {
+            error: `poll-callback only supported for: ${Object.keys(CALLBACK_SERVER_PROVIDERS).join(", ")}`,
+          },
           { status: 400 }
         );
       }

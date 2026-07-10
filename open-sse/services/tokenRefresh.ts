@@ -718,6 +718,7 @@ export function supportsTokenRefresh(provider) {
     "kiro",
     "cline",
     "kimi-coding",
+    "xai",
   ]);
   if (explicitlySupported.has(provider)) return true;
   const config = PROVIDERS[provider];

@@ -89,6 +89,14 @@ const OAUTH_TEST_CONFIG = {
     checkExpiry: true,
     refreshable: true,
   },
+  xai: {
+    // SuperGrok OAuth access tokens are valid api.x.ai Bearer tokens.
+    url: "https://api.x.ai/v1/models",
+    method: "GET",
+    authHeader: "Authorization",
+    authPrefix: "Bearer ",
+    refreshable: true,
+  },
 };
 
 const CLI_RUNTIME_PROVIDER_MAP = {

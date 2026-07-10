@@ -65,6 +65,8 @@ export const APIKEY_PROVIDERS_LLM_B = {
     color: "#1DA1F2",
     textIcon: "XA",
     website: "https://x.ai",
+    authHint:
+      "SuperGrok: sign in with xAI OAuth (device code recommended for remote). Or paste an API key from console.x.ai.",
   },
   mistral: {
     id: "mistral",

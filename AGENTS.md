@@ -145,7 +145,8 @@ Zod schemas, and unit tests aligned when editing.
 ### Provider Categories
 
 - **Free** (4): Qoder AI, Qwen Code, Gemini CLI (deprecated), Kiro AI
-- **OAuth** (8): Claude Code, Antigravity, Codex, GitHub Copilot, Cursor, Kimi Coding, Kilo Code, Cline
+- **OAuth** (9): Claude Code, Antigravity, Codex, GitHub Copilot, Cursor, Kimi Coding, Kilo Code, Cline,
+  xAI SuperGrok (provider id `xai`, device_code + PKCE; same catalog as API key)
 - **API Key** (48+): OpenAI, Anthropic, Gemini, DeepSeek, Groq, xAI, Mistral, Perplexity,
   Together, Fireworks, Cerebras, Cohere, NVIDIA, Nebius, SiliconFlow, Hyperbolic,
   HuggingFace, OpenRouter, Vertex AI, Cloudflare AI, Scaleway, AI/ML API, Pollinations,

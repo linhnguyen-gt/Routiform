@@ -138,7 +138,10 @@ export function ProviderDetailConnectionsSection({
         typeof conn.id === "string" ? () => toggleConnectionBulkSelect(conn.id) : undefined
       }
       onReauth={
-        conn.authType === "oauth" && allowQoderOAuthUi ? () => setShowOAuthModal(true) : undefined
+        (conn.authType === "oauth" && allowQoderOAuthUi) ||
+        (providerId === "xai" && conn.authType === "oauth")
+          ? () => setShowOAuthModal(true)
+          : undefined
       }
       onRefreshToken={conn.authType === "oauth" ? () => handleRefreshToken(conn.id) : undefined}
       isRefreshing={refreshingId === conn.id}
@@ -204,14 +207,36 @@ export function ProviderDetailConnectionsSection({
             </button>
           )}
           {!isCompatible ? (
-            <Button
-              size="sm"
-              icon="add"
-              onClick={openPrimaryAddFlow}
-              className="h-8 rounded-lg px-3 text-xs"
-            >
-              {providerSupportsPat ? "Add PAT" : t("add")}
-            </Button>
+            providerId === "xai" ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  icon="lock"
+                  onClick={() => setShowOAuthModal(true)}
+                  className="h-8 rounded-lg px-3 text-xs"
+                >
+                  SuperGrok OAuth
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon="key"
+                  onClick={() => setShowAddApiKeyModal(true)}
+                  className="h-8 rounded-lg px-3 text-xs"
+                >
+                  {t("add")}
+                </Button>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                icon="add"
+                onClick={openPrimaryAddFlow}
+                className="h-8 rounded-lg px-3 text-xs"
+              >
+                {providerSupportsPat ? "Add PAT" : t("add")}
+              </Button>
+            )
           ) : (
             connections.length === 0 && (
               <Button
@@ -278,11 +303,21 @@ export function ProviderDetailConnectionsSection({
           </div>
           <p className="mb-1 font-medium text-text-main">{t("noConnectionsYet")}</p>
           <p className="mb-4 text-sm text-text-muted">{t("addFirstConnectionHint")}</p>
-          {!isCompatible && (
-            <Button icon="add" onClick={openPrimaryAddFlow}>
-              {providerSupportsPat ? "Add PAT" : t("addConnection")}
-            </Button>
-          )}
+          {!isCompatible &&
+            (providerId === "xai" ? (
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button icon="lock" onClick={() => setShowOAuthModal(true)}>
+                  SuperGrok OAuth
+                </Button>
+                <Button variant="secondary" icon="key" onClick={() => setShowAddApiKeyModal(true)}>
+                  {t("addConnection")}
+                </Button>
+              </div>
+            ) : (
+              <Button icon="add" onClick={openPrimaryAddFlow}>
+                {providerSupportsPat ? "Add PAT" : t("addConnection")}
+              </Button>
+            ))}
         </div>
       ) : (
         (() => {

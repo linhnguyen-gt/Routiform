@@ -44,4 +44,16 @@ export const OAUTH_PROVIDERS = {
     color: "#6C5CE7",
     textIcon: "DV",
   },
+  // Same provider id as API-key xai — dual auth on /dashboard/providers/xai
+  xai: {
+    id: "xai",
+    alias: "xai",
+    name: "xAI SuperGrok",
+    icon: "auto_awesome",
+    color: "#1DA1F2",
+    textIcon: "XA",
+    website: "https://x.ai",
+    authHint:
+      "Sign in with SuperGrok OAuth (device code on remote, browser on localhost). API keys still work under xAI (Grok) in the API Key section.",
+  },
 } satisfies ProviderMap;

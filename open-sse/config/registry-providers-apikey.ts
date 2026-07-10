@@ -615,6 +615,11 @@ export const APIKEY_PROVIDERS: Record<string, RegistryEntry> = {
     authType: "apikey",
     authHeader: "bearer",
     defaultContextLength: CONTEXT_CONFIG.defaultLimit,
+    oauth: {
+      clientIdEnv: "XAI_OAUTH_CLIENT_ID",
+      clientIdDefault: "b1a00492-073a-47ea-816f-4c329264a828",
+      tokenUrl: "https://auth.x.ai/oauth2/token",
+    },
     models: [
       { id: "grok-4-fast-non-reasoning", name: "Grok 4 Fast" },
       { id: "grok-4-fast-reasoning", name: "Grok 4 Fast Reasoning" },
