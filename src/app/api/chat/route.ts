@@ -3,6 +3,7 @@ import { streamText, convertToModelMessages, type UIMessage } from "ai";
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import { createErrorResponse } from "@/lib/api/errorResponse";
 import { createRouterTurn } from "@/lib/chat/router-client";
+import { rehydrateAttachments } from "@/lib/chat/rehydrate-attachments";
 import { appendMessage, getConversation, updateConversation, updateMessage } from "@/lib/db/chat";
 
 export const dynamic = "force-dynamic";
@@ -77,6 +78,9 @@ export async function POST(request: Request): Promise<Response> {
   // The user turn is written BEFORE the stream starts. If the provider dies
   // mid-stream, onFinish never fires — and if this were deferred, the user's
   // prompt would be destroyed while they were still billed for it.
+  // Note this persists the parts AS SENT — attachments stay hash references. The bytes are
+  // pulled in only for the outbound provider request below, so a conversation row never
+  // carries base64 and never grows past what the 10 MB body cap allows on the next turn.
   const lastMessage = messages[messages.length - 1];
   if (lastMessage?.role === "user") {
     appendMessage({
@@ -111,7 +115,8 @@ export async function POST(request: Request): Promise<Response> {
   const result = streamText({
     model: turn.model,
     system: conversation.systemPrompt ?? undefined,
-    messages: await convertToModelMessages(messages),
+    // Hash references become real bytes here, and only here.
+    messages: await convertToModelMessages(rehydrateAttachments(messages)),
     // Aborts the browser->route hop. NOTE: the router does not currently thread
     // this through to the provider (src/sse/handlers/chat.ts has no signal
     // plumbing), so stopping halts rendering, NOT upstream billing. The UI must

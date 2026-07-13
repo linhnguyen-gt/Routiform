@@ -3,6 +3,7 @@
 import { memo } from "react";
 import type { UIMessage } from "ai";
 
+import { isSafeImageSrc } from "@/lib/chat/markdown-safety";
 import { MarkdownMessage } from "./markdown-message";
 import { UsageBadge } from "./usage-badge";
 
@@ -62,19 +63,42 @@ export const MessageBubble = memo(function MessageBubble({
             <MarkdownMessage content={text} streaming={streaming} />
           )}
 
-          {message.parts.map((part, index) =>
-            part.type === "file" ? (
+          {message.parts.map((part, index) => {
+            if (part.type !== "file") return null;
+
+            const filename =
+              "filename" in part && typeof part.filename === "string"
+                ? part.filename
+                : "attachment";
+            const url = "url" in part && typeof part.url === "string" ? part.url : "";
+
+            // Same origin policy as model-authored markdown. An assistant turn can contain file
+            // parts too, and a remote <img> fires a GET on render with the conversation in its
+            // query string — no click required.
+            const isImage = part.mediaType?.startsWith("image/") && isSafeImageSrc(url);
+
+            if (isImage) {
+              return (
+                // eslint-disable-next-line @next/next/no-img-element -- a same-origin blob route, not a remote asset
+                <img
+                  key={index}
+                  src={url}
+                  alt={filename}
+                  className="mt-2 max-h-64 rounded-lg border border-border object-contain"
+                />
+              );
+            }
+
+            return (
               <div
                 key={index}
                 className="mt-2 flex items-center gap-1.5 rounded-md border border-border bg-bg-subtle px-2 py-1 text-xs text-text-muted"
               >
                 <span className="material-symbols-outlined text-[14px]">attach_file</span>
-                {"filename" in part && typeof part.filename === "string"
-                  ? part.filename
-                  : "attachment"}
+                {filename}
               </div>
-            ) : null
-          )}
+            );
+          })}
         </div>
 
         <div className="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">

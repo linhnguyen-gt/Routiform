@@ -20,6 +20,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 interface ModelEntry {
   id: string;
   provider?: string;
+  /**
+   * Whether an attached image survives translation to this model's target format.
+   * Computed server-side (lib/chat/model-vision) — the UI must not guess it from the model
+   * name, because the answer depends on the translator, not the model.
+   */
+  supportsImages: boolean;
 }
 
 interface UseChatModelsOptions {
@@ -46,7 +52,8 @@ export function useChatModels({ initialModel, initialProvider }: UseChatModelsOp
 
         const entries: ModelEntry[] = data.models
           .map((m): ModelEntry | null => {
-            if (typeof m === "string") return { id: m };
+            // A bare string carries no capability info, so assume the safe answer: no images.
+            if (typeof m === "string") return { id: m, supportsImages: false };
             if (m && typeof m === "object") {
               const record = m as Record<string, unknown>;
               const id = record.fullModel ?? record.id ?? record.model;
@@ -54,6 +61,9 @@ export function useChatModels({ initialModel, initialProvider }: UseChatModelsOp
               return {
                 id,
                 provider: typeof record.provider === "string" ? record.provider : undefined,
+                // Default false, not true. Wrongly claiming vision is silent: the user attaches
+                // a screenshot and the model answers about nothing.
+                supportsImages: record.supportsImages === true,
               };
             }
             return null;
@@ -87,6 +97,13 @@ export function useChatModels({ initialModel, initialProvider }: UseChatModelsOp
     return models.find((m) => m.id === model)?.provider ?? null;
   }, [provider, models, model]);
 
+  // False while the catalog is still loading: better to briefly disable image attach than to
+  // offer it and drop the image.
+  const supportsImages = useMemo(
+    () => models.find((m) => m.id === model)?.supportsImages === true,
+    [models, model]
+  );
+
   return {
     models,
     options,
@@ -94,6 +111,7 @@ export function useChatModels({ initialModel, initialProvider }: UseChatModelsOp
     setModel: selectModel,
     provider: resolvedProvider,
     setProvider,
+    supportsImages,
     loading,
   };
 }

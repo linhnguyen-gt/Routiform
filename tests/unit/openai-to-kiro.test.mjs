@@ -86,7 +86,16 @@ test("buildKiroPayload converts tool calls and tool results into adjacent Kiro t
   );
 });
 
-test("buildKiroPayload degrades remote images to text and omits current-turn image bytes", () => {
+test("buildKiroPayload degrades remote images to text and keeps base64 images as Kiro images", () => {
+  // Do not "fix" this back to asserting current.images === undefined.
+  //
+  // That is what it said between 5927d0da9 (a typing refactor) and 2026-07-13. The refactor
+  // rebuilt currentMessage.userInputMessage field by field and silently stopped copying
+  // `images`, and this test was rewritten in the same commit to bless the new behavior —
+  // its name even changed from "keeps base64 images" to "omits current-turn image bytes".
+  // The result shipped: an attached image did not reach the model until the turn AFTER it
+  // was sent, once it had aged into history. Kiro does accept images (see the images field
+  // on userInputMessage); dropping them was never the intent.
   const body = {
     messages: [
       {
@@ -103,7 +112,9 @@ test("buildKiroPayload degrades remote images to text and omits current-turn ima
   const payload = buildKiroPayload("claude-sonnet-4.5", body, true, null);
   const current = payload.conversationState.currentMessage.userInputMessage;
 
-  assert.equal(current.images, undefined);
+  assert.equal(current.images.length, 1);
+  assert.deepEqual(current.images[0], { format: "png", source: { bytes: "abc123" } });
+  // Kiro takes base64 only, so a remote URL is degraded to text rather than fetched.
   assert.equal(current.content.includes("[Image: https://example.com/a.png]"), true);
 });
 

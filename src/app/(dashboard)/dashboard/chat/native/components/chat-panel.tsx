@@ -8,6 +8,7 @@ import { Select } from "@/shared/components";
 import { ChatComposer } from "./chat-composer";
 import { MessageBubble, type MessageUsage } from "./message-bubble";
 import { useChatModels } from "../hooks/use-chat-models";
+import { useAttachments } from "../hooks/use-attachments";
 import {
   loadConversation,
   type Conversation,
@@ -59,11 +60,21 @@ export function ChatPanel({ conversationId, onTitleInferred }: ChatPanelProps) {
     model,
     setModel,
     provider,
+    supportsImages,
     loading: modelsLoading,
   } = useChatModels({
     initialModel: conversation?.model,
     initialProvider: conversation?.provider,
   });
+
+  const {
+    attachments,
+    add: addAttachments,
+    remove: removeAttachment,
+    clear: clearAttachments,
+    uploading,
+    uploadError,
+  } = useAttachments();
 
   // The panel is remounted (key={conversationId}) whenever the conversation
   // changes, so this runs once per instance and needs no synchronous reset —
@@ -129,10 +140,23 @@ export function ChatPanel({ conversationId, onTitleInferred }: ChatPanelProps) {
 
   const handleSubmit = useCallback(() => {
     const text = input.trim();
-    if (!text || streaming) return;
+    // An image with no caption is a legitimate turn ("what is this?" is implied), so an empty
+    // textarea is only a blocker when there is nothing attached either.
+    if ((!text && attachments.length === 0) || streaming) return;
+
+    // Attachments travel as hash references. The bytes are pulled in server-side, once, when
+    // the outbound provider request is built — never on the wire (lib/chat/rehydrate-attachments).
+    const files = attachments.map((attachment) => ({
+      type: "file" as const,
+      mediaType: attachment.mime,
+      filename: attachment.filename,
+      url: `/api/attachments/${attachment.sha256}`,
+    }));
+
     setInput("");
-    void sendMessage({ text });
-  }, [input, streaming, sendMessage]);
+    clearAttachments();
+    void sendMessage({ text, files });
+  }, [input, attachments, streaming, sendMessage, clearAttachments]);
 
   const handleEdit = useCallback(
     (messageId: string, text: string) => {
@@ -226,6 +250,12 @@ export function ChatPanel({ conversationId, onTitleInferred }: ChatPanelProps) {
         onStop={() => void stop()}
         streaming={streaming}
         disabled={!model}
+        attachments={attachments}
+        onAttach={(files) => void addAttachments(files)}
+        onRemoveAttachment={removeAttachment}
+        uploading={uploading}
+        uploadError={uploadError}
+        supportsImages={supportsImages}
       />
     </div>
   );
