@@ -89,6 +89,11 @@ export const updateSettingsSchema = z.object({
   /** Oversized request handling before upstream (Dashboard → AI) */
   contextValidation: z.enum(["passthrough", "auto-compress"]).optional(),
   /**
+   * Output-side caveman: injects a terseness directive into the system prompt so the model
+   * replies with fewer output tokens. Default "off" — opt-in per user.
+   */
+  cavemanOutputLevel: z.enum(["off", "lite", "full"]).optional(),
+  /**
    * Request deduplication config (plan 260531-1214-request-dedupe).
    * Generic, opt-out chokepoint that prevents duplicate concurrent requests
    * (from buggy clients/gateways) from costing tokens twice at the proxy.

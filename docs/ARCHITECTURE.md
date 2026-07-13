@@ -822,6 +822,7 @@ Environment variables actively used by code:
 6. Charts in the dashboard use **Recharts** (SVG-based) for accessible, interactive analytics visualizations (model usage bar charts, provider breakdown tables with success rates).
 7. E2E tests use **Playwright** (`tests/e2e/`), run via `npm run test:e2e`. Unit tests use **Node.js test runner** (`tests/unit/`), run via `npm run test:unit`. Source code under `src/` is **TypeScript** (`.ts`/`.tsx`); the `open-sse/` workspace remains JavaScript (`.js`).
 8. Settings page is organized into 5 tabs: Security, Routing (6 global strategies: fill-first, round-robin, p2c, random, least-used, cost-optimized), Resilience (editable rate limits, circuit breaker, policies), AI (thinking budget, system prompt, prompt cache), Advanced (proxy).
+9. **Codex executor refactor (2026-07-13):** `open-sse/executors/codex.ts` was refactored to extract quota management, SSE error peeking, and request transformation into separate service modules: `codex-quota.ts`, `codex-sse-peek.ts`, `codex-sse-scan.ts`, `codex-request-shaping.ts`, `codex-request-transform.ts`. These modules implement bounded error detection (256 KB peek ceiling, 32 frame max) and byte-identical retry with previous_response_id preservation. Quota state is persisted via `codex-quota-manager.ts`. See `docs/CODE-STANDARDS.md` for development guidelines and the plan file for full context.
 
 ## Operational Verification Checklist
 

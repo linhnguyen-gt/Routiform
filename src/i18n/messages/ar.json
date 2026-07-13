@@ -2296,7 +2296,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Prefer accounts with the most free capacity.",
     "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)"
+    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "يضيف توجيهًا للإيجاز إلى موجه النظام بحيث يرد النموذج بعدد أقل من رموز الإخراج. رموز الإخراج تكلف 3-5 أضعاف رموز الإدخال. متوقف افتراضيًا.",
+    "cavemanOutputOff": "متوقف",
+    "cavemanOutputOffDesc": "لم يتم إدراج أي توجيه. يستجيب النموذج بشكل طبيعي.",
+    "cavemanOutputLite": "خفيف",
+    "cavemanOutputLiteDesc": "يحذف الحشو والتردد والمجاملات. مع الحفاظ على الجمل الكاملة.",
+    "cavemanOutputFull": "كامل",
+    "cavemanOutputFullDesc": "أقصى إيجاز. جمل مجتزأة وحذف أدوات التعريف. يبقى المحتوى التقني دقيقًا."
   },
   "translator": {
     "title": "مترجم",

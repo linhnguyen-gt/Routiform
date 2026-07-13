@@ -122,20 +122,32 @@ function convertMessages(messages: OpenAIMessage[], tools: OpenAITool[], model: 
   let pendingImages: KiroImage[] = [];
   let currentRole: string | null = null;
 
-  // Extract system messages first — Kiro has no dedicated system field,
-  // so we prepend them to the current (last user) message, matching kiro-gateway behavior.
-  // However, strip ALL system messages when targeting Kiro — they waste tokens and have no
-  // effect on Kiro's behavior (Kiro uses its own system instructions internally).
-  let systemPrompt = "";
+  // Extract system messages first — Kiro has no dedicated system field. The combined
+  // system text is sent exactly once, prepended as an <instructions> block to the
+  // current message content (see buildKiroPayload). It is deliberately NOT also set on
+  // userInputMessage.systemInstruction for the OpenAI->Kiro path: content is guaranteed
+  // to be read by the model, whereas a schema field the backend may silently ignore is
+  // not worth doubling the system-prompt token cost on every request against a quota-metered
+  // provider.
+  const systemParts: string[] = [];
   const nonSystemMessages: OpenAIMessage[] = [];
   for (const msg of messages) {
     if (msg.role === "system") {
-      // Skip all system messages for Kiro — they are irrelevant and waste tokens
-      continue;
+      const text =
+        typeof msg.content === "string"
+          ? msg.content
+          : Array.isArray(msg.content)
+            ? msg.content
+                .map((c) => (typeof c.text === "string" ? c.text : ""))
+                .filter(Boolean)
+                .join("\n")
+            : "";
+      if (text) systemParts.push(text);
     } else {
       nonSystemMessages.push(msg);
     }
   }
+  const systemPrompt = systemParts.join("\n\n");
 
   // Image support is pre-filtered by caps in translateRequest before reaching here
   const supportsImages = true;
@@ -456,8 +468,12 @@ export function buildKiroPayload(
   // Prepend system prompt to current message content — Kiro has no dedicated system field.
   // conversationId is generated fresh per request, so Kiro has no server-side memory of prior
   // turns — the full history is always sent. System prompt must be prepended every time.
+  // Wrapped in <instructions> tags, which Claude models treat as authoritative directives.
+  // Sent via content ONLY (not also via the systemInstruction field) — see convertMessages
+  // above for why. Sending it twice would double the system-prompt token cost on every
+  // request against Kiro's metered quota for no verified benefit.
   if (systemPrompt) {
-    finalContent = `${systemPrompt}\n\n${finalContent}`;
+    finalContent = `<instructions>\n${systemPrompt}\n</instructions>\n\n${finalContent}`;
   }
 
   const payload: KiroPayload = {

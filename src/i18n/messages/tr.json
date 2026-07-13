@@ -2296,7 +2296,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Prefer accounts with the most free capacity.",
     "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)"
+    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Modelin daha az çıktı tokeniyle yanıt vermesi için sistem istemine bir özlülük direktifi ekler. Çıktı tokenleri, girdi tokenlerinden 3-5 kat daha pahalıdır. Varsayılan olarak kapalı.",
+    "cavemanOutputOff": "Kapalı",
+    "cavemanOutputOffDesc": "Hiçbir direktif eklenmedi. Model normal şekilde yanıt verir.",
+    "cavemanOutputLite": "Hafif",
+    "cavemanOutputLiteDesc": "Dolgu sözcükleri, tereddütleri ve nezaket ifadelerini kaldırır. Tam cümleler korunur.",
+    "cavemanOutputFull": "Tam",
+    "cavemanOutputFullDesc": "Maksimum özlülük. Parçalar, çıkarılmış tanımlıklar. Teknik içerik tam olarak kalır."
   },
   "translator": {
     "title": "Çeviri",

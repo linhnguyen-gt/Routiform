@@ -2296,7 +2296,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Prefer accounts with the most free capacity.",
     "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)"
+    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Lägger till ett kortfattadhetsdirektiv i systemprompten så att modellen svarar med färre output-tokens. Output-tokens kostar 3-5x mer än input-tokens. Avstängt som standard.",
+    "cavemanOutputOff": "Av",
+    "cavemanOutputOffDesc": "Inget direktiv infogat. Modellen svarar normalt.",
+    "cavemanOutputLite": "Lätt",
+    "cavemanOutputLiteDesc": "Tar bort utfyllnadsord, tvekan och artighetsfraser. Fullständiga meningar behålls.",
+    "cavemanOutputFull": "Fullt",
+    "cavemanOutputFullDesc": "Maximal kortfattadhet. Fragment, uteslutna artiklar. Tekniskt innehåll förblir exakt."
   },
   "translator": {
     "title": "Översättare",

@@ -319,6 +319,16 @@ Business logic that supports the handlers and executors.
 | `wildcardRouter.ts`  | Wildcard model pattern routing: resolves wildcard patterns (e.g., `*/claude-*`) to concrete provider/model pairs based on availability and priority.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `reasoningCache.ts`  | Reasoning content cache for providers that require `reasoning_content` replay (DeepSeek, SiliconFlow, Nebius, DeepInfra, SambaNova, Fireworks, Together, OpenCode-Go). Caches reasoning strings keyed by tool-call ID with a 2-hour TTL and 2,000-entry in-memory cap, backed by SQLite for persistence. Model pattern matching covers `deepseek-r1`, `deepseek-reasoner`, `deepseek-chat`, `deepseek-v4`, `kimi-k2`, `qwq`, `qwen.*think`, and `glm.*think`.                                                                                                                                                                                                                                                                         |
 
+**Codex-specific services** (extracted from executors/codex.ts refactor):
+
+| File                         | Purpose                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `codex-quota.ts`             | **Codex quota snapshot parsing** from response headers (5h/7d windows, usage, limits, reset timestamps). Extracts `x-codex-*h-{usage,limit,reset-at}` headers and normalizes them into a structured quota object for downstream persistence.                                                                                     |
+| `codex-sse-scan.ts`          | **SSE frame classification** for Codex responses. Distinguishes error frames, content frames, and metadata frames without consuming the stream. Used by codex-sse-peek to categorize frames at the byte level.                                                                                                                   |
+| `codex-sse-peek.ts`          | **Bounded error detection** on Codex 200-OK SSE responses. Peeks up to 256 KB and 32 frames (fail-open on timeout). Detects transient "capacity" errors and converts them to 503 for account rotation. Reassembles a byte-identical replacement stream so retries preserve request body hash (including `previous_response_id`). |
+| `codex-request-shaping.ts`   | **Request endpoint inference**: detects `responses` format requests (stream→text, chat→native Codex responses endpoint) vs. standard completions. Routes to correct Codex subpath and handles content-type expectations for each endpoint variant.                                                                               |
+| `codex-request-transform.ts` | **Codex-specific request transformation**: applies scope-aware rate limiting (codex vs. spark models separate pools), injects default instructions, and normalizes thinking levels. Codex requires explicit `instructions` field for system prompts instead of OpenAI's `system` role.                                           |
+
 #### Token Refresh Deduplication
 
 ```mermaid
@@ -449,6 +459,15 @@ import "./request/claude-to-openai.js"; // ← self-registers
 | `requestLogger.ts` | File-based request logging (opt-in via `ENABLE_REQUEST_LOGS=true`). Creates session folders with numbered files: `1_req_client.json` → `7_res_client.txt`. All I/O is async (fire-and-forget). Masks sensitive headers.                                                              |
 | `bypassHandler.ts` | Intercepts specific patterns from Claude CLI (title extraction, warmup, count) and returns fake responses without calling any provider. Supports both streaming and non-streaming. Intentionally limited to Claude CLI scope.                                                        |
 | `networkProxy.ts`  | Resolves outbound proxy URL for a given provider with precedence: provider-specific config → global config → environment variables (`HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`). Supports `NO_PROXY` exclusions. Caches config for 30s.                                                  |
+
+**Compression module** (`open-sse/compression/`):
+
+| File                | Purpose                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `caveman-output.ts` | **Output-side model directive** for terser responses. Injects system prompt directive to make models emit compressed output (no filler, preserve language, no invented abbreviations). Supports `lite` and `full` levels (off by default via `cavemanOutputLevel` setting). Upstream rules preserve code blocks, security warnings, and multi-step sequences exactly. |
+| `caveman-en.ts`     | **Input-side regex rewriter** stripping filler from English prompt text (historical, predates output-side). Distinct from caveman-output directive.                                                                                                                                                                                                                   |
+| `pipeline.ts`       | RTK Token Saver integration point and compression orchestration pipeline. Wires caveman directives and input-side rewriting into the request path.                                                                                                                                                                                                                    |
+| `types.ts`          | TypeScript type definitions for compression configuration and results.                                                                                                                                                                                                                                                                                                |
 
 #### SSE Streaming Pipeline
 
@@ -634,3 +653,35 @@ flowchart LR
     C --> E["Translate to\nsource format"]
     E --> F["Return without\ncalling provider"]
 ```
+
+---
+
+## 9. Two Verification Traps
+
+Both of these have let real bugs reach production while the test suite was fully green. Read them before trusting a green run.
+
+### 9.1 A test that does not enter through the real caller proves nothing
+
+The request path is `translateRequest` → chat-core phases → executor → `createSSEStream`. Bugs on this codebase overwhelmingly live in the **wiring between** those layers, not inside the helpers. A test that calls a helper with a hand-built input exercises the author's mental model of the wiring, not the wiring.
+
+Three separate bugs shipped green because their tests did exactly that:
+
+| Bug                                                                     | What the test called                          | What the wiring actually did                                                                            |
+| ----------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Kiro received no system prompt from Claude Code                         | `buildKiroPayload()` directly                 | `translator/index.ts` deleted every system message _before_ `buildKiroPayload` ran                      |
+| A terseness directive was injected into JSON-schema requests            | `injectCavemanOutputDirective(handBuiltBody)` | the real call site passes the **translated** body, where `response_format` has already been consumed    |
+| OpenAI traffic was billed a ~2000-token estimate instead of the real 57 | asserted on a hand-built usage object         | the real usage frame (`{"choices":[],"usage":{…}}`) is `continue`d ~87 lines before the accounting code |
+
+**Rule:** a regression test for anything on the request/response path must drive `translateRequest`, `createSSEStream`, or the real chat-core phase. Direct helper tests are fine as _additional_ unit coverage — they must not be the only coverage.
+
+### 9.2 `npm run typecheck:core` does not typecheck the project
+
+`tsconfig.typecheck-core.json` sets `include: []` and lists **19 explicit files**. Everything else — the entire `open-sse/` engine included — is invisible to it. There is no project-wide typecheck script.
+
+Use this instead:
+
+```bash
+npx tsc --pretty false -p tsconfig.json --noEmit
+```
+
+It reports a small number of known pre-existing errors; the bar is "no _new_ errors", not "zero output". Note the base config runs `strict: false`, so `strictNullChecks` is off — discriminated unions do **not** narrow through a type guard, and a union that looks correct will fail to compile only under the real config.

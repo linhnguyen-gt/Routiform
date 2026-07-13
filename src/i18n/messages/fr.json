@@ -2297,7 +2297,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Privilégie les comptes avec le plus de capacité libre.",
     "lkgp": "Mode LKGP",
-    "lkgpDesc": "Last Known Good Provider (résilience prévisible)"
+    "lkgpDesc": "Last Known Good Provider (résilience prévisible)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Ajoute une directive de concision au prompt système pour que le modèle réponde avec moins de tokens de sortie. Les tokens de sortie coûtent 3 à 5 fois plus que les tokens d'entrée. Désactivé par défaut.",
+    "cavemanOutputOff": "Désactivé",
+    "cavemanOutputOffDesc": "Aucune directive injectée. Le modèle répond normalement.",
+    "cavemanOutputLite": "Léger",
+    "cavemanOutputLiteDesc": "Supprime le remplissage, les hésitations et les politesses. Les phrases complètes sont conservées.",
+    "cavemanOutputFull": "Complet",
+    "cavemanOutputFullDesc": "Concision maximale. Fragments, articles omis. Le contenu technique reste exact."
   },
   "translator": {
     "title": "Traducteur",

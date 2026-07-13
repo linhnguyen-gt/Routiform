@@ -2296,7 +2296,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Prefer accounts with the most free capacity.",
     "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)"
+    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Nagdaragdag ng direktibang maigsi sa system prompt para tumugon ang modelo nang mas kaunting output token. Ang output token ay 3-5x mas mahal kaysa sa input token. Naka-off bilang default.",
+    "cavemanOutputOff": "Naka-off",
+    "cavemanOutputOffDesc": "Walang direktibang idinagdag. Normal na tumutugon ang modelo.",
+    "cavemanOutputLite": "Magaan",
+    "cavemanOutputLiteDesc": "Inaalis ang mga pampuno, pag-aalinlangan, at pormalidad. Napapanatili ang kumpletong pangungusap.",
+    "cavemanOutputFull": "Buo",
+    "cavemanOutputFullDesc": "Pinakamataas na kaiklian. Piraso-piraso, tinanggal ang mga artikulo. Nananatiling eksakto ang teknikal na nilalaman."
   },
   "translator": {
     "title": "Tagasalin",

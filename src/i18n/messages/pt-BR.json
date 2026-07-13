@@ -2308,7 +2308,15 @@
     "modelsDevInfoResolution": "Pricing resolution order (highest priority first):",
     "modelsDevInfoOrder": "User Override → models.dev → LiteLLM → Hardcoded Default",
     "headroom": "Headroom",
-    "headroomDesc": "Prefere contas com mais capacidade livre."
+    "headroomDesc": "Prefere contas com mais capacidade livre.",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Adiciona uma diretiva de concisão ao prompt do sistema para que o modelo responda com menos tokens de saída. Tokens de saída custam de 3 a 5x mais que os de entrada. Desativado por padrão.",
+    "cavemanOutputOff": "Desativado",
+    "cavemanOutputOffDesc": "Nenhuma diretiva injetada. O modelo responde normalmente.",
+    "cavemanOutputLite": "Leve",
+    "cavemanOutputLiteDesc": "Remove preenchimento, hesitações e formalidades. Frases completas são mantidas.",
+    "cavemanOutputFull": "Completo",
+    "cavemanOutputFullDesc": "Concisão máxima. Fragmentos, artigos omitidos. O conteúdo técnico permanece exato."
   },
   "translator": {
     "title": "Tradutor",

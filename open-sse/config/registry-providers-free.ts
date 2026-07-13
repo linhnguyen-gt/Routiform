@@ -79,7 +79,8 @@ export const FREE_PROVIDERS: Record<string, RegistryEntry> = {
       { id: "claude-sonnet-4", name: "Claude Sonnet 4 (Puter)" },
       { id: "claude-opus-4", name: "Claude Opus 4 (Puter)" },
       // Google Gemini — use google/ prefix (confirmed working)
-      { id: "google/gemini-2.0-flash", name: "Gemini 2.0 Flash (Puter)" },
+      // google/gemini-2.0-flash removed: Google shut the 2.0 line down
+      // 2026-06-01, so the model no longer exists behind this proxy either.
       { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash (Puter)" },
       { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro (Puter)" },
       { id: "google/gemini-3-flash", name: "Gemini 3 Flash (Puter)" },
@@ -193,7 +194,9 @@ export const FREE_PROVIDERS: Record<string, RegistryEntry> = {
     models: [
       { id: "gpt-4o", name: "GPT-4o (via AI/ML API)" },
       { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet (via AI/ML API)" },
-      { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro (via AI/ML API)" },
+      // gemini-1.5-pro is retired and absent from the live AI/ML API catalog,
+      // which also namespaces Google models under a google/ prefix.
+      { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro (via AI/ML API)" },
       { id: "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", name: "Llama 3.1 70B (via AI/ML API)" },
       { id: "deepseek-chat", name: "DeepSeek Chat (via AI/ML API)" },
       { id: "mistral-large-latest", name: "Mistral Large (via AI/ML API)" },

@@ -325,6 +325,24 @@ export function openaiToClaudeRequest(model, body, stream) {
     }
   }
 
+  // response_format: inject JSON structured output instruction into system prompt.
+  // Claude doesn't natively support response_format, so we insert a system-level instruction.
+  // MUST run before the `result.system` assembly below, which joins `systemParts` into a
+  // string snapshot — any push after that point is silently discarded.
+  if (body.response_format) {
+    const fmt = body.response_format;
+    if (fmt.type === "json_schema" && fmt.json_schema?.schema) {
+      const schemaJson = JSON.stringify(fmt.json_schema.schema, null, 2);
+      systemParts.push(
+        `You must respond with valid JSON that strictly follows this JSON schema:\n\`\`\`json\n${schemaJson}\n\`\`\`\nRespond ONLY with the JSON object, no other text.`
+      );
+    } else if (fmt.type === "json_object") {
+      systemParts.push(
+        "You must respond with valid JSON. Respond ONLY with a JSON object, no other text."
+      );
+    }
+  }
+
   // System with Claude Code prompt and cache_control
   const claudeCodePrompt = { type: "text", text: CLAUDE_SYSTEM_PROMPT };
 
@@ -342,7 +360,14 @@ export function openaiToClaudeRequest(model, body, stream) {
   if (normalizedTools && Array.isArray(normalizedTools)) {
     result.tools = normalizedTools
       .map((tool) => {
-        const toolData = tool.type === "function" && tool.function ? tool.function : tool;
+        // Function-shaped tools arrive in two flavors from real clients:
+        //   (a) openai-spec: { type: "function", function: { name, ... } }
+        //   (b) legacy/loose: { function: { name, ... } }   (no parent `type`)
+        // Both must yield toolData.name. Unwrap on the presence of `tool.function`
+        // alone — requiring `tool.type === "function"` too silently dropped every
+        // tool from clients that omit the parent `type` (request succeeds with
+        // zero tools, no error surfaces).
+        const toolData = tool.function ?? tool;
         const originalName = typeof toolData.name === "string" ? toolData.name.trim() : "";
         if (!originalName) return null;
 
@@ -388,23 +413,6 @@ export function openaiToClaudeRequest(model, body, stream) {
   // Tool choice
   if (normalizedToolChoice !== undefined) {
     result.tool_choice = convertOpenAIToolChoice(normalizedToolChoice);
-  }
-
-  // response_format: inject JSON structured output instruction into system prompt.
-  // Claude doesn't natively support response_format, so we insert a system-level instruction.
-  // NOTE: systemParts are consumed later (after this block) — they're accumulated here.
-  if (body.response_format) {
-    const fmt = body.response_format;
-    if (fmt.type === "json_schema" && fmt.json_schema?.schema) {
-      const schemaJson = JSON.stringify(fmt.json_schema.schema, null, 2);
-      systemParts.push(
-        `You must respond with valid JSON that strictly follows this JSON schema:\n\`\`\`json\n${schemaJson}\n\`\`\`\nRespond ONLY with the JSON object, no other text.`
-      );
-    } else if (fmt.type === "json_object") {
-      systemParts.push(
-        "You must respond with valid JSON. Respond ONLY with a JSON object, no other text."
-      );
-    }
   }
 
   // Thinking configuration

@@ -147,6 +147,51 @@ export function getCompletionTokenDetailsOrNull(tokens: unknown): JsonRecord | n
   return null;
 }
 
+/**
+ * Canonical, cost-safe breakdown of a raw usage/token record.
+ *
+ * Raw token objects flowing through this codebase use CONFLICTING conventions
+ * depending on their origin: OpenAI's `prompt_tokens` (and the OpenAI Responses
+ * API's `input_tokens`) are cache-INCLUSIVE, while Anthropic's native
+ * `input_tokens` is cache-EXCLUSIVE (cache_read/cache_creation are additive, not
+ * subsets). Reading raw fields directly and assuming a single convention for all
+ * of them caused a real cost-undercharge regression (billing 0 non-cached input
+ * tokens for exclusive-shaped Claude usage). This type exists so pricing math can
+ * only ever consume an ALREADY-DISAMBIGUATED shape — never raw
+ * prompt_tokens/input_tokens/input fields directly.
+ *
+ * Always construct this via normalizeTokensForCost(); never build it by hand.
+ */
+export interface NormalizedCostTokens {
+  readonly nonCachedInputTokens: number;
+  readonly cacheReadTokens: number;
+  readonly cacheCreationTokens: number;
+  readonly outputTokens: number;
+  readonly reasoningTokens: number;
+}
+
+/**
+ * Resolve a raw, possibly-ambiguous usage record into the canonical shape
+ * required for pricing math. This is the ONLY sanctioned way to derive billable
+ * input tokens for cost purposes — it reuses the same field-priority rules
+ * already proven correct for DB/dashboard accounting (getLoggedInputTokens), so
+ * the cost path and the logging path can never again disagree about what a raw
+ * usage object means.
+ */
+export function normalizeTokensForCost(tokens: unknown): NormalizedCostTokens {
+  const totalInputTokens = getLoggedInputTokens(tokens);
+  const cacheReadTokens = getPromptCacheReadTokens(tokens);
+  const cacheCreationTokens = getPromptCacheCreationTokens(tokens);
+
+  return {
+    nonCachedInputTokens: Math.max(0, totalInputTokens - cacheReadTokens - cacheCreationTokens),
+    cacheReadTokens,
+    cacheCreationTokens,
+    outputTokens: getLoggedOutputTokens(tokens),
+    reasoningTokens: getReasoningTokens(tokens),
+  };
+}
+
 export function formatUsageLog(tokens: unknown): string {
   const input = getLoggedInputTokens(tokens);
   const output = getLoggedOutputTokens(tokens);

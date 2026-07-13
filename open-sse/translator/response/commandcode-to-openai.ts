@@ -72,6 +72,35 @@ function makeChunk(
   };
 }
 
+/**
+ * Normalize CommandCode's AI-SDK-v5-shaped usage (camelCase inputTokens/
+ * outputTokens/totalTokens) to the snake_case shape the shared cost-tracking
+ * utilities expect (hasValidUsage/extractUsage in ../../utils/usageTracking.ts
+ * only recognize prompt_tokens/completion_tokens/input_tokens/output_tokens).
+ * Storing the raw camelCase object in `state.usage` made real reported usage
+ * invisible to those utilities, so a heuristic estimate silently replaced it
+ * downstream (open-sse/utils/stream.ts). Normalize once, here, so `state.usage`
+ * is always canonical snake_case — matching how kiro-to-openai.ts already
+ * normalizes its own camelCase usageEvent before assigning to state.usage.
+ * Emits both the OpenAI-shape (prompt_tokens/completion_tokens, what this
+ * translator's target format uses) and the input_tokens/output_tokens alias,
+ * mirroring claude-to-openai.ts's state.usage (message_start handler) which
+ * stores both conventions side by side for callers that expect either.
+ */
+function normalizeCommandCodeUsage(usage: JsonRecord | undefined | null): JsonRecord | null {
+  if (!usage || typeof usage !== "object") return null;
+  const inputTokens = Number(usage.inputTokens ?? usage.input_tokens ?? 0);
+  const outputTokens = Number(usage.outputTokens ?? usage.output_tokens ?? 0);
+  const totalTokens = Number(usage.totalTokens ?? usage.total_tokens ?? inputTokens + outputTokens);
+  return {
+    prompt_tokens: inputTokens,
+    completion_tokens: outputTokens,
+    total_tokens: totalTokens,
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+  };
+}
+
 function mapFinishReason(reason?: string): string {
   switch (reason) {
     case "stop":
@@ -213,22 +242,18 @@ export function convertCommandCodeToOpenAI(
     }
     case "finish-step": {
       state.finishReason = mapFinishReason(event.finishReason as string | undefined);
-      if (event.usage) state.usage = event.usage as JsonRecord;
+      const normalized = normalizeCommandCodeUsage(event.usage as JsonRecord | undefined);
+      if (normalized) state.usage = normalized;
       break;
     }
     case "finish": {
       const finishReason =
         state.finishReason || mapFinishReason((event.finishReason || "stop") as string);
       const finalChunk = makeChunk(state, {}, finishReason);
-      const totalUsage = (event.totalUsage || state.usage) as JsonRecord | null;
+      const totalUsage =
+        normalizeCommandCodeUsage(event.totalUsage as JsonRecord | undefined) || state.usage;
       if (totalUsage) {
-        finalChunk.usage = {
-          prompt_tokens: (totalUsage.inputTokens ?? 0) as number,
-          completion_tokens: (totalUsage.outputTokens ?? 0) as number,
-          total_tokens: (totalUsage.totalTokens ??
-            ((totalUsage.inputTokens ?? 0) as number) +
-              ((totalUsage.outputTokens ?? 0) as number)) as number,
-        };
+        finalChunk.usage = totalUsage;
       }
       out.push(finalChunk);
       break;

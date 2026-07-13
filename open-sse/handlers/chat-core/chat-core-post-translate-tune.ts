@@ -53,19 +53,29 @@ export function extractToolNameMapAndTuneTranslatedBody({
     }
   }
 
-  // Downgrade xhigh reasoning_effort for providers that only support up to high.
+  // Downgrade xhigh/max reasoning_effort for providers that only support up to high.
   // Providers that natively support xhigh (claude, anthropic-compatible) are excluded.
+  // "max" is never in OpenAI's reasoning_effort enum for any provider — clamp it to
+  // xhigh first, then let the existing xhigh downgrade decide if it needs to go
+  // further to high. Without this, "max" reaches OpenAI-format providers verbatim
+  // and they return HTTP 400 "max effort not support".
   if (typeof translatedBody.reasoning_effort === "string") {
     if (NO_REASONING_EFFORT_PROVIDERS.has(provider)) {
       delete translatedBody.reasoning_effort;
       log?.debug?.("PARAMS", `Stripped reasoning_effort for ${provider} (not supported)`);
-    } else if (
-      translatedBody.reasoning_effort === "xhigh" &&
-      !XHIGH_SUPPORTED_PROVIDERS.has(provider) &&
-      !provider.startsWith("anthropic-compatible-")
-    ) {
-      translatedBody.reasoning_effort = "high";
-      log?.debug?.("PARAMS", `Downgraded reasoning_effort xhigh→high for ${provider}`);
+    } else {
+      if (translatedBody.reasoning_effort === "max") {
+        translatedBody.reasoning_effort = "xhigh";
+        log?.debug?.("PARAMS", `Downgraded reasoning_effort max→xhigh for ${provider}`);
+      }
+      if (
+        translatedBody.reasoning_effort === "xhigh" &&
+        !XHIGH_SUPPORTED_PROVIDERS.has(provider) &&
+        !provider.startsWith("anthropic-compatible-")
+      ) {
+        translatedBody.reasoning_effort = "high";
+        log?.debug?.("PARAMS", `Downgraded reasoning_effort xhigh→high for ${provider}`);
+      }
     }
   }
 

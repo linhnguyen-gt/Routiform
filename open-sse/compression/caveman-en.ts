@@ -25,7 +25,10 @@ const RULES: Rule[] = [
 ];
 
 const MIN_LEN = 40;
-const TARGET_ROLES = new Set(["user", "assistant", "system"]);
+// "system" deliberately excluded: regex filler-stripping on a system prompt
+// (e.g. dropping "please"/"kindly", "going to" -> "gonna") risks mangling
+// instruction wording. Only user/assistant chat turns are compressed.
+const TARGET_ROLES = new Set(["user", "assistant"]);
 
 function compressPlainText(text: string): string {
   let out = text;

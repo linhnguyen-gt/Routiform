@@ -2296,7 +2296,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Prefer accounts with the most free capacity.",
     "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)"
+    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Tömörségi utasítást ad a rendszerüzenethez, hogy a modell kevesebb kimeneti tokennel válaszoljon. A kimeneti tokenek 3-5-ször többe kerülnek, mint a bemeneti tokenek. Alapértelmezés szerint kikapcsolva.",
+    "cavemanOutputOff": "Ki",
+    "cavemanOutputOffDesc": "Nincs beszúrt utasítás. A modell normálisan válaszol.",
+    "cavemanOutputLite": "Enyhe",
+    "cavemanOutputLiteDesc": "Eltávolítja a töltelékszavakat, a bizonytalanságot és az udvariassági fordulatokat. A teljes mondatok megmaradnak.",
+    "cavemanOutputFull": "Teljes",
+    "cavemanOutputFullDesc": "Maximális tömörség. Töredékek, elhagyott névelők. A technikai tartalom pontos marad."
   },
   "translator": {
     "title": "Fordító",

@@ -3,12 +3,31 @@
 // Based on user-provided pricing for Antigravity models and industry standards for others
 
 // Shared pricing constants to reduce duplication
+// Verified 2026-07-12 against https://developers.openai.com/api/docs/pricing (input 1.75 / output 14.00 / cached 0.175)
 const GPT_5_3_CODEX_PRICING = {
-  input: 5.0,
-  output: 20.0,
-  cached: 2.5,
-  reasoning: 30.0,
-  cache_creation: 5.0,
+  input: 1.75,
+  output: 14.0,
+  cached: 0.175,
+  reasoning: 21.0,
+  cache_creation: 1.75,
+};
+
+// Verified 2026-07-12 against https://developers.openai.com/api/docs/pricing (input 2.50 / output 15.00 / cached 0.25)
+const GPT_5_4_PRICING = {
+  input: 2.5,
+  output: 15.0,
+  cached: 0.25,
+  reasoning: 22.5,
+  cache_creation: 2.5,
+};
+
+// Verified 2026-07-12 against https://developers.openai.com/api/docs/pricing (input 0.75 / output 4.50 / cached 0.075)
+const GPT_5_4_MINI_PRICING = {
+  input: 0.75,
+  output: 4.5,
+  cached: 0.075,
+  reasoning: 6.75,
+  cache_creation: 0.75,
 };
 
 const CLAUDE_OPUS_4_PRICING = {
@@ -41,6 +60,16 @@ const CLAUDE_SONNET_46_PRICING = {
   cached: 1.5,
   reasoning: 22.5,
   cache_creation: 3.0,
+};
+
+// Verified 2026-07-12 against https://platform.claude.com/docs/en/about-claude/pricing
+// (base input $10, output $50, cache read $1, 5m cache write $12.50)
+const CLAUDE_FABLE_5_PRICING = {
+  input: 10.0,
+  output: 50.0,
+  cached: 1.0,
+  reasoning: 75.0,
+  cache_creation: 12.5,
 };
 
 export const DEFAULT_PRICING = {
@@ -99,40 +128,58 @@ export const DEFAULT_PRICING = {
       reasoning: 2.5,
       cache_creation: 0.5,
     },
+    "claude-fable-5": {
+      ...CLAUDE_FABLE_5_PRICING,
+    },
   },
 
   // OpenAI Codex (cx)
   cx: {
+    // GPT 5.6 — only luna/terra/sol are documented at developers.openai.com/api/docs/pricing.
+    // A bare "gpt-5.6" (no tier suffix) was previously invented by guessing at the
+    // "terra" tier's price; guessed prices are worse than no entry, so it was removed.
+    "gpt-5.6-luna": {
+      input: 1.0,
+      output: 6.0,
+      cached: 0.1,
+      reasoning: 9.0,
+      cache_creation: 1.0,
+    },
+    "gpt-5.6-terra": {
+      input: 2.5,
+      output: 15.0,
+      cached: 0.25,
+      reasoning: 22.5,
+      cache_creation: 2.5,
+    },
+    "gpt-5.6-sol": {
+      input: 5.0,
+      output: 30.0,
+      cached: 0.5,
+      reasoning: 45.0,
+      cache_creation: 5.0,
+    },
+    // Verified 2026-07-12: https://developers.openai.com/api/docs/models/gpt-5.5
+    // and https://developers.openai.com/api/docs/pricing (input 5.00 / output 30.00 / cached 0.50)
+    "gpt-5.5": {
+      input: 5.0,
+      output: 30.0,
+      cached: 0.5,
+      reasoning: 45.0,
+      cache_creation: 5.0,
+    },
+    // gpt-5.3-codex-spark: intentionally NOT priced. Per
+    // https://learn.chatgpt.com/docs/pricing and
+    // https://developers.openai.com/api/docs/pricing it is a ChatGPT Pro
+    // research-preview model only and is "not available in the API at
+    // launch" — no official per-token rate is published. Do not guess a
+    // price for it; leave it unpriced until OpenAI publishes API pricing.
     // GPT 5.4
-    "gpt-5.4": {
-      input: 5.0,
-      output: 20.0,
-      cached: 2.5,
-      reasoning: 30.0,
-      cache_creation: 5.0,
-    },
-    "gpt5.4": {
-      input: 5.0,
-      output: 20.0,
-      cached: 2.5,
-      reasoning: 30.0,
-      cache_creation: 5.0,
-    },
+    "gpt-5.4": GPT_5_4_PRICING,
+    "gpt5.4": GPT_5_4_PRICING,
     // T12: fallback pricing for gpt-5.4 mini variants
-    "gpt-5.4-mini": {
-      input: 1.5,
-      output: 6.0,
-      cached: 0.75,
-      reasoning: 9.0,
-      cache_creation: 1.5,
-    },
-    "gpt5.4-mini": {
-      input: 1.5,
-      output: 6.0,
-      cached: 0.75,
-      reasoning: 9.0,
-      cache_creation: 1.5,
-    },
+    "gpt-5.4-mini": GPT_5_4_MINI_PRICING,
+    "gpt5.4-mini": GPT_5_4_MINI_PRICING,
     // GPT 5.3 Codex family (all same pricing tier)
     "gpt-5.3-codex": GPT_5_3_CODEX_PRICING,
     "gpt-5.3-codex-xhigh": GPT_5_3_CODEX_PRICING,
@@ -146,20 +193,22 @@ export const DEFAULT_PRICING = {
       reasoning: 9.0,
       cache_creation: 1.5,
     },
+    // Verified 2026-07-12: https://developers.openai.com/api/docs/pricing / https://devtk.ai/en/models/gpt-5-2-codex/ (input 1.75 / output 14.00 / cached 0.175)
     "gpt-5.2-codex": {
-      input: 5.0,
-      output: 20.0,
-      cached: 2.5,
-      reasoning: 30.0,
-      cache_creation: 5.0,
+      input: 1.75,
+      output: 14.0,
+      cached: 0.175,
+      reasoning: 21.0,
+      cache_creation: 1.75,
     },
 
+    // Verified 2026-07-12 (input 1.75 / output 14.00 / cached 0.175, 90% cache discount)
     "gpt-5.2": {
-      input: 5.0,
-      output: 20.0,
-      cached: 2.5,
-      reasoning: 30.0,
-      cache_creation: 5.0,
+      input: 1.75,
+      output: 14.0,
+      cached: 0.175,
+      reasoning: 21.0,
+      cache_creation: 1.75,
     },
     "gpt-5.1-codex-max": {
       input: 8.0,
@@ -168,12 +217,13 @@ export const DEFAULT_PRICING = {
       reasoning: 48.0,
       cache_creation: 8.0,
     },
+    // Verified 2026-07-12 (input 1.25 / output 10.00, 90% cache discount)
     "gpt-5.1-codex": {
-      input: 4.0,
-      output: 16.0,
-      cached: 2.0,
-      reasoning: 24.0,
-      cache_creation: 4.0,
+      input: 1.25,
+      output: 10.0,
+      cached: 0.125,
+      reasoning: 15.0,
+      cache_creation: 1.25,
     },
     "gpt-5.1-codex-mini": {
       input: 1.5,
@@ -182,19 +232,29 @@ export const DEFAULT_PRICING = {
       reasoning: 9.0,
       cache_creation: 1.5,
     },
+    // Verified 2026-07-12 (input 1.25 / output 10.00, 90% cache discount)
     "gpt-5.1": {
-      input: 4.0,
-      output: 16.0,
-      cached: 2.0,
-      reasoning: 24.0,
-      cache_creation: 4.0,
+      input: 1.25,
+      output: 10.0,
+      cached: 0.125,
+      reasoning: 15.0,
+      cache_creation: 1.25,
     },
+    // Verified 2026-07-12 (input 1.25 / output 10.00, 90% cache discount)
+    "gpt-5": {
+      input: 1.25,
+      output: 10.0,
+      cached: 0.125,
+      reasoning: 15.0,
+      cache_creation: 1.25,
+    },
+    // Verified 2026-07-12 (input 1.25 / output 10.00, same tier as gpt-5)
     "gpt-5-codex": {
-      input: 3.0,
-      output: 12.0,
-      cached: 1.5,
-      reasoning: 18.0,
-      cache_creation: 3.0,
+      input: 1.25,
+      output: 10.0,
+      cached: 0.125,
+      reasoning: 15.0,
+      cache_creation: 1.25,
     },
     "gpt-5-codex-mini": {
       input: 1.0,
@@ -202,6 +262,14 @@ export const DEFAULT_PRICING = {
       cached: 0.5,
       reasoning: 6.0,
       cache_creation: 1.0,
+    },
+    // Verified 2026-07-12 (input 0.25 / output 2.00, 90% cache discount)
+    "gpt-5-mini": {
+      input: 0.25,
+      output: 2.0,
+      cached: 0.025,
+      reasoning: 3.0,
+      cache_creation: 0.25,
     },
   },
 
@@ -658,6 +726,7 @@ export const DEFAULT_PRICING = {
     "claude-sonnet-4-5-20250929": CLAUDE_SONNET_4_PRICING,
     "claude-sonnet-4": CLAUDE_SONNET_4_PRICING,
     "claude-opus-4": CLAUDE_OPUS_4_PRICING,
+    "claude-fable-5": CLAUDE_FABLE_5_PRICING,
   },
 
   // Gemini
@@ -1328,14 +1397,6 @@ export const DEFAULT_PRICING = {
 };
 
 type ProviderPricingTable = Record<string, Record<string, unknown>>;
-type PricingRow = {
-  input: number;
-  output: number;
-  cached?: number;
-  reasoning?: number;
-  cache_creation?: number;
-};
-type TokenUsage = Record<string, number | undefined>;
 
 /**
  * Get pricing for a specific provider and model
@@ -1375,50 +1436,11 @@ export function formatCost(cost: number | null | undefined): string {
   return `$${cost.toFixed(2)}`;
 }
 
-/**
- * Calculate cost from tokens and pricing
- * @param {object} tokens - Token counts
- * @param {object} pricing - Pricing object
- * @returns {number} Cost in dollars
- */
-export function calculateCostFromTokens(
-  tokens: TokenUsage | null | undefined,
-  pricing: PricingRow | null | undefined
-): number {
-  if (!tokens || !pricing) return 0;
-
-  let cost = 0;
-
-  // Input tokens (non-cached)
-  const inputTokens = tokens.prompt_tokens || tokens.input_tokens || 0;
-  const cachedTokens = tokens.cached_tokens || tokens.cache_read_input_tokens || 0;
-  const nonCachedInput = Math.max(0, inputTokens - cachedTokens);
-
-  cost += nonCachedInput * (pricing.input / 1000000);
-
-  // Cached tokens
-  if (cachedTokens > 0) {
-    const cachedRate = pricing.cached || pricing.input; // Fallback to input rate
-    cost += cachedTokens * (cachedRate / 1000000);
-  }
-
-  // Output tokens
-  const outputTokens = tokens.completion_tokens || tokens.output_tokens || 0;
-  cost += outputTokens * (pricing.output / 1000000);
-
-  // Reasoning tokens
-  const reasoningTokens = tokens.reasoning_tokens || 0;
-  if (reasoningTokens > 0) {
-    const reasoningRate = pricing.reasoning || pricing.output; // Fallback to output rate
-    cost += reasoningTokens * (reasoningRate / 1000000);
-  }
-
-  // Cache creation tokens
-  const cacheCreationTokens = tokens.cache_creation_input_tokens || 0;
-  if (cacheCreationTokens > 0) {
-    const cacheCreationRate = pricing.cache_creation || pricing.input; // Fallback to input rate
-    cost += cacheCreationTokens * (cacheCreationRate / 1000000);
-  }
-
-  return cost;
-}
+// Note: a `calculateCostFromTokens` helper previously lived here as a second,
+// independent reimplementation of the pricing math in
+// src/lib/usage/costCalculator.ts#computeCostFromPricing. It had zero production
+// callers (only a test referenced it) and carried the same cache-inclusive/
+// exclusive ambiguity bug as that file's C1 regression. Removed rather than
+// fixed twice — computeCostFromPricing (via
+// tokenAccounting.normalizeTokensForCost) is the single source of truth for
+// cost math; import it instead of adding a new local reimplementation here.

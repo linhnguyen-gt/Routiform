@@ -2297,7 +2297,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Предпочитает аккаунты с наибольшим свободным запасом.",
     "lkgp": "Режим LKGP",
-    "lkgpDesc": "Last Known Good Provider (предсказуемая устойчивость)"
+    "lkgpDesc": "Last Known Good Provider (предсказуемая устойчивость)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Добавляет директиву краткости в системный промпт, чтобы модель отвечала меньшим количеством выходных токенов. Выходные токены стоят в 3-5 раз дороже входных. По умолчанию отключено.",
+    "cavemanOutputOff": "Выключено",
+    "cavemanOutputOffDesc": "Директива не добавлена. Модель отвечает как обычно.",
+    "cavemanOutputLite": "Лайт",
+    "cavemanOutputLiteDesc": "Убирает слова-паразиты, колебания и любезности. Полные предложения сохраняются.",
+    "cavemanOutputFull": "Полный",
+    "cavemanOutputFullDesc": "Максимальная краткость. Фрагменты, опущенные артикли. Техническое содержание остаётся точным."
   },
   "translator": {
     "title": "Переводчик",

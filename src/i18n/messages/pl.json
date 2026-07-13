@@ -2296,7 +2296,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Prefer accounts with the most free capacity.",
     "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)"
+    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Dodaje do promptu systemowego dyrektywę zwięzłości, dzięki czemu model odpowiada mniejszą liczbą tokenów wyjściowych. Tokeny wyjściowe kosztują 3-5x więcej niż wejściowe. Domyślnie wyłączone.",
+    "cavemanOutputOff": "Wyłączone",
+    "cavemanOutputOffDesc": "Nie wstawiono żadnej dyrektywy. Model odpowiada normalnie.",
+    "cavemanOutputLite": "Lekkie",
+    "cavemanOutputLiteDesc": "Usuwa wypełniacze, wahania i uprzejmości. Pełne zdania są zachowane.",
+    "cavemanOutputFull": "Pełne",
+    "cavemanOutputFullDesc": "Maksymalna zwięzłość. Fragmenty, pominięte przedimki. Treść techniczna pozostaje dokładna."
   },
   "translator": {
     "title": "Tłumacz",

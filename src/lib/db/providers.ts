@@ -106,7 +106,21 @@ export async function createProviderConnection(data: JsonRecord) {
       // For Codex with workspaceId, don't fall back to email-only check
       // This allows creating new connections for different workspaces
     } else {
-      // For other providers (or Codex without workspaceId), use email check
+      // For other providers (or Codex without workspaceId), use email check.
+      //
+      // KNOWN ISSUE (not fixed): two OAuth logins for the same provider +
+      // email but from different IdPs (e.g. SSO vs. direct login) will
+      // clobber each other's token pair here, because dedup only keys on
+      // provider + email. A previous attempt "fixed" this by additionally
+      // matching `providerSpecificData.username`, but nothing in the OAuth
+      // import/exchange routes (src/app/api/oauth/**) ever populates that
+      // field — grep confirms qoder.ts maps `username` into `name` and
+      // kiro.ts maps `preferred_username` into `email`, not into
+      // providerSpecificData.username. That made the extra WHERE clause
+      // permanently inert (`incomingUsername` was always null), so it was
+      // reverted here rather than shipped as a fix that doesn't fix anything.
+      // A real fix requires populating providerSpecificData.username from an
+      // OAuth route, which is outside this module's ownership.
       existing =
         (db
           .prepare(

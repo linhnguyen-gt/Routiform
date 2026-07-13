@@ -1,3 +1,4 @@
+import { getRegistryEntry } from "../config/providerRegistry.ts";
 import { normalizeThinkingConfig } from "../services/provider.ts";
 import { lookupReasoning, requiresReasoningReplay } from "../services/reasoningCache.ts";
 import { normalizeRoles } from "../services/roleNormalizer.ts";
@@ -137,13 +138,15 @@ export function translateRequest(
         if (toOpenAI) {
           result = toOpenAI(model, result, stream, credentials);
 
-          // Strip system messages early when targeting Kiro — they are irrelevant
-          // and waste tokens (Kiro uses its own internal system instructions).
-          if (targetFormat === FORMATS.KIRO && Array.isArray(result.messages)) {
-            result.messages = result.messages.filter(
-              (msg: Record<string, unknown>) => msg.role !== "system"
-            );
-          }
+          // NOTE: system messages are intentionally NOT stripped here when targeting Kiro.
+          // buildKiroPayload() (openai-to-kiro.ts) consumes role:"system" messages from this
+          // intermediate OpenAI-shaped body and prepends them as a single <instructions> block
+          // on the current message content — Kiro has no dedicated system field. Stripping them
+          // here (as a prior revision did, based on the now-disproven belief that "Kiro uses its
+          // own internal system instructions") silently dropped the system prompt for every
+          // hub-and-spoke source format, including claude -> openai -> kiro (Claude Code, the
+          // primary Kiro client). See openai-to-kiro.ts convertMessages()/buildKiroPayload() for
+          // where the system text is now consumed exactly once.
 
           // Log OpenAI intermediate format
           reqLogger?.logOpenAIRequest?.(result);
@@ -163,7 +166,12 @@ export function translateRequest(
   // Always normalize to clean OpenAI format when target is OpenAI
   // This handles hybrid requests (e.g., OpenAI messages + Claude tools)
   if (targetFormat === FORMATS.OPENAI) {
-    result = filterToOpenAIFormat(result);
+    // `quirks.preserveCacheControl` is an opt-in registry flag (e.g. alicode/
+    // alicode-intl for DashScope prompt caching). Absent by default, meaning
+    // cache_control is stripped exactly as before for every other provider.
+    const registryEntry = provider ? getRegistryEntry(String(provider)) : null;
+    const preserveCacheControl = registryEntry?.quirks?.preserveCacheControl === true;
+    result = filterToOpenAIFormat(result, { preserveCacheControl });
   }
 
   // Final step: prepare request for Claude format endpoints

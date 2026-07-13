@@ -56,6 +56,44 @@ export function claudeToOpenAIResponse(chunk, state) {
       state.messageId = chunk.message?.id || `msg_${Date.now()}`;
       state.model = chunk.message?.model;
       state.toolCallIndex = 0;
+
+      // Anthropic reports input_tokens + cache_read + cache_creation here; message_delta
+      // only carries output_tokens later, so capture it now and merge on message_delta.
+      const startUsage = chunk.message?.usage;
+      if (startUsage && typeof startUsage === "object") {
+        const inputTokens =
+          typeof startUsage.input_tokens === "number" ? startUsage.input_tokens : 0;
+        const outputTokens =
+          typeof startUsage.output_tokens === "number" ? startUsage.output_tokens : 0;
+        const cacheReadTokens =
+          typeof startUsage.cache_read_input_tokens === "number"
+            ? startUsage.cache_read_input_tokens
+            : 0;
+        const cacheCreationTokens =
+          typeof startUsage.cache_creation_input_tokens === "number"
+            ? startUsage.cache_creation_input_tokens
+            : 0;
+
+        // prompt_tokens must be cache-INCLUSIVE (input + cache_read + cache_creation)
+        // to match the OpenAI `prompt_tokens` convention used everywhere downstream
+        // (cost accounting, dashboards, tokenAccounting.getLoggedInputTokens). Anthropic's
+        // input_tokens is cache-EXCLUSIVE; storing it as-is under prompt_tokens caused a
+        // real cost-undercharge regression. input_tokens/output_tokens keep Anthropic's
+        // raw, cache-exclusive values for callers that need the native breakdown.
+        state.usage = {
+          prompt_tokens: inputTokens + cacheReadTokens + cacheCreationTokens,
+          completion_tokens: outputTokens,
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+        };
+        if (cacheReadTokens > 0) {
+          state.usage.cache_read_input_tokens = cacheReadTokens;
+        }
+        if (cacheCreationTokens > 0) {
+          state.usage.cache_creation_input_tokens = cacheCreationTokens;
+        }
+      }
+
       results.push(createChunk(state, { role: "assistant" }));
       break;
     }
@@ -141,24 +179,31 @@ export function claudeToOpenAIResponse(chunk, state) {
 
     case "message_delta": {
       // Extract usage from message_delta event (Claude native format)
-      // Normalize to OpenAI format (prompt_tokens/completion_tokens) for consistent logging
+      // Normalize to OpenAI format (prompt_tokens/completion_tokens) for consistent logging.
+      // Anthropic only sends output_tokens here; fall back to the input/cache values
+      // already captured from message_start instead of overwriting them with zero.
       if (chunk.usage && typeof chunk.usage === "object") {
+        const prevUsage = state.usage && typeof state.usage === "object" ? state.usage : {};
         const inputTokens =
-          typeof chunk.usage.input_tokens === "number" ? chunk.usage.input_tokens : 0;
+          typeof chunk.usage.input_tokens === "number"
+            ? chunk.usage.input_tokens
+            : prevUsage.input_tokens || 0;
         const outputTokens =
           typeof chunk.usage.output_tokens === "number" ? chunk.usage.output_tokens : 0;
         const cacheReadTokens =
           typeof chunk.usage.cache_read_input_tokens === "number"
             ? chunk.usage.cache_read_input_tokens
-            : 0;
+            : prevUsage.cache_read_input_tokens || 0;
         const cacheCreationTokens =
           typeof chunk.usage.cache_creation_input_tokens === "number"
             ? chunk.usage.cache_creation_input_tokens
-            : 0;
+            : prevUsage.cache_creation_input_tokens || 0;
 
-        // Use OpenAI format keys for consistent logging in stream.js
+        // Use OpenAI format keys for consistent logging in stream.js. prompt_tokens
+        // stays cache-INCLUSIVE (see message_start above) — never store Anthropic's
+        // raw exclusive input_tokens under the prompt_tokens key.
         state.usage = {
-          prompt_tokens: inputTokens,
+          prompt_tokens: inputTokens + cacheReadTokens + cacheCreationTokens,
           completion_tokens: outputTokens,
           input_tokens: inputTokens,
           output_tokens: outputTokens,
@@ -246,9 +291,12 @@ export function claudeToOpenAIResponse(chunk, state) {
           state.usage && typeof state.usage === "object"
             ? {
                 usage: {
-                  prompt_tokens: state.usage.input_tokens || 0,
-                  completion_tokens: state.usage.output_tokens || 0,
-                  total_tokens: (state.usage.input_tokens || 0) + (state.usage.output_tokens || 0),
+                  // state.usage.prompt_tokens is already cache-inclusive; reuse it
+                  // instead of re-deriving from the raw (cache-exclusive) input_tokens.
+                  prompt_tokens: state.usage.prompt_tokens || 0,
+                  completion_tokens: state.usage.completion_tokens || 0,
+                  total_tokens:
+                    (state.usage.prompt_tokens || 0) + (state.usage.completion_tokens || 0),
                 },
               }
             : {};

@@ -2296,7 +2296,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Prefer accounts with the most free capacity.",
     "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)"
+    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "מוסיף הנחיית תמציתיות להנחיית המערכת כך שהמודל יגיב בפחות טוקני פלט. טוקני פלט עולים פי 3-5 יותר מטוקני קלט. כבוי כברירת מחדל.",
+    "cavemanOutputOff": "כבוי",
+    "cavemanOutputOffDesc": "לא הוזרקה הנחיה. המודל מגיב כרגיל.",
+    "cavemanOutputLite": "קליל",
+    "cavemanOutputLiteDesc": "מסיר מילוי, היסוסים ונימוסים. משפטים מלאים נשמרים.",
+    "cavemanOutputFull": "מלא",
+    "cavemanOutputFullDesc": "תמציתיות מרבית. קטעים, השמטת מילות יידוע. התוכן הטכני נשאר מדויק."
   },
   "translator": {
     "title": "מתרגם",

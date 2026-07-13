@@ -30,7 +30,118 @@ type KiroStreamState = {
   hasContextUsage?: boolean;
   hasMeteringEvent?: boolean;
   usage?: UsageSummary;
+  /** Carry buffer for stripThinkingTags — a <thinking>/</thinking>/``` marker can straddle events. */
+  thinkingBuffer: string;
+  /** True while inside an unterminated <thinking>...</thinking> span. */
+  thinkingInTag: boolean;
+  /** True while inside a fenced code block (```...```) — <thinking> markers here are literal text. */
+  inCodeFence: boolean;
 };
+
+const THINKING_OPEN = "<thinking>";
+const THINKING_CLOSE = "</thinking>";
+const CODE_FENCE = "```";
+
+/**
+ * Length of the longest suffix of `text` that is also a prefix of `tag` — used to detect
+ * a tag opening/closing marker split across two assistantResponseEvent frames, so we don't
+ * emit a partial "<thi" fragment as visible content.
+ */
+function partialTagOverlapLength(text: string, tag: string): number {
+  const max = Math.min(text.length, tag.length - 1);
+  for (let len = max; len > 0; len--) {
+    if (text.endsWith(tag.slice(0, len))) return len;
+  }
+  return 0;
+}
+
+/** Longest tail overlap of `text` against any candidate marker — the amount that must be
+ * held back because a future chunk could complete it into a real marker. */
+function maxPartialOverlap(text: string, tags: string[]): number {
+  let max = 0;
+  for (const tag of tags) {
+    const overlap = partialTagOverlapLength(text, tag);
+    if (overlap > max) max = overlap;
+  }
+  return max;
+}
+
+/**
+ * Strip literal <thinking>...</thinking> spans from assistantResponseEvent content before
+ * forwarding to the client. Claude models on Kiro emit these inline, duplicating what
+ * reasoningContentEvent already delivers as reasoning_content. Stateful across calls so a
+ * tag split across two events (chunk boundary) is still stripped correctly.
+ *
+ * A <thinking> marker found inside a fenced code block (```...```) is treated as literal
+ * text, not a real tag — Kiro drives coding agents that legitimately discuss prompt/tag
+ * formats in code fences, and stripping those would corrupt the code sample.
+ *
+ * This function only ever DROPS bytes when they fall between a real (non-fenced)
+ * <thinking> and its matching </thinking>. Every other byte — including one caught
+ * inside an unterminated <thinking> span — is either emitted here or held in
+ * state.thinkingBuffer for the caller to flush at stream end (see flush() below), so a
+ * missing closing tag can never silently truncate the response.
+ */
+function stripThinkingTags(state: KiroStreamState, chunk: string): string {
+  state.thinkingBuffer += chunk;
+  let out = "";
+
+  for (;;) {
+    if (state.thinkingInTag) {
+      const closeIdx = state.thinkingBuffer.indexOf(THINKING_CLOSE);
+      if (closeIdx === -1) {
+        // Still inside the thinking span (or the closing tag hasn't fully arrived yet).
+        // Thinking content is discarded here, but the caller flushes it as plain text
+        // at stream end if no closing tag ever shows up — see flush().
+        return out;
+      }
+      state.thinkingBuffer = state.thinkingBuffer.slice(closeIdx + THINKING_CLOSE.length);
+      state.thinkingInTag = false;
+      continue;
+    }
+
+    if (state.inCodeFence) {
+      const fenceIdx = state.thinkingBuffer.indexOf(CODE_FENCE);
+      if (fenceIdx === -1) {
+        // Inside a fenced code block — pass everything through verbatim; <thinking>
+        // markers here are literal text, not a real tag.
+        const overlap = partialTagOverlapLength(state.thinkingBuffer, CODE_FENCE);
+        out += state.thinkingBuffer.slice(0, state.thinkingBuffer.length - overlap);
+        state.thinkingBuffer = overlap > 0 ? state.thinkingBuffer.slice(-overlap) : "";
+        return out;
+      }
+      out += state.thinkingBuffer.slice(0, fenceIdx + CODE_FENCE.length);
+      state.thinkingBuffer = state.thinkingBuffer.slice(fenceIdx + CODE_FENCE.length);
+      state.inCodeFence = false;
+      continue;
+    }
+
+    // Not in a fence and not in a thinking span — whichever marker (fence open or
+    // thinking open) appears first in the buffer determines what happens next.
+    const fenceIdx = state.thinkingBuffer.indexOf(CODE_FENCE);
+    const openIdx = state.thinkingBuffer.indexOf(THINKING_OPEN);
+
+    if (fenceIdx === -1 && openIdx === -1) {
+      // Neither marker fully present — hold back a possible partial marker at the tail
+      // (e.g. buffer ends with "<thin" or "``") so it doesn't leak into visible output.
+      const overlap = maxPartialOverlap(state.thinkingBuffer, [CODE_FENCE, THINKING_OPEN]);
+      out += state.thinkingBuffer.slice(0, state.thinkingBuffer.length - overlap);
+      state.thinkingBuffer = overlap > 0 ? state.thinkingBuffer.slice(-overlap) : "";
+      return out;
+    }
+
+    if (fenceIdx !== -1 && (openIdx === -1 || fenceIdx < openIdx)) {
+      out += state.thinkingBuffer.slice(0, fenceIdx + CODE_FENCE.length);
+      state.thinkingBuffer = state.thinkingBuffer.slice(fenceIdx + CODE_FENCE.length);
+      state.inCodeFence = true;
+      continue;
+    }
+
+    out += state.thinkingBuffer.slice(0, openIdx);
+    state.thinkingBuffer = state.thinkingBuffer.slice(openIdx + THINKING_OPEN.length);
+    state.thinkingInTag = true;
+  }
+}
 
 type EventFrame = {
   headers: Record<string, string>;
@@ -55,6 +166,11 @@ function crc32(buf: Uint8Array) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
+// AWS region ids only ("us-east-1", "eu-west-1", ...) — guards against building a bogus
+// host from an unexpected providerSpecificData.region value.
+const AWS_REGION_RE = /^[a-z]{2}-[a-z]+-\d$/;
+const KIRO_DEFAULT_REGION = "us-east-1";
+
 /**
  * KiroExecutor - Executor for Kiro AI (AWS CodeWhisperer)
  * Uses AWS CodeWhisperer streaming API with AWS EventStream binary format
@@ -62,6 +178,34 @@ function crc32(buf: Uint8Array) {
 export class KiroExecutor extends BaseExecutor {
   constructor() {
     super("kiro", PROVIDERS.kiro);
+  }
+
+  /**
+   * Build the CodeWhisperer host from the connection's stored region (IdC/SSO accounts can
+   * live outside us-east-1 — using the wrong host returns 403). Falls back to us-east-1 when
+   * no region is persisted or the value doesn't look like an AWS region id.
+   */
+  buildUrl(
+    model: string,
+    stream: boolean,
+    urlIndex = 0,
+    credentials: ProviderCredentials | null = null
+  ): string {
+    void model;
+    void stream;
+    void urlIndex;
+    const storedRegion = credentials?.providerSpecificData?.region;
+    const region =
+      typeof storedRegion === "string" && AWS_REGION_RE.test(storedRegion)
+        ? storedRegion
+        : KIRO_DEFAULT_REGION;
+    const baseUrl =
+      this.config.baseUrl ||
+      `https://codewhisperer.${KIRO_DEFAULT_REGION}.amazonaws.com/generateAssistantResponse`;
+    return baseUrl.replace(
+      /codewhisperer\.[a-z0-9-]+\.amazonaws\.com/,
+      `codewhisperer.${region}.amazonaws.com`
+    );
   }
 
   buildHeaders(credentials: ProviderCredentials, stream = true) {
@@ -95,7 +239,7 @@ export class KiroExecutor extends BaseExecutor {
    * Custom execute for Kiro - handles AWS EventStream binary response
    */
   async execute({ model, body, stream, credentials, signal, upstreamExtraHeaders }: ExecuteInput) {
-    const url = this.buildUrl(model, stream, 0);
+    const url = this.buildUrl(model, stream, 0, credentials);
     const headers = this.buildHeaders(credentials, stream);
     mergeUpstreamExtraHeaders(headers, upstreamExtraHeaders);
     const transformedBody = await this.transformRequest(model, body, stream, credentials);
@@ -133,6 +277,9 @@ export class KiroExecutor extends BaseExecutor {
       hasToolCalls: false,
       toolCallIndex: 0,
       seenToolIds: new Map(),
+      thinkingBuffer: "",
+      thinkingInTag: false,
+      inCodeFence: false,
     };
 
     const transformStream = new TransformStream({
@@ -196,7 +343,13 @@ export class KiroExecutor extends BaseExecutor {
 
           // Handle assistantResponseEvent
           if (eventType === "assistantResponseEvent") {
-            const content = typeof event.payload?.content === "string" ? event.payload.content : "";
+            const rawContent =
+              typeof event.payload?.content === "string" ? event.payload.content : "";
+            if (!rawContent) {
+              continue;
+            }
+            // Strip literal <thinking> tags — duplicated by reasoningContentEvent above.
+            const content = stripThinkingTags(state, rawContent);
             if (!content) {
               continue;
             }
@@ -471,6 +624,39 @@ export class KiroExecutor extends BaseExecutor {
       },
 
       flush(controller) {
+        // Flush any buffered text that stripThinkingTags held back — whether it was a
+        // possible tag/fence continuation that never fully materialized, or content
+        // trapped inside an unterminated <thinking> span (no matching </thinking> ever
+        // arrived, e.g. a model discussing tag formats without closing one, or a real
+        // stream cutoff). Losing real response content is strictly worse than leaking a
+        // stray "<thinking>" marker, so ANY leftover buffer is emitted as plain text
+        // rather than dropped — regardless of state.thinkingInTag.
+        if (state.thinkingBuffer) {
+          const leftover = state.thinkingBuffer;
+          state.thinkingBuffer = "";
+          state.thinkingInTag = false;
+          const leftoverChunk: JsonRecord = {
+            id: responseId,
+            object: "chat.completion.chunk",
+            created,
+            model,
+            choices: [
+              {
+                index: 0,
+                delta:
+                  chunkIndex === 0
+                    ? { role: "assistant", content: leftover }
+                    : { content: leftover },
+                finish_reason: null,
+              },
+            ],
+          };
+          chunkIndex++;
+          controller.enqueue(
+            new TextEncoder().encode(`data: ${JSON.stringify(leftoverChunk)}\n\n`)
+          );
+        }
+
         // Emit finish chunk if not already sent
         if (!state.finishEmitted) {
           state.finishEmitted = true;

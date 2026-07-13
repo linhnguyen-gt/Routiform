@@ -65,7 +65,9 @@ export async function chatCorePhaseNonStreamComplete(p: ChatCorePipeline): Promi
     await p.onRequestSuccess();
   }
 
-  const usage = extractUsageFromResponse(responseBody, p.provider);
+  // Pass targetFormat explicitly: it carries per-model overrides the provider-level
+  // registry lookup cannot see, and it is what the request was actually built against.
+  const usage = extractUsageFromResponse(responseBody, p.provider, p.targetFormat);
   appendRequestLog({
     model: p.model,
     provider: p.provider,

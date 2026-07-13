@@ -2297,7 +2297,15 @@
     "headroom": "Headroom",
     "headroomDesc": "여유 용량이 가장 많은 계정을 우선합니다.",
     "lkgp": "LKGP 모드",
-    "lkgpDesc": "Last Known Good Provider (예측 가능한 복원력)"
+    "lkgpDesc": "Last Known Good Provider (예측 가능한 복원력)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "시스템 프롬프트에 간결성 지시를 추가하여 모델이 더 적은 출력 토큰으로 응답하도록 합니다. 출력 토큰은 입력 토큰보다 3-5배 더 비쌉니다. 기본적으로 꺼짐.",
+    "cavemanOutputOff": "끄기",
+    "cavemanOutputOffDesc": "지시가 삽입되지 않습니다. 모델이 평소대로 응답합니다.",
+    "cavemanOutputLite": "라이트",
+    "cavemanOutputLiteDesc": "군더더기, 망설임, 인사말을 제거합니다. 완전한 문장은 유지됩니다.",
+    "cavemanOutputFull": "풀",
+    "cavemanOutputFullDesc": "최대 간결성. 단편적 표현, 관사 생략. 기술적 내용은 정확하게 유지됩니다."
   },
   "translator": {
     "title": "번역기",

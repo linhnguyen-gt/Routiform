@@ -2296,7 +2296,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Prefer accounts with the most free capacity.",
     "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)"
+    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Lisää järjestelmäkehotteeseen tiiviysohjeen, jotta malli vastaa vähemmällä tulostetokenilla. Tulostetokenit maksavat 3-5 kertaa enemmän kuin syötetokenit. Oletuksena pois päältä.",
+    "cavemanOutputOff": "Pois",
+    "cavemanOutputOffDesc": "Ohjetta ei lisätty. Malli vastaa normaalisti.",
+    "cavemanOutputLite": "Kevyt",
+    "cavemanOutputLiteDesc": "Poistaa täytesanat, epäröinnin ja kohteliaisuudet. Kokonaiset lauseet säilyvät.",
+    "cavemanOutputFull": "Täysi",
+    "cavemanOutputFullDesc": "Maksimaalinen tiiviys. Fragmentteja, artikkelit pois. Tekninen sisältö pysyy täsmällisenä."
   },
   "translator": {
     "title": "Kääntäjä",

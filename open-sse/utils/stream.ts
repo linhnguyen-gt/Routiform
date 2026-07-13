@@ -5,6 +5,7 @@ import {
   extractUsage,
   hasValidUsage,
   estimateUsage,
+  estimateOutputTokens,
   logUsage,
   addBufferToUsage,
   filterUsageForFormat,
@@ -81,7 +82,7 @@ type ToolCall = {
   function: { name: string; arguments: string };
 };
 
-type UsageTokenRecord = Record<string, number | Record<string, number>>;
+type UsageTokenRecord = Record<string, number | boolean | Record<string, number>>;
 
 function getOpenAIIntermediateChunks(value: unknown): unknown[] {
   if (!value || typeof value !== "object") return [];
@@ -139,6 +140,87 @@ function collapseExactDuplicateAssistantText(value: string): string {
     if (!collapsed) break;
   }
   return text;
+}
+
+/**
+ * Non-destructively merge a freshly-extracted usage record into an accumulator.
+ *
+ * `extractUsage()` normalizes each SSE event on its own — a Claude `message_delta`
+ * that only carries `output_tokens` normalizes to `{ prompt_tokens: 0,
+ * completion_tokens: N }`. Assigning that result directly onto the accumulator
+ * (`target = extracted`) wipes out `prompt_tokens`/cache fields captured from an
+ * earlier event (e.g. `message_start`), which zeroes billed prompt tokens for the
+ * rest of the stream — a real 79%+ cost undercharge in translate mode. Only
+ * overwrite a field when the newly extracted value is actually present/positive,
+ * mirroring the passthrough Claude-SSE branch above (proven correct) and the
+ * flush-handler's remaining-buffer merge.
+ */
+function mergeUsageNonDestructive(
+  target: UsageTokenRecord | null | undefined,
+  extracted: UsageTokenRecord | null | undefined
+): UsageTokenRecord | null | undefined {
+  if (!extracted) return target;
+  const eu = extracted as Record<string, number>;
+  if (!target) return { ...eu };
+  const merged: UsageTokenRecord = { ...target };
+  if (typeof eu.prompt_tokens === "number" && eu.prompt_tokens > 0) {
+    merged.prompt_tokens = eu.prompt_tokens;
+  }
+  if (typeof eu.completion_tokens === "number" && eu.completion_tokens > 0) {
+    merged.completion_tokens = eu.completion_tokens;
+  }
+  if (typeof eu.total_tokens === "number" && eu.total_tokens > 0) {
+    merged.total_tokens = eu.total_tokens;
+  }
+  if (typeof eu.cache_read_input_tokens === "number" && eu.cache_read_input_tokens > 0) {
+    merged.cache_read_input_tokens = eu.cache_read_input_tokens;
+  }
+  if (typeof eu.cache_creation_input_tokens === "number" && eu.cache_creation_input_tokens > 0) {
+    merged.cache_creation_input_tokens = eu.cache_creation_input_tokens;
+  }
+  if (typeof eu.cached_tokens === "number" && eu.cached_tokens > 0) {
+    merged.cached_tokens = eu.cached_tokens;
+  }
+  if (typeof eu.reasoning_tokens === "number" && eu.reasoning_tokens > 0) {
+    merged.reasoning_tokens = eu.reasoning_tokens;
+  }
+  // Deep-merge the details objects instead of dropping them: some providers
+  // (e.g. DashScope/Qwen-style) report usage on every chunk but only attach
+  // cache-creation/reasoning breakdown details on the final chunk. A scalar-only
+  // merge above would silently discard prompt_tokens_details/
+  // completion_tokens_details captured on this or an earlier event.
+  const targetUnknown = target as Record<string, unknown>;
+  const extractedUnknown = extracted as Record<string, unknown>;
+  const targetPromptDetails = targetUnknown.prompt_tokens_details as
+    | Record<string, number>
+    | undefined;
+  const euPromptDetails = extractedUnknown.prompt_tokens_details as
+    | Record<string, number>
+    | undefined;
+  if (targetPromptDetails || euPromptDetails) {
+    merged.prompt_tokens_details = { ...targetPromptDetails, ...euPromptDetails } as Record<
+      string,
+      number
+    >;
+  }
+  const targetCompletionDetails = targetUnknown.completion_tokens_details as
+    | Record<string, number>
+    | undefined;
+  const euCompletionDetails = extractedUnknown.completion_tokens_details as
+    | Record<string, number>
+    | undefined;
+  if (targetCompletionDetails || euCompletionDetails) {
+    merged.completion_tokens_details = {
+      ...targetCompletionDetails,
+      ...euCompletionDetails,
+    } as Record<string, number>;
+  }
+  // An `estimated: true` flag on `target` describes a purely heuristic
+  // snapshot. Once ANY real, provider-reported field from `extracted` has
+  // been merged in above, the result is no longer a pure estimate — carrying
+  // the flag forward would mislabel real merged numbers as estimated.
+  delete merged.estimated;
+  return merged;
 }
 
 // Note: TextDecoder/TextEncoder are created per-stream inside createSSEStream()
@@ -345,11 +427,12 @@ export function createSSEStream(options: StreamOptions = {}) {
                     parsed.type === "error");
 
                 if (isResponsesSSE) {
-                  // Responses SSE: only extract usage, forward payload as-is
+                  // Responses SSE: only extract usage, forward payload as-is.
+                  // Non-destructive merge (see mergeUsageNonDestructive): a later
+                  // response.completed/response.done retry event must never zero
+                  // out prompt/cache tokens captured from an earlier one.
                   const extracted = extractUsage(parsed);
-                  if (extracted) {
-                    usage = extracted;
-                  }
+                  usage = mergeUsageNonDestructive(usage, extracted);
                   // Track content length for fallback usage estimates.
                   // Only visible text deltas become assistant content in logs/replay.
                   if (typeof parsed.delta === "string") {
@@ -362,36 +445,12 @@ export function createSSEStream(options: StreamOptions = {}) {
                     passthroughAccumulatedContent += parsed.delta;
                   }
                 } else if (isClaudeSSE) {
-                  // Claude SSE: extract usage, track content, forward as-is
+                  // Claude SSE: extract usage, track content, forward as-is.
+                  // Non-destructive merge (see mergeUsageNonDestructive): message_start
+                  // carries input_tokens, message_delta carries output_tokens only — never
+                  // overwrite a positive value with 0.
                   const extracted = extractUsage(parsed);
-                  if (extracted) {
-                    // Non-destructive merge: never overwrite a positive value with 0
-                    // message_start carries input_tokens, message_delta carries output_tokens;
-                    if (!usage) usage = {};
-                    const u = usage;
-                    const eu = extracted as UsageTokenRecord;
-                    const promptTokens =
-                      typeof eu.prompt_tokens === "number" ? eu.prompt_tokens : undefined;
-                    const completionTokens =
-                      typeof eu.completion_tokens === "number" ? eu.completion_tokens : undefined;
-                    const totalTokens =
-                      typeof eu.total_tokens === "number" ? eu.total_tokens : undefined;
-                    const cacheReadTokens =
-                      typeof eu.cache_read_input_tokens === "number"
-                        ? eu.cache_read_input_tokens
-                        : undefined;
-                    const cacheCreationTokens =
-                      typeof eu.cache_creation_input_tokens === "number"
-                        ? eu.cache_creation_input_tokens
-                        : undefined;
-                    if (promptTokens && promptTokens > 0) u.prompt_tokens = promptTokens;
-                    if (completionTokens && completionTokens > 0) {
-                      u.completion_tokens = completionTokens;
-                    }
-                    if (totalTokens && totalTokens > 0) u.total_tokens = totalTokens;
-                    if (cacheReadTokens) u.cache_read_input_tokens = cacheReadTokens;
-                    if (cacheCreationTokens) u.cache_creation_input_tokens = cacheCreationTokens;
-                  }
+                  usage = mergeUsageNonDestructive(usage, extracted);
                   const restoredToolName = restoreClaudePassthroughToolUseName(parsed, toolNameMap);
                   // Track content length and accumulate from Claude format
                   if (parsed.delta?.text) {
@@ -420,6 +479,20 @@ export function createSSEStream(options: StreamOptions = {}) {
                   parsed = sanitizeStreamingChunk(parsed);
 
                   const idFixed = fixInvalidId(parsed);
+
+                  // Extract + merge usage BEFORE the hasValuableContent guard.
+                  // OpenAI's stream_options.include_usage FINAL frame is exactly
+                  // {"choices":[],"usage":{...}} — no choices[0].delta — so
+                  // hasValuableContent() below returns false for it and would
+                  // `continue` past accounting entirely, silently discarding the
+                  // only frame that carries real usage for these providers. The
+                  // guard must only decide whether to FORWARD the frame to the
+                  // client, never whether to bill it.
+                  // Non-destructive merge (see mergeUsageNonDestructive): a later
+                  // delta carrying partial/zero usage must never zero out prompt/cache
+                  // tokens captured from an earlier delta.
+                  const extractedEarly = extractUsage(parsed);
+                  usage = mergeUsageNonDestructive(usage, extractedEarly);
 
                   if (!hasValuableContent(parsed, FORMATS.OPENAI)) {
                     continue;
@@ -505,10 +578,8 @@ export function createSSEStream(options: StreamOptions = {}) {
                   if (typeof delta?.reasoning_content === "string")
                     passthroughAccumulatedReasoning += delta.reasoning_content;
 
-                  const extracted = extractUsage(parsed);
-                  if (extracted) {
-                    usage = extracted;
-                  }
+                  // Usage for this frame was already extracted + merged above
+                  // (before the hasValuableContent guard) — see comment there.
 
                   const isFinishChunk = parsed.choices?.[0]?.finish_reason;
 
@@ -714,8 +785,14 @@ export function createSSEStream(options: StreamOptions = {}) {
           }
 
           // Extract usage
+          // Non-destructive merge (see mergeUsageNonDestructive): a raw
+          // extractUsage() result for a single event (e.g. Claude message_delta
+          // carrying only output_tokens) must never blow away prompt/cache tokens
+          // already captured in state.usage from an earlier event, or the
+          // translator's internal `prevUsage.input_tokens` fallback (see
+          // translator/response/claude-to-openai.ts) always resolves to 0.
           const extracted = extractUsage(parsed);
-          if (extracted) state.usage = extracted; // Keep original usage for logging
+          state.usage = mergeUsageNonDestructive(state.usage as UsageTokenRecord, extracted);
 
           // Translate: targetFormat -> openai -> sourceFormat
           const translated = translateResponse(targetFormat, sourceFormat, parsed, state);
@@ -743,13 +820,21 @@ export function createSSEStream(options: StreamOptions = {}) {
               if (sourceFormat === FORMATS.OPENAI && !isResponsesEvent) {
                 itemSanitized = sanitizeStreamingChunk(itemSanitized) as Record<string, unknown>;
 
-                // Extract reasoning tags from content if translation generated them
-                const delta = itemSanitized?.choices?.[0]?.delta;
-                if (delta?.content && typeof delta.content === "string") {
-                  const { content, thinking } = extractThinkingFromContent(delta.content);
-                  delta.content = content;
-                  if (thinking && !delta.reasoning_content) {
-                    delta.reasoning_content = thinking;
+                // Extract reasoning tags from content if translation generated them.
+                // Skip for Kiro: KiroExecutor already strips literal <thinking> tags
+                // itself (executors/kiro.ts#stripThinkingTags) with fence-aware, carry-
+                // buffer-correct logic before the chunk ever reaches this pipeline.
+                // Running this generic, fence-unaware regex again on top would double-
+                // strip — and, worse, delete a <thinking> example that Kiro's stripper
+                // deliberately preserved because it's inside a fenced code block.
+                if (provider !== "kiro") {
+                  const delta = itemSanitized?.choices?.[0]?.delta;
+                  if (delta?.content && typeof delta.content === "string") {
+                    const { content, thinking } = extractThinkingFromContent(delta.content);
+                    delta.content = content;
+                    if (thinking && !delta.reasoning_content) {
+                      delta.reasoning_content = thinking;
+                    }
                   }
                 }
               }
@@ -759,13 +844,54 @@ export function createSSEStream(options: StreamOptions = {}) {
                 continue; // Skip this empty chunk
               }
 
-              // Inject estimated usage if finish chunk has no valid usage
+              // Inject estimated usage if finish chunk has no valid usage.
+              // Gate on state.usage (the accumulator mergeUsageNonDestructive maintains
+              // across the whole stream), not itemSanitized.usage: a translator's finish
+              // item may legitimately omit `.usage` on the item itself (relying on the
+              // buffered-state branch below to attach it) even though real usage was
+              // already reported and accumulated in state.usage. Gating on the item's own
+              // field let a blind estimate clobber that real data — an ESTIMATE must never
+              // overwrite a real reported value, only apply when nothing was ever reported.
               const isFinishChunk =
                 itemSanitized.type === "message_delta" || itemSanitized.choices?.[0]?.finish_reason;
+
+              // Per-side completion estimate: hasValidUsage() is an OR across
+              // fields, so a real prompt_tokens/input_tokens value alone suppresses
+              // estimation for BOTH sides below — billing 0 output tokens for a
+              // response that produced real content (e.g. a Claude-compatible
+              // gateway whose message_start reports input tokens but whose
+              // message_delta never reports output tokens). Patch only the
+              // completion side here, in place, before the gate runs, so a
+              // genuinely reported prompt side is never touched or re-estimated.
               if (
                 state.finishReason &&
                 isFinishChunk &&
-                !hasValidUsage(itemSanitized.usage) &&
+                state.usage &&
+                typeof state.usage === "object" &&
+                totalContentLength > 0
+              ) {
+                const su = state.usage as Record<string, number>;
+                const hasCompletionUsage =
+                  (typeof su.completion_tokens === "number" && su.completion_tokens > 0) ||
+                  (typeof su.output_tokens === "number" && su.output_tokens > 0);
+                if (!hasCompletionUsage) {
+                  const estimatedOutput = estimateOutputTokens(totalContentLength);
+                  const patched: UsageTokenRecord = { ...state.usage };
+                  if ("output_tokens" in patched) patched.output_tokens = estimatedOutput;
+                  if ("completion_tokens" in patched || !("output_tokens" in patched)) {
+                    patched.completion_tokens = estimatedOutput;
+                  }
+                  const promptSide = (su.prompt_tokens || su.input_tokens || 0) as number;
+                  patched.total_tokens = promptSide + estimatedOutput;
+                  patched.estimated = true;
+                  state.usage = patched;
+                }
+              }
+
+              if (
+                state.finishReason &&
+                isFinishChunk &&
+                !hasValidUsage(state.usage) &&
                 totalContentLength > 0
               ) {
                 const estimated = estimateUsage(body, totalContentLength, sourceFormat);
@@ -934,27 +1060,12 @@ export function createSSEStream(options: StreamOptions = {}) {
               // Extract usage from remaining buffer — if the usage-bearing event
               // (e.g. response.completed) is the last SSE line, it ends up here
               // in the flush handler where extractUsage was not called.
-              // Non-destructive merge: some providers send usage across multiple
-              // events (e.g. prompt_tokens in message_start, completion_tokens
-              // in message_delta). Direct assignment would lose earlier data.
+              // Non-destructive merge (see mergeUsageNonDestructive): some
+              // providers send usage across multiple events (e.g. prompt_tokens
+              // in message_start, completion_tokens in message_delta). Direct
+              // assignment would lose earlier data.
               const extracted = extractUsage(parsed);
-              if (extracted) {
-                if (!state.usage) {
-                  state.usage = extracted;
-                } else {
-                  const su = state.usage as Record<string, number>;
-                  const eu = extracted as Record<string, number>;
-                  if (eu.prompt_tokens > 0) su.prompt_tokens = eu.prompt_tokens;
-                  if (eu.completion_tokens > 0) su.completion_tokens = eu.completion_tokens;
-                  if (eu.total_tokens > 0) su.total_tokens = eu.total_tokens;
-                  if (eu.cache_read_input_tokens > 0)
-                    su.cache_read_input_tokens = eu.cache_read_input_tokens;
-                  if (eu.cache_creation_input_tokens > 0)
-                    su.cache_creation_input_tokens = eu.cache_creation_input_tokens;
-                  if (eu.cached_tokens > 0) su.cached_tokens = eu.cached_tokens;
-                  if (eu.reasoning_tokens > 0) su.reasoning_tokens = eu.reasoning_tokens;
-                }
-              }
+              state.usage = mergeUsageNonDestructive(state.usage as UsageTokenRecord, extracted);
 
               const translated = translateResponse(targetFormat, sourceFormat, parsed, state);
 

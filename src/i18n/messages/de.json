@@ -2297,7 +2297,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Bevorzugt Konten mit der meisten freien Kapazität.",
     "lkgp": "LKGP-Modus",
-    "lkgpDesc": "Last Known Good Provider (vorhersehbare Resilienz)"
+    "lkgpDesc": "Last Known Good Provider (vorhersehbare Resilienz)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Fügt der Systemaufforderung eine Kürze-Direktive hinzu, damit das Modell mit weniger Ausgabe-Tokens antwortet. Ausgabe-Tokens kosten 3-5x mehr als Eingabe-Tokens. Standardmäßig deaktiviert.",
+    "cavemanOutputOff": "Aus",
+    "cavemanOutputOffDesc": "Keine Direktive eingefügt. Modell antwortet normal.",
+    "cavemanOutputLite": "Lite",
+    "cavemanOutputLiteDesc": "Entfernt Füllwörter, Zögern und Höflichkeitsfloskeln. Vollständige Sätze bleiben erhalten.",
+    "cavemanOutputFull": "Voll",
+    "cavemanOutputFullDesc": "Maximale Kürze. Fragmente, weggelassene Artikel. Technischer Inhalt bleibt exakt."
   },
   "translator": {
     "title": "Übersetzer",

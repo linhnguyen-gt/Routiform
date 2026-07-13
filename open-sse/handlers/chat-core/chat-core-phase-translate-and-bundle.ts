@@ -9,7 +9,10 @@ import {
 import { shouldPreserveCacheControl } from "../../utils/cacheControlPolicy.ts";
 import { createRequestLogger } from "../../utils/requestLogger.ts";
 import { applyStackedCompression, formatStackHeader } from "../../compression/index.ts";
-import { isProxyContextCompressionEnabled } from "../../services/contextValidationSettings.ts";
+import {
+  getCavemanOutputLevel,
+  isProxyContextCompressionEnabled,
+} from "../../services/contextValidationSettings.ts";
 import { sanitizeRequestInput } from "../phases/input-sanitizer.ts";
 import { checkSemanticCache } from "../phases/semantic-cache-handler.ts";
 import { createBuildUpstreamHeadersForExecute } from "./chat-core-build-upstream-headers.ts";
@@ -157,10 +160,18 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
   // Gated by Dashboard AI request context (auto-compress vs passthrough).
   // RTK profile (off|safe|full) is resolved from the client User-Agent.
   const compressionEnabled = await isProxyContextCompressionEnabled();
+  const cavemanOutputLevel = await getCavemanOutputLevel().catch(() => "off" as const);
   const stack = applyStackedCompression(translatedBody, {
     enabled: compressionEnabled,
     userAgent: p.userAgent,
     caveman: true,
+    cavemanOutputLevel,
+    // Gate on the INBOUND body, not translatedBody: format translation already
+    // transformed tool_choice (e.g. "auto" -> {type:"auto"}) and consumed
+    // response_format into the system prompt by this point, so gating against
+    // translatedBody made both the forced-tool-choice and structured-output
+    // gates misfire. See StackOptions.cavemanOutputGateBody.
+    cavemanOutputGateBody: p.body,
   });
   for (const line of stack.logs) {
     const tag = line.startsWith("[Caveman]")

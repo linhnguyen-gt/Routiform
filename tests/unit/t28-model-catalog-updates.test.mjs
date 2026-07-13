@@ -11,9 +11,14 @@ test("T28: gemini-cli catalog includes preview models, gemini uses API sync", ()
   const geminiIds = REGISTRY.gemini.models.map((m) => m.id);
   assert.equal(geminiIds.length, 0, "gemini models should be empty (populated by API sync)");
 
-  // gemini-cli still has hardcoded models (Cloud Code doesn't have a models API)
+  // gemini-cli still has hardcoded models (Cloud Code doesn't have a models API).
+  // This used to assert on "gemini-3.1-flash-lite-preview", which pinned a model
+  // Google shut down 2026-05-25 into the catalog — the assertion was keeping a
+  // dead id alive. It now checks the live successor. See
+  // tests/unit/model-family-fallback-no-dead-models.test.mjs for the guard that
+  // rejects any shut-down id in any registry.
   const geminiCliIds = REGISTRY["gemini-cli"].models.map((m) => m.id);
-  assert.ok(geminiCliIds.includes("gemini-3.1-flash-lite-preview"));
+  assert.ok(geminiCliIds.includes("gemini-3.1-flash-lite"));
   assert.ok(geminiCliIds.includes("gemini-3-flash-preview"));
 });
 
