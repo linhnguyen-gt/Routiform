@@ -8,9 +8,6 @@ routiformSite/
 # Root-level underscore-prefixed directories (private/draft — never commit)
 /_*/
 
-# Open WebUI runtime secret (generated locally by the auto-spawned chat process)
-.webui_secret_key
-
 # Draft features documentation (internal only)
 docs/new-features/
 

@@ -3230,31 +3230,5 @@
     "colKind": "種別",
     "colSummary": "概要",
     "colTokens": "~Tokens/月"
-  },
-  "chatLauncher": {
-    "title": "Chat",
-    "subtitle": "A local no-login chat over your Routiform models, powered by Open WebUI.",
-    "starting": "Starting Open WebUI…",
-    "firstRunNotice": "First launch downloads packages and can take a few minutes. Keep this tab open.",
-    "running": "Open WebUI is running.",
-    "openChat": "Open chat",
-    "openChatNewTab": "Open in new tab",
-    "stop": "Stop Open WebUI",
-    "stopped": "Open WebUI is stopped.",
-    "start": "Start",
-    "error": "Open WebUI failed to start.",
-    "notAvailable": "Open WebUI runtime not detected.",
-    "installUv": "Install uv (recommended)",
-    "installPip": "Or install Open WebUI via pip",
-    "installHintUv": "Run: curl -LsSf https://astral.sh/uv/install.sh | sh — then reload this page.",
-    "installHintPip": "Run: pip install open-webui (Python 3.11 required) — then reload this page.",
-    "dockerMode": "Routiform is running in Docker. Open WebUI ships as a sibling compose service.",
-    "dockerHint": "If the chat is not reachable, bring it up with: docker compose -f docker-compose.full.yml up -d",
-    "retry": "Retry",
-    "checkStatus": "Check status",
-    "loading": "Checking status…",
-    "portLabel": "Port 8080",
-    "reloadIframe": "Reload chat",
-    "chatBlocked": "Chat could not be embedded. Open it in a new tab, or check Open WebUI's frame-embedding settings."
   }
 }

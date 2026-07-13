@@ -1,4 +1,4 @@
-# Routiform — Full-mode Docker Compose (auto-provisions Open WebUI API key)
+# Routiform — Full-mode Docker Compose
 services:
   routiform:
     container_name: routiform
@@ -20,10 +20,6 @@ services:
       CLI_ALLOW_CONFIG_WRITES: "true"
       CLI_CONFIG_HOME: /host-home
       XDG_CONFIG_HOME: /host-home/.config
-      # Propagate the host-facing Open WebUI port so the Chat launcher builds the correct URL.
-      # If OPEN_WEBUI_PORT is overridden (e.g. to avoid a port conflict), this ensures
-      # the "Open chat" link points to the right port in the user's browser.
-      OPEN_WEBUI_HOST_PORT: ${OPEN_WEBUI_PORT:-8080}
     ports:
       - "${ROUTIFORM_DASHBOARD_PORT:-20128}:20128"
       - "${ROUTIFORM_API_PORT:-20129}:20129"
@@ -67,41 +63,6 @@ services:
       retries: 3
       start_period: 15s
 
-  open-webui:
-    container_name: routiform-open-webui
-    image: ghcr.io/open-webui/open-webui:v0.6.40
-    pull_policy: always
-    restart: unless-stopped
-    stop_grace_period: 20s
-    depends_on:
-      routiform:
-        condition: service_healthy
-    environment:
-      WEBUI_AUTH: "False"
-      OPENAI_API_BASE_URL: "http://routiform:20129/v1"
-      OPENAI_API_KEY: "${OPEN_WEBUI_ROUTIFORM_KEY:-sk-routiform-local}"
-      PORT: "8080"
-      HOST: "0.0.0.0"
-    command:
-      - sh
-      - -c
-      - |
-        KEY_FILE=/data/open-webui-api-key.txt
-        if [ -f "$$KEY_FILE" ]; then
-          export OPENAI_API_KEY=$$(cat $$KEY_FILE)
-          echo "[open-webui] Using auto-provisioned Routiform API key"
-        else
-          echo "[open-webui] No auto-provisioned key found, using fallback"
-        fi
-        exec bash start.sh
-    ports:
-      - "${OPEN_WEBUI_PORT:-8080}:8080"
-    volumes:
-      - open-webui-data:/app/backend/data
-      - routiform-data:/data:ro
-
 volumes:
   routiform-data:
     name: routiform-data
-  open-webui-data:
-    name: routiform-open-webui-data

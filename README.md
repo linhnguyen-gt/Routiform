@@ -286,33 +286,22 @@ npm install
 npm run dev
 ```
 
-### Built-in Chat menu (Open WebUI)
+### Built-in Chat
 
-The sidebar has a **Chat** entry that launches a local, no-login chat over your
-Routiform models via [Open WebUI](https://github.com/open-webui/open-webui).
+The sidebar has a **Chat** entry: a streaming chat over your own Routiform models,
+at `/dashboard/chat`. Nothing to install and nothing to launch — it talks to the
+router in-process, so it works anywhere Routiform runs, on every install option.
 
-- **Option 1 / 2 / 4 (host installs):** Routiform auto-spawns Open WebUI as a
-  background subprocess on port `8080`. Requires `uv` + Python 3.11 (preferred) or
-  `pip install open-webui`. Routiform auto-provisions an API key named `open-webui`
-  and stops Open WebUI when Routiform stops.
-- **Option 3 (Docker):** Open WebUI runs as a sibling compose service defined in
-  `docker-compose.full.yml`. Bring it up with:
+Conversations, attachments, and token counts are stored in Routiform's own SQLite
+database. Images are only offered on models whose request format can actually carry
+one; where it cannot, the composer says so rather than silently dropping the image.
 
-  ```bash
-  docker compose -f docker-compose.full.yml up -d
-  ```
-
-  Set `OPEN_WEBUI_ROUTIFORM_KEY` to a key from API Manager (or rely on the
-  placeholder if Routiform doesn't enforce keys). The `/dashboard/chat` page
-  detects Docker mode and opens `http://localhost:8080` without spawning.
-
-  If port `8080` is already in use on your machine, override it before starting:
-
-  ```bash
-  OPEN_WEBUI_PORT=9090 docker compose -f docker-compose.full.yml up -d
-  ```
-
-  The Chat launcher automatically opens the correct port — no extra config needed.
+> Earlier versions embedded [Open WebUI](https://github.com/open-webui/open-webui)
+> as a separate application, which required Python 3.11 + `uv` on host installs or a
+> multi-GB image under Docker. That dependency is gone. If you ran it before, its
+> Docker volume (`routiform-open-webui-data`) still holds your old conversations; it
+> is no longer used and can be removed with
+> `docker volume rm routiform-open-webui-data`.
 
 ## Management CLI
 
