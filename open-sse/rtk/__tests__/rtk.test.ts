@@ -365,6 +365,9 @@ describe("RTK profile resolver", () => {
 
   it("returns 'safe' for known coding-agent user agents", () => {
     for (const ua of [
+      // Real Claude Code sends this exact spelling (see
+      // open-sse/services/claudeCodeCompatible.ts CLAUDE_CODE_COMPATIBLE_USER_AGENT).
+      "claude-cli/2.1.63 (external, cli)",
       "claude-code/1.0",
       "Claude_Code/2.0",
       "anthropic cli/3.0",

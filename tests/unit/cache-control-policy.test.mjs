@@ -17,6 +17,20 @@ describe("Cache Control Policy", () => {
       assert.equal(isClaudeCodeClient("Anthropic CLI/1.0"), true);
     });
 
+    // Real Claude Code sends `claude-cli/<ver> (external, cli)` — see
+    // open-sse/services/claudeCodeCompatible.ts CLAUDE_CODE_COMPATIBLE_USER_AGENT
+    // and open-sse/utils/bypassHandler.ts's working-in-production bypass gate.
+    // This detector does NOT recognise it — a known, intentionally left gap
+    // (see tests/unit/cache-control-policy-claude-cli-verdict.test.mjs for
+    // why: naively adding "claude-cli" here flips shouldPreserveCacheControl
+    // to true for every real Claude Code request, which can push the
+    // Claude-Code-compatible bridge's cache_control breakpoint count above
+    // Anthropic's hard cap of 4 due to an unrelated ordering bug in
+    // open-sse/services/claudeCodeConstraints.ts).
+    test("does NOT yet detect the real claude-cli user agent (documented gap, see Fix 2 verdict)", () => {
+      assert.equal(isClaudeCodeClient("claude-cli/2.1.63 (external, cli)"), false);
+    });
+
     test("rejects non-Claude clients", () => {
       assert.equal(isClaudeCodeClient("curl/7.68.0"), false);
       assert.equal(isClaudeCodeClient("OpenAI/1.0"), false);

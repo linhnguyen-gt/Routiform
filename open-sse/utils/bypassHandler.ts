@@ -4,6 +4,7 @@ import { translateResponse, initState } from "../translator/index.ts";
 import { FORMATS } from "../translator/formats.ts";
 import { SKIP_PATTERNS } from "../config/constants.ts";
 import { formatSSE } from "./stream.ts";
+import { isClaudeCliUserAgent } from "./clientDetection.ts";
 
 /**
  * Check for bypass patterns — return fake response without calling provider.
@@ -20,7 +21,10 @@ import { formatSSE } from "./stream.ts";
  * @returns {object|null} Bypass response or null to proceed normally
  */
 export function handleBypassRequest(body, model, userAgent = "") {
-  if (!userAgent.includes("claude-cli")) return null;
+  // Delegates to the canonical, narrow "claude-cli"-only detector (single
+  // source of truth in utils/clientDetection.ts). Semantics unchanged —
+  // still exact-substring "claude-cli", NOT the broader Claude-Code family.
+  if (!isClaudeCliUserAgent(userAgent)) return null;
   if (!body.messages?.length) return null;
 
   const messages = body.messages;

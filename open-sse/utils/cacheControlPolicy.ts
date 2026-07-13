@@ -75,7 +75,30 @@ const DETERMINISTIC_STRATEGIES: Set<RoutingStrategyValue> = new Set(["priority",
 const CACHING_PROVIDERS = new Set(["claude", "anthropic", "zai", "qwen", "deepseek"]);
 
 /**
- * Detect if the client is Claude Code or another caching-aware client
+ * Detect if the client is Claude Code or another caching-aware client.
+ *
+ * INTENTIONALLY DOES NOT MATCH "claude-cli" (the real Claude Code UA — see
+ * services/claudeCodeCompatible.ts CLAUDE_CODE_COMPATIBLE_USER_AGENT and
+ * utils/bypassHandler.ts's working-in-production bypass gate). This is a
+ * deliberate, evidence-based decision, NOT an oversight:
+ *
+ * Fixing this to also match "claude-cli" flips shouldPreserveCacheControl to
+ * true for every real Claude Code request. For the Claude-Code-compatible
+ * bridge target (providers prefixed anthropic-compatible-cc-, see
+ * services/claudeCodeCompatible.ts), that in turn causes
+ * buildClaudeCodeCompatibleRequest to preserve the client's own cache_control
+ * breakpoints instead of stripping them. That collides with an unrelated
+ * ordering bug in services/claudeCodeConstraints.ts:
+ * enforceCacheControlLimit() (caps at Anthropic's hard limit of 4) runs
+ * BEFORE ensureCacheControlOnLastUserMessage() (unconditionally re-injects a
+ * marker on the last user turn) — so if the cap strips the last user turn's
+ * own marker, the unconditional re-injection pushes the total back to 5,
+ * violating Anthropic's 4-breakpoint cap. See
+ * tests/unit/cache-control-policy-claude-cli-verdict.test.mjs for a
+ * reproduction. Left unfixed here until that ordering bug is addressed
+ * separately. Deliberately kept independent of the wider canonical
+ * utils/clientDetection.ts#isClaudeCodeUserAgent detector for this reason —
+ * do not "consolidate" this away without re-verifying the above.
  */
 export function isClaudeCodeClient(userAgent: string | null | undefined): boolean {
   if (!userAgent) return false;
