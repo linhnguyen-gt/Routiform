@@ -2649,8 +2649,7 @@
     "loadingPricing": "正在加载定价数据...",
     "pricingRatesFormat": "定价格式",
     "noPricingData": "无可用定价数据",
-    "noModelsFound": "没有找到模型",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "没有找到模型"
   },
   "loggers": {
     "allProviders": "所有提供商",

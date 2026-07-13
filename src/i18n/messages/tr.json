@@ -2629,8 +2629,7 @@
     "loadingPricing": "Fiyatlandırma verileri yükleniyor...",
     "pricingRatesFormat": "Fiyatlandırma Oran Formatı",
     "noPricingData": "Kullanılabilir fiyatlandırma verisi yok",
-    "noModelsFound": "Hiçbir model bulunamadı",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Hiçbir model bulunamadı"
   },
   "loggers": {
     "allProviders": "Tüm Sağlayıcılar",

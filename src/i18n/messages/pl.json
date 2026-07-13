@@ -2629,8 +2629,7 @@
     "loadingPricing": "Ładowanie danych cenowych...",
     "pricingRatesFormat": "Format stawek cenowych",
     "noPricingData": "Brak danych o cenach",
-    "noModelsFound": "Nie znaleziono żadnych modeli",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Nie znaleziono żadnych modeli"
   },
   "loggers": {
     "allProviders": "Wszyscy dostawcy",

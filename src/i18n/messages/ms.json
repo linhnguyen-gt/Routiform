@@ -2629,8 +2629,7 @@
     "loadingPricing": "Memuatkan data harga...",
     "pricingRatesFormat": "Format Kadar Harga",
     "noPricingData": "Tiada data harga tersedia",
-    "noModelsFound": "Tiada model ditemui",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Tiada model ditemui"
   },
   "loggers": {
     "allProviders": "Semua Penyedia",

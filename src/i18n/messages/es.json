@@ -2632,8 +2632,7 @@
     "loadingPricing": "Cargando datos de precios...",
     "pricingRatesFormat": "Formato de tarifas de precios",
     "noPricingData": "No hay datos de precios disponibles",
-    "noModelsFound": "No se encontraron modelos",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "No se encontraron modelos"
   },
   "loggers": {
     "allProviders": "Todos los proveedores",

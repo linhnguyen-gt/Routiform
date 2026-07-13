@@ -2629,8 +2629,7 @@
     "loadingPricing": "Laster inn prisdata ...",
     "pricingRatesFormat": "Prisformat",
     "noPricingData": "Ingen prisdata tilgjengelig",
-    "noModelsFound": "Ingen modeller funnet",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Ingen modeller funnet"
   },
   "loggers": {
     "allProviders": "Alle leverandører",

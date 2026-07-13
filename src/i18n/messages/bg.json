@@ -2629,8 +2629,7 @@
     "loadingPricing": "Данните за цените се зареждат...",
     "pricingRatesFormat": "Формат на цените",
     "noPricingData": "Няма налични данни за цените",
-    "noModelsFound": "Няма намерени модели",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Няма намерени модели"
   },
   "loggers": {
     "allProviders": "Всички доставчици",

@@ -2630,8 +2630,7 @@
     "loadingPricing": "Preisdaten werden geladen...",
     "pricingRatesFormat": "Preisformat",
     "noPricingData": "Keine Preisdaten verfügbar",
-    "noModelsFound": "Keine Modelle gefunden",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Keine Modelle gefunden"
   },
   "loggers": {
     "allProviders": "Alle Anbieter",

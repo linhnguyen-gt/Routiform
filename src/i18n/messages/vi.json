@@ -2647,8 +2647,7 @@
     "loadingPricing": "Đang tải dữ liệu giá...",
     "pricingRatesFormat": "Định dạng giá cước",
     "noPricingData": "Không có dữ liệu giá cả",
-    "noModelsFound": "Không tìm thấy mô hình nào",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Không tìm thấy mô hình nào"
   },
   "loggers": {
     "allProviders": "Tất cả nhà cung cấp",

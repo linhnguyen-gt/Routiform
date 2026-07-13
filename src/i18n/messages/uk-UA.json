@@ -2629,8 +2629,7 @@
     "loadingPricing": "Завантаження даних про ціни...",
     "pricingRatesFormat": "Формат ціноутворення",
     "noPricingData": "Немає даних про ціни",
-    "noModelsFound": "Моделі не знайдено",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Моделі не знайдено"
   },
   "loggers": {
     "allProviders": "Усі постачальники",

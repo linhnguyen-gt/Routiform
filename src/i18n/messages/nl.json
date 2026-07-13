@@ -2629,8 +2629,7 @@
     "loadingPricing": "Prijsgegevens laden...",
     "pricingRatesFormat": "Formaat prijstarieven",
     "noPricingData": "Geen prijsgegevens beschikbaar",
-    "noModelsFound": "Geen modellen gevonden",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Geen modellen gevonden"
   },
   "loggers": {
     "allProviders": "Alle aanbieders",

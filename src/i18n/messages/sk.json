@@ -2629,8 +2629,7 @@
     "loadingPricing": "Načítavajú sa údaje o cenách...",
     "pricingRatesFormat": "Formát cenových sadzieb",
     "noPricingData": "Nie sú k dispozícii žiadne údaje o cenách",
-    "noModelsFound": "Nenašli sa žiadne modely",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Nenašli sa žiadne modely"
   },
   "loggers": {
     "allProviders": "Všetci poskytovatelia",

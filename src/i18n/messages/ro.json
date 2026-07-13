@@ -2629,8 +2629,7 @@
     "loadingPricing": "Se încarcă datele de preț...",
     "pricingRatesFormat": "Formatul tarifelor de preț",
     "noPricingData": "Nu sunt disponibile date de preț",
-    "noModelsFound": "Nu s-au găsit modele",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Nu s-au găsit modele"
   },
   "loggers": {
     "allProviders": "Toți Furnizorii",

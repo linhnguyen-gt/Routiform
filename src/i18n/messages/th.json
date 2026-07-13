@@ -2629,8 +2629,7 @@
     "loadingPricing": "กำลังโหลดข้อมูลราคา...",
     "pricingRatesFormat": "รูปแบบอัตราราคา",
     "noPricingData": "ไม่มีข้อมูลราคา",
-    "noModelsFound": "ไม่พบรุ่น",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "ไม่พบรุ่น"
   },
   "loggers": {
     "allProviders": "ผู้ให้บริการทั้งหมด",

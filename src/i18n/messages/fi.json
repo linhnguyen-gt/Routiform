@@ -2629,8 +2629,7 @@
     "loadingPricing": "Ladataan hintatietoja...",
     "pricingRatesFormat": "Hinnoitteluhinnastomuoto",
     "noPricingData": "Hintatietoja ei ole saatavilla",
-    "noModelsFound": "Malleja ei löytynyt",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Malleja ei löytynyt"
   },
   "loggers": {
     "allProviders": "Kaikki palveluntarjoajat",

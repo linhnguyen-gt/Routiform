@@ -2630,8 +2630,7 @@
     "loadingPricing": "価格データをロードしています...",
     "pricingRatesFormat": "価格設定レートの形式",
     "noPricingData": "利用可能な価格データはありません",
-    "noModelsFound": "モデルが見つかりません",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "モデルが見つかりません"
   },
   "loggers": {
     "allProviders": "すべてのプロバイダー",

@@ -2629,8 +2629,7 @@
     "loadingPricing": "Indlæser prisdata...",
     "pricingRatesFormat": "Prisformat",
     "noPricingData": "Ingen tilgængelige prisdata",
-    "noModelsFound": "Ingen modeller fundet",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Ingen modeller fundet"
   },
   "loggers": {
     "allProviders": "Alle udbydere",

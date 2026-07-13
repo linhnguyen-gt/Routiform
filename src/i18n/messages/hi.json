@@ -2629,8 +2629,7 @@
     "loadingPricing": "मूल्य निर्धारण डेटा लोड हो रहा है...",
     "pricingRatesFormat": "मूल्य निर्धारण दरें प्रारूप",
     "noPricingData": "कोई मूल्य निर्धारण डेटा उपलब्ध नहीं है",
-    "noModelsFound": "कोई मॉडल नहीं मिला",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "कोई मॉडल नहीं मिला"
   },
   "loggers": {
     "allProviders": "सभी प्रदाता",

@@ -2629,8 +2629,7 @@
     "loadingPricing": "Áradatok betöltése...",
     "pricingRatesFormat": "Árképzési tarifák formátuma",
     "noPricingData": "Nem állnak rendelkezésre árazási adatok",
-    "noModelsFound": "Nem található modell",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Nem található modell"
   },
   "loggers": {
     "allProviders": "Minden szolgáltató",

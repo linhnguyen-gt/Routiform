@@ -2630,8 +2630,7 @@
     "loadingPricing": "Chargement des données de tarification...",
     "pricingRatesFormat": "Format des tarifs",
     "noPricingData": "Aucune donnée de prix disponible",
-    "noModelsFound": "Aucun modèle trouvé",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Aucun modèle trouvé"
   },
   "loggers": {
     "allProviders": "Tous les fournisseurs",

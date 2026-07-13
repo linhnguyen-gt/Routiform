@@ -2629,8 +2629,7 @@
     "loadingPricing": "Nilo-load ang data ng pagpepresyo...",
     "pricingRatesFormat": "Format ng Mga Rate ng Pagpepresyo",
     "noPricingData": "Walang available na data ng pagpepresyo",
-    "noModelsFound": "Walang nakitang mga modelo",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Walang nakitang mga modelo"
   },
   "loggers": {
     "allProviders": "Lahat ng Provider",

@@ -2629,8 +2629,7 @@
     "loadingPricing": "Laddar prisinformation...",
     "pricingRatesFormat": "Priser Format",
     "noPricingData": "Inga prisuppgifter tillgängliga",
-    "noModelsFound": "Inga modeller hittades",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Inga modeller hittades"
   },
   "loggers": {
     "allProviders": "Alla leverantörer",

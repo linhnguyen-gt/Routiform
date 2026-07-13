@@ -2641,8 +2641,7 @@
     "loadingPricing": "Carregando dados de preços...",
     "pricingRatesFormat": "Formato de Taxas de Preço",
     "noPricingData": "Nenhum dado de preço disponível",
-    "noModelsFound": "Nenhum modelo encontrado",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Nenhum modelo encontrado"
   },
   "loggers": {
     "allProviders": "Todos os Provedores",

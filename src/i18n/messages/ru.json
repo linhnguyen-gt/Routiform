@@ -2630,8 +2630,7 @@
     "loadingPricing": "Загрузка данных о ценах...",
     "pricingRatesFormat": "Формат ценообразования",
     "noPricingData": "Нет данных о ценах",
-    "noModelsFound": "Модели не найдены",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Модели не найдены"
   },
   "loggers": {
     "allProviders": "Все провайдеры",
