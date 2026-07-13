@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.37.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.5...v3.37.0) (2026-07-13)
+
+
+### Features
+
+* compression stack, routing strategies, free-tiers, and chat iframe fix ([8b72124](https://github.com/linhnguyen-gt/Routiform/commit/8b72124b62cc36df66d05f09c006aa41f3bb56b4))
+* **oauth:** add xAI SuperGrok OAuth (device code + PKCE) ([22881b4](https://github.com/linhnguyen-gt/Routiform/commit/22881b4f58246e80576515e88f1ef15df50983d8))
+
+
+### Bug Fixes
+
+* **compression:** apply both compression settings to every provider, not just OpenAI/Claude ([d354daa](https://github.com/linhnguyen-gt/Routiform/commit/d354daa5abef00701c09861ea46139bd3faeb794))
+* **i18n:** sync free-tiers, headroom, and chatLauncher keys across locales ([0b9ab5e](https://github.com/linhnguyen-gt/Routiform/commit/0b9ab5eca64765a8af2a177454525f53b34ca528))
+* **router:** correctness pass across billing, translators, Kiro, Codex, and the model catalog ([27d808c](https://github.com/linhnguyen-gt/Routiform/commit/27d808cfab67a859d9d64d5da730214c572dd4a6))
+* **rtk:** stop cutting the middle out of Claude Code's file reads ([873d5c9](https://github.com/linhnguyen-gt/Routiform/commit/873d5c98211f6b33711a38ea81cc39c1c29b6442))
+
 ### [3.36.5](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.4...v3.36.5) (2026-06-22)
 
 
