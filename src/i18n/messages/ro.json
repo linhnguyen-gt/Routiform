@@ -2296,7 +2296,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Prefer accounts with the most free capacity.",
     "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)"
+    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Adaugă o directivă de concizie în promptul de sistem, astfel încât modelul să răspundă cu mai puține tokenuri de ieșire. Tokenurile de ieșire costă de 3-5 ori mai mult decât cele de intrare. Dezactivat implicit.",
+    "cavemanOutputOff": "Dezactivat",
+    "cavemanOutputOffDesc": "Nicio directivă inserată. Modelul răspunde normal.",
+    "cavemanOutputLite": "Ușor",
+    "cavemanOutputLiteDesc": "Elimină cuvintele de umplutură, ezitările și formulele de politețe. Propozițiile complete sunt păstrate.",
+    "cavemanOutputFull": "Complet",
+    "cavemanOutputFullDesc": "Concizie maximă. Fragmente, articole omise. Conținutul tehnic rămâne exact."
   },
   "translator": {
     "title": "Traducător",

@@ -74,6 +74,11 @@ export interface RegistryEntry {
   defaultContextLength?: number;
   /** Default max output tokens for all models in this provider (can be overridden per-model) */
   defaultMaxOutputTokens?: number;
+  /** Provider-specific behavioral quirks/opt-ins that don't fit elsewhere */
+  quirks?: {
+    /** Preserve Claude `cache_control` blocks when normalizing to OpenAI format (e.g. DashScope prompt caching) */
+    preserveCacheControl?: boolean;
+  };
 }
 
 export interface LegacyProvider {

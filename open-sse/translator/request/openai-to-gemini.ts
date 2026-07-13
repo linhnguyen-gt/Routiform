@@ -3,15 +3,40 @@ import { FORMATS } from "../formats.ts";
 import { DEFAULT_THINKING_GEMINI_SIGNATURE } from "../../config/defaultThinkingSignature.ts";
 import { ANTIGRAVITY_DEFAULT_SYSTEM } from "../../config/constants.ts";
 import { getGeminiThoughtSignature } from "../../services/geminiThoughtSignatureStore.ts";
+import { fitGeminiThinkingBudget } from "../../services/thinkingBudget.ts";
 import { openaiToClaudeRequestForAntigravity } from "./openai-to-claude.ts";
 import {
   capMaxOutputTokens,
   capThinkingBudget,
   getDefaultThinkingBudget,
+  getModelSpec,
 } from "../../../src/shared/constants/modelSpecs.ts";
 
 function generateUUID() {
   return crypto.randomUUID();
+}
+
+// HIGH 6 (fixed): `body.max_tokens` was the only field read for the client's
+// requested output cap. OpenAI's CURRENT field is `max_completion_tokens`
+// (`max_tokens` is deprecated on their side); for non-Responses targets
+// (Gemini / Gemini CLI / Antigravity — this translator), nothing upstream of
+// this file normalizes `max_completion_tokens` into `max_tokens` (that
+// normalization only runs for the OPENAI_RESPONSES target), so a client that
+// only sends `max_completion_tokens` had its cap silently ignored entirely,
+// falling through to the model's default ceiling instead of the client's
+// explicit, smaller request. `max_tokens` still wins if a client sends both
+// (matches this proxy's existing preference elsewhere).
+function resolveClientMaxTokens(body: Record<string, unknown>): number | undefined {
+  if (typeof body?.max_tokens === "number" && Number.isFinite(body.max_tokens)) {
+    return body.max_tokens as number;
+  }
+  if (
+    typeof body?.max_completion_tokens === "number" &&
+    Number.isFinite(body.max_completion_tokens)
+  ) {
+    return body.max_completion_tokens as number;
+  }
+  return undefined;
 }
 
 import {
@@ -78,6 +103,25 @@ type CloudCodeEnvelope = {
   _toolNameMap?: Map<string, string>;
 };
 
+// Merge consecutive same-role content entries and drop entries with no parts.
+// Gemini rejects requests with adjacent same-role turns or zero-part entries
+// with a 400 invalid_argument; neither shape is guaranteed to be avoided by
+// the message-by-message conversion above (e.g. an assistant turn whose only
+// content was an empty/omitted tool_calls array).
+function normalizeGeminiContents(contents: GeminiContent[]): GeminiContent[] {
+  const out: GeminiContent[] = [];
+  for (const c of contents || []) {
+    if (!c?.role || !Array.isArray(c.parts) || c.parts.length === 0) continue;
+    const last = out[out.length - 1];
+    if (last && last.role === c.role) {
+      last.parts.push(...c.parts);
+    } else {
+      out.push({ ...c, parts: [...c.parts] });
+    }
+  }
+  return out;
+}
+
 function normalizeAntigravityToolName(name: unknown): string {
   if (typeof name !== "string") return "";
   const trimmed = name.trim();
@@ -111,8 +155,9 @@ function openaiToGeminiBase(model, body, _stream) {
   if (body.top_k !== undefined) {
     result.generationConfig.topK = body.top_k;
   }
-  if (body.max_tokens !== undefined) {
-    result.generationConfig.maxOutputTokens = capMaxOutputTokens(model, body.max_tokens);
+  const clientMaxTokens = resolveClientMaxTokens(body);
+  if (clientMaxTokens !== undefined) {
+    result.generationConfig.maxOutputTokens = capMaxOutputTokens(model, clientMaxTokens);
   } else {
     result.generationConfig.maxOutputTokens = capMaxOutputTokens(model);
   }
@@ -302,6 +347,7 @@ function openaiToGeminiBase(model, body, _stream) {
     }
   }
 
+  result.contents = normalizeGeminiContents(result.contents);
   return result;
 }
 
@@ -315,26 +361,91 @@ export function openaiToGeminiCLIRequest(model, body, stream) {
   const gemini = openaiToGeminiBase(model, body, stream);
   const _isClaude = model.toLowerCase().includes("claude");
 
-  // Add thinking config for CLI
-  if (body.reasoning_effort) {
-    const budgetMap = {
+  // Add thinking config for CLI.
+  // Only models with an explicit `supportsThinking: true` MODEL_SPECS entry
+  // get a thinkingConfig. This is a deliberate opt-in (not opt-out): a model
+  // with no MODEL_SPECS entry at all (e.g. an arbitrary id surfaced by
+  // Antigravity's live model list) has no verified thinkingBudget range or
+  // output cap, so we cannot safely vouch for what budget/maxOutputTokens
+  // combination is valid for it. Every currently-registered Gemini model
+  // already declares supportsThinking explicitly (true or false), so this
+  // only changes behavior for genuinely unregistered ids — they now degrade
+  // safely (no thinkingConfig, capped maxOutputTokens) instead of risking an
+  // invalid request built on unknown limits.
+  const modelSupportsThinking = getModelSpec(model)?.supportsThinking === true;
+
+  if (body.reasoning_effort && modelSupportsThinking) {
+    const budgetMap: Record<string, number> = {
       low: 1024,
       medium: getDefaultThinkingBudget(model) || 8192,
       high: capThinkingBudget(model, 32768),
     };
-    const budget = budgetMap[body.reasoning_effort] || getDefaultThinkingBudget(model) || 8192;
-    gemini.generationConfig.thinkingConfig = {
-      thinkingBudget: budget,
-      includeThoughts: true,
-    };
+    // Look up by key presence, not `budgetMap[effort] || fallback` — a
+    // legitimate 0 budget (e.g. a capped-to-0 tier) is falsy and would
+    // otherwise fall through to the 8192 literal, resending thinking to a
+    // model/tier that should have none.
+    const budget = Object.prototype.hasOwnProperty.call(budgetMap, body.reasoning_effort)
+      ? budgetMap[body.reasoning_effort]
+      : getDefaultThinkingBudget(model) || 8192;
+    // Reconcile maxOutputTokens/thinkingBudget so thinking doesn't starve the
+    // visible answer (empty content on small max_tokens + high effort),
+    // without ever raising a max_tokens cap the client set explicitly —
+    // that cap is authoritative for cost control; shrink the thinking
+    // budget to fit it instead (see fitGeminiThinkingBudget). The RAW,
+    // unclamped client max_tokens (max_tokens or max_completion_tokens) is
+    // passed through (not the already-capped gemini.generationConfig
+    // .maxOutputTokens) so the function can tell "client asked for 8192"
+    // apart from "client asked for nothing and we defaulted to 8192".
+    // `reasoning_effort` only ever reaches this branch when the client (or
+    // an earlier normalization step operating on an already-client-set
+    // field) put it there — never purely injected from nothing — so this is
+    // always a genuine client request (default `clientRequestedThinking`).
+    const fit = fitGeminiThinkingBudget(model, resolveClientMaxTokens(body), budget);
+    gemini.generationConfig.maxOutputTokens = fit.maxOutputTokens;
+    if (fit.omitThinkingConfig) {
+      delete gemini.generationConfig.thinkingConfig;
+    } else {
+      gemini.generationConfig.thinkingConfig = {
+        thinkingBudget: fit.thinkingBudgetTokens,
+        includeThoughts: fit.thinkingBudgetTokens > 0,
+      };
+    }
   }
 
-  // Thinking config from Claude format
-  if (body.thinking?.type === "enabled" && body.thinking.budget_tokens) {
-    gemini.generationConfig.thinkingConfig = {
-      thinkingBudget: body.thinking.budget_tokens,
-      includeThoughts: true,
-    };
+  // Thinking config from Claude format. body.thinking.budget_tokens is a
+  // RAW, client-supplied value with no upper bound of its own (e.g. a
+  // Claude-format client can send `budget_tokens: 200000`); it is passed
+  // through unclamped here, not because it's unbounded, but because
+  // `fitGeminiThinkingBudget` itself applies `capThinkingBudget` internally
+  // before any headroom fitting, so every caller (this one and the
+  // reasoning_effort branch above) gets the same model-declared
+  // thinkingBudgetCap enforced in one place.
+  //
+  // Unlike the reasoning_effort branch above, `body.thinking` CAN be purely
+  // proxy-injected: thinkingBudget.ts's CUSTOM/ADAPTIVE mode sets
+  // `body.thinking` on ANY thinking-capable-model request via
+  // `hasThinkingCapableModel` (model-name matching alone), even when the
+  // original client asked for nothing at all (CRITICAL 2). It tags that
+  // with `__thinkingClientRequested: false`; absence of the tag (e.g. plain
+  // PASSTHROUGH mode, or a genuine Claude-format client) defaults to true —
+  // the safe, "try to honor it" behavior for an actual client ask.
+  if (body.thinking?.type === "enabled" && body.thinking.budget_tokens && modelSupportsThinking) {
+    const clientRequestedThinking = body.__thinkingClientRequested !== false;
+    const fit = fitGeminiThinkingBudget(
+      model,
+      resolveClientMaxTokens(body),
+      body.thinking.budget_tokens,
+      clientRequestedThinking
+    );
+    gemini.generationConfig.maxOutputTokens = fit.maxOutputTokens;
+    if (fit.omitThinkingConfig) {
+      delete gemini.generationConfig.thinkingConfig;
+    } else {
+      gemini.generationConfig.thinkingConfig = {
+        thinkingBudget: fit.thinkingBudgetTokens,
+        includeThoughts: fit.thinkingBudgetTokens > 0,
+      };
+    }
   }
 
   // Clean schema for tools
@@ -440,17 +551,19 @@ function wrapInCloudCodeEnvelope(model, geminiCLI, credentials = null, isAntigra
     } else {
       envelope.request.systemInstruction = { role: "user", parts: [defaultPart] };
     }
-
-    // Add toolConfig for Antigravity
-    if (geminiCLI.tools?.length > 0) {
-      envelope.request.toolConfig = {
-        functionCallingConfig: { mode: "VALIDATED" },
-      };
-    }
   } else {
     // Gemini CLI's native Cloud Code envelope uses snake_case identifiers.
     envelope.request.session_id = generateSessionId();
     envelope.request.safetySettings = geminiCLI.safetySettings;
+  }
+
+  // toolConfig applies to any tool-bearing request, not just Antigravity —
+  // previously this was set only inside the isAntigravity branch, so plain
+  // gemini-cli requests with tools never got VALIDATED function calling mode.
+  if (geminiCLI.tools?.length > 0) {
+    envelope.request.toolConfig = {
+      functionCallingConfig: { mode: "VALIDATED" },
+    };
   }
 
   return envelope;
@@ -583,6 +696,7 @@ function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = nu
 
   envelope.request.systemInstruction = { role: "user", parts: systemParts };
 
+  envelope.request.contents = normalizeGeminiContents(envelope.request.contents);
   return envelope;
 }
 

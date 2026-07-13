@@ -11,11 +11,17 @@ export const VALID_OPENAI_MESSAGE_TYPES = [
 ];
 const CLAUDE_TOOL_CHOICE_REQUIRED = "an" + "y";
 
+export type FilterToOpenAIFormatOptions = {
+  /** Keep client-side cache_control markers on content blocks (e.g. DashScope/alicode). */
+  preserveCacheControl?: boolean;
+};
+
 // Filter messages to OpenAI standard format
 // Remove: redacted_thinking, and other non-OpenAI blocks
 // Convert: thinking blocks → reasoning_content on the message
-export function filterToOpenAIFormat(body) {
+export function filterToOpenAIFormat(body, opts: FilterToOpenAIFormatOptions = {}) {
   if (!body.messages || !Array.isArray(body.messages)) return body;
+  const keepCacheControl = opts.preserveCacheControl === true;
 
   body.messages = body.messages.map((msg) => {
     // Keep tool messages as-is (OpenAI format)
@@ -54,16 +60,24 @@ export function filterToOpenAIFormat(body) {
 
         // Only keep valid OpenAI content types
         if (VALID_OPENAI_CONTENT_TYPES.includes(block.type)) {
-          // Remove signature and cache_control fields
-          const { signature: _signature, cache_control: _cache_control, ...cleanBlock } = block;
-          filteredContent.push(cleanBlock);
+          // Remove signature always; strip cache_control unless preserveCacheControl opted in
+          const { signature: _signature, cache_control, ...cleanBlock } = block;
+          filteredContent.push(
+            keepCacheControl && cache_control !== undefined
+              ? { ...cleanBlock, cache_control }
+              : cleanBlock
+          );
         } else if (block.type === "tool_use") {
           // Convert tool_use to tool_calls format (handled separately)
           continue;
         } else if (block.type === "tool_result") {
           // Keep tool_result but clean it
-          const { signature: _signature, cache_control: _cache_control, ...cleanBlock } = block;
-          filteredContent.push(cleanBlock);
+          const { signature: _signature, cache_control, ...cleanBlock } = block;
+          filteredContent.push(
+            keepCacheControl && cache_control !== undefined
+              ? { ...cleanBlock, cache_control }
+              : cleanBlock
+          );
         }
       }
 

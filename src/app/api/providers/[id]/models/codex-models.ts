@@ -5,11 +5,20 @@ const DEFAULT_CODEX_MODELS_BASE_URL = "https://chatgpt.com/backend-api/codex";
 export const DEFAULT_CODEX_CLIENT_VERSION = "0.124.0";
 const DISABLED_CODEX_MODEL_IDS = new Set(["gpt-oss-120b", "gpt-oss-20b"]);
 
-// Fallback models from Codex documentation when API doesn't return full list
+// Fallback models from Codex documentation when API doesn't return full list.
+// Current lineup (as of 2026-07-12, from the Codex CLI model picker) leads the
+// list — gpt-5.6-terra is the CLI default. Older ids remain listed below as
+// legacy — still routable via `codex -m <model_name>` — so cost routing and
+// existing connections pinned to them keep working.
 const FALLBACK_CODEX_MODELS: Array<{ id: string; name: string }> = [
+  // Current lineup — gpt-5.6-terra is the CLI default.
+  { id: "gpt-5.6-terra", name: "GPT-5.6 Terra" },
+  { id: "gpt-5.6-luna", name: "GPT-5.6 Luna" },
   { id: "gpt-5.5", name: "GPT-5.5" },
-  { id: "gpt-5.4", name: "GPT-5.4" },
   { id: "gpt-5.4-mini", name: "GPT-5.4 mini" },
+  // Legacy — reachable via `codex -m <model_name>`, no longer headline choices.
+  { id: "gpt-5.6-sol", name: "GPT-5.6 Sol" },
+  { id: "gpt-5.4", name: "GPT-5.4" },
   { id: "gpt-5.3-codex", name: "GPT-5.3-Codex" },
   { id: "gpt-5.3-codex-spark", name: "GPT-5.3-Codex Spark" },
   { id: "gpt-5.2", name: "GPT-5.2" },

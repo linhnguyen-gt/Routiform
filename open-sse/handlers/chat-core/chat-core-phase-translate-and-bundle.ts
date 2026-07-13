@@ -8,8 +8,15 @@ import {
 } from "../../utils/aiSdkCompat.ts";
 import { shouldPreserveCacheControl } from "../../utils/cacheControlPolicy.ts";
 import { createRequestLogger } from "../../utils/requestLogger.ts";
-import { applyStackedCompression, formatStackHeader } from "../../compression/index.ts";
-import { isProxyContextCompressionEnabled } from "../../services/contextValidationSettings.ts";
+import {
+  applyStackedCompression,
+  formatStackHeader,
+  resolveCompressionBodies,
+} from "../../compression/index.ts";
+import {
+  getCavemanOutputLevel,
+  isProxyContextCompressionEnabled,
+} from "../../services/contextValidationSettings.ts";
 import { sanitizeRequestInput } from "../phases/input-sanitizer.ts";
 import { checkSemanticCache } from "../phases/semantic-cache-handler.ts";
 import { createBuildUpstreamHeadersForExecute } from "./chat-core-build-upstream-headers.ts";
@@ -129,6 +136,78 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
     );
   }
 
+  // Resolve `p.rawBody` (pristine, read-only from here on) and reassign
+  // `p.body` to a PRIVATE clone before compression mutates it in place.
+  //
+  // `p.body` may be ALIASED with the caller's own object: the credential
+  // retry loop and combo inner-retry loop reuse the same client body across
+  // attempts via a shallow `{ ...body, model }` spread (src/sse/handlers/
+  // chat.ts:836), so nested arrays/objects (`messages`, `system`,
+  // `systemInstruction.parts`) are the SAME references the caller (and every
+  // subsequent retry attempt) holds. Compressing `p.body` directly would
+  // mutate the caller's own arrays — every retry re-injects the directive
+  // into the client's data, and the "pristine" snapshot taken on the next
+  // attempt would already be polluted (breaking call-log/semantic-cache
+  // stability). `resolveCompressionBodies` skips the clone entirely when
+  // compression cannot mutate anything (the default: disabled + caveman
+  // output off), keeping the common-case request byte-identical with zero
+  // clone cost.
+  //
+  // Anything downstream that needs "what the client actually sent"
+  // (semantic-cache signature, the persisted call-log requestBody) must read
+  // `p.rawBody`, not `p.body`, or its signature/log would silently start
+  // varying with the requester's compression settings.
+  const compressionEnabled = await isProxyContextCompressionEnabled();
+  const cavemanOutputLevel = await getCavemanOutputLevel().catch(() => "off" as const);
+  const resolvedBodies = resolveCompressionBodies(p.body, {
+    compressionEnabled,
+    cavemanOutputLevel,
+  });
+  p.rawBody = resolvedBodies.rawBody;
+  p.body = resolvedBodies.body;
+
+  // Stacked compression: RTK (tool_result) → Caveman EN (prose) → inflation
+  // guard → Caveman Output (system-prompt terseness directive). Gated by
+  // Dashboard AI request context (auto-compress vs passthrough). RTK profile
+  // (off|safe|full) is resolved from the client User-Agent.
+  //
+  // Runs on the INBOUND body, BEFORE format translation, not on the
+  // translated body. The compression code only understands `messages` /
+  // `system` shapes; translation reshapes the body per target (`input` +
+  // `instructions` for Responses/Codex, `contents` + `systemInstruction` for
+  // Gemini, `conversationState` for Kiro), so compressing after translation
+  // silently no-oped for every non-openai/claude target. Compressing the
+  // inbound body instead means each target's translator (which already knows
+  // how to carry a system prompt into its own shape) carries the
+  // compressed/injected content forward for free. See
+  // docs/CODEBASE_DOCUMENTATION.md and tests/unit/compression-cross-provider-injection.test.mjs.
+  const stack = applyStackedCompression(p.body, {
+    enabled: compressionEnabled,
+    userAgent: p.userAgent,
+    caveman: true,
+    cavemanOutputLevel,
+  });
+  for (const line of stack.logs) {
+    const tag = line.startsWith("[Caveman]")
+      ? "Caveman"
+      : line.startsWith("[Compression]")
+        ? "Compression"
+        : "RTK";
+    log?.info?.(tag, line);
+  }
+  if (
+    stack.mode !== "off" &&
+    stack.rtkProfile !== "off" &&
+    stack.rtkProfile !== "full" &&
+    !stack.logs.some((l) => l.startsWith("[RTK]"))
+  ) {
+    log?.info?.(
+      "RTK",
+      `profile=${stack.rtkProfile} ua=${String(p.userAgent ?? "unknown").slice(0, 30)}`
+    );
+  }
+  p.compressionHeader = formatStackHeader(stack);
+
   const translateResult = await translateInboundRequestBody({
     nativeCodexPassthrough: !!p.nativeCodexPassthrough,
     isClaudeCodeCompatible,
@@ -152,36 +231,6 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
   }
   let translatedBody = translateResult.translatedBody as Record<string, unknown>;
   p.translatedBody = translatedBody;
-
-  // Stacked compression: RTK (tool_result) → Caveman EN (prose) → inflation guard.
-  // Gated by Dashboard AI request context (auto-compress vs passthrough).
-  // RTK profile (off|safe|full) is resolved from the client User-Agent.
-  const compressionEnabled = await isProxyContextCompressionEnabled();
-  const stack = applyStackedCompression(translatedBody, {
-    enabled: compressionEnabled,
-    userAgent: p.userAgent,
-    caveman: true,
-  });
-  for (const line of stack.logs) {
-    const tag = line.startsWith("[Caveman]")
-      ? "Caveman"
-      : line.startsWith("[Compression]")
-        ? "Compression"
-        : "RTK";
-    log?.info?.(tag, line);
-  }
-  if (
-    stack.mode !== "off" &&
-    stack.rtkProfile !== "off" &&
-    stack.rtkProfile !== "full" &&
-    !stack.logs.some((l) => l.startsWith("[RTK]"))
-  ) {
-    log?.info?.(
-      "RTK",
-      `profile=${stack.rtkProfile} ua=${String(p.userAgent ?? "unknown").slice(0, 30)}`
-    );
-  }
-  p.compressionHeader = formatStackHeader(stack);
 
   p.ccSessionId = translateResult.ccSessionId;
 

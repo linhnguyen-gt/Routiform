@@ -218,22 +218,213 @@ function isWithinAccessSchedule(schedule: unknown): boolean {
   return localMinutes >= fromMinutes && localMinutes < untilMinutes;
 }
 
-function estimateInputTokens(messages: unknown[]): number {
-  let totalChars = 0;
-  for (const msg of messages) {
-    const message = msg as { content?: unknown };
-    if (typeof message.content === "string") {
-      totalChars += message.content.length;
+// M3: cap recursion depth so adversarial, deeply-nested client JSON (body.tools,
+// body.system, message content) can't blow the call stack (RangeError -> 500).
+// 100 levels comfortably covers any legitimate payload shape used by clients.
+const MAX_JSON_DEPTH = 100;
+
+// H5: Anthropic bills images by pixel area (~width*height/750 tokens), capped at
+// roughly 1600 tokens for a single image resized to their max supported
+// dimensions. Never count the base64 payload itself as text — a 1MB image would
+// otherwise report ~350k tokens instead of ~1.5k, making Claude Code think a
+// vision request is instantly over-budget and trigger spurious auto-compaction.
+const MAX_IMAGE_TOKENS = 1600;
+const DEFAULT_IMAGE_TOKENS = 1600;
+// Only decode enough of the base64 payload to read format headers (PNG IHDR,
+// JPEG SOF markers, etc.) — never the full (potentially multi-MB) payload.
+const IMAGE_HEADER_DECODE_LIMIT_CHARS = 16384;
+
+function decodeBase64Prefix(data: string): Buffer | null {
+  if (typeof data !== "string" || data.length === 0) return null;
+  try {
+    return Buffer.from(data.slice(0, IMAGE_HEADER_DECODE_LIMIT_CHARS), "base64");
+  } catch {
+    return null;
+  }
+}
+
+type ImageDimensions = { width: number; height: number };
+
+function readPngDimensions(buf: Buffer): ImageDimensions | null {
+  // 8-byte signature + IHDR chunk: length(4) type(4) width(4) height(4)
+  if (buf.length < 24) return null;
+  if (buf[0] !== 0x89 || buf[1] !== 0x50 || buf[2] !== 0x4e || buf[3] !== 0x47) return null;
+  const width = buf.readUInt32BE(16);
+  const height = buf.readUInt32BE(20);
+  return width > 0 && height > 0 ? { width, height } : null;
+}
+
+function readGifDimensions(buf: Buffer): ImageDimensions | null {
+  if (buf.length < 10) return null;
+  const header = buf.toString("ascii", 0, 6);
+  if (header !== "GIF87a" && header !== "GIF89a") return null;
+  const width = buf.readUInt16LE(6);
+  const height = buf.readUInt16LE(8);
+  return width > 0 && height > 0 ? { width, height } : null;
+}
+
+function readJpegDimensions(buf: Buffer): ImageDimensions | null {
+  if (buf.length < 4 || buf[0] !== 0xff || buf[1] !== 0xd8) return null;
+  let offset = 2;
+  while (offset + 9 < buf.length) {
+    if (buf[offset] !== 0xff) {
+      offset += 1;
       continue;
     }
-
-    if (!Array.isArray(message.content)) continue;
-    for (const part of message.content) {
-      const contentPart = part as { type?: unknown; text?: unknown };
-      if (contentPart.type === "text" && typeof contentPart.text === "string") {
-        totalChars += contentPart.text.length;
-      }
+    const marker = buf[offset + 1];
+    // SOFn markers (excluding DHT 0xc4, JPG 0xc8, DAC 0xcc) carry frame dimensions.
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+      const height = buf.readUInt16BE(offset + 5);
+      const width = buf.readUInt16BE(offset + 7);
+      return width > 0 && height > 0 ? { width, height } : null;
     }
+    const segmentLength = buf.readUInt16BE(offset + 2);
+    if (segmentLength < 2) return null;
+    offset += 2 + segmentLength;
+  }
+  return null;
+}
+
+function readWebpDimensions(buf: Buffer): ImageDimensions | null {
+  if (buf.length < 30) return null;
+  if (buf.toString("ascii", 0, 4) !== "RIFF" || buf.toString("ascii", 8, 12) !== "WEBP") {
+    return null;
+  }
+  const chunkType = buf.toString("ascii", 12, 16);
+  if (chunkType === "VP8 ") {
+    const width = buf.readUInt16LE(26) & 0x3fff;
+    const height = buf.readUInt16LE(28) & 0x3fff;
+    return width > 0 && height > 0 ? { width, height } : null;
+  }
+  if (chunkType === "VP8L" && buf.length >= 25) {
+    const bits = buf.readUInt32LE(21);
+    const width = (bits & 0x3fff) + 1;
+    const height = ((bits >> 14) & 0x3fff) + 1;
+    return width > 0 && height > 0 ? { width, height } : null;
+  }
+  if (chunkType === "VP8X") {
+    const width = (buf[24] | (buf[25] << 8) | (buf[26] << 16)) + 1;
+    const height = (buf[27] | (buf[28] << 8) | (buf[29] << 16)) + 1;
+    return width > 0 && height > 0 ? { width, height } : null;
+  }
+  return null;
+}
+
+function readImageDimensions(buf: Buffer): ImageDimensions | null {
+  return (
+    readPngDimensions(buf) ||
+    readJpegDimensions(buf) ||
+    readGifDimensions(buf) ||
+    readWebpDimensions(buf)
+  );
+}
+
+function estimateImageTokens(block: { source?: unknown }): number {
+  const source = block.source;
+  if (!source || typeof source !== "object") return DEFAULT_IMAGE_TOKENS;
+
+  const src = source as { type?: unknown; data?: unknown };
+  if (src.type === "base64" && typeof src.data === "string") {
+    const buf = decodeBase64Prefix(src.data);
+    const dims = buf ? readImageDimensions(buf) : null;
+    if (dims) {
+      return Math.min(MAX_IMAGE_TOKENS, Math.max(1, Math.ceil((dims.width * dims.height) / 750)));
+    }
+  }
+
+  // URL sources (or payloads whose header we couldn't parse) have no locally
+  // available dimensions — fetching them here would be a network call inside a
+  // token-count endpoint, so fall back to a bounded, conservative estimate.
+  return DEFAULT_IMAGE_TOKENS;
+}
+
+function countValueChars(value: unknown, depth = 0): number {
+  if (depth > MAX_JSON_DEPTH) return 0;
+  if (value === null || value === undefined) return 0;
+  if (typeof value === "string") return value.length;
+  if (typeof value === "number" || typeof value === "boolean") return String(value).length;
+  if (Array.isArray(value)) {
+    return value.reduce((total: number, item) => total + countValueChars(item, depth + 1), 0);
+  }
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).reduce(
+      (total, [key, item]) => total + key.length + countValueChars(item, depth + 1),
+      0
+    );
+  }
+  return 0;
+}
+
+function countContentBlockChars(block: unknown, depth = 0): number {
+  if (depth > MAX_JSON_DEPTH) return 0;
+  if (block === null || block === undefined) return 0;
+  if (typeof block === "string") return block.length;
+  if (typeof block !== "object") return countValueChars(block, depth);
+
+  const typedBlock = block as {
+    type?: unknown;
+    text?: unknown;
+    name?: unknown;
+    input?: unknown;
+    content?: unknown;
+    thinking?: unknown;
+    source?: unknown;
+  };
+
+  switch (typedBlock.type) {
+    case "text":
+      return countValueChars(typedBlock.text, depth + 1);
+    case "tool_use":
+      return (
+        countValueChars(typedBlock.name, depth + 1) + countValueChars(typedBlock.input, depth + 1)
+      );
+    case "tool_result": {
+      const content = typedBlock.content;
+      if (typeof content === "string") return content.length;
+      if (Array.isArray(content)) {
+        return content.reduce(
+          (total: number, item) => total + countContentBlockChars(item, depth + 1),
+          0
+        );
+      }
+      return countValueChars(content, depth + 1);
+    }
+    case "thinking":
+      return countValueChars(typedBlock.thinking, depth + 1);
+    case "image":
+      // Convert the token estimate back to a "char" count so it survives the
+      // uniform chars/4 division performed by estimateInputTokens below.
+      return estimateImageTokens(typedBlock) * 4;
+    default:
+      return countValueChars(block, depth);
+  }
+}
+
+function countMessageChars(message: unknown, depth = 0): number {
+  if (depth > MAX_JSON_DEPTH) return 0;
+  if (!message || typeof message !== "object") return 0;
+  const content = (message as { content?: unknown }).content;
+
+  if (typeof content === "string") return content.length;
+  if (Array.isArray(content)) {
+    return content.reduce(
+      (total: number, block) => total + countContentBlockChars(block, depth + 1),
+      0
+    );
+  }
+  return countValueChars(content, depth + 1);
+}
+
+function estimateInputTokens(body: {
+  system?: unknown;
+  tools?: unknown;
+  messages?: unknown[];
+}): number {
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  let totalChars = countValueChars(body.system) + countValueChars(body.tools);
+
+  for (const msg of messages) {
+    totalChars += countMessageChars(msg);
   }
 
   return Math.ceil(totalChars / 4);
@@ -484,15 +675,14 @@ export async function POST(request) {
     );
   }
 
-  const messages = (body.messages || []) as Array<Record<string, unknown>>;
   const requestedModel = getBodyModel(rawBody);
   let inputTokens: number;
 
   if (shouldUseGlmCountTokens(requestedModel)) {
     const upstreamTokens = await tryGlmCountTokens(rawBody);
-    inputTokens = upstreamTokens ?? estimateInputTokens(messages);
+    inputTokens = upstreamTokens ?? estimateInputTokens(body);
   } else {
-    inputTokens = estimateInputTokens(messages);
+    inputTokens = estimateInputTokens(body);
   }
 
   return new Response(

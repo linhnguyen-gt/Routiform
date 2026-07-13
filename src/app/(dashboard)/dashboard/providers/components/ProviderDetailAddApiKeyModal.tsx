@@ -27,6 +27,7 @@ export function ProviderDetailAddApiKeyModal({
   const isGlm = provider === "glm";
   const isQoder = provider === "qoder";
   const isXiaomiTokenPlan = provider === "xiaomi-mimo-token-plan";
+  const isCloudflareAi = provider === "cloudflare-ai";
   const defaultBailianUrl = "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic/v1";
   const defaultRegion = "us-central1";
 
@@ -37,6 +38,7 @@ export function ProviderDetailAddApiKeyModal({
     baseUrl: isBailian ? defaultBailianUrl : isXiaomiTokenPlan ? "" : "",
     region: isVertex ? defaultRegion : "",
     apiRegion: "international",
+    accountId: "",
     validationModelId: "",
     customUserAgent: "",
   });
@@ -96,6 +98,11 @@ export function ProviderDetailAddApiKeyModal({
         }
         validatedXiaomiTokenPlanBaseUrl = root;
       }
+      if (isCloudflareAi && !formData.accountId.trim()) {
+        setSaveError("Account ID is required for Cloudflare Workers AI.");
+        setSaving(false);
+        return;
+      }
 
       // Detect Qoder OAuth token (starts with 'pt-') and skip validation
       const trimmedApiKey = formData.apiKey.trim();
@@ -125,6 +132,7 @@ export function ProviderDetailAddApiKeyModal({
         providerSpecificData.baseUrl = validatedXiaomiTokenPlanBaseUrl;
       } else if (isVertex) providerSpecificData.region = formData.region;
       else if (isGlm) providerSpecificData.apiRegion = formData.apiRegion;
+      else if (isCloudflareAi) providerSpecificData.accountId = formData.accountId.trim();
 
       const payload: Record<string, unknown> = {
         name: formData.name,
@@ -305,6 +313,15 @@ export function ProviderDetailAddApiKeyModal({
             onChange={(e) => setFormData({ ...formData, region: e.target.value })}
             placeholder={defaultRegion}
             hint="ex: us-central1 ou europe-west4. Partner models usam a região global automaticamente."
+          />
+        )}
+        {isCloudflareAi && (
+          <Input
+            label="Account ID"
+            value={formData.accountId}
+            onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
+            placeholder="e.g. a1b2c3d4e5f6..."
+            hint="Required. Find it at dash.cloudflare.com (right sidebar)."
           />
         )}
         {isGlm && (

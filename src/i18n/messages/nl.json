@@ -2296,7 +2296,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Prefer accounts with the most free capacity.",
     "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)"
+    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Voegt een beknoptheidsdirectief toe aan de systeemprompt zodat het model met minder output-tokens antwoordt. Output-tokens kosten 3-5x meer dan input-tokens. Standaard uitgeschakeld.",
+    "cavemanOutputOff": "Uit",
+    "cavemanOutputOffDesc": "Geen directief ingevoegd. Model antwoordt normaal.",
+    "cavemanOutputLite": "Licht",
+    "cavemanOutputLiteDesc": "Verwijdert opvulwoorden, aarzelingen en beleefdheden. Volledige zinnen blijven behouden.",
+    "cavemanOutputFull": "Volledig",
+    "cavemanOutputFullDesc": "Maximale beknoptheid. Fragmenten, weggelaten lidwoorden. Technische inhoud blijft exact."
   },
   "translator": {
     "title": "Vertaler",

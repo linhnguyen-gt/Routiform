@@ -155,9 +155,17 @@ export async function chatCorePhaseSetupAndLogs(p: ChatCorePipeline): Promise<Ph
       connectionId: p.connectionId,
       duration: Date.now() - p.startTime,
       tokens: tokens || {},
-      requestBody: attachLogMeta((p.body as Record<string, unknown>) ?? undefined, {
-        claudePromptCache: claudeCacheMeta,
-      }),
+      // Prefer the pristine pre-compression snapshot (set by the
+      // translate-and-bundle phase) so this log always shows what the client
+      // actually sent, not a body the compression stack may have since
+      // mutated in place. Falls back to p.body when the phase hasn't run yet
+      // (e.g. an early-return path before rawBody is captured).
+      requestBody: attachLogMeta(
+        (p.rawBody as Record<string, unknown> | undefined) ??
+          (p.body as Record<string, unknown>) ??
+          undefined,
+        { claudePromptCache: claudeCacheMeta }
+      ),
       responseBody: attachLogMeta((responseBody as Record<string, unknown>) ?? undefined, {
         claudePromptCache: claudeCacheMeta
           ? {

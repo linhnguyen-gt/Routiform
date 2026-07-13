@@ -2297,7 +2297,15 @@
     "headroom": "Headroom",
     "headroomDesc": "空き容量が最も多いアカウントを優先します。",
     "lkgp": "LKGP モード",
-    "lkgpDesc": "Last Known Good Provider（予測しやすい耐障害性）"
+    "lkgpDesc": "Last Known Good Provider（予測しやすい耐障害性）",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "システムプロンプトに簡潔性の指示を追加し、モデルが出力トークンを減らして応答するようにします。出力トークンは入力トークンの3〜5倍のコストがかかります。デフォルトでオフ。",
+    "cavemanOutputOff": "オフ",
+    "cavemanOutputOffDesc": "指示は挿入されません。モデルは通常どおり応答します。",
+    "cavemanOutputLite": "ライト",
+    "cavemanOutputLiteDesc": "つなぎ言葉、ためらい、社交辞令を省きます。完全な文は維持されます。",
+    "cavemanOutputFull": "フル",
+    "cavemanOutputFullDesc": "最大限の簡潔さ。断片的な表現、冠詞の省略。技術的内容は正確に保たれます。"
   },
   "translator": {
     "title": "翻訳者",

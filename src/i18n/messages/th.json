@@ -2296,7 +2296,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Prefer accounts with the most free capacity.",
     "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)"
+    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "เพิ่มคำสั่งความกระชับลงในพรอมต์ระบบ เพื่อให้โมเดลตอบด้วยโทเค็นเอาต์พุตน้อยลง โทเค็นเอาต์พุตมีราคาแพงกว่าโทเค็นอินพุต 3-5 เท่า ปิดอยู่โดยค่าเริ่มต้น",
+    "cavemanOutputOff": "ปิด",
+    "cavemanOutputOffDesc": "ไม่มีการแทรกคำสั่ง โมเดลตอบตามปกติ",
+    "cavemanOutputLite": "เบา",
+    "cavemanOutputLiteDesc": "ตัดคำฟุ่มเฟือย คำลังเล และคำสุภาพออก ยังคงประโยคที่สมบูรณ์",
+    "cavemanOutputFull": "เต็ม",
+    "cavemanOutputFullDesc": "กระชับสูงสุด เป็นวลีสั้น ตัดคำนำหน้านามออก เนื้อหาทางเทคนิคยังคงแม่นยำ"
   },
   "translator": {
     "title": "นักแปล",

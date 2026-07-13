@@ -39,6 +39,8 @@ const FALLBACK_ALIAS_TO_PROVIDER = {
 const LIVE_SYNC_MODEL_PROVIDERS = new Set(["claude", "gemini"]);
 
 const VISION_MODEL_KEYWORDS = [
+  "gpt-5.6",
+  "gpt-5.5",
   "gpt-5.4",
   "gpt-5.4-mini",
   "gpt-5.3-codex",
@@ -62,6 +64,10 @@ const VISION_MODEL_KEYWORDS = [
   "mistral-pixtral",
   "qwen-vl",
   "qvq",
+  "qwen3.5",
+  "qwen3.6",
+  "qwen3.7",
+  "qwen-omni",
   "glm-4.6v",
   "glm-4.5v",
   "vision",

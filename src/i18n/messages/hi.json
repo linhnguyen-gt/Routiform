@@ -2296,7 +2296,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Prefer accounts with the most free capacity.",
     "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)"
+    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "सिस्टम प्रॉम्प्ट में संक्षिप्तता निर्देश जोड़ता है ताकि मॉडल कम आउटपुट टोकन के साथ जवाब दे। आउटपुट टोकन इनपुट टोकन से 3-5 गुना महंगे होते हैं। डिफ़ॉल्ट रूप से बंद।",
+    "cavemanOutputOff": "बंद",
+    "cavemanOutputOffDesc": "कोई निर्देश नहीं जोड़ा गया। मॉडल सामान्य रूप से जवाब देता है।",
+    "cavemanOutputLite": "हल्का",
+    "cavemanOutputLiteDesc": "भराव, झिझक और औपचारिकताएँ हटाता है। पूरे वाक्य बने रहते हैं।",
+    "cavemanOutputFull": "पूर्ण",
+    "cavemanOutputFullDesc": "अधिकतम संक्षिप्तता। खंड, लेख छोड़े गए। तकनीकी सामग्री सटीक रहती है।"
   },
   "translator": {
     "title": "अनुवादक",

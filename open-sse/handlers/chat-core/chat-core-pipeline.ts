@@ -69,6 +69,15 @@ export type ChatCorePipeline = HandleChatCoreArgs & {
   isClaudeCodeCompatible?: boolean;
   upstreamStream?: boolean;
   translatedBody?: Record<string, unknown>;
+  /**
+   * Pristine snapshot of `p.body` taken right before the compression stack
+   * mutates it in place (post-sanitize, pre-translation). Consumers that need
+   * "what the client actually sent" — the semantic-cache signature, the
+   * persisted call-log requestBody — must read this instead of `p.body`, or
+   * their key/log would silently start varying with the requester's
+   * compression settings (cavemanOutputLevel, RTK profile).
+   */
+  rawBody?: Record<string, unknown>;
   /** Applied compression plan echo (e.g. for X-Routiform-Compression). */
   compressionHeader?: string;
   ccSessionId?: string;

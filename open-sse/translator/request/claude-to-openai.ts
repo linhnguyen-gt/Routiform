@@ -56,7 +56,8 @@ export function claudeToOpenAIRequest(model, body, stream) {
   if (body.messages && Array.isArray(body.messages)) {
     for (let i = 0; i < body.messages.length; i++) {
       const msg = body.messages[i];
-      const converted = convertClaudeMessage(msg);
+      const isTrailingSystem = msg.role === "system" && i === body.messages.length - 1;
+      const converted = convertClaudeMessage(msg, isTrailingSystem);
       if (converted) {
         // Handle array of messages (multiple tool results)
         if (Array.isArray(converted)) {
@@ -145,9 +146,77 @@ function fixMissingToolResponses(messages) {
   }
 }
 
-// Convert single Claude message - returns single message or array of messages
-function convertClaudeMessage(msg) {
-  const role = msg.role === "user" || msg.role === "tool" ? "user" : "assistant";
+// Wrap the TRAILING system message so it lands as a user turn instead of
+// collapsing into assistant. Claude Code appends a single role:"system"
+// message at the end of messages[]; unwrapped, that message previously
+// mapped to "assistant", leaving the conversation ending on an assistant
+// turn — OpenAI-compat providers that reverse-translate to Anthropic
+// (LiteLLM et al.) then return 400 "assistant message prefill".
+//
+// This is scoped to the trailing message only (see isTrailingSystem in
+// claudeToOpenAIRequest). Applying it to every system message regardless of
+// position broke role alternation for mid-conversation system messages
+// (e.g. [user, system, user] -> [user, user, user]) which some of the same
+// reverse-translating backends reject, and could silently drop non-text
+// blocks or the whole message on empty text.
+function systemReminderText(content: unknown): string {
+  const parts = Array.isArray(content)
+    ? (content as JsonRecord[])
+        .filter((c) => c?.type === "text")
+        .map((c) => (typeof c.text === "string" ? c.text : ""))
+    : [typeof content === "string" ? content : ""];
+  const text = parts.filter(Boolean).join("\n");
+  if (!text.trim()) return "";
+  return `<system-reminder>\n${text}\n</system-reminder>`;
+}
+
+// Build the trailing-system-message replacement, preserving image blocks
+// (which systemReminderText's text-only extraction would otherwise drop)
+// instead of letting the message vanish when it carries non-text content.
+function buildTrailingSystemMessage(content: unknown): JsonRecord | null {
+  const blocks = Array.isArray(content) ? (content as JsonRecord[]) : [];
+  const imageParts: JsonRecord[] = [];
+  for (const block of blocks) {
+    if (block?.type !== "image") continue;
+    const source = block.source as JsonRecord | undefined;
+    if (source?.type === "base64") {
+      imageParts.push({
+        type: "image_url",
+        image_url: { url: `data:${source.media_type};base64,${source.data}` },
+      });
+    } else if (source?.type === "url" && typeof source.url === "string") {
+      imageParts.push({ type: "image_url", image_url: { url: source.url } });
+    }
+  }
+
+  const text = systemReminderText(content);
+
+  if (imageParts.length === 0) {
+    return text ? { role: "user", content: text } : null;
+  }
+
+  const parts: JsonRecord[] = [...imageParts];
+  if (text) parts.push({ type: "text", text });
+  return { role: "user", content: parts };
+}
+
+// Convert single Claude message - returns single message or array of messages.
+// `isTrailingSystem` marks the single trailing role:"system" message Claude
+// Code appends (see buildTrailingSystemMessage above); every other system
+// message (mid-conversation) passes through as role "system" unchanged so
+// its content — including non-text blocks — is preserved via the generic
+// block-processing path below instead of being dropped or remapped.
+function convertClaudeMessage(msg, isTrailingSystem = false) {
+  if (msg.role === "system" && isTrailingSystem) {
+    return buildTrailingSystemMessage(msg.content);
+  }
+
+  const role =
+    msg.role === "system"
+      ? "system"
+      : msg.role === "user" || msg.role === "tool"
+        ? "user"
+        : "assistant";
 
   // Simple string content
   if (typeof msg.content === "string") {

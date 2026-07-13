@@ -37,6 +37,41 @@ function resolveProviderModelsKey(aliasOrId: string): string {
   return aliasOrId;
 }
 
+// PROVIDER_MODELS is keyed by alias — kiro's alias is "kr" (see OAUTH_PROVIDERS.kiro).
+const KIRO_MODELS_KEY = "kr";
+
+/**
+ * Normalize version separators in a model id: a hyphen between two digits becomes a dot.
+ * Kiro's registry ids use dots for versions ("claude-sonnet-4.5") but some clients (CLIs,
+ * aliases) send the dash form ("claude-sonnet-4-5"). Only digit-digit hyphens are touched,
+ * so word-suffix hyphens stay intact ("-thinking", "-agentic", "qwen3-coder-next").
+ */
+export function normalizeModelId(modelId: string): string {
+  if (typeof modelId !== "string") return modelId;
+  return modelId.replace(/(\d)-(\d)/g, "$1.$2");
+}
+
+/**
+ * Resolve a model id against a provider's catalog, tolerating a `alias/model` prefix.
+ * Kiro only: also retries with dash-separated version numbers normalized to dots
+ * ("claude-sonnet-4-5" -> "claude-sonnet-4.5") — no cross-provider leakage, every other
+ * provider keeps exact-match semantics.
+ */
+function findModel(
+  models: RegistryModel[],
+  key: string,
+  aliasOrId: string,
+  modelId: string
+): RegistryModel | undefined {
+  const bare = stripProviderPrefixFromModelId(aliasOrId, modelId);
+  const found = models.find((m) => m.id === modelId || m.id === bare);
+  if (found || key !== KIRO_MODELS_KEY) return found;
+
+  const normalized = normalizeModelId(bare);
+  if (normalized === bare) return undefined;
+  return models.find((m) => m.id === normalized);
+}
+
 // Helper functions
 export function getProviderModels(aliasOrId: string): RegistryModel[] {
   return PROVIDER_MODELS[resolveProviderModelsKey(aliasOrId)] || [];
@@ -53,25 +88,25 @@ export function isValidModel(
   passthroughProviders = new Set<string>()
 ): boolean {
   if (passthroughProviders.has(aliasOrId)) return true;
-  const models = PROVIDER_MODELS[resolveProviderModelsKey(aliasOrId)];
+  const key = resolveProviderModelsKey(aliasOrId);
+  const models = PROVIDER_MODELS[key];
   if (!models) return false;
-  const bare = stripProviderPrefixFromModelId(aliasOrId, modelId);
-  return models.some((m) => m.id === modelId || m.id === bare);
+  return !!findModel(models, key, aliasOrId, modelId);
 }
 
 export function findModelName(aliasOrId: string, modelId: string): string {
-  const models = PROVIDER_MODELS[resolveProviderModelsKey(aliasOrId)];
+  const key = resolveProviderModelsKey(aliasOrId);
+  const models = PROVIDER_MODELS[key];
   if (!models) return modelId;
-  const bare = stripProviderPrefixFromModelId(aliasOrId, modelId);
-  const found = models.find((m) => m.id === modelId || m.id === bare);
+  const found = findModel(models, key, aliasOrId, modelId);
   return found?.name || modelId;
 }
 
 export function getModelTargetFormat(aliasOrId: string, modelId: string): string | null {
-  const models = PROVIDER_MODELS[resolveProviderModelsKey(aliasOrId)];
+  const key = resolveProviderModelsKey(aliasOrId);
+  const models = PROVIDER_MODELS[key];
   if (!models) return null;
-  const bare = stripProviderPrefixFromModelId(aliasOrId, modelId);
-  const found = models.find((m) => m.id === modelId || m.id === bare);
+  const found = findModel(models, key, aliasOrId, modelId);
   return found?.targetFormat || null;
 }
 

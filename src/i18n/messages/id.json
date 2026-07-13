@@ -2296,7 +2296,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Prefer accounts with the most free capacity.",
     "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)"
+    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Menambahkan arahan keringkasan ke prompt sistem agar model merespons dengan lebih sedikit token output. Token output berbiaya 3-5x lebih mahal daripada token input. Nonaktif secara default.",
+    "cavemanOutputOff": "Nonaktif",
+    "cavemanOutputOffDesc": "Tidak ada arahan yang disisipkan. Model merespons secara normal.",
+    "cavemanOutputLite": "Ringan",
+    "cavemanOutputLiteDesc": "Menghapus kata pengisi, keraguan, dan basa-basi. Kalimat lengkap tetap dipertahankan.",
+    "cavemanOutputFull": "Penuh",
+    "cavemanOutputFullDesc": "Keringkasan maksimum. Fragmen, artikel dihilangkan. Konten teknis tetap akurat."
   },
   "translator": {
     "title": "Penerjemah",

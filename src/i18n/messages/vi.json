@@ -2314,7 +2314,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Ưu tiên tài khoản còn nhiều dung lượng trống.",
     "lkgp": "Chế độ LKGP",
-    "lkgpDesc": "Last Known Good Provider (ổn định, dễ dự đoán)"
+    "lkgpDesc": "Last Known Good Provider (ổn định, dễ dự đoán)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Chèn chỉ thị súc tích vào system prompt để model trả lời với ít output token hơn. Output token đắt gấp 3-5 lần input token. Mặc định tắt.",
+    "cavemanOutputOff": "Tắt",
+    "cavemanOutputOffDesc": "Không chèn chỉ thị nào. Model trả lời bình thường.",
+    "cavemanOutputLite": "Nhẹ",
+    "cavemanOutputLiteDesc": "Bỏ từ đệm, do dự và lời khách sáo. Vẫn giữ câu đầy đủ.",
+    "cavemanOutputFull": "Đầy đủ",
+    "cavemanOutputFullDesc": "Súc tích tối đa. Câu rời rạc, bỏ mạo từ. Nội dung kỹ thuật vẫn chính xác."
   },
   "translator": {
     "title": "Người phiên dịch",

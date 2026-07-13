@@ -2316,7 +2316,15 @@
     "headroom": "Headroom",
     "headroomDesc": "优先选择剩余容量最大的账户。",
     "lkgp": "LKGP 模式",
-    "lkgpDesc": "Last Known Good Provider（可预期的稳定性）"
+    "lkgpDesc": "Last Known Good Provider（可预期的稳定性）",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "在系统提示中注入简洁性指令，使模型用更少的输出 token 回复。输出 token 的成本是输入 token 的 3-5 倍。默认关闭。",
+    "cavemanOutputOff": "关闭",
+    "cavemanOutputOffDesc": "未注入任何指令。模型正常回复。",
+    "cavemanOutputLite": "轻度",
+    "cavemanOutputLiteDesc": "去除填充词、犹豫语和客套话。完整句子保留。",
+    "cavemanOutputFull": "完全",
+    "cavemanOutputFullDesc": "最大简洁度。使用片段，省略冠词。技术内容保持准确。"
   },
   "translator": {
     "title": "翻译者",

@@ -2296,7 +2296,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Prefer accounts with the most free capacity.",
     "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)"
+    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Pridá do systémovej výzvy pokyn na stručnosť, aby model odpovedal s menším počtom výstupných tokenov. Výstupné tokeny stoja 3-5x viac ako vstupné. V predvolenom nastavení vypnuté.",
+    "cavemanOutputOff": "Vypnuté",
+    "cavemanOutputOffDesc": "Žiadny pokyn nebol vložený. Model odpovedá normálne.",
+    "cavemanOutputLite": "Ľahké",
+    "cavemanOutputLiteDesc": "Odstraňuje výplňové slová, váhanie a zdvorilosti. Celé vety zostávajú zachované.",
+    "cavemanOutputFull": "Plné",
+    "cavemanOutputFullDesc": "Maximálna stručnosť. Fragmenty, vynechané členy. Technický obsah zostáva presný."
   },
   "translator": {
     "title": "Prekladateľ",

@@ -91,11 +91,20 @@ export const OAUTH_PROVIDERS: Record<string, RegistryEntry> = {
       clientSecretDefault: "",
     },
     models: [
-      { id: "gemini-3-pro-preview", name: "Gemini 3 Pro Preview" },
+      // gemini-3-pro-preview was shut down 2026-03-09 (Google's Gemini API
+      // deprecations page: https://ai.google.dev/gemini-api/docs/deprecations)
+      // and removed from the picker so the default is a live model. Old
+      // configs pointing at the retired id still resolve via
+      // STARTUP_MODEL_ALIAS_SEEDS (src/lib/db/models.ts) and
+      // PROVIDER_MODEL_ALIASES (open-sse/services/model.ts), both of which
+      // redirect it to gemini-3.1-pro-preview.
       { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro Preview" },
       { id: "gemini-3.1-pro-preview-customtools", name: "Gemini 3.1 Pro Preview Custom Tools" },
       { id: "gemini-3-flash-preview", name: "Gemini 3 Flash Preview" },
-      { id: "gemini-3.1-flash-lite-preview", name: "Gemini 3.1 Flash Lite Preview" },
+      // gemini-3.1-flash-lite-preview was shut down 2026-05-25; the live
+      // successor is the non-preview id. Retired configs still resolve via
+      // BUILT_IN_ALIASES (open-sse/services/modelDeprecation.ts).
+      { id: "gemini-3.1-flash-lite", name: "Gemini 3.1 Flash Lite" },
       { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
       { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
       { id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash Lite" },
@@ -120,10 +129,20 @@ export const OAUTH_PROVIDERS: Record<string, RegistryEntry> = {
       clientSecretDefault: "",
       tokenUrl: "https://auth.openai.com/oauth/token",
     },
+    // Current lineup (Codex CLI model picker, 2026-07-12) leads the list —
+    // gpt-5.6-terra is the CLI default. Legacy ids stay listed below so they
+    // remain routable via `codex -m <model_name>`; the live models API call
+    // (handle-codex-models.ts / codex-models.ts mergeCodexModels) still wins
+    // over this static list for connected accounts.
     models: [
-      { id: "gpt-5.4", name: "gpt-5.4" },
+      { id: "gpt-5.6-terra", name: "gpt-5.6-terra" },
+      { id: "gpt-5.6-luna", name: "gpt-5.6-luna" },
+      { id: "gpt-5.5", name: "gpt-5.5" },
       { id: "gpt-5.4-mini", name: "gpt-5.4-mini" },
+      { id: "gpt-5.6-sol", name: "gpt-5.6-sol" },
+      { id: "gpt-5.4", name: "gpt-5.4" },
       { id: "gpt-5.3-codex", name: "gpt-5.3-codex" },
+      { id: "gpt-5.3-codex-spark", name: "gpt-5.3-codex-spark" },
       { id: "gpt-5.2", name: "gpt-5.2" },
     ],
   },
@@ -269,12 +288,16 @@ export const OAUTH_PROVIDERS: Record<string, RegistryEntry> = {
     },
     models: [
       { id: "auto", name: "Auto (1.00x credits)" },
+      // Credit multipliers estimated from the sibling model in the same tier (Opus/Sonnet)
+      // until kiro.dev publishes official pricing for these ids.
+      { id: "claude-opus-4.8", name: "Claude Opus 4.8 (2.20x credits)", maxOutputTokens: 32000 },
       {
         id: "claude-opus-4.7",
         name: "Claude Opus 4.7 (2.20x credits) — Experimental preview",
         maxOutputTokens: 32000,
       },
       { id: "claude-opus-4.6", name: "Claude Opus 4.6 (2.20x credits)", maxOutputTokens: 32000 },
+      { id: "claude-sonnet-5", name: "Claude Sonnet 5 (1.30x credits)", maxOutputTokens: 64000 },
       {
         id: "claude-sonnet-4.6",
         name: "Claude Sonnet 4.6 (1.30x credits) — Latest Sonnet model",

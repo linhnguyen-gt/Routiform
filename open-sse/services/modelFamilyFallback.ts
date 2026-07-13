@@ -23,9 +23,14 @@ import { CONTEXT_OVERFLOW_REGEX } from "./errorClassifier.ts";
  */
 const MODEL_FAMILIES: Record<string, string[]> = {
   // Gemini 3 / 3.1 Pro family — ordered by preference
+  // NOTE: "gemini-3-pro-preview" was shut down 2026-03-09 (see DEPRECATED_MODEL_IDS
+  // below) and must never appear as a fallback TARGET in any of these chains —
+  // routing to it would fail every time. Its own family entry (key) below is
+  // kept as a backward-compat entry point for callers still hardcoding the
+  // retired id: the request itself is rejected upstream, but the fallback
+  // chain for it lists only live siblings.
   "gemini-3-pro": [
     "gemini-3.1-pro-preview",
-    "gemini-3-pro-preview",
     "gemini-3.1-pro-high",
     "gemini-3-pro-high",
     "gemini-3.1-pro-low",
@@ -33,7 +38,6 @@ const MODEL_FAMILIES: Record<string, string[]> = {
   ],
   "gemini-3.1-pro": [
     "gemini-3.1-pro-preview",
-    "gemini-3-pro-preview",
     "gemini-3.1-pro-high",
     "gemini-3-pro-high",
     "gemini-3.1-pro-low",
@@ -47,7 +51,6 @@ const MODEL_FAMILIES: Record<string, string[]> = {
     "gemini-3.1-pro-low",
   ],
   "gemini-3.1-pro-preview": [
-    "gemini-3-pro-preview",
     "gemini-3.1-pro-high",
     "gemini-3-pro-high",
     "gemini-3.1-pro-low",
@@ -55,7 +58,6 @@ const MODEL_FAMILIES: Record<string, string[]> = {
   ],
   "gemini-3-pro-high": [
     "gemini-3.1-pro-high",
-    "gemini-3-pro-preview",
     "gemini-3.1-pro-preview",
     "gemini-3-pro-low",
     "gemini-3.1-pro-low",
@@ -63,7 +65,6 @@ const MODEL_FAMILIES: Record<string, string[]> = {
   "gemini-3.1-pro-high": [
     "gemini-3-pro-high",
     "gemini-3.1-pro-preview",
-    "gemini-3-pro-preview",
     "gemini-3.1-pro-low",
     "gemini-3-pro-low",
   ],
@@ -87,6 +88,42 @@ const MODEL_FAMILIES: Record<string, string[]> = {
   "gpt-5": ["gpt-5-mini", "gpt-4o"],
   "gpt-5.1": ["gpt-5.1-mini", "gpt-5", "gpt-4o"],
 };
+
+/**
+ * Model ids confirmed shut down by their provider. A fallback chain must
+ * never list one of these as a candidate TARGET — routing to a shut-down
+ * model always fails, making the fallback worse than no fallback at all.
+ * (A DEPRECATED_MODEL_ID may still appear as a MODEL_FAMILIES *key* — that
+ * is a legacy entry point for callers still hardcoding the retired id, not
+ * a routing target.)
+ *
+ * A provider catalog (registry-providers-{oauth,apikey,free}.ts) must never
+ * OFFER one either — see tests/unit/model-family-fallback-no-dead-models.test.mjs,
+ * which enforces both rules against this set. Every id below was confirmed
+ * absent from the live catalog of the provider that actually serves it, not
+ * just from a vendor deprecation page.
+ *
+ * Shutdown dates per https://ai.google.dev/gemini-api/docs/deprecations:
+ * - "gemini-3-pro-preview": 2026-03-09.
+ * - "gemini-3.1-flash-lite-preview": 2026-05-25.
+ * - "gemini-2.0-flash" / "gemini-2.0-flash-thinking-exp": 2026-06-01. Also
+ *   verified gone from the OpenRouter and AI/ML API catalogs.
+ * - "gemini-1.5-pro": retired before the current deprecation page; verified
+ *   absent from the AI/ML API catalog that was serving it.
+ *
+ * Scope: chat-routable ids only. The retired image-generation previews
+ * (gemini-3-pro-image-preview, gemini-3.1-flash-image-preview, also shut down
+ * 2026-06-25) are intentionally absent — no catalog here offers them, so
+ * there is nothing to guard, and listing them would oblige a redirect onto an
+ * image model this router cannot use for chat.
+ */
+export const DEPRECATED_MODEL_IDS = new Set<string>([
+  "gemini-3-pro-preview",
+  "gemini-3.1-flash-lite-preview",
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-thinking-exp",
+  "gemini-1.5-pro",
+]);
 
 // ── Error Detection ──────────────────────────────────────────────────────────
 

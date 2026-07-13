@@ -29,7 +29,27 @@ describe("Cache Control Policy - Claude Protocol Providers", () => {
   });
 
   test("shouldPreserveCacheControl preserves for Claude-format providers with Claude Code client", () => {
+    // NOTE: "Claude-Code/1.0.0" is a legacy spelling exercised by pre-existing
+    // tests, not a UA any real client sends. Real Claude Code sends
+    // "claude-cli/<ver> (external, cli)" (see claudeCodeCompatible.ts
+    // CLAUDE_CODE_COMPATIBLE_USER_AGENT) — isClaudeCodeClient does not yet
+    // recognise it, so shouldPreserveCacheControl returns false for the real
+    // UA today. This is intentional (see Fix 2 verdict in
+    // tests/unit/cache-control-policy-claude-cli-verdict.test.mjs); the
+    // assertions below cover both spellings and document the gap.
     const claudeCodeUA = "Claude-Code/1.0.0";
+    const realClaudeCliUA = "claude-cli/2.1.63 (external, cli)";
+
+    assert.equal(
+      shouldPreserveCacheControl({
+        userAgent: realClaudeCliUA,
+        isCombo: false,
+        targetProvider: "bailian-coding-plan",
+        targetFormat: "claude",
+        settings: { alwaysPreserveClientCache: "auto" },
+      }),
+      false
+    );
 
     // Claude-protocol providers should preserve cache_control
     assert.equal(

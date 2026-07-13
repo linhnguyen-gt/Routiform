@@ -185,6 +185,18 @@ function createPreMigrationBackupSnapshot(
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const backupFile = path.join(backupDir, `db_${timestamp}_pre-migration.sqlite`);
 
+  // Full raw file copy (not a schema-only "lite" copy): a pre-migration
+  // backup exists for exactly one scenario — recovering from a migration
+  // that went wrong — and restorability is the entire point. A previous
+  // attempt at a "lite" backup (ATTACH + per-table copy, excluding
+  // `request_detail_logs` to save disk) only recreated `sqlite_master` rows
+  // of type "table", silently dropping every index/trigger/view. Worse, it
+  // also copied the migrations-tracking table, so the migration runner would
+  // treat a restored backup as fully migrated and never re-run the missing
+  // `CREATE TRIGGER` / `CREATE INDEX` statements (e.g. the
+  // `trg_rdl_ring_buffer` ring-buffer trigger, `memories_fts` and its sync
+  // triggers). That is a backup you cannot actually restore from. Disk size
+  // is a nice-to-have; a byte-for-byte correct copy is not optional here.
   db.pragma("wal_checkpoint(TRUNCATE)");
   fs.copyFileSync(sqliteFile, backupFile);
   rotatePreMigrationBackups(backupDir, backupMaxFiles);

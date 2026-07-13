@@ -58,7 +58,10 @@ const DEFAULT_DEGRADATION_MAP: Record<string, string> = {
   "claude-sonnet-4": "gemini-3-flash",
   "gemini-3.1-pro": "gemini-3-flash",
   "gemini-3.1-pro-high": "gemini-3-flash",
-  "gemini-3-pro-preview": "gemini-3-flash-preview",
+  // gemini-3-pro-preview was shut down 2026-03-09 (ai.google.dev/gemini-api/docs/deprecations);
+  // the source key here is its live successor so degradation still applies
+  // to the model users are actually routed to.
+  "gemini-3.1-pro-preview": "gemini-3-flash-preview",
   "gemini-2.5-pro": "gemini-3-flash",
   "gpt-4o": "gpt-4o-mini",
   "gpt-5": "gpt-5-mini",

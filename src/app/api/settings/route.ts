@@ -186,7 +186,7 @@ export async function PATCH(request) {
       );
     }
 
-    if ("contextValidation" in body) {
+    if ("contextValidation" in body || "cavemanOutputLevel" in body) {
       const { invalidateContextValidationSettingsCache } =
         await import("@routiform/open-sse/services/contextValidationSettings.ts");
       invalidateContextValidationSettingsCache();

@@ -18,9 +18,24 @@ const BUILT_IN_ALIASES: Record<string, string> = {
   "gemini-1.5-flash": "gemini-2.5-flash",
   "gemini-1.0-pro": "gemini-2.5-pro",
   "gemini-2.0-flash": "gemini-2.5-flash",
+  "gemini-2.0-flash-thinking-exp": "gemini-2.5-flash",
   "gemini-3-pro-high": "gemini-3.1-pro-high",
   "gemini-3-pro-low": "gemini-3.1-pro-low",
   "gemini-3.1-flash-image": "gemini-3.5-flash-low",
+  // Retired ids that were removed from the provider catalogs (see
+  // DEPRECATED_MODEL_IDS in services/modelFamilyFallback.ts). They keep a
+  // redirect so a saved config pointing at one still routes to a live model
+  // instead of 404-ing — "not offered any more" and "no longer resolvable"
+  // are different things.
+  //
+  // The retired *image* previews (gemini-3-pro-image-preview,
+  // gemini-3.1-flash-image-preview) deliberately get NO redirect. Their live
+  // successors are image-generation models, no catalog here offers them, and
+  // ANTIGRAVITY_EXCLUDED_MODELS marks them "not usable for chat". Forwarding a
+  // chat request onto an image model would answer it with something unusable
+  // instead of failing; a clean "unknown model" is the better outcome.
+  "gemini-3-pro-preview": "gemini-3.1-pro-preview",
+  "gemini-3.1-flash-lite-preview": "gemini-3.1-flash-lite",
 
   // Claude legacy → current
   "claude-3-opus-20240229": "claude-opus-4-1-20250805",

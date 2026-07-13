@@ -2296,7 +2296,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Prefer accounts with the most free capacity.",
     "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)"
+    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Добавя директива за краткост към системната подсказка, така че моделът да отговаря с по-малко изходни токени. Изходните токени струват 3-5 пъти повече от входните. Изключено по подразбиране.",
+    "cavemanOutputOff": "Изключено",
+    "cavemanOutputOffDesc": "Няма вмъкната директива. Моделът отговаря нормално.",
+    "cavemanOutputLite": "Леко",
+    "cavemanOutputLiteDesc": "Премахва запълващи думи, колебания и любезности. Пълните изречения се запазват.",
+    "cavemanOutputFull": "Пълно",
+    "cavemanOutputFullDesc": "Максимална краткост. Фрагменти, пропуснати членове. Техническото съдържание остава точно."
   },
   "translator": {
     "title": "Преводач",

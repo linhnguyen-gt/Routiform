@@ -357,7 +357,8 @@ export const APIKEY_PROVIDERS: Record<string, RegistryEntry> = {
       { id: "openai/gpt-5-nano", name: "GPT-5 Nano" },
       { id: "openai/gpt-5-mini", name: "GPT-5 Mini" },
       { id: "anthropic/claude-3-haiku", name: "Claude 3 Haiku" },
-      { id: "google/gemini-2.0-flash", name: "Gemini 2.0 Flash" },
+      // google/gemini-2.0-flash removed: shut down by Google 2026-06-01 and no
+      // longer present in the upstream OpenRouter catalog this provider proxies.
       { id: "google/gemini-2.5-flash-lite", name: "Gemini 2.5 Flash Lite" },
       { id: "deepseek/deepseek-chat-v3.1", name: "DeepSeek V3.1" },
       { id: "deepseek/deepseek-v3.2", name: "DeepSeek V3.2" },
@@ -466,6 +467,7 @@ export const APIKEY_PROVIDERS: Record<string, RegistryEntry> = {
     authType: "apikey",
     authHeader: "bearer",
     defaultContextLength: CONTEXT_CONFIG.defaultLimit,
+    quirks: { preserveCacheControl: true },
     models: [
       { id: "qwen3.5-plus", name: "Qwen3.5 Plus" },
       { id: "kimi-k2.5", name: "Kimi K2.5", forceParams: { temperature: 1 } },
@@ -487,6 +489,7 @@ export const APIKEY_PROVIDERS: Record<string, RegistryEntry> = {
     authType: "apikey",
     authHeader: "bearer",
     defaultContextLength: CONTEXT_CONFIG.defaultLimit,
+    quirks: { preserveCacheControl: true },
     models: [
       { id: "qwen3.5-plus", name: "Qwen3.5 Plus" },
       { id: "kimi-k2.5", name: "Kimi K2.5", forceParams: { temperature: 1 } },
@@ -777,9 +780,42 @@ export const APIKEY_PROVIDERS: Record<string, RegistryEntry> = {
       { id: "nvidia/llama-3.3-70b-instruct", name: "Llama 3.3 70B (NVIDIA Prefix)" },
       { id: "meta/llama-4-maverick-17b-128e-instruct", name: "Llama 4 Maverick" },
       { id: "moonshotai/kimi-k2.5", name: "Kimi K2.5", forceParams: { temperature: 1 } },
+      { id: "moonshotai/kimi-k2.6", name: "Kimi K2.6", forceParams: { temperature: 1 } },
       { id: "z-ai/glm4.7", name: "GLM 4.7" },
+      {
+        id: "z-ai/glm-5.2",
+        name: "GLM 5.2",
+        // NVIDIA NIM is OpenAI-compatible and rejects the native `thinking` field
+        // GLM emits for reasoning; strip it and rely on `reasoning_effort` instead.
+        unsupportedParams: ["thinking"],
+        contextLength: 200000,
+        maxOutputTokens: 128000,
+      },
       { id: "deepseek-ai/deepseek-v3.2", name: "DeepSeek V3.2" },
+      {
+        id: "deepseek-ai/deepseek-v4-pro",
+        name: "DeepSeek V4 Pro",
+        unsupportedParams: ["thinking"],
+        contextLength: 1000000,
+        maxOutputTokens: 65536,
+      },
+      {
+        id: "deepseek-ai/deepseek-v4-flash",
+        name: "DeepSeek V4 Flash",
+        unsupportedParams: ["thinking"],
+        contextLength: 1000000,
+        maxOutputTokens: 65536,
+      },
       { id: "deepseek/deepseek-r1", name: "DeepSeek R1" },
+      {
+        id: "minimaxai/minimax-m3",
+        name: "MiniMax M3",
+        // Same NIM `thinking`-field rejection as GLM/DeepSeek above.
+        unsupportedParams: ["thinking"],
+        contextLength: 512000,
+        maxOutputTokens: 131072,
+      },
+      { id: "nvidia/nemotron-3-ultra-550b", name: "Nemotron 3 Ultra 550B" },
       { id: "nvidia/llama-3.1-70b-instruct", name: "Llama 3.1 70B" },
       { id: "nvidia/llama-3.1-405b-instruct", name: "Llama 3.1 405B" },
     ],
@@ -926,11 +962,14 @@ export const APIKEY_PROVIDERS: Record<string, RegistryEntry> = {
     defaultContextLength: CONTEXT_CONFIG.defaultLimit,
     models: [
       { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro Preview (Vertex)" },
-      { id: "gemini-3.1-flash-lite-preview", name: "Gemini 3.1 Flash Lite Preview (Vertex)" },
+      // gemini-3.1-flash-lite-preview was shut down 2026-05-25 — replaced by
+      // its non-preview successor. gemini-2.0-flash-thinking-exp is gone with
+      // the rest of the 2.0 line (shut down 2026-06-01) and has no successor:
+      // thinking is a first-class capability on 2.5+, not a separate model.
+      { id: "gemini-3.1-flash-lite", name: "Gemini 3.1 Flash Lite (Vertex)" },
       { id: "gemini-3-flash-preview", name: "Gemini 3 Flash Preview (Vertex)" },
       { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro (Vertex)" },
       { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash (Vertex)" },
-      { id: "gemini-2.0-flash-thinking-exp", name: "Gemini 2.0 Flash Thinking Exp (Vertex)" },
       { id: "gemma-2-27b-it", name: "Gemma 2 27B (Vertex)" },
       { id: "deepseek-v3.2", name: "DeepSeek V3.2 (Vertex Partner)" },
       { id: "qwen3-next-80b", name: "Qwen3 Next 80B (Vertex Partner)" },

@@ -2296,7 +2296,15 @@
     "headroom": "Headroom",
     "headroomDesc": "Prefer accounts with the most free capacity.",
     "lkgp": "LKGP Mode",
-    "lkgpDesc": "Last Known Good Provider (Predictable resilience)"
+    "lkgpDesc": "Last Known Good Provider (Predictable resilience)",
+    "cavemanOutputTitle": "Caveman Output",
+    "cavemanOutputDesc": "Додає директиву стислості до системного промпту, щоб модель відповідала меншою кількістю вихідних токенів. Вихідні токени коштують у 3-5 разів дорожче за вхідні. Вимкнено за замовчуванням.",
+    "cavemanOutputOff": "Вимкнено",
+    "cavemanOutputOffDesc": "Директиву не додано. Модель відповідає як зазвичай.",
+    "cavemanOutputLite": "Легкий",
+    "cavemanOutputLiteDesc": "Прибирає слова-заповнювачі, вагання та люб'язності. Повні речення зберігаються.",
+    "cavemanOutputFull": "Повний",
+    "cavemanOutputFullDesc": "Максимальна стислість. Фрагменти, пропущені артиклі. Технічний зміст залишається точним."
   },
   "translator": {
     "title": "Перекладач",
