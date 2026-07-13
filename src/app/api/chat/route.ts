@@ -4,7 +4,13 @@ import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import { createErrorResponse } from "@/lib/api/errorResponse";
 import { createRouterTurn } from "@/lib/chat/router-client";
 import { rehydrateAttachments } from "@/lib/chat/rehydrate-attachments";
-import { appendMessage, getConversation, updateConversation, updateMessage } from "@/lib/db/chat";
+import {
+  appendMessage,
+  getConversation,
+  truncateMessagesTo,
+  updateConversation,
+  updateMessage,
+} from "@/lib/db/chat";
 
 export const dynamic = "force-dynamic";
 
@@ -83,6 +89,13 @@ export async function POST(request: Request): Promise<Response> {
   // carries base64 and never grows past what the 10 MB body cap allows on the next turn.
   const lastMessage = messages[messages.length - 1];
   if (lastMessage?.role === "user") {
+    // The client re-POSTs its whole array every turn, so it — not the table — is the truth
+    // about the transcript's shape. A regenerate re-sends the array ending at the user turn
+    // it is retrying; an edit re-sends a truncated array. Either way, rows persisted BEYOND
+    // what the client still holds were dropped by the user and must not survive: otherwise a
+    // regenerate silently duplicates the question and strands the old answer under it.
+    truncateMessagesTo(conversationId, messages.length - 1);
+
     appendMessage({
       conversationId,
       role: "user",
@@ -112,6 +125,14 @@ export async function POST(request: Request): Promise<Response> {
     outputTokens: null,
   };
 
+  // Set by onError/onAbort. The UI-stream's onFinish below fires even when the turn FAILED —
+  // a provider error arrives as an error chunk and the stream still closes normally, and an
+  // abort reaches it through the transform's cancel(). Without this flag, that onFinish would
+  // overwrite status 'error' with 'complete' and replace the error text with empty parts,
+  // leaving a crashed turn indistinguishable from a successful one on reload. Which is the
+  // exact thing the status column exists to prevent.
+  let terminal: "error" | "interrupted" | null = null;
+
   const result = streamText({
     model: turn.model,
     system: conversation.systemPrompt ?? undefined,
@@ -129,6 +150,7 @@ export async function POST(request: Request): Promise<Response> {
       };
     },
     onError: ({ error }) => {
+      terminal = "error";
       updateMessage(assistantMessage.id, {
         status: "error",
         parts: [
@@ -141,6 +163,7 @@ export async function POST(request: Request): Promise<Response> {
       });
     },
     onAbort: () => {
+      terminal = "interrupted";
       updateMessage(assistantMessage.id, {
         status: "interrupted",
         requestId: turn.getRequestId(),
@@ -150,6 +173,18 @@ export async function POST(request: Request): Promise<Response> {
 
   return result.toUIMessageStreamResponse({
     onFinish: ({ responseMessage }) => {
+      // A failed or stopped turn already has its final row. Record the tokens it burned —
+      // an aborted turn is still billed — but do NOT restate its status or overwrite the
+      // error text with the empty parts a broken stream produces.
+      if (terminal !== null) {
+        updateMessage(assistantMessage.id, {
+          requestId: turn.getRequestId(),
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+        });
+        return;
+      }
+
       updateMessage(assistantMessage.id, {
         parts: (responseMessage?.parts ?? []) as unknown[],
         status: "complete",

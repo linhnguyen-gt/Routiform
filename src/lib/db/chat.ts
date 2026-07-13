@@ -355,6 +355,37 @@ export function appendMessage(input: {
 }
 
 /**
+ * Drop every message past the first `keepCount`, oldest first.
+ *
+ * The client re-POSTs its entire message array on every turn, so that array — not the table —
+ * is the authoritative shape of the transcript. When the user edits an earlier turn or hits
+ * regenerate, the client TRUNCATES its array; the rows it dropped must go too.
+ *
+ * Without this, a regenerate appends a second copy of the same question and leaves the old
+ * answer sitting underneath it, and an edit leaves the original question and its answer behind.
+ * Neither is visible until the next reload, at which point the transcript is quietly corrupt.
+ *
+ * `created_at` is a millisecond stamp and two messages in one turn can tie on it, so rowid
+ * breaks the tie — otherwise which row survives a truncation would be down to chance.
+ */
+export function truncateMessagesTo(conversationId: string, keepCount: number): number {
+  const db = ensureChatSchema();
+  const info = db
+    .prepare(
+      `DELETE FROM chat_messages
+        WHERE conversation_id = ?
+          AND id NOT IN (
+            SELECT id FROM chat_messages
+             WHERE conversation_id = ?
+             ORDER BY created_at ASC, rowid ASC
+             LIMIT ?
+          )`
+    )
+    .run(conversationId, conversationId, Math.max(0, keepCount));
+  return info.changes;
+}
+
+/**
  * Finalize a turn that was inserted as 'streaming'.
  *
  * Called from onFinish (complete) and from onError/onAbort (error). A turn that

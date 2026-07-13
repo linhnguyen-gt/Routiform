@@ -20,6 +20,12 @@ interface ChatPanelProps {
   onTitleInferred: (id: string, title: string) => void;
 }
 
+interface LoadedConversation {
+  conversation: Conversation;
+  messages: UIMessage[];
+  usage: Record<string, MessageUsage>;
+}
+
 function toUIMessage(stored: StoredMessage): UIMessage {
   return {
     id: stored.id,
@@ -43,18 +49,86 @@ function inferTitle(messages: UIMessage[]): string | null {
   return text.length > 48 ? `${text.slice(0, 48)}…` : text;
 }
 
+/**
+ * Loads the conversation, then hands it to ChatSession.
+ *
+ * The split is load-bearing, not cosmetic. `useChat` constructs its Chat object ONCE, in a
+ * useRef on first render (@ai-sdk/react: `useRef("chat" in options ? options.chat : new
+ * Chat(chatOptions))`, recreated only when `options.chat` or `options.id` changes). It never
+ * syncs a later `messages` prop into state.
+ *
+ * So if ChatSession's hooks ran during the load, they would latch onto the empty pre-fetch
+ * values forever: the transcript would render empty after every reload, and the model picker
+ * would fall back to the catalog's first entry — which /api/chat then persists, silently
+ * re-pointing the conversation at a different model at a different price.
+ *
+ * An early `return <Loading/>` does NOT fix that: hooks run before it. The hooks have to not
+ * exist yet, which means a separate component.
+ */
 export function ChatPanel({ conversationId, onTitleInferred }: ChatPanelProps) {
-  const [conversation, setConversation] = useState<Conversation | null>(null);
-  const [initialMessages, setInitialMessages] = useState<UIMessage[] | null>(null);
-  const [usageByMessage, setUsageByMessage] = useState<Record<string, MessageUsage>>({});
-  const [input, setInput] = useState("");
-  const [systemPrompt, setSystemPrompt] = useState("");
-  const bottomRef = useRef<HTMLDivElement | null>(null);
-  const titledRef = useRef(false);
+  const [loaded, setLoaded] = useState<LoadedConversation | null>(null);
 
-  // The persisted model/provider is authoritative. Seeding the picker from the
-  // catalog instead would silently send the next turn to a different model at a
-  // different price than the conversation was started with.
+  useEffect(() => {
+    let cancelled = false;
+
+    void loadConversation(conversationId).then((data) => {
+      if (cancelled || !data) return;
+
+      setLoaded({
+        conversation: data.conversation,
+        messages: data.messages.map(toUIMessage),
+        usage: Object.fromEntries(
+          data.messages
+            .filter((m) => m.inputTokens !== null || m.outputTokens !== null)
+            .map((m) => [
+              m.id,
+              { inputTokens: m.inputTokens, outputTokens: m.outputTokens } satisfies MessageUsage,
+            ])
+        ),
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId]);
+
+  if (!loaded) {
+    return (
+      <div className="flex flex-1 items-center justify-center text-sm text-text-muted">
+        Loading conversation…
+      </div>
+    );
+  }
+
+  return (
+    <ChatSession
+      // Remount on a different conversation so useChat is reconstructed with that
+      // conversation's history rather than keeping the previous one's.
+      key={conversationId}
+      conversationId={conversationId}
+      loaded={loaded}
+      onTitleInferred={onTitleInferred}
+    />
+  );
+}
+
+interface ChatSessionProps {
+  conversationId: string;
+  loaded: LoadedConversation;
+  onTitleInferred: (id: string, title: string) => void;
+}
+
+function ChatSession({ conversationId, loaded, onTitleInferred }: ChatSessionProps) {
+  const { conversation, messages: persistedMessages, usage } = loaded;
+
+  const [input, setInput] = useState("");
+  const [systemPrompt, setSystemPrompt] = useState(conversation.systemPrompt ?? "");
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const titledRef = useRef(conversation.title.trim().length > 0);
+
+  // The persisted model/provider is authoritative, and by construction it is already here —
+  // this component does not render until the conversation has loaded.
   const {
     options,
     model,
@@ -63,8 +137,8 @@ export function ChatPanel({ conversationId, onTitleInferred }: ChatPanelProps) {
     supportsImages,
     loading: modelsLoading,
   } = useChatModels({
-    initialModel: conversation?.model,
-    initialProvider: conversation?.provider,
+    initialModel: conversation.model,
+    initialProvider: conversation.provider,
   });
 
   const {
@@ -75,37 +149,6 @@ export function ChatPanel({ conversationId, onTitleInferred }: ChatPanelProps) {
     uploading,
     uploadError,
   } = useAttachments();
-
-  // The panel is remounted (key={conversationId}) whenever the conversation
-  // changes, so this runs once per instance and needs no synchronous reset —
-  // which would be a setState during commit and a cascading re-render.
-  useEffect(() => {
-    let cancelled = false;
-
-    void loadConversation(conversationId).then((data) => {
-      if (cancelled || !data) return;
-
-      setConversation(data.conversation);
-      setSystemPrompt(data.conversation.systemPrompt ?? "");
-      setInitialMessages(data.messages.map(toUIMessage));
-      titledRef.current = data.conversation.title.trim().length > 0;
-
-      setUsageByMessage(
-        Object.fromEntries(
-          data.messages
-            .filter((m) => m.inputTokens !== null || m.outputTokens !== null)
-            .map((m) => [
-              m.id,
-              { inputTokens: m.inputTokens, outputTokens: m.outputTokens } satisfies MessageUsage,
-            ])
-        )
-      );
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [conversationId]);
 
   const transport = useMemo(
     () =>
@@ -118,9 +161,7 @@ export function ChatPanel({ conversationId, onTitleInferred }: ChatPanelProps) {
 
   const { messages, status, sendMessage, regenerate, stop, setMessages, error } =
     useChat<UIMessage>({
-      // Remounting on conversation change is what loads the right history; the key
-      // is set by the caller.
-      messages: initialMessages ?? [],
+      messages: persistedMessages,
       transport,
     });
 
@@ -170,14 +211,6 @@ export function ChatPanel({ conversationId, onTitleInferred }: ChatPanelProps) {
     [messages, setMessages]
   );
 
-  if (initialMessages === null) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-sm text-text-muted">
-        Loading conversation…
-      </div>
-    );
-  }
-
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2">
@@ -225,7 +258,7 @@ export function ChatPanel({ conversationId, onTitleInferred }: ChatPanelProps) {
               key={message.id}
               message={message}
               streaming={streaming && isLast && message.role === "assistant"}
-              usage={usageByMessage[message.id]}
+              usage={usage[message.id]}
               onRegenerate={
                 message.role === "assistant" && isLast ? () => void regenerate() : undefined
               }
