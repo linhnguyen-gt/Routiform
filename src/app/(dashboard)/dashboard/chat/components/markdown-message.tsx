@@ -42,7 +42,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({
   return (
     <Streamdown
       parseIncompleteMarkdown={streaming}
-      className="prose-chat max-w-none text-sm leading-relaxed text-text-main"
+      className="prose-chat max-w-none text-[15px] leading-7 text-text-main"
       components={{
         img: ({ src, alt }) => {
           const source = typeof src === "string" ? src : undefined;

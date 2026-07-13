@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 
-import { Select } from "@/shared/components";
 import { ChatComposer } from "./chat-composer";
 import { MessageBubble, type MessageUsage } from "./message-bubble";
 import { useChatModels } from "../hooks/use-chat-models";
@@ -124,6 +123,11 @@ function ChatSession({ conversationId, loaded, onTitleInferred }: ChatSessionPro
 
   const [input, setInput] = useState("");
   const [systemPrompt, setSystemPrompt] = useState(conversation.systemPrompt ?? "");
+  // Open by default only when the conversation already has one — otherwise it is chrome the
+  // user did not ask for. Phase 04 of the parity plan gives it a proper panel.
+  const [showSystemPrompt, setShowSystemPrompt] = useState(
+    (conversation.systemPrompt ?? "").length > 0
+  );
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const titledRef = useRef(conversation.title.trim().length > 0);
 
@@ -213,67 +217,103 @@ function ChatSession({ conversationId, loaded, onTitleInferred }: ChatSessionPro
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2">
-        <div className="min-w-[200px] flex-1">
-          <Select
+      {/* A thin bar, not a toolbar. The model name reads as a label you can click, which is what
+          makes the page feel like a chat rather than a form with a dropdown on top. */}
+      <header className="flex shrink-0 items-center gap-2 px-4 py-2.5">
+        <div className="relative">
+          <select
             value={model}
             onChange={(event) => setModel(event.target.value)}
-            options={options}
-            // Switching provider mid-stream would route the rest of the turn
-            // somewhere the first half never went.
+            // Switching provider mid-stream would route the rest of the turn somewhere the
+            // first half never went.
             disabled={streaming || modelsLoading}
             aria-label="Model"
-          />
+            className="cursor-pointer appearance-none rounded-lg bg-transparent py-1 pl-2 pr-7 text-sm font-medium text-text-main outline-none transition-colors hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/10"
+          >
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <span className="material-symbols-outlined pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-[18px] text-text-muted">
+            expand_more
+          </span>
         </div>
 
-        <input
-          type="text"
-          value={systemPrompt}
-          onChange={(event) => setSystemPrompt(event.target.value)}
-          onBlur={() => {
-            void fetch(`/api/conversations/${conversationId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ systemPrompt: systemPrompt || null }),
-            });
-          }}
-          placeholder="System prompt (optional)"
+        <div className="flex-1" />
+
+        <button
+          type="button"
+          onClick={() => setShowSystemPrompt((open) => !open)}
+          title="System prompt"
           aria-label="System prompt"
-          className="min-w-[200px] flex-1 rounded-lg border border-border bg-bg-subtle px-3 py-1.5 text-sm text-text-main placeholder:text-text-muted focus:border-primary focus:outline-none"
-        />
+          aria-expanded={showSystemPrompt}
+          className={`rounded-lg p-1.5 transition-colors hover:bg-black/5 dark:hover:bg-white/10 ${
+            systemPrompt ? "text-primary" : "text-text-muted"
+          }`}
+        >
+          <span className="material-symbols-outlined text-[20px]">tune</span>
+        </button>
       </header>
 
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
-        {messages.length === 0 && (
+      {showSystemPrompt && (
+        <div className="shrink-0 px-4 pb-2">
+          <div className="mx-auto w-full max-w-3xl">
+            <textarea
+              value={systemPrompt}
+              onChange={(event) => setSystemPrompt(event.target.value)}
+              onBlur={() => {
+                void fetch(`/api/conversations/${conversationId}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ systemPrompt: systemPrompt || null }),
+                });
+              }}
+              rows={2}
+              placeholder="System prompt (optional)"
+              aria-label="System prompt"
+              className="w-full resize-y rounded-xl border border-border bg-bg-subtle px-3 py-2 text-sm text-text-main placeholder:text-text-muted focus:border-primary focus:outline-none"
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto">
+        {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-text-muted">
             <span className="material-symbols-outlined mb-2 text-[40px] opacity-30">chat</span>
             <p className="text-sm">Send a message to start.</p>
           </div>
+        ) : (
+          <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6">
+            {messages.map((message, index) => {
+              const isLast = index === messages.length - 1;
+              return (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  streaming={streaming && isLast && message.role === "assistant"}
+                  usage={usage[message.id]}
+                  onRegenerate={
+                    message.role === "assistant" && isLast ? () => void regenerate() : undefined
+                  }
+                  onEdit={
+                    message.role === "user" ? (text) => handleEdit(message.id, text) : undefined
+                  }
+                />
+              );
+            })}
+
+            {error && (
+              <p className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+                {error.message}
+              </p>
+            )}
+
+            <div ref={bottomRef} />
+          </div>
         )}
-
-        {messages.map((message, index) => {
-          const isLast = index === messages.length - 1;
-          return (
-            <MessageBubble
-              key={message.id}
-              message={message}
-              streaming={streaming && isLast && message.role === "assistant"}
-              usage={usage[message.id]}
-              onRegenerate={
-                message.role === "assistant" && isLast ? () => void regenerate() : undefined
-              }
-              onEdit={message.role === "user" ? (text) => handleEdit(message.id, text) : undefined}
-            />
-          );
-        })}
-
-        {error && (
-          <p className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-700 dark:text-red-300">
-            {error.message}
-          </p>
-        )}
-
-        <div ref={bottomRef} />
       </div>
 
       <ChatComposer
