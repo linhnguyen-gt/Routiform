@@ -149,12 +149,19 @@ export async function chatCorePhaseNonStreamComplete(p: ChatCorePipeline): Promi
     // Reasoning cache capture is best effort only.
   }
 
-  if (isCacheable(p.body, clientRawRequest?.headers as Headers | undefined)) {
+  // Key the cache on the pristine pre-compression body (p.rawBody), not the
+  // (possibly compression-mutated) p.body — otherwise the stored signature
+  // would depend on the requester's compression settings and would never
+  // match a future lookup's signature (checkSemanticCache always keys on a
+  // freshly parsed, still-pristine body). Falls back to p.body for callers
+  // that never went through the translate-and-bundle phase (e.g. tests).
+  const cacheKeyBody = (p.rawBody as Record<string, unknown> | undefined) ?? p.body;
+  if (isCacheable(cacheKeyBody, clientRawRequest?.headers as Headers | undefined)) {
     const signature = generateSignature(
       p.model,
-      p.body.messages,
-      Number(p.body.temperature ?? 0),
-      Number(p.body.top_p ?? 1)
+      cacheKeyBody.messages,
+      Number(cacheKeyBody.temperature ?? 0),
+      Number(cacheKeyBody.top_p ?? 1)
     );
     const usageRec = usage as
       | { prompt_tokens?: number; completion_tokens?: number }

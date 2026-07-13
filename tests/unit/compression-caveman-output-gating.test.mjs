@@ -18,7 +18,8 @@ import assert from "node:assert/strict";
 //     written to prevent).
 const { translateRequest } = await import("../../open-sse/translator/index.ts");
 const { FORMATS } = await import("../../open-sse/translator/formats.ts");
-const { applyStackedCompression } = await import("../../open-sse/compression/index.ts");
+const { applyStackedCompression, injectCavemanOutputDirective } =
+  await import("../../open-sse/compression/index.ts");
 
 test("gating sanity: openai tool_choice 'auto' becomes a Claude {type:'auto'} object after translation", () => {
   const inbound = {
@@ -186,6 +187,90 @@ test("responses-API text.format json_schema (inbound shape) gates off", () => {
     { system: "base", messages: [{ role: "user", content: "hi" }] },
     { enabled: false, cavemanOutputLevel: "full", cavemanOutputGateBody: inbound }
   );
+  assert.equal(stack.cavemanOutput, null);
+});
+
+// ─── Gemini-shaped inbound gates: both gates only understood OpenAI/Claude/
+// Responses fields (tool_choice, response_format/text.format) — a Gemini
+// inbound body (reaches compression unmodified: detectFormat/
+// detectFormatFromEndpoint in open-sse/services/provider.ts:93 detects Gemini
+// by `Array.isArray(body.contents)`, no pre-conversion) uses
+// `toolConfig.functionCallingConfig.mode` and `generationConfig.responseSchema`/
+// `responseMimeType` instead, so both gates previously silently no-oped for
+// Gemini traffic — injecting the terseness directive into structured-output
+// or forced-function-call requests, corrupting them.
+
+test("Gemini structured output (generationConfig.responseSchema) suppresses the directive", () => {
+  const body = {
+    model: "gemini-2.5-pro",
+    contents: [{ role: "user", parts: [{ text: "hi" }] }],
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: { type: "object", properties: { answer: { type: "string" } } },
+    },
+  };
+  const result = injectCavemanOutputDirective(body, "full");
+  assert.equal(
+    result,
+    null,
+    "directive must NOT be injected into a Gemini structured-output request"
+  );
+});
+
+test("Gemini structured output via responseMimeType alone (no explicit schema) suppresses the directive", () => {
+  const body = {
+    model: "gemini-2.5-pro",
+    contents: [{ role: "user", parts: [{ text: "hi" }] }],
+    generationConfig: { responseMimeType: "application/json" },
+  };
+  const result = injectCavemanOutputDirective(body, "full");
+  assert.equal(result, null);
+});
+
+test("Gemini forced function calling (toolConfig.functionCallingConfig.mode: 'ANY') suppresses the directive", () => {
+  const body = {
+    model: "gemini-2.5-pro",
+    contents: [{ role: "user", parts: [{ text: "hi" }] }],
+    toolConfig: { functionCallingConfig: { mode: "ANY" } },
+  };
+  const result = injectCavemanOutputDirective(body, "full");
+  assert.equal(
+    result,
+    null,
+    "directive must NOT be injected when Gemini's toolConfig forces a function call"
+  );
+});
+
+test("Gemini toolConfig.functionCallingConfig.mode: 'AUTO' still gets the directive", () => {
+  const body = {
+    model: "gemini-2.5-pro",
+    contents: [{ role: "user", parts: [{ text: "hi" }] }],
+    toolConfig: { functionCallingConfig: { mode: "AUTO" } },
+  };
+  const result = injectCavemanOutputDirective(body, "full");
+  assert.ok(result, "AUTO leaves the choice to the model — directive must still be injected");
+});
+
+test("Gemini toolConfig.functionCallingConfig.mode: 'NONE' (tools forbidden, pure prose) still gets the directive", () => {
+  const body = {
+    model: "gemini-2.5-pro",
+    contents: [{ role: "user", parts: [{ text: "hi" }] }],
+    toolConfig: { functionCallingConfig: { mode: "NONE" } },
+  };
+  const result = injectCavemanOutputDirective(body, "full");
+  assert.ok(
+    result,
+    "NONE forbids tool calls (pure prose response) — directive is safe and must be injected"
+  );
+});
+
+test("Gemini gates run through applyStackedCompression on the inbound (real pipeline) body too", () => {
+  const body = {
+    model: "gemini-2.5-pro",
+    contents: [{ role: "user", parts: [{ text: "hi" }] }],
+    generationConfig: { responseSchema: { type: "object" } },
+  };
+  const stack = applyStackedCompression(body, { enabled: false, cavemanOutputLevel: "full" });
   assert.equal(stack.cavemanOutput, null);
 });
 

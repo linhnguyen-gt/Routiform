@@ -111,6 +111,31 @@ function isForcedToolChoice(toolChoice: unknown): boolean {
 }
 
 /**
+ * True when a Gemini-shaped inbound body forces a function call via
+ * `toolConfig.functionCallingConfig.mode: "ANY"` — the Gemini equivalent of
+ * OpenAI `tool_choice: "required"` / Claude `{type:"any"}`. `"NONE"` forbids
+ * tool calls (pure prose — directive is safe) and `"AUTO"` is the default
+ * (model decides — directive is safe), so only `"ANY"` gates.
+ *
+ * Field shape verified against the outbound translator, which builds this
+ * exact structure: `open-sse/translator/request/openai-to-gemini.ts:99-101`
+ * (type decl `toolConfig?: { functionCallingConfig: { mode: string } }`) and
+ * `:564-565`/`:677-678` (`envelope.request.toolConfig = { functionCallingConfig:
+ * { mode: "VALIDATED" } }`). Reaches the compression gate unmodified because
+ * `detectFormat`/`detectFormatFromEndpoint` (open-sse/services/provider.ts:93)
+ * detects a Gemini body by `Array.isArray(body.contents)` and does not
+ * pre-convert it before this stage runs.
+ */
+function isGeminiForcedFunctionCalling(gate: Record<string, unknown> | null | undefined): boolean {
+  if (!gate) return false;
+  const toolConfig = gate.toolConfig;
+  if (!toolConfig || typeof toolConfig !== "object") return false;
+  const functionCallingConfig = (toolConfig as Record<string, unknown>).functionCallingConfig;
+  if (!functionCallingConfig || typeof functionCallingConfig !== "object") return false;
+  return (functionCallingConfig as Record<string, unknown>).mode === "ANY";
+}
+
+/**
  * True when the request demands machine-parseable structured output
  * (OpenAI `response_format: {type: "json_schema"|"json_object"}` or the
  * Responses API `text.format: {type: "json_schema"}`). Prose directives like
@@ -134,6 +159,19 @@ function requiresStructuredOutput(body: Record<string, unknown> | null | undefin
     ) {
       return true;
     }
+  }
+  // Gemini structured output: `generationConfig.responseSchema` (schema
+  // present) or `generationConfig.responseMimeType: "application/json"`.
+  // Field shape verified against the outbound translator, which sets both
+  // from an inbound OpenAI response_format:
+  // open-sse/translator/request/openai-to-gemini.ts:334-348
+  // (`result.generationConfig.responseMimeType = "application/json"` and
+  // `result.generationConfig.responseSchema = ...`). A Gemini-shaped inbound
+  // body carries these two fields under the same `generationConfig` key.
+  const generationConfig = body.generationConfig;
+  if (generationConfig && typeof generationConfig === "object") {
+    const gc = generationConfig as Record<string, unknown>;
+    if (gc.responseSchema || gc.responseMimeType === "application/json") return true;
   }
   return false;
 }
@@ -162,10 +200,16 @@ function requiresStructuredOutput(body: Record<string, unknown> | null | undefin
  *     majority of agentic tool_choice:"auto" traffic; false positive
  *     injecting into structured-output requests, corrupting JSON output).
  *
- * Handles both request shapes seen at this stage of the pipeline:
+ * Handles all four inbound request shapes this stage of the pipeline ever
+ * sees (one per source format — compression now runs on the pre-translation
+ * client body, see the module-level `applyStackedCompression` caller):
  *   - Claude Messages API: `body.system` (string or content-block array)
  *   - OpenAI-style: a `system` / `developer` message in `body.messages`
- * Falls back to prepending a new system message when neither is present.
+ *   - OpenAI Responses API (Codex CLI): `body.instructions` (string)
+ *   - Gemini: `body.systemInstruction` (`{role?, parts:[{text}]}`), gated on
+ *     the presence of `body.contents` (Gemini's messages-array field)
+ * Falls back to prepending a new system message when none of the above is
+ * present (OpenAI-shaped body with no system/developer message yet).
  */
 export function injectCavemanOutputDirective(
   body: Record<string, unknown> | null | undefined,
@@ -175,6 +219,7 @@ export function injectCavemanOutputDirective(
   if (!body || level === "off") return null;
   const gate = gateBody === undefined ? body : gateBody;
   if (isForcedToolChoice(gate?.tool_choice)) return null;
+  if (isGeminiForcedFunctionCalling(gate)) return null;
   if (requiresStructuredOutput(gate)) return null;
   const directive = getCavemanOutputPrompt(level);
   if (!directive) return null;
@@ -186,6 +231,21 @@ export function injectCavemanOutputDirective(
     target = "system-field";
   } else if (Array.isArray(body.system)) {
     (body.system as unknown[]).push({ type: "text", text: directive });
+    target = "system-field";
+  } else if (typeof body.instructions === "string") {
+    body.instructions = appendText(body.instructions, directive);
+    target = "system-field";
+  } else if (Array.isArray(body.contents)) {
+    const systemInstruction = body.systemInstruction;
+    if (
+      systemInstruction &&
+      typeof systemInstruction === "object" &&
+      Array.isArray((systemInstruction as Record<string, unknown>).parts)
+    ) {
+      ((systemInstruction as Record<string, unknown>).parts as unknown[]).push({ text: directive });
+    } else {
+      body.systemInstruction = { role: "user", parts: [{ text: directive }] };
+    }
     target = "system-field";
   } else if (Array.isArray(body.messages)) {
     const messages = body.messages as Array<Record<string, unknown>>;

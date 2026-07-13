@@ -8,7 +8,12 @@ export {
   injectCavemanOutputDirective,
   formatCavemanOutputLog,
 } from "./caveman-output.ts";
-export { applyInflationGuard, measureBodyBytes, snapshotBody } from "./inflation-guard.ts";
+export {
+  applyInflationGuard,
+  measureBodyBytes,
+  resolveCompressionBodies,
+  snapshotBody,
+} from "./inflation-guard.ts";
 export type {
   CompressionStackMode,
   CavemanStats,

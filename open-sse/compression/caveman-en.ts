@@ -29,6 +29,9 @@ const MIN_LEN = 40;
 // (e.g. dropping "please"/"kindly", "going to" -> "gonna") risks mangling
 // instruction wording. Only user/assistant chat turns are compressed.
 const TARGET_ROLES = new Set(["user", "assistant"]);
+// Gemini's `contents` array uses "model" instead of "assistant" for the
+// equivalent turn role.
+const GEMINI_TARGET_ROLES = new Set(["user", "model"]);
 
 function compressPlainText(text: string): string {
   let out = text;
@@ -69,24 +72,66 @@ function mapContent(content: unknown, stats: CavemanStats): unknown {
   });
 }
 
+function compressMessageArray(
+  items: Array<Record<string, unknown>>,
+  stats: CavemanStats,
+  targetRoles: Set<string>
+): void {
+  for (const msg of items) {
+    if (!msg || typeof msg !== "object") continue;
+    const role = String(msg.role || "");
+    if (!targetRoles.has(role)) continue;
+    if (msg.content == null) continue;
+    msg.content = mapContent(msg.content, stats);
+  }
+}
+
+// Gemini shape: `contents: [{role, parts:[{text}, {inlineData}, {functionCall}, ...]}]`.
+// Only `{text}` parts hold prose; other part kinds (inline data, function
+// call/response) are left untouched.
+function compressGeminiContents(items: Array<Record<string, unknown>>, stats: CavemanStats): void {
+  for (const entry of items) {
+    if (!entry || typeof entry !== "object") continue;
+    const role = String(entry.role || "");
+    if (!GEMINI_TARGET_ROLES.has(role)) continue;
+    if (!Array.isArray(entry.parts)) continue;
+
+    for (const part of entry.parts as Array<Record<string, unknown>>) {
+      if (!part || typeof part !== "object" || typeof part.text !== "string") continue;
+      stats.bytesBefore += part.text.length;
+      const next = compressText(part.text);
+      stats.bytesAfter += next.length;
+      if (next !== part.text) {
+        stats.messagesTouched += 1;
+        part.text = next;
+      }
+    }
+  }
+}
+
 /**
  * Caveman-style prose compression on chat messages (EN rules).
  * Mutates body in place. Skips tool / tool_result roles and error payloads.
+ *
+ * Handles the three inbound message-array shapes: OpenAI/Claude `messages`,
+ * OpenAI Responses `input` (same `{role, content}` shape as `messages`), and
+ * Gemini `contents` (`{role, parts:[{text}]}`).
  */
 export function cavemanCompressMessages(
   body: Record<string, unknown> | null | undefined
 ): CavemanStats | null {
-  if (!body || !Array.isArray(body.messages)) return null;
+  if (!body) return null;
 
   const stats: CavemanStats = { messagesTouched: 0, bytesBefore: 0, bytesAfter: 0 };
-  const messages = body.messages as Array<Record<string, unknown>>;
 
-  for (const msg of messages) {
-    if (!msg || typeof msg !== "object") continue;
-    const role = String(msg.role || "");
-    if (!TARGET_ROLES.has(role)) continue;
-    if (msg.content == null) continue;
-    msg.content = mapContent(msg.content, stats);
+  if (Array.isArray(body.messages)) {
+    compressMessageArray(body.messages as Array<Record<string, unknown>>, stats, TARGET_ROLES);
+  } else if (Array.isArray(body.input)) {
+    compressMessageArray(body.input as Array<Record<string, unknown>>, stats, TARGET_ROLES);
+  } else if (Array.isArray(body.contents)) {
+    compressGeminiContents(body.contents as Array<Record<string, unknown>>, stats);
+  } else {
+    return null;
   }
 
   if (stats.messagesTouched === 0 && stats.bytesBefore === 0) return null;

@@ -19,15 +19,16 @@ export type StackOptions = {
    */
   cavemanOutputLevel?: CavemanOutputLevel;
   /**
-   * The INBOUND client request body (pre format-translation), used only to
-   * gate the caveman-output directive (forced tool_choice / structured
-   * output). `body` passed to `applyStackedCompression` is the translated
-   * body that actually goes upstream — by the time it reaches this stack,
-   * format translation has already transformed `tool_choice` (e.g. OpenAI's
-   * string `"auto"` becomes the Claude object `{type:"auto"}`) or consumed
-   * `response_format` into the system prompt and dropped it from the body.
-   * Gating against the translated body misfires both ways. Omit to gate
-   * against `body` itself (matches pre-existing direct-call behavior).
+   * Optional override for what the caveman-output gates (forced tool_choice /
+   * structured output) inspect. Historically needed because the real caller
+   * ran `applyStackedCompression` on the POST-translation body, where format
+   * translation had already transformed `tool_choice` (OpenAI's string
+   * `"auto"` -> Claude's `{type:"auto"}`) or consumed `response_format` into
+   * the system prompt. The real caller now runs this stack on the INBOUND
+   * (pre-translation) body instead, so `body` and the gate target are the
+   * same object and this option is no longer needed there — it remains for
+   * direct callers/tests that want to gate against a different body than the
+   * one being mutated. Omit to gate against `body` itself.
    */
   cavemanOutputGateBody?: Record<string, unknown> | null;
 };
@@ -96,7 +97,11 @@ export function applyStackedCompression(
     logs.push("[Compression] inflation guard restored original body");
   }
 
-  const cavemanOutput = injectCavemanOutputDirective(body, cavemanOutputLevel);
+  const cavemanOutput = injectCavemanOutputDirective(
+    body,
+    cavemanOutputLevel,
+    options.cavemanOutputGateBody
+  );
   const outputLine = formatCavemanOutputLog(cavemanOutput);
   if (outputLine) logs.push(outputLine);
 
