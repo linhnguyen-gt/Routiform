@@ -177,3 +177,6 @@ open-webui/.svelte-kit/
 
 # Open WebUI SPA build artifact — regenerate with `npm run owui:build`, never commit (66MB)
 public/owui/
+
+# CodeGraph local index — per-developer tooling, regenerated on demand
+.codegraph/
