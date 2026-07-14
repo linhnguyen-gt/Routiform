@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [4.0.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.37.0...v4.0.0) (2026-07-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **chat:** serve Open WebUI at /owui on a Next/SQLite backend
+* **chat:** vendor the Open WebUI frontend source
+* **chat:** Open WebUI is no longer bundled or spawned. /dashboard/chat is now
+Routiform's own chat and no longer embeds an external application. The Docker volume
+routiform-open-webui-data is ORPHANED, NOT DELETED -- it still holds any conversation
+history from the old chat. It is no longer mounted by docker-compose.full.yml. Remove
+it manually with `docker volume rm routiform-open-webui-data` once you no longer need
+it. The OPEN_WEBUI_PORT and OPEN_WEBUI_ROUTIFORM_KEY environment variables are gone.
+
+### Features
+
+* **chat:** attachments with a translator-verified vision flag ([0c26ee6](https://github.com/linhnguyen-gt/Routiform/commit/0c26ee64ecb5369fffbb046ce7bb1d65d6d04105))
+* **chat:** drop the Open WebUI dependency, ship the native chat at /dashboard/chat ([6dad9cf](https://github.com/linhnguyen-gt/Routiform/commit/6dad9cf677807ca79e70e933799ba6e298178b42))
+* **chat:** native chat foundation — in-process router bridge, schema, parity test ([a16b31c](https://github.com/linhnguyen-gt/Routiform/commit/a16b31ca61dc2e282f2bade6d06b3c2d0f8153b9))
+* **chat:** native chat UI at /dashboard/chat/native ([e1edef2](https://github.com/linhnguyen-gt/Routiform/commit/e1edef26d0d4175130949fcb14dd46fc2fd99b40))
+* **chat:** restyle the chat shell to match Open WebUI ([ef494ef](https://github.com/linhnguyen-gt/Routiform/commit/ef494ef81d2f37cd8f14b5124c7d9fab2e57700a))
+* **chat:** serve Open WebUI at /owui on a Next/SQLite backend ([0b0cf11](https://github.com/linhnguyen-gt/Routiform/commit/0b0cf11921384bfb15f399ba8b1d61173eafa097))
+* **chat:** sign out of the chat back to the dashboard ([b9da193](https://github.com/linhnguyen-gt/Routiform/commit/b9da1930d884148b6f179d1d7243e5e2501b523c))
+
+
+### Bug Fixes
+
+* **chat:** close bugs from the /owui code review ([e3ac1c5](https://github.com/linhnguyen-gt/Routiform/commit/e3ac1c55071370b6b4e25708a073a054ce611781))
+* **chat:** load history before useChat, and stop corrupting the transcript ([3629cd0](https://github.com/linhnguyen-gt/Routiform/commit/3629cd012ac294d662f5a09da9ab0552a08bb8b2))
+
+
+* **chat:** vendor the Open WebUI frontend source ([44f3f0e](https://github.com/linhnguyen-gt/Routiform/commit/44f3f0e8730031a757bb6a8bcad94d627f06b3b7))
+
 ## [3.37.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.5...v3.37.0) (2026-07-13)
 
 
