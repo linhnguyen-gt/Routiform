@@ -15,6 +15,25 @@ RUN npm pkg delete scripts.prepare \
   && if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
 
 COPY . ./
+
+# The chat is a separate SvelteKit build (open-webui/ -> public/owui). It MUST run before the
+# Next build, because `output: standalone` copies public/ as it finds it — and public/owui is a
+# gitignored artifact, so without this the image ships with no chat at all: /owui 404s and
+# /dashboard/chat redirects straight into that 404. It boots fine, which is what makes it easy
+# to miss.
+#
+# The heap bump is required, not defensive: with Node's default the Vite build dies with
+# `V8::FatalProcessOutOfMemory` (exit 134). Open WebUI is a big bundle — Chat.js alone is
+# ~600KB, plus the emoji set and 60-odd locales.
+#
+# The source is deleted immediately afterwards. Next's file tracing sweeps the whole project
+# root and drags the vendored SvelteKit checkout (108MB, 9,400 files) into .next/standalone and
+# from there into the runtime image — where nothing reads it, because the SPA is already
+# compiled into public/owui. `outputFileTracingExcludes` does NOT stop this (tried; the files
+# still shipped), and Next cannot trace what is no longer on disk.
+RUN NODE_OPTIONS=--max-old-space-size=4096 npm run owui:build \
+  && rm -rf open-webui
+
 RUN mkdir -p /app/data && npm run build -- --webpack
 
 FROM node:22-bookworm-slim AS runner-base

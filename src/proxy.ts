@@ -38,7 +38,14 @@ export async function proxy(request: unknown) {
   }
 
   // ──────────────── Pre-flight: Reject oversized bodies ────────────────
-  if (pathname.startsWith("/api/") && req.method !== "GET" && req.method !== "OPTIONS") {
+  // Covers BOTH the management API (/api/) and the embedded chat's API (/owui/api/). The latter
+  // was originally omitted, which left owui/api/v1/chats/import and the file upload with no body
+  // ceiling at all — a booby-trapped import file could stream in unbounded.
+  if (
+    (pathname.startsWith("/api/") || pathname.startsWith("/owui/api/")) &&
+    req.method !== "GET" &&
+    req.method !== "OPTIONS"
+  ) {
     const bodySizeRejection = checkBodySize(req, getBodySizeLimit(pathname));
     if (bodySizeRejection) return bodySizeRejection;
   }
@@ -89,10 +96,23 @@ export async function proxy(request: unknown) {
   }
 
   // ──────────────── Protect Dashboard Routes ────────────────
-  if (pathname.startsWith("/dashboard")) {
+  //
+  // `/owui` is the Open WebUI SPA and its backend (`/owui/api/*`). It runs with its own
+  // auth DISABLED (see src/app/owui/api/config/route.ts: `features.auth = false`), because
+  // Routiform is the session authority — so without this line the entire chat UI, every
+  // conversation, and every model call would be reachable with no login at all.
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/owui")) {
     // E2E test bypass: skip auth when E2E_DISABLE_AUTH is set
     if (process.env.E2E_DISABLE_AUTH === "true") {
       return response;
+    }
+
+    // The chat moved to /owui. Redirected here rather than from a page component: a
+    // `redirect()` inside the (dashboard) layout renders the whole dashboard shell first and
+    // then bounces from the CLIENT with a 200, so the user downloads a page they never see.
+    // This is a real 307, before anything renders. The sidebar and old bookmarks both land here.
+    if (pathname === "/dashboard/chat" || pathname.startsWith("/dashboard/chat/")) {
+      return NextResponse.redirect(new URL("/owui", req.url));
     }
 
     // Always allow onboarding — it has its own setupComplete guard
@@ -209,5 +229,7 @@ export async function proxy(request: unknown) {
 }
 
 export const config = {
-  matcher: ["/", "/dashboard/:path*", "/api/:path*"],
+  // `/owui/:path*` covers both the SPA shell and its `/owui/api/*` backend. Without it the
+  // guard above never runs and the chat is public.
+  matcher: ["/", "/dashboard/:path*", "/api/:path*", "/owui", "/owui/:path*"],
 };

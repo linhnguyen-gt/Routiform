@@ -5,8 +5,28 @@ import { AI_MODELS, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
 import { loadAntigravityModelsFromConnections } from "@/lib/providers/antigravityLiveModels";
 import { updateModelAliasSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { modelSupportsImages } from "@/lib/chat/model-vision";
 
 const LIVE_SYNC_MODEL_PROVIDERS = new Set(["claude", "gemini"]);
+
+/**
+ * One row of the catalog.
+ *
+ * Declared rather than inferred: the array is built from three sources (AI_MODELS, the live
+ * Antigravity catalog, and synced provider models), and inferring its type from the first one
+ * made pushing the others a type error.
+ */
+interface ModelListEntry {
+  provider: string;
+  model: string;
+  fullModel: string;
+  alias: unknown;
+  available: boolean;
+  /** Whether an image survives translation to this model's target format (lib/chat/model-vision). */
+  supportsImages: boolean;
+  name?: string;
+  [key: string]: unknown;
+}
 
 // GET /api/models - Get models with aliases (only from active providers by default)
 export async function GET(request: Request) {
@@ -40,8 +60,8 @@ export async function GET(request: Request) {
       // If DB unavailable, show all models
     }
 
-    const models = AI_MODELS.filter((m) => m.provider !== "antigravity")
-      .map((m: { provider: string; model: string; [key: string]: unknown }) => {
+    const models: ModelListEntry[] = AI_MODELS.filter((m) => m.provider !== "antigravity")
+      .map((m: { provider: string; model: string; [key: string]: unknown }): ModelListEntry => {
         const fullModel = `${m.provider}/${m.model}`;
         const available = !activeProviders || activeProviders.has(m.provider);
         return {
@@ -49,9 +69,10 @@ export async function GET(request: Request) {
           fullModel,
           alias: modelAliases[fullModel] || m.model,
           available,
+          supportsImages: modelSupportsImages(m.provider, m.model),
         };
       })
-      .filter((m: { available: boolean }) => showAll || m.available);
+      .filter((m) => showAll || m.available);
 
     try {
       const antigravityModels = await loadAntigravityModelsFromConnections(connections);
@@ -65,6 +86,7 @@ export async function GET(request: Request) {
           fullModel,
           alias: modelAliases[fullModel] || model.id,
           available,
+          supportsImages: modelSupportsImages("antigravity", model.id),
         });
       }
     } catch {
@@ -86,6 +108,7 @@ export async function GET(request: Request) {
           fullModel,
           alias: modelAliases[fullModel] || model.id,
           available,
+          supportsImages: modelSupportsImages(alias, model.id),
         });
       }
     }

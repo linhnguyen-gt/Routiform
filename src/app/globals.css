@@ -8,6 +8,9 @@
 @source not "../../*.sqlite*";
 @source not "../../.claude*";
 @source not "../../.claude-memory";
+/* Reference source for the chat UI port. Svelte, never built — but Tailwind would
+   happily scan it and emit thousands of classes nothing renders. */
+@source not "../../open-webui";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -89,6 +92,12 @@
   --color-text-main: var(--color-text-main);
   --color-text-primary: var(--color-text-primary);
   --color-text-muted: var(--color-text-muted);
+
+  --color-background: var(--color-surface);
+  --color-foreground: var(--color-text-main);
+  --color-muted: var(--color-bg-subtle);
+  --color-muted-foreground: var(--color-text-muted);
+  --color-primary-foreground: #ffffff; /* text on the violet primary; violet in both themes */
 
   /* Static colors (for explicit light/dark usage) */
   --color-bg-light: #f9f9fb;

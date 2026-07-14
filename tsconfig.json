@@ -40,6 +40,7 @@
   "exclude": [
     "node_modules",
     "open-sse",
+    "open-webui",
     "antigravity-manager-analysis",
     "app.__qa_backup",
     "vscode-extension",

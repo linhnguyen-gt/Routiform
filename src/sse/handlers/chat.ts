@@ -210,9 +210,10 @@ export async function handleChat(
     if (maxSessions > 0 && !isSessionRegisteredForKey(apiKeyId, sessionId)) {
       const sessionViolation = checkSessionLimit(apiKeyId, maxSessions);
       if (sessionViolation) {
-        return withSessionHeader(
+        return withRoutiformHeaders(
           errorResponse(HTTP_STATUS.RATE_LIMITED, sessionViolation.message),
-          sessionId
+          sessionId,
+          reqId
         );
       }
       registerKeySession(apiKeyId, sessionId);
@@ -356,7 +357,7 @@ export async function handleChat(
         if (fallbackResponse.ok) {
           log.info("GLOBAL_FALLBACK", `Global fallback ${fallbackModel} succeeded`);
           recordTelemetry(telemetry);
-          return withSessionHeader(fallbackResponse, sessionId);
+          return withRoutiformHeaders(fallbackResponse, sessionId, reqId);
         }
         log.warn(
           "GLOBAL_FALLBACK",
@@ -371,7 +372,7 @@ export async function handleChat(
 
     // Record telemetry
     recordTelemetry(telemetry);
-    return withSessionHeader(response, sessionId);
+    return withRoutiformHeaders(response, sessionId, reqId);
   }
   telemetry.endPhase();
 
@@ -389,7 +390,7 @@ export async function handleChat(
     false
   );
   recordTelemetry(telemetry);
-  return withSessionHeader(response, sessionId);
+  return withRoutiformHeaders(response, sessionId, reqId);
 }
 
 export function buildClientRawRequest(request: Request, body: unknown) {
@@ -1048,21 +1049,37 @@ function safeLogEvents({
   } catch {}
 }
 
-function withSessionHeader(response: Response, sessionId: string | null): Response {
-  if (!response || !sessionId) return response;
+/**
+ * Attach the correlation headers a client needs to reconcile a response.
+ *
+ * X-Routiform-Request-Id is per-request and is the only way a caller can join
+ * back to its own row in call_logs — which is where cost lives. (The session id
+ * is a body-derived fingerprint shared across every turn of a conversation, so
+ * it cannot disambiguate one request from the next.)
+ */
+function withRoutiformHeaders(
+  response: Response,
+  sessionId: string | null,
+  requestId: string | null
+): Response {
+  if (!response || (!sessionId && !requestId)) return response;
+
+  const apply = (target: Response) => {
+    if (sessionId) target.headers.set("X-Routiform-Session-Id", sessionId);
+    if (requestId) target.headers.set("X-Routiform-Request-Id", requestId);
+  };
 
   try {
-    response.headers.set("X-Routiform-Session-Id", sessionId);
-    response.headers.set("X-Routiform-Session-Id", sessionId);
+    apply(response);
     return response;
   } catch {
+    // Some upstream responses arrive with immutable headers.
     const cloned = new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
       headers: response.headers,
     });
-    cloned.headers.set("X-Routiform-Session-Id", sessionId);
-    cloned.headers.set("X-Routiform-Session-Id", sessionId);
+    apply(cloned);
     return cloned;
   }
 }

@@ -2647,8 +2647,7 @@
     "loadingPricing": "Đang tải dữ liệu giá...",
     "pricingRatesFormat": "Định dạng giá cước",
     "noPricingData": "Không có dữ liệu giá cả",
-    "noModelsFound": "Không tìm thấy mô hình nào",
-    "proxyNameAndHostRequired": "Name and host are required"
+    "noModelsFound": "Không tìm thấy mô hình nào"
   },
   "loggers": {
     "allProviders": "Tất cả nhà cung cấp",
@@ -3230,32 +3229,6 @@
     "created": "Created",
     "expires": "Expires",
     "actions": "Actions"
-  },
-  "chatLauncher": {
-    "title": "Chat",
-    "subtitle": "Chat cục bộ không cần đăng nhập qua các model Routiform, chạy trên Open WebUI.",
-    "starting": "Đang khởi động Open WebUI…",
-    "firstRunNotice": "Lần đầu chạy sẽ tải các gói và có thể mất vài phút. Vui lòng giữ nguyên tab này.",
-    "running": "Open WebUI đang chạy.",
-    "openChat": "Mở chat",
-    "openChatNewTab": "Mở chat trong tab mới",
-    "stop": "Dừng Open WebUI",
-    "stopped": "Open WebUI đã dừng.",
-    "start": "Khởi động",
-    "error": "Open WebUI khởi động thất bại.",
-    "notAvailable": "Không tìm thấy runtime Open WebUI.",
-    "installUv": "Cài uv (khuyên dùng)",
-    "installPip": "Hoặc cài Open WebUI bằng pip",
-    "installHintUv": "Chạy: curl -LsSf https://astral.sh/uv/install.sh | sh — rồi tải lại trang này.",
-    "installHintPip": "Chạy: pip install open-webui (cần Python 3.11) — rồi tải lại trang này.",
-    "dockerMode": "Routiform đang chạy trong Docker. Open WebUI chạy như service compose đi kèm.",
-    "dockerHint": "Nếu chat không truy cập được, khởi động bằng: docker compose -f docker-compose.full.yml up -d",
-    "retry": "Thử lại",
-    "checkStatus": "Kiểm tra trạng thái",
-    "loading": "Đang kiểm tra trạng thái…",
-    "portLabel": "Cổng 8080",
-    "reloadIframe": "Tải lại chat",
-    "chatBlocked": "Không nhúng được chat. Mở tab mới, hoặc kiểm tra cài đặt nhúng iframe của Open WebUI."
   },
   "freeTiers": {
     "title": "Gói miễn phí",

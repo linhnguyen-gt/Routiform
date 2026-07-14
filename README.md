@@ -279,6 +279,8 @@ symlinks and cause `spawn devin ENOENT` or binary format errors.
 
 ### Option 4: source
 
+Development mode:
+
 ```bash
 git clone https://github.com/linhnguyen-gt/Routiform.git
 cd Routiform
@@ -286,33 +288,44 @@ npm install
 npm run dev
 ```
 
-### Built-in Chat menu (Open WebUI)
+Production build from source:
 
-The sidebar has a **Chat** entry that launches a local, no-login chat over your
-Routiform models via [Open WebUI](https://github.com/open-webui/open-webui).
+```bash
+git clone https://github.com/linhnguyen-gt/Routiform.git
+cd Routiform
+npm install
+npm run owui:build  # Build the Open WebUI SPA into public/owui (required before Next build)
+npm run build       # Build the Next.js application
+npm start           # Start the server
+```
 
-- **Option 1 / 2 / 4 (host installs):** Routiform auto-spawns Open WebUI as a
-  background subprocess on port `8080`. Requires `uv` + Python 3.11 (preferred) or
-  `pip install open-webui`. Routiform auto-provisions an API key named `open-webui`
-  and stops Open WebUI when Routiform stops.
-- **Option 3 (Docker):** Open WebUI runs as a sibling compose service defined in
-  `docker-compose.full.yml`. Bring it up with:
+The `npm run owui:build` step is required — it compiles the vendored Open WebUI (`open-webui/`) 
+into `public/owui/`, which is then embedded by Next's `output: standalone`. 
+Without it, `/owui` returns 404 and `/dashboard/chat` redirects to a missing chat interface.
 
-  ```bash
-  docker compose -f docker-compose.full.yml up -d
-  ```
+### Built-in Chat
 
-  Set `OPEN_WEBUI_ROUTIFORM_KEY` to a key from API Manager (or rely on the
-  placeholder if Routiform doesn't enforce keys). The `/dashboard/chat` page
-  detects Docker mode and opens `http://localhost:8080` without spawning.
+The sidebar has a **Chat** entry: a full-featured chat at `/owui` (redirected from `/dashboard/chat`).
+It is a vendored Open WebUI SvelteKit SPA with a native Next.js backend that talks to Routiform in-process.
+Nothing to install and nothing to launch — it works anywhere Routiform runs, on every install option.
 
-  If port `8080` is already in use on your machine, override it before starting:
+**Features:**
+- Streaming completions via socket.io
+- Conversation history with search and tagging
+- File attachments (images, code, documents)
+- Model switching per conversation
+- Shared conversation links
+- Automatic cost tracking (each message logs its request ID for billing)
 
-  ```bash
-  OPEN_WEBUI_PORT=9090 docker compose -f docker-compose.full.yml up -d
-  ```
+Conversations, messages, and attachments are stored in Routiform's own SQLite database (no external service needed).
+Images are only offered on models whose request format can actually carry one; the composer indicates unsupported models.
 
-  The Chat launcher automatically opens the correct port — no extra config needed.
+> Earlier versions embedded [Open WebUI](https://github.com/open-webui/open-webui)
+> as a separate application, which required Python 3.11 + `uv` on host installs or
+> a multi-GB Docker image. The native chat removes that dependency entirely.
+> If you ran it before, your old Open WebUI Docker volume (`routiform-open-webui-data`)
+> still holds those conversations; it is no longer used and can be removed with
+> `docker volume rm routiform-open-webui-data`.
 
 ## Management CLI
 

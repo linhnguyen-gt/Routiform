@@ -538,6 +538,41 @@ logs/
 | `/api/settings/system-prompt`                 | GET/PUT         | Global system prompt injection for all requests                                                                                                                   |
 | `/api/sessions`                               | GET             | Active session tracking and metrics                                                                                                                               |
 | `/api/rate-limits`                            | GET             | Per-account rate limit status                                                                                                                                     |
+| `/owui/api/v1/chats`                          | GET/POST/DELETE | Chat history management (list, create, update, delete conversations)                                                                                               |
+| `/owui/api/v1/chats/[id]`                     | GET/PATCH       | Individual chat retrieval and updates (title, model, system prompt)                                                                                                |
+| `/owui/api/v1/chats/[id]/share`               | POST            | Share conversation with link                                                                                                                                      |
+| `/owui/api/v1/chats/import`                   | POST            | Import chat backup (with file upload)                                                                                                                             |
+| `/owui/api/chat/completions`                  | POST            | Chat completion with task-based streaming (returns `{ task_ids, chat_id }`, emits tokens via socket.io)                                                          |
+| `/owui/api/v1/memories`                       | GET/POST/DELETE | Chat memories and custom context                                                                                                                                  |
+
+#### Chat Architecture (native Open WebUI)
+
+The chat at `/owui` is a vendored SvelteKit SPA with a task-based completion model:
+
+**Key modules:**
+- `src/app/owui/api/*` — Next.js backend (40+ routes covering chat CRUD, completions, memories, settings)
+- `src/lib/owui/socket-server.ts` — socket.io server for token streaming (loopback-only, port 20130)
+- `src/lib/owui/chat-tree.ts` — message tree reconstruction from SQLite (builds full history for model context)
+- `src/lib/owui/chat-dto.ts` — data transfer objects for API responses
+- `src/lib/owui/chat-tasks.ts` — task scheduling and background completion handling
+- `src/lib/chat/attachments.ts` — file upload management (content-addressed by sha256)
+- `src/lib/chat/router-client.ts` — client-side HTTP wrapper for owui API calls
+- `src/lib/db/owui-chats.ts` — SQLite CRUD for `owui_chats` (whole conversation tree in one JSON column)
+- `src/lib/db/owui-memories.ts` — SQLite CRUD for `owui_memories`
+- `src/lib/db/owui-settings.ts` — single-row `owui_settings` blob
+- `src/lib/db/chat-attachments.ts` — content-addressed attachment store (`chat_attachments`)
+
+**Streaming:**
+1. POST `/owui/api/chat/completions` → returns immediately with `{ task_ids, chat_id }` (the request carries no `messages`; the server rebuilds history from the stored tree)
+2. Backend enqueues completion task
+3. Task fetches from `/v1/chat/completions` (Routiform proxy)
+4. Tokens stream via socket.io events to the client's session
+
+**Storage:**
+- `owui_chats` — one row per chat; the full Open WebUI message TREE (`history.messages` keyed by id, with `parentId`/`childrenIds`/`currentId`) lives in a single JSON `chat` column, alongside `title`, `created_at`, `updated_at`, `archived`, `pinned`, `folder_id`, `share_id`
+- `owui_memories` — user memories injected server-side as a system turn (`id`, `content`, `created_at`, `updated_at`)
+- `owui_settings` — single-row settings blob (`id` CHECK = 1, `settings` JSON, `updated_at`)
+- `chat_attachments` — content-addressed blobs (`sha256` PK, `mime`, `bytes`, `data`, `filename`, `created_at`); referenced by sha256 from the message tree
 
 ---
 

@@ -107,6 +107,23 @@ export async function registerNodejs(): Promise<void> {
   initGracefulShutdown();
   initApiBridgeServer();
   initWsBridgeRuntime();
+
+  // Open WebUI streams its answers over socket.io, not over the HTTP response of the
+  // completion request — so without this listener the embedded chat at /owui renders
+  // perfectly and then never says a word. Loopback-only; reached through the
+  // /owui/ws/socket.io rewrite in next.config.mjs, which sits behind src/proxy.ts.
+  try {
+    const { startSocketServer, getSocketPort } = await import("@/lib/owui/socket-server");
+    startSocketServer();
+    console.log(`[STARTUP] Open WebUI socket.io server listening on 127.0.0.1:${getSocketPort()}`);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(
+      "[STARTUP] Open WebUI socket.io server failed to start; /owui chat will not stream:",
+      msg
+    );
+  }
+
   startBackgroundRefresh();
   console.log("[STARTUP] Quota cache background refresh started");
   startProviderLimitsSyncScheduler();
@@ -224,38 +241,5 @@ export async function registerNodejs(): Promise<void> {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.warn("[COMPLIANCE] Could not initialize audit log:", msg);
-  }
-
-  // In Docker mode, auto-provision an API key for the sibling Open WebUI
-  // container. The key is written to DATA_DIR/open-webui-api-key.txt so the
-  // compose init container can inject it into the open-webui service env.
-  if (process.env.DOCKER === "true") {
-    try {
-      const { getApiKeys, createApiKey } = await import("@/lib/localDb");
-      const { getConsistentMachineId } = await import("@/shared/utils/machineId");
-      const { resolveDataDir } = await import("@/lib/dataPaths");
-      const { writeFileSync } = await import("node:fs");
-      const { join } = await import("node:path");
-
-      const keys = await getApiKeys();
-      let apiKey = keys.find(
-        (k) => k.name === "open-webui" && typeof k.key === "string" && k.key.length > 0
-      );
-
-      if (!apiKey) {
-        const machineId = await getConsistentMachineId();
-        apiKey = await createApiKey("open-webui", machineId);
-        console.log("[STARTUP] Auto-provisioned open-webui API key for Docker");
-      }
-
-      if (apiKey && typeof apiKey.key === "string") {
-        const keyFile = join(resolveDataDir(), "open-webui-api-key.txt");
-        writeFileSync(keyFile, apiKey.key, "utf8");
-        console.log("[STARTUP] Open WebUI API key written to", keyFile);
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.warn("[STARTUP] Failed to auto-provision Open WebUI API key:", msg);
-    }
   }
 }

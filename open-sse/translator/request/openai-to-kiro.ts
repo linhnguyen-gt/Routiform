@@ -485,6 +485,13 @@ export function buildKiroPayload(
           content: finalContent,
           modelId: model,
           origin: "AI_EDITOR",
+          // convertMessages already parsed these into userInputMessage.images. This object is
+          // rebuilt from scratch rather than spread, so anything not copied here is dropped —
+          // which is how images on the current turn used to vanish while the same image
+          // survived once it aged into history.
+          ...(currentMessage?.userInputMessage?.images?.length && {
+            images: currentMessage.userInputMessage.images,
+          }),
           ...(currentMessage?.userInputMessage?.userInputMessageContext && {
             userInputMessageContext: currentMessage.userInputMessage.userInputMessageContext,
           }),

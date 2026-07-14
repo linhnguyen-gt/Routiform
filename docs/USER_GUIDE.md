@@ -352,7 +352,9 @@ The CLI automatically loads `.env` from `~/.routiform/.env` or `./.env`.
 
 ```bash
 git clone https://github.com/linhnguyen-gt/Routiform.git
-cd Routiform && npm install && npm run build
+cd Routiform && npm install
+npm run owui:build  # Build the Open WebUI SPA (required before Next.js build)
+npm run build
 
 export JWT_SECRET="your-secure-secret-change-this"
 export INITIAL_PASSWORD="your-password"
@@ -468,26 +470,29 @@ do_build() {
  # 1) Install all deps – skip scripts
  NODE_ENV=development npm ci --ignore-scripts
 
- # 2) Build the Next.js standalone bundle
+ # 2) Build the Open WebUI SPA (required before Next.js build)
+ npm run owui:build
+
+ # 3) Build the Next.js standalone bundle
  npm run build
 
- # 3) Copy static assets into standalone
+ # 4) Copy static assets into standalone
  cp -r .next/static .next/standalone/.next/static
  [ -d public ] && cp -r public .next/standalone/public || true
 
- # 4) Compile better-sqlite3 native binding
+ # 5) Compile better-sqlite3 native binding
  local _node_gyp=/usr/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js
  (cd node_modules/better-sqlite3 && node "$_node_gyp" rebuild --arch="$_gyp_arch")
 
- # 5) Place the compiled binding into the standalone bundle
+ # 6) Place the compiled binding into the standalone bundle
  local _bs3_release=.next/standalone/node_modules/better-sqlite3/build/Release
  mkdir -p "$_bs3_release"
  cp node_modules/better-sqlite3/build/Release/better_sqlite3.node "$_bs3_release/"
 
- # 6) Remove arch-specific sharp bundles
+ # 7) Remove arch-specific sharp bundles
  rm -rf .next/standalone/node_modules/@img
 
- # 7) Copy pino runtime deps omitted by Next.js static analysis:
+ # 8) Copy pino runtime deps omitted by Next.js static analysis:
  for _mod in pino-abstract-transport split2 process-warning; do
   cp -r "node_modules/$_mod" .next/standalone/node_modules/
  done
