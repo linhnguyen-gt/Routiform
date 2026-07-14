@@ -107,6 +107,23 @@ export async function registerNodejs(): Promise<void> {
   initGracefulShutdown();
   initApiBridgeServer();
   initWsBridgeRuntime();
+
+  // Open WebUI streams its answers over socket.io, not over the HTTP response of the
+  // completion request — so without this listener the embedded chat at /owui renders
+  // perfectly and then never says a word. Loopback-only; reached through the
+  // /owui/ws/socket.io rewrite in next.config.mjs, which sits behind src/proxy.ts.
+  try {
+    const { startSocketServer, getSocketPort } = await import("@/lib/owui/socket-server");
+    startSocketServer();
+    console.log(`[STARTUP] Open WebUI socket.io server listening on 127.0.0.1:${getSocketPort()}`);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(
+      "[STARTUP] Open WebUI socket.io server failed to start; /owui chat will not stream:",
+      msg
+    );
+  }
+
   startBackgroundRefresh();
   console.log("[STARTUP] Quota cache background refresh started");
   startProviderLimitsSyncScheduler();

@@ -33,7 +33,10 @@ export function ProviderDetailHeroSection({
   setHeaderImgError,
 }: ProviderDetailHeroSectionProps) {
   const headerIconTextFallback = (
-    <span className="text-lg font-bold dark:!text-foreground" style={{ color: providerInfo.color }}>
+    // No `dark:!text-foreground` here: `--color-foreground` now exists (the chat's
+    // markdown renderer needs it), and an !important rule beats the inline style —
+    // which would drop the provider's brand colour to grey in dark mode.
+    <span className="text-lg font-bold" style={{ color: providerInfo.color }}>
       {providerInfo.textIcon || providerInfo.id.slice(0, 2).toUpperCase()}
     </span>
   );
