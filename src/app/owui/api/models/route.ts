@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { internalOrigin } from "@/lib/owui/internal-origin";
+
 import { OWUI_USER_ID } from "../v1/auths/session-user";
 
 /**
@@ -27,10 +29,9 @@ interface RoutiformModel {
 }
 
 export async function GET(request: Request) {
-  // Same-origin hop. The middleware already authenticated the caller, and forwarding the
-  // cookie keeps that true for the inner call.
-  const origin = new URL(request.url).origin;
-  const res = await fetch(`${origin}/api/models`, {
+  // Same-origin hop over loopback, NOT the request's Host header — see internal-origin.ts. The
+  // middleware already authenticated the caller, and forwarding the cookie keeps that true.
+  const res = await fetch(`${internalOrigin()}/api/models`, {
     headers: { cookie: request.headers.get("cookie") ?? "" },
     cache: "no-store",
   });

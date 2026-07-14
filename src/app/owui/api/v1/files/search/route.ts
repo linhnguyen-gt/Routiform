@@ -1,25 +1,12 @@
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
-import { listAttachments, type ChatAttachmentMeta } from "@/lib/db/chat-attachments";
+import { listAttachments } from "@/lib/db/chat-attachments";
+import { attachmentToFileResponse } from "@/lib/owui/file-response";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
-
-/** The shape FilesModal.svelte reads: `filename`, `meta.size`, `created_at` in unix seconds. */
-function toFileResponse(row: ChatAttachmentMeta) {
-  return {
-    id: row.sha256,
-    filename: row.filename || row.sha256,
-    meta: {
-      name: row.filename || row.sha256,
-      content_type: row.mime,
-      size: row.bytes,
-    },
-    created_at: Math.floor(row.createdAt / 1000),
-  };
-}
 
 function parseNonNegativeInt(value: string | null, fallback: number, max?: number): number {
   const parsed = Number(value);
@@ -48,5 +35,5 @@ export async function GET(request: Request): Promise<Response> {
   const matches = listAttachments({ search: term || undefined });
   const page = matches.slice(skip, skip + limit);
 
-  return Response.json(page.map(toFileResponse));
+  return Response.json(page.map(attachmentToFileResponse));
 }

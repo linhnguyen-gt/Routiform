@@ -1,7 +1,7 @@
 import { createErrorResponse } from "@/lib/api/errorResponse";
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import {
-  importChat,
+  importChats,
   type ImportChatInput,
   type OwuiChatContent,
   type OwuiHistory,
@@ -11,6 +11,17 @@ import { deriveTitle } from "@/lib/owui/chat-tree";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/**
+ * A ceiling on how many chats one import may create. The 100MB body cap (bodySizeGuard) already
+ * bounds the raw payload; this is the second wall — a pathological file full of tiny chats could
+ * still be tens of thousands of rows, and every INSERT blocks the synchronous DB. Rejected rather
+ * than truncated: silently dropping the tail of someone's history is worse than refusing it.
+ *
+ * A crafted `role: "system"` message inside an imported tree is handled at the model boundary
+ * (toRouterMessages in chat-tree.ts drops non-user/assistant turns), not here.
+ */
+const MAX_IMPORT_CHATS = 10_000;
 
 interface ImportBody {
   chats?: unknown;
@@ -115,13 +126,23 @@ export async function POST(request: Request): Promise<Response> {
     });
   }
 
+  if (body.chats.length > MAX_IMPORT_CHATS) {
+    return createErrorResponse({
+      status: 413,
+      message: `Too many chats in one import (max ${MAX_IMPORT_CHATS}).`,
+      type: "invalid_request",
+    });
+  }
+
   // Malformed entries are skipped, not fatal: one bad conversation in a 500-chat export must not
   // cost the user the other 499. The response carries only what actually landed, so the SPA's
-  // "imported N chats" is the true number.
-  const imported = body.chats
+  // "imported N chats" is the true number. The valid entries are inserted as ONE transaction —
+  // all-or-nothing, and one commit instead of thousands of blocking fsyncs.
+  const entries = body.chats
     .map(toImportEntry)
-    .filter((entry): entry is ImportChatInput => entry !== null)
-    .map(importChat);
+    .filter((entry): entry is ImportChatInput => entry !== null);
+
+  const imported = importChats(entries);
 
   return Response.json(imported.map(chatToDto));
 }

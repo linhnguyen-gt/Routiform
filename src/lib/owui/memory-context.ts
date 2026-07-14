@@ -51,11 +51,16 @@ export function memorySystemMessage(enabled?: boolean): RouterMessage | null {
   const memories = listMemories();
   if (memories.length === 0) return null;
 
+  // `continue`, not `break`. memories are newest-first, and a `break` on the first over-budget
+  // entry discarded every memory after it — so one long memory near the front silently dropped all
+  // the others, and a long one FIRST returned null, turning Personalization off with no signal.
+  // Skipping the oversized entry keeps every memory that still fits, newest first (the best
+  // relevance proxy we have without an embedder).
   const lines: string[] = [];
   let used = 0;
   for (const memory of memories) {
     const line = `- ${memory.content}`;
-    if (used + line.length > MAX_MEMORY_CHARS) break;
+    if (used + line.length > MAX_MEMORY_CHARS) continue;
     lines.push(line);
     used += line.length;
   }

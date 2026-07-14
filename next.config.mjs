@@ -6,6 +6,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
+// Must resolve to the SAME port as getSocketPort() in src/lib/owui/socket-server.ts. That helper
+// rejects a non-integer env value and falls back to 20130; a bare `env || 20130` here does NOT —
+// it passes any non-empty string straight through, so a malformed ROUTIFORM_OWUI_SOCKET_PORT
+// would make the socket listen on 20130 while this rewrite targets a garbage URL, and the chat
+// silently never connects. Kept in sync by hand because this ESM config cannot import the TS.
+const OWUI_SOCKET_PORT = (() => {
+  const parsed = Number.parseInt(process.env.ROUTIFORM_OWUI_SOCKET_PORT ?? "", 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 20130;
+})();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // When a parent directory has another lockfile (e.g. ~/pnpm-lock.yaml), Next.js may pick the
@@ -209,11 +219,11 @@ const nextConfig = {
       // 500. Which looks like a server crash and is really a missing slash.
       {
         source: "/owui/ws/socket.io",
-        destination: `http://127.0.0.1:${process.env.ROUTIFORM_OWUI_SOCKET_PORT || 20130}/ws/socket.io/`,
+        destination: `http://127.0.0.1:${OWUI_SOCKET_PORT}/ws/socket.io/`,
       },
       {
         source: "/owui/ws/socket.io/:path*",
-        destination: `http://127.0.0.1:${process.env.ROUTIFORM_OWUI_SOCKET_PORT || 20130}/ws/socket.io/:path*`,
+        destination: `http://127.0.0.1:${OWUI_SOCKET_PORT}/ws/socket.io/:path*`,
       },
       {
         source: "/owui",

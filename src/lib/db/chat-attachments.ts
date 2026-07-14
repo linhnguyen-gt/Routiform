@@ -50,14 +50,18 @@ const ATTACHMENT_SCHEMA = `
   );
 `;
 
-let schemaReady = false;
+// The INSTANCE the schema was applied to, not a bare boolean: `resetDbInstance()` (DB restore)
+// swaps the singleton, and a boolean would leave db() handing back a fresh instance without this
+// table — every prepare() then throwing until the process restarts. Reference equality re-runs
+// the schema exactly when the instance changes.
+let schemaAppliedTo: DbLike | null = null;
 
 /**
  * Create the table if it is missing.
  *
- * Does NOT swallow the error: swallowing leaves schemaReady=false and the table absent, and
- * every subsequent prepare() throws a raw SQLITE_ERROR out of a route handler. Fail here, where
- * the cause is still legible.
+ * Does NOT swallow the error: swallowing would leave the table absent and every subsequent
+ * prepare() throwing a raw SQLITE_ERROR out of a route handler. Fail here, where the cause is
+ * still legible.
  *
  * `filename` is ALTERed in rather than added to the schema string above: CREATE TABLE IF NOT
  * EXISTS is a no-op for anyone who already ran the app, so a column added to the string alone
@@ -65,7 +69,7 @@ let schemaReady = false;
  */
 function db(): DbLike {
   const instance = getDbInstance() as unknown as DbLike;
-  if (schemaReady) return instance;
+  if (schemaAppliedTo === instance) return instance;
   instance.exec(ATTACHMENT_SCHEMA);
 
   const columns = instance
@@ -76,13 +80,13 @@ function db(): DbLike {
     instance.exec(`ALTER TABLE chat_attachments ADD COLUMN filename TEXT`);
   }
 
-  schemaReady = true;
+  schemaAppliedTo = instance;
   return instance;
 }
 
-/** Reset the memoized flag. Tests only — a fresh in-memory DB needs a fresh exec. */
+/** Force the next db() to re-exec the schema. Tests only — a fresh in-memory DB needs a fresh exec. */
 export function resetAttachmentSchemaCache(): void {
-  schemaReady = false;
+  schemaAppliedTo = null;
 }
 
 function str(value: unknown, fallback = ""): string {

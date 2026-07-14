@@ -33,6 +33,10 @@ type BodySizeRule = { prefix: string; limit: number };
 const ROUTE_LIMITS: BodySizeRule[] = [
   { prefix: "/api/db-backups/import", limit: MAX_BODY_BYTES_IMPORT },
   { prefix: "/api/v1/audio/transcriptions", limit: MAX_BODY_BYTES_AUDIO },
+  // The embedded chat's own import — a whole chat archive can be large, so it gets the same
+  // 100MB ceiling as the DB import rather than the 10MB default. File uploads fall through to
+  // the default, which matches MAX_ATTACHMENT_BYTES enforcement in the upload route.
+  { prefix: "/owui/api/v1/chats/import", limit: MAX_BODY_BYTES_IMPORT },
 ];
 
 /**

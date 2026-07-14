@@ -77,7 +77,18 @@ export function messagePath(history: OwuiHistory, leafId: string): OwuiMessage[]
  */
 export function toRouterMessages(history: OwuiHistory, leafId: string): RouterMessage[] {
   return messagePath(history, leafId)
-    .filter((m) => m.role !== "assistant" || (m.done === true && (m.content ?? "") !== ""))
+    .filter((m) => {
+      // Only user turns and COMPLETED, non-empty assistant turns reach the provider.
+      if (m.role === "user") return true;
+      if (m.role === "assistant") return m.done === true && (m.content ?? "") !== "";
+      // Anything else — notably `role: "system"` — is dropped. Legitimate system context is
+      // injected separately (memory-context.ts), never stored in the tree, so a system message
+      // in the walked path can only have arrived by import of a crafted file. Emitting it would
+      // let that file plant a hidden, persistent instruction ("ignore all rules") in front of
+      // every future turn. The chokepoint is here, not in import validation, so ALL paths are
+      // covered by one rule.
+      return false;
+    })
     .map((m) => ({ role: m.role, content: messageContent(m) }));
 }
 

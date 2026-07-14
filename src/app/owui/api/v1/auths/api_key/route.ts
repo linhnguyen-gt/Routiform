@@ -18,9 +18,15 @@ const OWUI_API_KEY_NAME = "Open WebUI";
 
 type ApiKeyRecord = Awaited<ReturnType<typeof getApiKeys>>[number];
 
-async function findOwuiKey(): Promise<ApiKeyRecord | null> {
+/**
+ * ALL keys named "Open WebUI", not just the first. `api_keys` has no unique constraint on `name`,
+ * so a create/create race (two POSTs both seeing "none exists") can leave duplicates. Resolving
+ * every match lets DELETE clean them ALL up — a first-match-only delete would strand an
+ * un-removable orphan — and lets POST self-heal any it created a race with.
+ */
+async function findOwuiKeys(): Promise<ApiKeyRecord[]> {
   const keys = await getApiKeys();
-  return keys.find((key) => key.name === OWUI_API_KEY_NAME) ?? null;
+  return keys.filter((key) => key.name === OWUI_API_KEY_NAME);
 }
 
 /** The client reads `res.api_key` directly (auths/index.ts:getAPIKey) — `null` when absent. */
@@ -28,7 +34,7 @@ export async function GET(request: Request): Promise<Response> {
   const unauthorized = await requireManagementAuth(request);
   if (unauthorized) return unauthorized;
 
-  const key = await findOwuiKey();
+  const [key] = await findOwuiKeys();
   return Response.json({ api_key: typeof key?.key === "string" ? key.key : null });
 }
 
@@ -36,13 +42,23 @@ export async function POST(request: Request): Promise<Response> {
   const unauthorized = await requireManagementAuth(request);
   if (unauthorized) return unauthorized;
 
-  const existing = await findOwuiKey();
-  if (existing && typeof existing.key === "string") {
-    return Response.json({ api_key: existing.key });
+  const existing = await findOwuiKeys();
+  if (existing.length > 0 && typeof existing[0].key === "string") {
+    return Response.json({ api_key: existing[0].key });
   }
 
   const machineId = await getConsistentMachineId();
   const created = await createApiKey(OWUI_API_KEY_NAME, machineId);
+
+  // Self-heal a create/create race: if a concurrent POST also inserted one, drop every duplicate
+  // except the one we are returning, so the store converges to a single "Open WebUI" key.
+  const after = await findOwuiKeys();
+  for (const dup of after) {
+    if (typeof dup.id === "string" && dup.id !== created.id) {
+      await deleteApiKey(dup.id);
+    }
+  }
+
   return Response.json({ api_key: created.key });
 }
 
@@ -50,9 +66,8 @@ export async function DELETE(request: Request): Promise<Response> {
   const unauthorized = await requireManagementAuth(request);
   if (unauthorized) return unauthorized;
 
-  const existing = await findOwuiKey();
-  if (existing && typeof existing.id === "string") {
-    await deleteApiKey(existing.id);
+  for (const key of await findOwuiKeys()) {
+    if (typeof key.id === "string") await deleteApiKey(key.id);
   }
   return Response.json({ api_key: null });
 }

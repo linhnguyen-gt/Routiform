@@ -108,24 +108,29 @@ const OWUI_CHAT_SCHEMA = `
     ON owui_chats(updated_at DESC);
 `;
 
-let schemaReady = false;
+// The INSTANCE the schema was applied to, not a bare boolean. `resetDbInstance()` (DB restore /
+// import) swaps the singleton without touching any module state — a boolean would stay true and
+// db() would hand back the fresh instance WITHOUT its tables, so every route then throws
+// "no such table" until the process restarts. Comparing by reference re-runs the schema exactly
+// when the instance changes, and CREATE TABLE IF NOT EXISTS makes the repeat a no-op.
+let schemaAppliedTo: DbLike | null = null;
 
 function db(): DbLike {
   const instance = getDbInstance() as unknown as DbLike;
-  if (schemaReady) return instance;
+  if (schemaAppliedTo === instance) return instance;
   instance.exec(OWUI_CHAT_SCHEMA);
   addColumnIfMissing(instance, "owui_chats", "share_id", "TEXT");
   instance.exec(
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_owui_chats_share ON owui_chats(share_id)
      WHERE share_id IS NOT NULL`
   );
-  schemaReady = true;
+  schemaAppliedTo = instance;
   return instance;
 }
 
-/** Reset the memoized flag. Tests only — a fresh in-memory DB needs a fresh exec. */
+/** Force the next db() to re-exec the schema. Tests only — a fresh in-memory DB needs a fresh exec. */
 export function resetOwuiChatSchemaCache(): void {
-  schemaReady = false;
+  schemaAppliedTo = null;
 }
 
 interface OwuiChatRow {
@@ -239,6 +244,28 @@ export function importChat(input: ImportChatInput): OwuiChat {
     );
 
   return chat;
+}
+
+/**
+ * Import many chats as ONE transaction.
+ *
+ * Two reasons this is not just `inputs.map(importChat)`: a partially-applied import is worse than a
+ * rejected one — a mid-loop failure would leave the sidebar half-populated with no way to tell what
+ * landed — and a few thousand individual INSERTs each with their own implicit transaction fsync the
+ * WAL thousands of times, freezing the event loop (better-sqlite3 is synchronous). BEGIN/COMMIT
+ * turns it into one commit; ROLLBACK on any error leaves the DB exactly as it was.
+ */
+export function importChats(inputs: ImportChatInput[]): OwuiChat[] {
+  const instance = db();
+  instance.exec("BEGIN");
+  try {
+    const result = inputs.map(importChat);
+    instance.exec("COMMIT");
+    return result;
+  } catch (error) {
+    instance.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 export function getChat(id: string): OwuiChat | null {

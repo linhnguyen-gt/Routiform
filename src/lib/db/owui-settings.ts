@@ -36,19 +36,22 @@ const SETTINGS_SCHEMA = `
   );
 `;
 
-let schemaReady = false;
+// The INSTANCE the schema was applied to, not a bare boolean: `resetDbInstance()` (DB restore)
+// swaps the singleton, and a boolean would leave db() handing back a fresh instance without this
+// table. Reference equality re-runs the schema exactly when the instance changes.
+let schemaAppliedTo: DbLike | null = null;
 
 function db(): DbLike {
   const instance = getDbInstance() as unknown as DbLike;
-  if (schemaReady) return instance;
+  if (schemaAppliedTo === instance) return instance;
   instance.exec(SETTINGS_SCHEMA);
-  schemaReady = true;
+  schemaAppliedTo = instance;
   return instance;
 }
 
-/** Reset the memoized flag. Tests only — a fresh in-memory DB needs a fresh exec. */
+/** Force the next db() to re-exec the schema. Tests only — a fresh in-memory DB needs a fresh exec. */
 export function resetOwuiSettingsSchemaCache(): void {
-  schemaReady = false;
+  schemaAppliedTo = null;
 }
 
 export function getOwuiSettings(): Record<string, unknown> {

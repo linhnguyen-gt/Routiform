@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { internalOrigin } from "@/lib/owui/internal-origin";
 import { OWUI_PERMISSIONS } from "@/lib/owui/permissions";
 import { OWUI_CONFIG_VERSION } from "@/lib/owui/version";
 
@@ -33,8 +34,9 @@ export const dynamic = "force-dynamic";
  */
 async function firstAvailableModel(request: Request): Promise<string> {
   try {
-    const origin = new URL(request.url).origin;
-    const res = await fetch(`${origin}/owui/api/models`, {
+    // Loopback, not the request Host — the fetch carries the session cookie and must not be
+    // steerable by a spoofed Host header. See lib/owui/internal-origin.ts.
+    const res = await fetch(`${internalOrigin()}/owui/api/models`, {
       headers: { cookie: request.headers.get("cookie") ?? "" },
       cache: "no-store",
     });

@@ -61,6 +61,34 @@ const HREF_TPL = navRegex('href=\\{');
 // Playground carried a bare root path that the `href=` pattern above never looked at.
 const HREF_PROP = navRegex('href:\\s*');
 
+// href={cond ? `/s/${id}` : `/c/${id}`} — a quoted root path in a TERNARY ARM. navRegex only
+// matches when the quote opens IMMEDIATELY after the prefix, so a conditional href — whose arms
+// begin after `?` or `:` — slips through. This one was live: clicking a row in the Archived Chats
+// or Shared Chats modal (ChatsModal.svelte:287 / ChatList.svelte:154, both backed features)
+// navigated to `/c/<id>` with no /owui prefix and 404'd.
+//
+// MUST be listed AFTER hrefProp in PATTERNS: `href: '/c/x'` would otherwise be caught here by the
+// `:` alternative too. hrefProp running first rewrites it to `/owui/c/x`, after which `owui` is
+// not a ROOT and this pattern no longer matches.
+//
+// The `(?<!\?)` is not optional: without it the `?` alternative matches the SECOND `?` of a nullish
+// `res ?? '/auth'`, rewriting it to `?? '/owui/auth'` — which both defeats LOCATION_HOME's
+// deliberate hands-off on sign-out targets and points logout at the disabled SPA login page.
+const TERNARY_ARM = navRegex('(?<!\\?)[?:]\\s*');
+
+// location.href = '/'  /  window.location.href = '/'  — a raw "go home" navigation, invisible to
+// SvelteKit's base. Deliberately BARE-ROOT ONLY (no ROOT_ALT branch): `location.href = … ?? '/auth'`
+// is a SIGN-OUT, and /owui/auth is the SPA's own login page which we disable (auth:false), so
+// rewriting it there would be worse than leaving it. Those sign-out targets are a product decision,
+// not a mechanical rewrite. `[^;'"\`]*` skips a `res?.redirect_url ??` prefix before the quote.
+// The empty `()` is load-bearing: the shared replace callback reads capture group 2 as the root
+// segment. Without a second group, `args[2]` is the match OFFSET (a number), and the callback
+// would splice it in — turning `location.href = '/'` into `location.href = '/owui/0'`.
+const LOCATION_HOME = new RegExp(
+	`((?:window\\.)?location\\.href\\s*=\\s*[^;'"\`]*['"\`])/()(?=['"\`])`,
+	'g'
+);
+
 /**
  * window.history.replaceState(history.state, '', `/c/${id}`)
  *
@@ -84,11 +112,14 @@ const FAVICON = /(['"`])\/favicon\.png(['"`])/g;
 // Every pattern must earn its keep. Counted individually because the interesting failure is not
 // "nothing matched" but "ONE of these matched nothing" — the replaceState hole shipped while the
 // other four patterns were happily rewriting, so an all-or-nothing check saw a healthy build.
+// Order matters: hrefProp BEFORE ternaryArm (see TERNARY_ARM's note).
 const PATTERNS = {
 	goto: GOTO,
 	hrefAttr: HREF_ATTR,
 	hrefTpl: HREF_TPL,
 	hrefProp: HREF_PROP,
+	ternaryArm: TERNARY_ARM,
+	locationHome: LOCATION_HOME,
 	replaceState: REPLACE_STATE,
 	favicon: FAVICON
 };
@@ -116,7 +147,8 @@ function rewrite(code) {
 // Cheap pre-filter, kept in lockstep with the patterns above. It exists only to skip files that
 // cannot match; a form missing HERE means the file is never even offered to rewrite(), which is
 // how the backtick-goto case went unnoticed.
-const CANDIDATE = /goto\(\s*['"`]\/|href="\/|href=\{`\/|href:\s*['"`]\/|history\.replaceState\(/;
+const CANDIDATE =
+	/goto\(\s*['"`]\/|href="\/|href=\{`\/|href:\s*['"`]\/|[?:]\s*['"`]\/|location\.href\s*=|history\.replaceState\(/;
 
 export function routiformBase() {
 	let rewritten = 0;

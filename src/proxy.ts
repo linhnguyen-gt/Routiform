@@ -38,7 +38,14 @@ export async function proxy(request: unknown) {
   }
 
   // ──────────────── Pre-flight: Reject oversized bodies ────────────────
-  if (pathname.startsWith("/api/") && req.method !== "GET" && req.method !== "OPTIONS") {
+  // Covers BOTH the management API (/api/) and the embedded chat's API (/owui/api/). The latter
+  // was originally omitted, which left owui/api/v1/chats/import and the file upload with no body
+  // ceiling at all — a booby-trapped import file could stream in unbounded.
+  if (
+    (pathname.startsWith("/api/") || pathname.startsWith("/owui/api/")) &&
+    req.method !== "GET" &&
+    req.method !== "OPTIONS"
+  ) {
     const bodySizeRejection = checkBodySize(req, getBodySizeLimit(pathname));
     if (bodySizeRejection) return bodySizeRejection;
   }
