@@ -84,6 +84,41 @@ Main pages under `src/app/(dashboard)/dashboard/`:
 - `/dashboard/logs` — request/proxy/audit/console logs
 - `/dashboard/settings` — system settings tabs (general, routing, combo defaults, etc.)
 - `/dashboard/api-manager` — API key lifecycle and model permissions
+- `/owui` — native chat interface (Open WebUI SPA, redirected from `/dashboard/chat`)
+
+## Native Chat (Open WebUI)
+
+The chat interface is a vendored Open WebUI SvelteKit SPA built at `/owui` with a Next.js backend (`src/app/owui/api/*`) and socket.io streaming.
+
+**Routing:**
+- `/dashboard/chat` → 307-redirects to `/owui` (middleware in `src/proxy.ts`)
+- `/owui` — SPA shell (SvelteKit-built static assets at `public/owui/`, gitignored)
+- `/owui/api/*` — Next.js backend routes (chat history, settings, models, etc.)
+- `/owui/ws/socket.io/*` — rewrite to loopback socket.io server (port 20130 by default)
+
+**Streaming Architecture:**
+Token streaming does NOT occur over the HTTP response. Instead:
+1. Client POSTs `/owui/api/chat/completions` → returns immediately with `{ task_ids, chat_id }` (no `messages` in the request — the server rebuilds history from the stored tree)
+2. Completion task runs server-side, fetches from Routiform's `/v1/chat/completions`
+3. Tokens are emitted as socket.io events: `{ chat_id, message_id, data: { type, data } }`
+4. Client receives tokens over socket.io, renders in real-time
+
+The socket.io server is started in `src/instrumentation-node.ts` and configured to run loopback-only for security (only accessible via Next's `/owui/ws/socket.io` rewrite, which sits behind `src/proxy.ts` auth).
+
+**Database Tables:**
+- `owui_chats` — one row per chat; the entire conversation lives in a single JSON `chat` column (the Open WebUI message TREE: `history.messages` keyed by id, with `parentId`/`childrenIds`/`currentId` for branching/edit/regenerate). Row columns: `id`, `title`, `chat` (JSON), `created_at`, `updated_at`, `archived`, `pinned`, `folder_id`, `share_id` (nullable; unique index for authenticated share links).
+- `owui_memories` — user memories injected server-side as a system turn (`id`, `content`, `created_at`, `updated_at`).
+- `owui_settings` — single-row settings blob (`id` CHECK = 1, `settings` JSON, `updated_at`); the UI settings live nested under `ui`.
+- `chat_attachments` — content-addressed file storage; the `sha256` IS the primary key, so the same file uploaded twice costs one row and an id cannot be forged (`sha256`, `mime`, `bytes`, `data` blob, `filename`, `created_at`).
+
+The message tree is stored as one JSON blob rather than normalized rows because the SPA POSTs and reloads the whole tree; attachments are split out (referenced by sha256) to keep the chat JSON small and avoid the body-size limit when re-POSTing. Timestamps are stored in milliseconds and converted to seconds at the DTO boundary (the SPA expects seconds).
+
+**Build and Deployment:**
+- Source: `open-webui/` (committed, vendored)
+- Build: `npm run owui:build` generates `public/owui/` (SvelteKit static output + patches applied)
+- `public/owui/` is gitignored; clean clones have no chat until `npm run owui:build` runs
+- Docker build runs `owui:build` before the Next.js build (Dockerfile lines 34-35), then deletes the source to keep image size down
+- Next's `output: standalone` copies `public/` as-is, so the SPA is embedded in the output
 
 ## High-Level System Context
 
@@ -94,13 +129,15 @@ flowchart LR
         C2[Codex CLI]
         C3[OpenClaw / Droid / Cline / Continue / Roo]
         C4[Custom OpenAI-compatible clients]
-        BROWSER[Browser Dashboard]
+        BROWSER[Browser Dashboard + Chat]
     end
 
     subgraph Router[Routiform Local Process]
         API[V1 Compatibility API\n/v1/*]
         DASH[Dashboard + Management API\n/api/*]
         CORE[SSE + Translation Core\nopen-sse + src/sse]
+        CHAT[Native Chat\n/owui/api/*]
+        SOCKET["socket.io Server\n(loopback:20130)"]
         DB[(storage.sqlite)]
         UDB[(usage tables + log artifacts)]
     end
@@ -120,11 +157,15 @@ flowchart LR
     C3 --> API
     C4 --> API
     BROWSER --> DASH
+    BROWSER --> CHAT
 
     API --> CORE
     DASH --> DB
     CORE --> DB
     CORE --> UDB
+    CHAT --> DB
+    CHAT --> CORE
+    SOCKET -.->|token stream| BROWSER
 
     CORE --> P1
     CORE --> P2
@@ -176,6 +217,8 @@ Management domains:
 - System prompt: `src/app/api/settings/system-prompt` (GET/PUT)
 - Sessions: `src/app/api/sessions` (GET)
 - Rate limits: `src/app/api/rate-limits` (GET)
+- Chat (owui): `src/app/owui/api/v1/chats/*` — chat history, import/export, search, sharing
+- Chat completion: `src/app/owui/api/chat/completions` (POST) — task-based completion with socket.io streaming
 - Resilience: `src/app/api/resilience` (GET/PATCH) — provider profiles, circuit breaker, rate limit state
 - Resilience reset: `src/app/api/resilience/reset` (POST) — reset breakers + cooldowns
 - Cache stats: `src/app/api/cache/stats` (GET/DELETE)
@@ -266,7 +309,7 @@ Primary state DB (SQLite):
 - Core infra: `src/lib/db/core.ts` (better-sqlite3, migrations, WAL)
 - Re-export facade: `src/lib/localDb.ts` (thin compatibility layer for callers)
 - file: `${DATA_DIR}/storage.sqlite` (or `$XDG_CONFIG_HOME/routiform/storage.sqlite` when set, else `~/.routiform/storage.sqlite`)
-- entities (tables + KV namespaces): providerConnections, providerNodes, modelAliases, combos, apiKeys, settings, pricing, **customModels**, **proxyConfig**, **ipFilter**, **thinkingBudget**, **systemPrompt**
+- entities (tables + KV namespaces): providerConnections, providerNodes, modelAliases, combos, apiKeys, settings, pricing, customModels, proxyConfig, ipFilter, thinkingBudget, systemPrompt, **owui_chats**, **owui_memories**, **owui_settings**, **chat_attachments**
 
 Usage persistence:
 
@@ -540,6 +583,40 @@ erDiagram
       boolean enabled
       string prompt
       string position
+    }
+
+    OWUI_CHAT {
+      string id
+      string title
+      json chat
+      integer created_at
+      integer updated_at
+      integer archived
+      integer pinned
+      string folder_id
+      string share_id
+    }
+
+    OWUI_MEMORY {
+      string id
+      string content
+      integer created_at
+      integer updated_at
+    }
+
+    OWUI_SETTINGS {
+      integer id
+      json settings
+      integer updated_at
+    }
+
+    CHAT_ATTACHMENT {
+      string sha256
+      string mime
+      integer bytes
+      blob data
+      string filename
+      integer created_at
     }
 ```
 

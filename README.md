@@ -279,6 +279,8 @@ symlinks and cause `spawn devin ENOENT` or binary format errors.
 
 ### Option 4: source
 
+Development mode:
+
 ```bash
 git clone https://github.com/linhnguyen-gt/Routiform.git
 cd Routiform
@@ -286,21 +288,43 @@ npm install
 npm run dev
 ```
 
+Production build from source:
+
+```bash
+git clone https://github.com/linhnguyen-gt/Routiform.git
+cd Routiform
+npm install
+npm run owui:build  # Build the Open WebUI SPA into public/owui (required before Next build)
+npm run build       # Build the Next.js application
+npm start           # Start the server
+```
+
+The `npm run owui:build` step is required — it compiles the vendored Open WebUI (`open-webui/`) 
+into `public/owui/`, which is then embedded by Next's `output: standalone`. 
+Without it, `/owui` returns 404 and `/dashboard/chat` redirects to a missing chat interface.
+
 ### Built-in Chat
 
-The sidebar has a **Chat** entry: a streaming chat over your own Routiform models,
-at `/dashboard/chat`. Nothing to install and nothing to launch — it talks to the
-router in-process, so it works anywhere Routiform runs, on every install option.
+The sidebar has a **Chat** entry: a full-featured chat at `/owui` (redirected from `/dashboard/chat`).
+It is a vendored Open WebUI SvelteKit SPA with a native Next.js backend that talks to Routiform in-process.
+Nothing to install and nothing to launch — it works anywhere Routiform runs, on every install option.
 
-Conversations, attachments, and token counts are stored in Routiform's own SQLite
-database. Images are only offered on models whose request format can actually carry
-one; where it cannot, the composer says so rather than silently dropping the image.
+**Features:**
+- Streaming completions via socket.io
+- Conversation history with search and tagging
+- File attachments (images, code, documents)
+- Model switching per conversation
+- Shared conversation links
+- Automatic cost tracking (each message logs its request ID for billing)
+
+Conversations, messages, and attachments are stored in Routiform's own SQLite database (no external service needed).
+Images are only offered on models whose request format can actually carry one; the composer indicates unsupported models.
 
 > Earlier versions embedded [Open WebUI](https://github.com/open-webui/open-webui)
-> as a separate application, which required Python 3.11 + `uv` on host installs or a
-> multi-GB image under Docker. That dependency is gone. If you ran it before, its
-> Docker volume (`routiform-open-webui-data`) still holds your old conversations; it
-> is no longer used and can be removed with
+> as a separate application, which required Python 3.11 + `uv` on host installs or
+> a multi-GB Docker image. The native chat removes that dependency entirely.
+> If you ran it before, your old Open WebUI Docker volume (`routiform-open-webui-data`)
+> still holds those conversations; it is no longer used and can be removed with
 > `docker volume rm routiform-open-webui-data`.
 
 ## Management CLI
