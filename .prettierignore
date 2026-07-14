@@ -1,0 +1,11 @@
+# Vendored Open WebUI frontend. Committed (the chat cannot be built without it) but it is
+# upstream's code with upstream's own formatting. lint-staged runs prettier over everything
+# staged, so without this a single commit would reformat thousands of upstream files and make
+# every future merge from upstream a conflict.
+open-webui/
+public/owui/
+
+.next/
+out/
+build/
+node_modules/

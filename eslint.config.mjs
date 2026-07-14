@@ -49,6 +49,12 @@ const eslintConfig = [
   // Global ignores — keep ESLint scoped to source files only
   {
     ignores: [
+      // Vendored Open WebUI frontend. It is committed (the chat cannot be built without it)
+      // but it is upstream's code, with upstream's own eslint config and style — linting it
+      // with Routiform's rules produces ~200 errors we would never fix and turns `npm run
+      // lint` red for everyone. Our patches inside it are marked ROUTIFORM PATCH.
+      "open-webui/**",
+      "public/owui/**",
       // Next.js build output
       ".next/**",
       "src/.next/**",

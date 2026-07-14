@@ -6,13 +6,23 @@
 .vscode
 **/.vscode
 
-# Dependencies and build output
+# Dependencies and build output.
+# The `**/` forms matter: a bare `node_modules` matches ONLY the repo root, so without these the
+# vendored open-webui/node_modules (~1.3GB) and open-webui/build get shipped into the build
+# context on every `docker build`.
 node_modules
+**/node_modules
 .next
 out
 build
+**/build
+**/.svelte-kit
 dist
 coverage
+
+# The chat SPA is rebuilt inside the image (Dockerfile runs `npm run owui:build`), so the local
+# 66MB copy is dead weight in the context — and a stale one would be overwritten anyway.
+public/owui
 
 # Runtime data and logs
 data
