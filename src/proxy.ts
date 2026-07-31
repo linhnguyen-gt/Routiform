@@ -5,6 +5,8 @@ import { getSettings } from "./lib/localDb";
 import { isPublicRoute, verifyAuth, isAuthRequired } from "./shared/utils/apiAuth";
 import { checkBodySize, getBodySizeLimit } from "./shared/middleware/bodySizeGuard";
 import { isDraining } from "./lib/gracefulShutdown";
+import { checkIP } from "@routiform/open-sse/services/ipFilter.ts";
+import { getClientIpFromRequest } from "./lib/ipUtils";
 import { isModelSyncInternalRequest } from "./shared/services/modelSyncScheduler";
 import { getJwtSecret } from "./shared/utils/jwtSecret";
 
@@ -34,6 +36,27 @@ export async function proxy(request: unknown) {
         },
       },
       { status: 503 }
+    );
+  }
+
+  // ──────────────── Pre-flight: IP filtering ────────────────
+  // checkIP had zero callers: the settings page and its API implied the filter worked while
+  // nothing ever consulted it. It fast-returns when disabled, which is the default.
+  //
+  // An IP that cannot be derived resolves to "unknown", which fails safe in the direction the
+  // operator chose: blacklist mode admits it (it cannot be shown to be banned) and whitelist mode
+  // rejects it (it cannot be shown to be allowed).
+  const ipVerdict = checkIP(getClientIpFromRequest(request));
+  if (!ipVerdict.allowed) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "FORBIDDEN",
+          message: ipVerdict.reason || "Access denied",
+          correlation_id: requestId,
+        },
+      },
+      { status: 403 }
     );
   }
 

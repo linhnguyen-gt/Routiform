@@ -164,3 +164,24 @@ test("getIPFilterConfig: returns serializable config", () => {
   assert.ok(Array.isArray(config.whitelist));
   assert.ok(config.whitelist.includes("1.2.3.4"));
 });
+
+// ─── Middleware wiring (checkIP previously had zero callers) ──────────────────
+
+test("an undeclared IP fails safe in the direction the operator chose", () => {
+  // getClientIpFromRequest returns "unknown" when no peer is derivable — Next middleware carries
+  // no socket. Blacklist mode admits it (it cannot be shown to be banned); whitelist mode rejects
+  // it (it cannot be shown to be allowed).
+  configureIPFilter({ enabled: true, mode: "blacklist", blacklist: ["203.0.113.5"] });
+  assert.equal(checkIP("unknown").allowed, true);
+
+  configureIPFilter({ enabled: true, mode: "whitelist", whitelist: ["203.0.113.5"] });
+  assert.equal(checkIP("unknown").allowed, false);
+
+  configureIPFilter({ enabled: false, mode: "blacklist", blacklist: [], whitelist: [] });
+});
+
+test("a disabled filter admits everything, including a blacklisted address", () => {
+  configureIPFilter({ enabled: false, mode: "blacklist", blacklist: ["203.0.113.5"] });
+  assert.equal(checkIP("203.0.113.5").allowed, true);
+  configureIPFilter({ enabled: false, mode: "blacklist", blacklist: [], whitelist: [] });
+});
