@@ -67,9 +67,12 @@ export function printKv(label, value, color) {
   console.log(`  ${paint(C.dim, label.padEnd(16))} ${color ? paint(color, valStr) : valStr}`);
 }
 
-// Print an error message.
+// Print an error message and mark the process as failed.
+// Command handlers `return printError(...)` on API failure; without this the CLI exited 0 and a
+// script could not tell a failed call from a successful one.
 export function printError(msg) {
   console.error(paint(C.red, "✖ " + msg));
+  process.exitCode = 1;
 }
 
 // Print a success message.

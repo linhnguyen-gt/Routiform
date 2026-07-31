@@ -6,6 +6,20 @@ import { cookies } from "next/headers";
 import { loginSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { getJwtSecret } from "@/shared/utils/jwtSecret";
+import { createHash, timingSafeEqual } from "node:crypto";
+
+/**
+ * Compare two secrets without leaking their relationship through timing.
+ *
+ * Both sides are hashed first so the comparison is over fixed-width buffers: timingSafeEqual
+ * throws on length mismatch, which would otherwise leak the expected password's length.
+ */
+function timingSafeCompare(candidate, expected) {
+  if (typeof candidate !== "string" || typeof expected !== "string") return false;
+  const candidateDigest = createHash("sha256").update(candidate, "utf8").digest();
+  const expectedDigest = createHash("sha256").update(expected, "utf8").digest();
+  return timingSafeEqual(candidateDigest, expectedDigest);
+}
 
 export async function POST(request) {
   try {
@@ -43,8 +57,7 @@ export async function POST(request) {
           { status: 403 }
         );
       }
-      const initialPassword = process.env.INITIAL_PASSWORD;
-      isValid = password === initialPassword;
+      isValid = timingSafeCompare(password, process.env.INITIAL_PASSWORD);
     }
 
     if (isValid) {

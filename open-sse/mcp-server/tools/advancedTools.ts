@@ -298,7 +298,7 @@ export async function handleSetBudgetGuard(args: {
     // Get current session cost
     let spent = 0;
     try {
-      const analytics = toRecord(await apiFetch("/api/usage/analytics?period=session"));
+      const analytics = toRecord(await apiFetch("/api/usage/analytics?range=session"));
       spent = toNumber(analytics.totalCost, 0);
     } catch {
       /* ignore if analytics not available */
@@ -593,7 +593,7 @@ export async function handleGetProviderMetrics(args: { provider: string }) {
     const [healthRaw, quotaRaw, analyticsRaw] = await Promise.allSettled([
       apiFetch("/api/monitoring/health"),
       apiFetch(`/api/usage/quota?provider=${encodeURIComponent(args.provider)}`),
-      apiFetch(`/api/usage/analytics?period=session&provider=${encodeURIComponent(args.provider)}`),
+      apiFetch(`/api/usage/analytics?range=session&provider=${encodeURIComponent(args.provider)}`),
     ]);
 
     const health = healthRaw.status === "fulfilled" ? toRecord(healthRaw.value) : {};
@@ -809,7 +809,7 @@ export async function handleGetSessionSnapshot() {
   const start = Date.now();
   try {
     const analytics = toRecord(
-      await apiFetch("/api/usage/analytics?period=session").catch(() => ({}))
+      await apiFetch("/api/usage/analytics?range=session").catch(() => ({}))
     );
     const tokenCount = toRecord(analytics.tokenCount);
     const byModel = toArrayOfRecords(analytics.byModel);

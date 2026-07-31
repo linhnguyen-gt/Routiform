@@ -89,8 +89,9 @@ export async function run(argv) {
     return;
   }
 
-  // Route to handler
-  const handlerArgs = rest.filter((a) => !a.startsWith("--") || isValueFlag(a, rest));
+  // Handlers parse their own flags, so every arg is forwarded verbatim. The previous filter
+  // was a no-op: its predicate returned true for exactly the args the filter meant to drop.
+  const handlerArgs = rest;
 
   switch (noun) {
     case "provider": {
@@ -148,12 +149,6 @@ function parseGlobalFlags(args) {
     }
   }
   return flags;
-}
-
-// Determine if a --flag is a value-taking flag (so it's not filtered out as a noun/verb).
-// We keep ALL args that start with -- in handlerArgs because handlers parse their own flags.
-function isValueFlag(arg, args) {
-  return arg.startsWith("--");
 }
 
 export { NOUNS, HELP };
