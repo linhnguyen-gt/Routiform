@@ -1,4 +1,17 @@
-import type { CompressionEngine } from "./engine-types.ts";
+import type { EngineStage } from "./engine-types.ts";
+
+/**
+ * The only three fields preset selection needs.
+ *
+ * Typed as this rather than as a full `CompressionEngine` so the API route and the MCP tool can
+ * ask "what would this preset select" from the pure-data catalog, without constructing sham
+ * engines whose `apply` throws just to satisfy a type.
+ */
+export interface PresetSelectable {
+  id: string;
+  stage: EngineStage;
+  gateCleared: boolean;
+}
 
 /**
  * The user-facing compression choice.
@@ -77,11 +90,11 @@ export function resolvePreset(settings: PresetSettingsLike | null | undefined): 
  * `custom` reads explicit per-engine toggles and selects nothing when there are none — an empty
  * custom configuration means the operator turned everything off, not that they meant `balanced`.
  */
-export function presetEngines(
+export function presetEngines<T extends PresetSelectable>(
   preset: CompressionPreset,
-  engines: readonly CompressionEngine[],
+  engines: readonly T[],
   toggles?: Record<string, boolean> | null
-): CompressionEngine[] {
+): T[] {
   switch (preset) {
     case "off":
       return [];

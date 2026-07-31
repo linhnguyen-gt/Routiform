@@ -849,6 +849,8 @@ export function createMcpServer(): McpServer {
         defaultPreset: DEFAULT_COMPRESSION_PRESET,
         resultModes: ["off", "rtk", "stacked"],
         header: "X-Routiform-Compression",
+        overrideHeader: "X-Routiform-Compression-Mode",
+        route: "/api/compression",
       };
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     })
