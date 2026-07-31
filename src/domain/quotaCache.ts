@@ -33,7 +33,14 @@ interface QuotaCacheEntry {
   fetchedAt: number;
   exhausted: boolean;
   nextResetAt: string | null;
-  windowDurationMs?: number | null; // T08: optional rolling window duration
+}
+
+interface SetQuotaCacheOptions {
+  /**
+   * Persist a `quota_snapshots` row alongside the in-memory write. Defaults to true.
+   * Tests seeding the cache pass false so a fixture cannot pollute the snapshot history.
+   */
+  persist?: boolean;
 }
 
 interface QuotaWindowStatus {
@@ -81,12 +88,6 @@ function advancedWindowResetAt(entry: QuotaCacheEntry, now: number): { exhausted
   // Eagerly mark as available so requests don't wait for the 5-min TTL.
   if (resetMs <= now) {
     return { exhausted: false };
-  }
-
-  // If we know the window duration, check if the *next* window also passed.
-  if (entry.windowDurationMs && entry.windowDurationMs > 0) {
-    const elapsed = now - resetMs;
-    if (elapsed >= 0) return { exhausted: false };
   }
 
   return null;
@@ -186,7 +187,8 @@ function normalizeQuotas(rawQuotas: Record<string, unknown>): Record<string, Quo
 export function setQuotaCache(
   connectionId: string,
   provider: string,
-  rawQuotas: Record<string, unknown>
+  rawQuotas: Record<string, unknown>,
+  options?: SetQuotaCacheOptions
 ) {
   const quotas = normalizeQuotas(rawQuotas);
   const exhausted = isExhausted(quotas);
@@ -200,7 +202,9 @@ export function setQuotaCache(
   };
   cache.set(connectionId, entry);
 
-  if (entry && rawQuotas) {
+  const persist = options?.persist !== false;
+
+  if (persist && rawQuotas) {
     for (const [windowKey, quotaInfo] of Object.entries(rawQuotas)) {
       if (!quotaInfo || typeof quotaInfo !== "object" || Array.isArray(quotaInfo)) continue;
       const qObj = quotaInfo as Record<string, unknown>;
@@ -230,7 +234,9 @@ export function setQuotaCache(
           remaining_percentage: remainingPercentage,
           is_exhausted: entry.exhausted ? 1 : 0,
           next_reset_at: resetAt,
-          window_duration_ms: entry.windowDurationMs ?? null,
+          // No upstream reports a window length: UsageQuota carries only used/total/resetAt,
+          // so this column stays reserved until a provider adapter can supply a real value.
+          window_duration_ms: null,
           raw_data: null,
         });
       } catch (error) {
@@ -245,6 +251,14 @@ export function setQuotaCache(
  */
 export function getQuotaCache(connectionId: string): QuotaCacheEntry | null {
   return cache.get(connectionId) || null;
+}
+
+/**
+ * Drop every cached entry. The cache is module-level state shared by every test file in a run,
+ * so a fixture that seeds it must clear it or the next file inherits the seeded quota.
+ */
+export function clearQuotaCache(): void {
+  cache.clear();
 }
 
 /**

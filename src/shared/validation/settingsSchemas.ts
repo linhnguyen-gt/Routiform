@@ -31,8 +31,18 @@ export const updateSettingsSchema = z.object({
   debugMode: z.boolean().optional(),
   hiddenSidebarItems: z.array(z.enum(HIDEABLE_SIDEBAR_ITEM_IDS)).optional(),
   // Routing settings (#134)
+  // Must stay in sync with schemas/settings-general.ts and the Settings type — the account
+  // selector implements every value here, and two schemas guard the same write paths.
   fallbackStrategy: z
-    .enum(["fill-first", "round-robin", "p2c", "random", "least-used", "cost-optimized"])
+    .enum([
+      "fill-first",
+      "round-robin",
+      "p2c",
+      "random",
+      "least-used",
+      "cost-optimized",
+      "strict-random",
+    ])
     .optional(),
   wildcardAliases: z.array(z.object({ pattern: z.string(), target: z.string() })).optional(),
   stickyRoundRobinLimit: z.number().int().min(0).max(1000).optional(),
