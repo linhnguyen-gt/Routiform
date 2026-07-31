@@ -33,9 +33,10 @@ import {
   testComboInput,
   getProviderMetricsInput,
   bestComboForTaskInput,
-  explainRouteInput,
   getSessionSnapshotInput,
   syncPricingInput,
+  cacheStatsInput,
+  cacheFlushInput,
 } from "./schemas/tools.ts";
 import { startMcpHeartbeat } from "./runtimeHeartbeat.ts";
 
@@ -54,9 +55,10 @@ import {
   handleTestCombo,
   handleGetProviderMetrics,
   handleBestComboForTask,
-  handleExplainRoute,
   handleGetSessionSnapshot,
   handleSyncPricing,
+  handleCacheStats,
+  handleCacheFlush,
 } from "./tools/advancedTools.ts";
 import { memoryTools } from "./tools/memoryTools.ts";
 import { normalizeQuotaResponse } from "../../src/shared/contracts/quota.ts";
@@ -727,14 +729,25 @@ export function createMcpServer(): McpServer {
   );
 
   server.registerTool(
-    "routiform_explain_route",
+    "routiform_cache_stats",
     {
       description:
-        "Explains why a request was routed to a specific provider, showing scoring factors and fallbacks",
-      inputSchema: explainRouteInput,
+        "Returns cache statistics: semantic cache hit rate, prompt cache metrics by provider, and idempotency layer stats",
+      inputSchema: cacheStatsInput,
     },
-    withScopeEnforcement("routiform_explain_route", (args) =>
-      handleExplainRoute(explainRouteInput.parse(args))
+    withScopeEnforcement("routiform_cache_stats", (args) =>
+      handleCacheStats(cacheStatsInput.parse(args))
+    )
+  );
+
+  server.registerTool(
+    "routiform_cache_flush",
+    {
+      description: "Flush cache entries by signature, by model, or entirely when neither is given",
+      inputSchema: cacheFlushInput,
+    },
+    withScopeEnforcement("routiform_cache_flush", (args) =>
+      handleCacheFlush(cacheFlushInput.parse(args))
     )
   );
 

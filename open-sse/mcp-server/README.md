@@ -140,7 +140,6 @@ routiform --mcp
 | 12  | `routiform_test_combo`             | `execute:completions`, `read:combos` | Test each provider in a combo with a real prompt and a real upstream call, report latency/cost |
 | 13  | `routiform_get_provider_metrics`   | `read:health`                        | Per-provider metrics with latency percentiles (p50/p95/p99), circuit breaker                   |
 | 14  | `routiform_best_combo_for_task`    | `read:combos`, `read:health`         | AI-powered combo recommendation by task type with budget/latency constraints                   |
-| 15  | `routiform_explain_route`          | `read:health`, `read:usage`          | Explain why a request was routed to a provider (scoring factors, fallbacks)                    |
 | 16  | `routiform_get_session_snapshot`   | `read:usage`                         | Full session snapshot: cost, tokens, top models, errors, budget status                         |
 
 ---
@@ -461,36 +460,6 @@ async def benchmark_combos(session):
         print(f"  {r['combo']}: fastest={r['fastest']}, cheapest={r['cheapest']}, success={r['success_rate']}")
 ```
 
-### 🔍 Use Case 4: Post-Mortem Debugging Agent
-
-An agent that explains why a request was routed to a specific provider.
-
-```typescript
-async function debugRouting(client: Client, requestId: string) {
-  // Explain the routing decision
-  const explanation = await client.callTool({
-    name: "routiform_explain_route",
-    arguments: { requestId },
-  });
-  const data = JSON.parse(explanation.content[0].text);
-
-  console.log(`Request ${requestId}:`);
-  console.log(`  Provider: ${data.decision.providerSelected}`);
-  console.log(`  Model: ${data.decision.modelUsed}`);
-  console.log(`  Score: ${data.decision.score}`);
-  console.log(`  Factors:`);
-  for (const factor of data.decision.factors) {
-    console.log(`    ${factor.name}: ${factor.value} (weight: ${factor.weight})`);
-  }
-  if (data.decision.fallbacksTriggered.length > 0) {
-    console.log(`  Fallbacks triggered:`);
-    for (const fb of data.decision.fallbacksTriggered) {
-      console.log(`    ${fb.provider}: ${fb.reason}`);
-    }
-  }
-}
-```
-
 ### 📋 Use Case 5: Model Discovery Agent
 
 An agent that discovers the cheapest models for a given capability.
@@ -523,17 +492,17 @@ async def find_cheapest_models(session, capability="chat"):
 
 The MCP server supports **fine-grained scope enforcement** for multi-tenant environments:
 
-| Scope                 | Tools                                                                                          |
-| --------------------- | ---------------------------------------------------------------------------------------------- |
-| `read:health`         | `get_health`, `simulate_route`, `get_provider_metrics`, `best_combo_for_task`, `explain_route` |
-| `read:combos`         | `list_combos`, `get_combo_metrics`, `simulate_route`, `best_combo_for_task`, `test_combo`      |
-| `read:quota`          | `check_quota`                                                                                  |
-| `read:usage`          | `cost_report`, `explain_route`, `get_session_snapshot`                                         |
-| `read:models`         | `list_models_catalog`                                                                          |
-| `write:combos`        | `switch_combo`                                                                                 |
-| `write:budget`        | `set_budget_guard`                                                                             |
-| `write:resilience`    | `set_resilience_profile`                                                                       |
-| `execute:completions` | `route_request`, `test_combo`                                                                  |
+| Scope                 | Tools                                                                                     |
+| --------------------- | ----------------------------------------------------------------------------------------- |
+| `read:health`         | `get_health`, `simulate_route`, `get_provider_metrics`, `best_combo_for_task`             |
+| `read:combos`         | `list_combos`, `get_combo_metrics`, `simulate_route`, `best_combo_for_task`, `test_combo` |
+| `read:quota`          | `check_quota`                                                                             |
+| `read:usage`          | `cost_report`, `get_session_snapshot`                                                     |
+| `read:models`         | `list_models_catalog`                                                                     |
+| `write:combos`        | `switch_combo`                                                                            |
+| `write:budget`        | `set_budget_guard`                                                                        |
+| `write:resilience`    | `set_resilience_profile`                                                                  |
+| `execute:completions` | `route_request`, `test_combo`                                                             |
 
 **Wildcard scopes:** Use `read:*` to grant all read scopes, or `*` for full access.
 

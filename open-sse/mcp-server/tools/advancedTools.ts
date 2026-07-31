@@ -10,7 +10,8 @@
  *   5. routiform_test_combo         — Live test each provider in a combo
  *   6. routiform_get_provider_metrics — Detailed per-provider metrics
  *   7. routiform_best_combo_for_task — AI-powered combo recommendation
- *   8. routiform_explain_route      — Post-hoc routing decision explainer
+ *   8. routiform_cache_stats        — Cache hit rate and prompt-cache metrics
+ *   9. routiform_cache_flush        — Invalidate cache entries by signature or model
  *   9. routiform_get_session_snapshot — Full session state snapshot
  *  10. routiform_sync_pricing      — Sync provider pricing from external source
  */
@@ -720,69 +721,6 @@ export async function handleBestComboForTask(args: {
   }
 }
 
-export async function handleExplainRoute(args: { requestId: string }) {
-  const start = Date.now();
-  try {
-    // Query routing_decisions table via API
-    let decision: JsonRecord | null = null;
-    try {
-      decision = toRecord(
-        await apiFetch(`/api/routing/decisions/${encodeURIComponent(args.requestId)}`)
-      );
-    } catch {
-      // Fall back to a generic explanation
-    }
-
-    const result = decision
-      ? {
-          requestId: args.requestId,
-          decision: {
-            comboUsed: decision.comboUsed || "default",
-            providerSelected: decision.providerSelected || "unknown",
-            modelUsed: decision.modelUsed || "unknown",
-            score: decision.score || 0,
-            factors: decision.factors || [
-              { name: "health", value: 1, weight: 0.3, contribution: 0.3 },
-              { name: "quota", value: 1, weight: 0.25, contribution: 0.25 },
-              { name: "cost", value: 0.8, weight: 0.2, contribution: 0.16 },
-              { name: "latency", value: 0.9, weight: 0.15, contribution: 0.135 },
-              { name: "task_fit", value: 0.7, weight: 0.1, contribution: 0.07 },
-            ],
-            fallbacksTriggered: decision.fallbacksTriggered || [],
-            costActual: decision.costActual || 0,
-            latencyActual: decision.latencyActual || 0,
-          },
-        }
-      : {
-          requestId: args.requestId,
-          decision: {
-            comboUsed: "unknown",
-            providerSelected: "unknown",
-            modelUsed: "unknown",
-            score: 0,
-            factors: [],
-            fallbacksTriggered: [],
-            costActual: 0,
-            latencyActual: 0,
-          },
-          note: "Routing decision not found. The /api/routing/decisions endpoint may not be implemented yet, or the requestId is invalid.",
-        };
-
-    await logToolCall(
-      "routiform_explain_route",
-      args,
-      { requestId: args.requestId },
-      Date.now() - start,
-      true
-    );
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await logToolCall("routiform_explain_route", args, null, Date.now() - start, false, msg);
-    return { content: [{ type: "text" as const, text: `Error: ${msg}` }], isError: true };
-  }
-}
-
 export async function handleSyncPricing(args: { sources?: string[]; dryRun?: boolean }) {
   const start = Date.now();
   try {
@@ -854,6 +792,43 @@ export async function handleGetSessionSnapshot() {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await logToolCall("routiform_get_session_snapshot", {}, null, Date.now() - start, false, msg);
+    return { content: [{ type: "text" as const, text: `Error: ${msg}` }], isError: true };
+  }
+}
+
+export async function handleCacheStats(args: Record<string, unknown>) {
+  const start = Date.now();
+  try {
+    const result = toRecord(await apiFetch("/api/cache/stats"));
+    await logToolCall("routiform_cache_stats", args, result, Date.now() - start, true);
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await logToolCall("routiform_cache_stats", args, null, Date.now() - start, false, msg);
+    return { content: [{ type: "text" as const, text: `Error: ${msg}` }], isError: true };
+  }
+}
+
+export async function handleCacheFlush(args: { signature?: string; model?: string }) {
+  const start = Date.now();
+  try {
+    const query = new URLSearchParams();
+    if (args.signature) query.set("signature", args.signature);
+    if (args.model) query.set("model", args.model);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+
+    const result = toRecord(await apiFetch(`/api/cache${suffix}`, { method: "DELETE" }));
+    const scope = args.signature ? "signature" : args.model ? "model" : "all";
+
+    await logToolCall("routiform_cache_flush", args, result, Date.now() - start, true);
+    return {
+      content: [
+        { type: "text" as const, text: JSON.stringify({ ok: true, scope, ...result }, null, 2) },
+      ],
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await logToolCall("routiform_cache_flush", args, null, Date.now() - start, false, msg);
     return { content: [{ type: "text" as const, text: `Error: ${msg}` }], isError: true };
   }
 }

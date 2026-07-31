@@ -739,52 +739,6 @@ export const bestComboForTaskTool: McpToolDefinition<
   sourceEndpoints: ["/api/combos", "/api/combos/metrics", "/api/monitoring/health"],
 };
 
-// --- Tool 16: routiform_explain_route ---
-export const explainRouteInput = z.object({
-  requestId: z.string().describe("Request ID from the X-Request-Id header"),
-});
-
-export const explainRouteOutput = z.object({
-  requestId: z.string(),
-  decision: z.object({
-    comboUsed: z.string(),
-    providerSelected: z.string(),
-    modelUsed: z.string(),
-    score: z.number(),
-    factors: z.array(
-      z.object({
-        name: z.string(),
-        value: z.number(),
-        weight: z.number(),
-        contribution: z.number(),
-      })
-    ),
-    fallbacksTriggered: z.array(
-      z.object({
-        provider: z.string(),
-        reason: z.string(),
-      })
-    ),
-    costActual: z.number(),
-    latencyActual: z.number(),
-  }),
-});
-
-export const explainRouteTool: McpToolDefinition<
-  typeof explainRouteInput,
-  typeof explainRouteOutput
-> = {
-  name: "routiform_explain_route",
-  description:
-    "Explains why a specific request was routed to a particular provider. Shows the scoring factors, weights, fallbacks triggered, actual cost, and latency.",
-  inputSchema: explainRouteInput,
-  outputSchema: explainRouteOutput,
-  scopes: ["read:health", "read:usage"],
-  auditLevel: "basic",
-  phase: 2,
-  sourceEndpoints: [],
-};
-
 // --- Tool 17: routiform_get_session_snapshot ---
 export const getSessionSnapshotInput = z.object({}).describe("No parameters required");
 
@@ -1020,7 +974,6 @@ export const MCP_TOOLS = [
   testComboTool,
   getProviderMetricsTool,
   bestComboForTaskTool,
-  explainRouteTool,
   getSessionSnapshotTool,
   syncPricingTool,
   cacheStatsTool,
