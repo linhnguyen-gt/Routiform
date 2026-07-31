@@ -2,36 +2,14 @@ import { z } from "zod";
 import { retrieveMemories } from "@/lib/memory/retrieval";
 import { createMemory, deleteMemory, listMemories } from "@/lib/memory/store";
 import { MemoryType } from "@/lib/memory/types";
-
-export const MemorySearchSchema = z.object({
-  apiKeyId: z.string(),
-  query: z.string().optional(),
-  type: z.enum(["factual", "episodic", "procedural", "semantic"]).optional(),
-  maxTokens: z.number().int().positive().max(8000).optional(),
-  limit: z.number().int().positive().max(100).optional(),
-});
-
-export const MemoryAddSchema = z.object({
-  apiKeyId: z.string(),
-  sessionId: z.string().optional(),
-  type: z.enum(["factual", "episodic", "procedural", "semantic"]),
-  key: z.string().min(1),
-  content: z.string().min(1),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-});
-
-export const MemoryClearSchema = z.object({
-  apiKeyId: z.string(),
-  type: z.enum(["factual", "episodic", "procedural", "semantic"]).optional(),
-  olderThan: z.string().optional(),
-});
+import { memorySearchInput, memoryAddInput, memoryClearInput } from "../schemas/memory.ts";
 
 export const memoryTools = {
   routiform_memory_search: {
     name: "routiform_memory_search",
     description: "Search memories by query, type, or API key with token budget enforcement",
-    inputSchema: MemorySearchSchema,
-    handler: async (args: z.infer<typeof MemorySearchSchema>) => {
+    inputSchema: memorySearchInput,
+    handler: async (args: z.infer<typeof memorySearchInput>) => {
       const config = {
         enabled: true,
         maxTokens: args.maxTokens || 2000,
@@ -62,8 +40,8 @@ export const memoryTools = {
   routiform_memory_add: {
     name: "routiform_memory_add",
     description: "Add a new memory entry",
-    inputSchema: MemoryAddSchema,
-    handler: async (args: z.infer<typeof MemoryAddSchema>) => {
+    inputSchema: memoryAddInput,
+    handler: async (args: z.infer<typeof memoryAddInput>) => {
       const memory = await createMemory({
         apiKeyId: args.apiKeyId,
         sessionId: args.sessionId || "",
@@ -87,8 +65,8 @@ export const memoryTools = {
   routiform_memory_clear: {
     name: "routiform_memory_clear",
     description: "Clear memories for an API key, optionally filtered by type or age",
-    inputSchema: MemoryClearSchema,
-    handler: async (args: z.infer<typeof MemoryClearSchema>) => {
+    inputSchema: memoryClearInput,
+    handler: async (args: z.infer<typeof memoryClearInput>) => {
       const memories = await listMemories({
         apiKeyId: args.apiKeyId,
         type: args.type as MemoryType | undefined,

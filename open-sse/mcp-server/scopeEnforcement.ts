@@ -36,6 +36,17 @@ function normalizeScopeList(raw: unknown): string[] {
   return Array.from(new Set(normalized));
 }
 
+/**
+ * Opt-in flag that restores the legacy behaviour of reading scopes from the request's own `_meta`.
+ * Development only: `_meta` travels inside the JSON-RPC request, so a caller can name its own
+ * scopes and the check degrades to `attacker_supplied_scopes ⊇ required_scopes`.
+ */
+export const META_SCOPE_TRUST_ENV = "ROUTIFORM_MCP_TRUST_META_SCOPES";
+
+function metaScopesTrusted(): boolean {
+  return process.env[META_SCOPE_TRUST_ENV] === "true";
+}
+
 function extractMetaScopeList(meta: unknown): string[] {
   if (!meta || typeof meta !== "object") return [];
   const metaRecord = meta as Record<string, unknown>;
@@ -53,12 +64,6 @@ function extractMetaScopeList(meta: unknown): string[] {
   if (routi && typeof routi === "object") {
     const routiScopes = normalizeScopeList((routi as Record<string, unknown>).scopes);
     if (routiScopes.length > 0) return routiScopes;
-  }
-
-  const omni = metaRecord.routiform;
-  if (omni && typeof omni === "object") {
-    const omniScopes = normalizeScopeList((omni as Record<string, unknown>).scopes);
-    if (omniScopes.length > 0) return omniScopes;
   }
 
   return [];
@@ -89,9 +94,17 @@ export function resolveCallerScopeContext(
     return { callerId, scopes: authScopes, source: "authInfo" };
   }
 
-  const metaScopes = extractMetaScopeList(extra?._meta);
-  if (metaScopes.length > 0) {
-    return { callerId, scopes: metaScopes, source: "meta" };
+  // `_meta` is part of the request body and the HTTP transport does not authenticate, so scopes
+  // found there are self-asserted by the caller. They are ignored unless explicitly trusted.
+  if (metaScopesTrusted()) {
+    const metaScopes = extractMetaScopeList(extra?._meta);
+    if (metaScopes.length > 0) {
+      console.warn(
+        `[mcp] ${META_SCOPE_TRUST_ENV}=true: honouring caller-supplied scopes [${metaScopes.join(", ")}] ` +
+          `for caller "${callerId}". These are not verified. Never enable this outside development.`
+      );
+      return { callerId, scopes: metaScopes, source: "meta" };
+    }
   }
 
   const fallback = normalizeScopeList(fallbackScopes);
@@ -108,20 +121,28 @@ export function evaluateToolScopes(
   enforceScopes: boolean
 ): ScopeCheckResult {
   const toolDef = MCP_TOOL_MAP[toolName];
+  const required = toolDef && Array.isArray(toolDef.scopes) ? Array.from(toolDef.scopes) : [];
+  const provided = normalizeScopeList(callerScopes);
+
+  // Enforcement off means every registered tool is callable. A tool that is registered on the
+  // server but absent from MCP_TOOLS has no scope declaration, not a failed scope check — denying
+  // it here made those tools unusable even with enforcement disabled.
+  if (!enforceScopes) {
+    return { allowed: true, required, provided, missing: [] };
+  }
+
+  // With enforcement on, an undeclared tool cannot be checked and so cannot be permitted.
   if (!toolDef) {
     return {
       allowed: false,
       required: [],
-      provided: Array.from(callerScopes),
+      provided,
       missing: [],
       reason: "tool_definition_missing",
     };
   }
 
-  const required = Array.isArray(toolDef.scopes) ? Array.from(toolDef.scopes) : [];
-  const provided = normalizeScopeList(callerScopes);
-
-  if (!enforceScopes || required.length === 0) {
+  if (required.length === 0) {
     return { allowed: true, required, provided, missing: [] };
   }
 

@@ -1,15 +1,20 @@
 /**
- * MCP Tool Schemas — Contracts for all 16 Routiform MCP tools.
+ * MCP Tool Schemas — contracts for every Routiform MCP tool.
  *
  * Defines input/output Zod schemas, descriptions, scopes, and audit levels
- * for both essential (Phase 1) and advanced (Phase 3) MCP tools.
+ * for both essential (Phase 1) and advanced (Phase 2) MCP tools.
  *
  * Each tool wraps existing Routiform API endpoints and exposes them through
  * the Model Context Protocol, enabling AI agents in IDEs (VS Code, Cursor,
  * Copilot, Claude Desktop) to intelligently query gateway state.
+ *
+ * Every registered tool must appear in MCP_TOOLS: scope enforcement resolves a tool's
+ * requirements from this registry, and a tool missing from it cannot be checked.
  */
 
 import { z } from "zod";
+// memory.ts imports McpToolDefinition as a type only, so this is not a runtime cycle.
+import { memorySearchTool, memoryAddTool, memoryClearTool } from "./memory.ts";
 
 // ============ Shared Types ============
 
@@ -1020,6 +1025,9 @@ export const MCP_TOOLS = [
   syncPricingTool,
   cacheStatsTool,
   cacheFlushTool,
+  memorySearchTool,
+  memoryAddTool,
+  memoryClearTool,
 ] as const;
 
 /** Essential tools only (Phase 1) */

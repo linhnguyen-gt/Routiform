@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { MCP_ESSENTIAL_TOOLS } from "../schemas/tools";
+import { MCP_ESSENTIAL_TOOLS, MCP_TOOL_MAP } from "../schemas/tools";
 import { createMcpServer } from "../server";
 
 // Mock fetch globally
@@ -22,9 +22,36 @@ describe("MCP Essential Tools", () => {
   });
 
   describe("Tool schema validation", () => {
-    it("should have exactly 9 essential tools (includes web_search)", () => {
-      const schemas = MCP_ESSENTIAL_TOOLS;
-      expect(schemas).toHaveLength(9);
+    // A bare count drifts silently every time a tool is added — it had been asserting 9 against
+    // an actual 11 for some time. Naming the set makes an unintended addition or removal visible.
+    it("exposes exactly the expected essential tool set", () => {
+      expect(MCP_ESSENTIAL_TOOLS.map((t) => t.name).sort()).toEqual(
+        [
+          "routiform_check_quota",
+          "routiform_cost_report",
+          "routiform_get_combo_metrics",
+          "routiform_get_compression_info",
+          "routiform_get_health",
+          "routiform_list_combos",
+          "routiform_list_free_tiers",
+          "routiform_list_models_catalog",
+          "routiform_route_request",
+          "routiform_switch_combo",
+          "routiform_web_search",
+        ].sort()
+      );
+    });
+
+    it("every registered tool is present in the registry scope enforcement reads", () => {
+      // A tool registered on the server but missing from MCP_TOOLS has no scope declaration and
+      // cannot be checked; memory tools were unusable for exactly this reason.
+      for (const name of [
+        "routiform_memory_search",
+        "routiform_memory_add",
+        "routiform_memory_clear",
+      ]) {
+        expect(MCP_TOOL_MAP[name], `${name} missing from MCP_TOOLS`).toBeTruthy();
+      }
     });
 
     it("all tools should have routiform_ prefix", () => {

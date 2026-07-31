@@ -24,7 +24,10 @@ test("resolveCallerScopeContext prioritizes authInfo scopes", () => {
   assert.deepEqual(context.scopes, ["read:health", "read:combos"]);
 });
 
-test("resolveCallerScopeContext falls back to _meta scopes", () => {
+test("resolveCallerScopeContext ignores _meta scopes and uses the trusted fallback", () => {
+  // `_meta` travels inside the JSON-RPC request and the HTTP transport does not authenticate,
+  // so scopes found there are self-asserted. Honouring them made the check
+  // `attacker_supplied_scopes ⊇ required_scopes`.
   const context = resolveCallerScopeContext(
     {
       _meta: {
@@ -36,8 +39,24 @@ test("resolveCallerScopeContext falls back to _meta scopes", () => {
   );
 
   assert.equal(context.callerId, "session-meta");
-  assert.equal(context.source, "meta");
-  assert.deepEqual(context.scopes, ["read:quota", "read:models"]);
+  assert.equal(context.source, "env");
+  assert.deepEqual(context.scopes, ["read:usage"]);
+});
+
+test("resolveCallerScopeContext honours _meta scopes only behind the explicit dev flag", () => {
+  const previous = process.env.ROUTIFORM_MCP_TRUST_META_SCOPES;
+  process.env.ROUTIFORM_MCP_TRUST_META_SCOPES = "true";
+  try {
+    const context = resolveCallerScopeContext(
+      { _meta: { scopes: ["read:quota"] }, sessionId: "session-meta" },
+      ["read:usage"]
+    );
+    assert.equal(context.source, "meta");
+    assert.deepEqual(context.scopes, ["read:quota"]);
+  } finally {
+    if (previous === undefined) delete process.env.ROUTIFORM_MCP_TRUST_META_SCOPES;
+    else process.env.ROUTIFORM_MCP_TRUST_META_SCOPES = previous;
+  }
 });
 
 test("resolveCallerScopeContext uses env fallback when caller has no scopes", () => {
