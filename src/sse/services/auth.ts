@@ -1,3 +1,4 @@
+import { isTerminalConnectionStatus } from "@/domain/connection-eligibility";
 import { getQuotaWindowStatus, isAccountQuotaExhausted } from "@/domain/quotaCache";
 import {
   getCachedSettings,
@@ -221,15 +222,6 @@ function getEarliestCodexScopeRateLimitedUntil(
   }
 
   return earliest;
-}
-
-function normalizeStatus(value: string | null): string {
-  return (value || "").trim().toLowerCase();
-}
-
-function isTerminalConnectionStatus(connection: ProviderConnectionView): boolean {
-  const status = normalizeStatus(connection.testStatus);
-  return status === "credits_exhausted" || status === "banned" || status === "expired";
 }
 
 export function resolveQuotaLimitPolicy(

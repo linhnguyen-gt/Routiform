@@ -55,6 +55,13 @@ export interface ProviderCandidate {
   accountTier?: "ultra" | "pro" | "standard" | "free";
   /** T10: Optional quota reset interval in seconds (shorter = higher priority when same quota) */
   quotaResetIntervalSecs?: number;
+  /**
+   * Whether `quotaRemaining` came from a real cache entry. False means the value is a placeholder,
+   * so consumers can zero the quota weight rather than rank on a constant.
+   */
+  quotaDataAvailable?: boolean;
+  /** Eligible connections behind the aggregated quota; 1 account at 80% is not 5 accounts at 80%. */
+  quotaConnectionCount?: number;
 }
 
 export interface ScoredProvider {

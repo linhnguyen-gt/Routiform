@@ -2,11 +2,56 @@ import type { ProviderCandidate } from "../autoCombo/scoring.ts";
 import { parseModel } from "../model.ts";
 import { getComboMetrics } from "../comboMetrics.ts";
 import { getCircuitBreaker } from "../../../src/shared/utils/circuitBreaker";
+import { isAccountUnavailable } from "../accountFallback.ts";
 import { DEFAULT_MODEL_P95_MS, MIN_HISTORY_SAMPLES } from "./combo-constants.ts";
+import {
+  aggregateConnectionQuota,
+  filterEligibleConnections,
+  DEFAULT_CANDIDATE_QUOTA,
+  type CandidateQuota,
+} from "./combo-candidate-quota.ts";
 
 function getBootstrapLatencyMs(modelId: string): number {
   const normalized = String(modelId || "").toLowerCase();
   return DEFAULT_MODEL_P95_MS[normalized] ?? 1500;
+}
+
+/**
+ * Resolve quota once per distinct provider — several candidate models usually share one provider,
+ * and connections are a per-provider property. Reads come from the in-memory quota cache; the
+ * snapshot table is for durability, never for the routing hot path.
+ */
+async function resolveQuotaByProvider(providers: string[]): Promise<Map<string, CandidateQuota>> {
+  const byProvider = new Map<string, CandidateQuota>();
+  const distinct = [...new Set(providers)];
+  if (distinct.length === 0) return byProvider;
+
+  let getProviderConnections: (filter: Record<string, unknown>) => Promise<unknown[]>;
+  try {
+    ({ getProviderConnections } = await import("../../../src/lib/localDb"));
+  } catch {
+    // No DB in this context: every candidate keeps placeholder quota, flagged as unavailable.
+    for (const provider of distinct) byProvider.set(provider, { ...DEFAULT_CANDIDATE_QUOTA });
+    return byProvider;
+  }
+
+  await Promise.all(
+    distinct.map(async (provider) => {
+      try {
+        const rows = (await getProviderConnections({ provider, isActive: true })) as Array<{
+          id: string;
+          testStatus?: string | null;
+          rateLimitedUntil?: string | null;
+        }>;
+        const eligible = filterEligibleConnections(rows ?? [], isAccountUnavailable);
+        byProvider.set(provider, aggregateConnectionQuota(eligible));
+      } catch {
+        byProvider.set(provider, { ...DEFAULT_CANDIDATE_QUOTA });
+      }
+    })
+  );
+
+  return byProvider;
 }
 
 export async function buildAutoCandidates(
@@ -26,6 +71,13 @@ export async function buildAutoCandidates(
   } catch {
     /* keep empty stats */
   }
+
+  const quotaByProvider = await resolveQuotaByProvider(
+    modelStrings.map((modelStr) => {
+      const parsed = parseModel(modelStr);
+      return parsed.provider || parsed.providerAlias || "unknown";
+    })
+  );
 
   const candidates = await Promise.all(
     modelStrings.map(async (modelStr) => {
@@ -83,18 +135,26 @@ export async function buildAutoCandidates(
       const circuitBreakerState: "CLOSED" | "HALF_OPEN" | "OPEN" =
         breakerStateRaw === "OPEN" || breakerStateRaw === "HALF_OPEN" ? breakerStateRaw : "CLOSED";
 
+      const quota = quotaByProvider.get(provider) ?? { ...DEFAULT_CANDIDATE_QUOTA };
+
       return {
         provider,
         model,
-        quotaRemaining: 100,
-        quotaTotal: 100,
+        quotaRemaining: quota.quotaRemaining,
+        quotaTotal: quota.quotaTotal,
+        quotaDataAvailable: quota.quotaDataAvailable,
+        quotaConnectionCount: quota.quotaConnectionCount,
         circuitBreakerState,
         costPer1MTokens,
         p95LatencyMs,
         latencyStdDev,
         errorRate,
+        // No connection field carries a subscription tier, so this stays the neutral default and
+        // the tier factor contributes nothing until a real source exists.
         accountTier: "standard" as const,
-        quotaResetIntervalSecs: 86400,
+        ...(quota.quotaResetIntervalSecs != null
+          ? { quotaResetIntervalSecs: quota.quotaResetIntervalSecs }
+          : {}),
       };
     })
   );
