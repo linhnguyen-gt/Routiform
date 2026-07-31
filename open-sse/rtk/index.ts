@@ -19,11 +19,17 @@ const UNSAFE_FILTER_NAMES = new Set(["read-numbered", "smart-truncate"]);
 // Backward-compat shim: accept the legacy `enabled: boolean` second argument.
 // - boolean → treated as off (false) / full (true)
 // - RtkProfile → used directly
-type CompressArg = RtkProfile | boolean;
+// - { profile, touched } → the profile plus an opt-in recorder for the indices actually rewritten
+type CompressArg = RtkProfile | boolean | { profile: RtkProfile; touched?: Set<number> };
 
 function normalizeProfile(arg: CompressArg): RtkProfile {
   if (typeof arg === "boolean") return arg ? "full" : "off";
+  if (typeof arg === "object" && arg !== null) return arg.profile;
   return arg;
+}
+
+function touchedSink(arg: CompressArg): Set<number> | undefined {
+  return typeof arg === "object" && arg !== null ? arg.touched : undefined;
 }
 
 // Compress tool_result content in-place. Returns stats or null if disabled/failed.
@@ -35,7 +41,7 @@ export function compressMessages(
   if (profile === "off") return null;
   if (!body) return null;
 
-  const ctx: RtkFilterContext = { profile };
+  const ctx: RtkFilterContext = { profile, touched: touchedSink(arg) };
 
   // Kiro format: conversationState.history + conversationState.currentMessage
   if (body.conversationState) {
@@ -56,15 +62,23 @@ export function compressMessages(
       const msg = asRecord(items[i]);
       if (!msg) continue;
 
+      // Records index `i` when a rewrite actually changed the text, so callers learn the exact
+      // scope of this run rather than having to assume it touched everything.
+      const rewrite = (text: string, shape: string): string => {
+        const next = compressText(text, stats, shape, ctx);
+        if (next !== text) ctx.touched?.add(i);
+        return next;
+      };
+
       // Shape 4: OpenAI Responses — top-level { type:"function_call_output", output: string | [{type:"input_text", text}] }
       if (msg.type === "function_call_output") {
         if (typeof msg.output === "string") {
-          msg.output = compressText(msg.output, stats, "openai-responses-string", ctx);
+          msg.output = rewrite(msg.output, "openai-responses-string");
         } else if (Array.isArray(msg.output)) {
           for (let k = 0; k < msg.output.length; k++) {
             const part = asRecord(msg.output[k]);
             if (part && part.type === "input_text" && typeof part.text === "string") {
-              part.text = compressText(part.text, stats, "openai-responses-array", ctx);
+              part.text = rewrite(part.text, "openai-responses-array");
             }
           }
         }
@@ -73,7 +87,7 @@ export function compressMessages(
 
       // Shape 1: OpenAI tool message — { role:"tool", content: "string" }
       if (msg.role === "tool" && typeof msg.content === "string") {
-        msg.content = compressText(msg.content, stats, "openai-tool", ctx);
+        msg.content = rewrite(msg.content, "openai-tool");
         continue;
       }
 
@@ -84,7 +98,7 @@ export function compressMessages(
         for (let k = 0; k < msg.content.length; k++) {
           const part = asRecord(msg.content[k]);
           if (part && part.type === "text" && typeof part.text === "string") {
-            part.text = compressText(part.text, stats, "openai-tool-array", ctx);
+            part.text = rewrite(part.text, "openai-tool-array");
           }
         }
         continue;
@@ -98,13 +112,13 @@ export function compressMessages(
 
         if (typeof block.content === "string") {
           // Shape 2: claude string form
-          block.content = compressText(block.content, stats, "claude-string", ctx);
+          block.content = rewrite(block.content, "claude-string");
         } else if (Array.isArray(block.content)) {
           // Shape 3: claude array form — compress each text part
           for (let k = 0; k < block.content.length; k++) {
             const part = asRecord(block.content[k]);
             if (part && part.type === "text" && typeof part.text === "string") {
-              part.text = compressText(part.text, stats, "claude-array", ctx);
+              part.text = rewrite(part.text, "claude-array");
             }
           }
         }

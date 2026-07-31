@@ -30,7 +30,11 @@ export const rtkEngine: CompressionEngine = {
   },
 
   apply(body: Record<string, unknown>, ctx: EngineContext) {
-    const stats = compressMessages(body, ctx.rtkProfile);
+    // Kiro nests its tool results under conversationState with no flat container, so index
+    // recording is meaningless there and the engine reports unknown scope instead.
+    const scoped = ctx.bodyShape !== "kiro" && ctx.bodyShape !== "unknown";
+    const touched = scoped ? new Set<number>() : undefined;
+    const stats = compressMessages(body, { profile: ctx.rtkProfile, touched });
     const hits = stats?.hits?.length ?? 0;
 
     if (!stats || hits === 0) {
@@ -49,7 +53,7 @@ export const rtkEngine: CompressionEngine = {
       stats: { hits },
       bytesBefore: stats.bytesBefore,
       bytesAfter: stats.bytesAfter,
-      touchedIndices: null,
+      touchedIndices: touched ? [...touched].sort((a, b) => a - b) : null,
       native: stats,
     };
   },

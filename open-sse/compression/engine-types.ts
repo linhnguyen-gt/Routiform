@@ -34,6 +34,15 @@ export interface EngineContext {
    * lets one caller's content reach another's request.
    */
   apiKeyId: string | null;
+  /**
+   * Container indices that engines earlier in this run have already rewritten.
+   *
+   * The pipeline extends it as each engine reports, so an engine sees exactly what ran before it.
+   * Compaction needs this: RTK's filters emit truncation markers that are not JSON, and a second
+   * pass over them would either fail to parse or — the dangerous case — succeed on a fragment and
+   * corrupt the filter's output. Ordering alone cannot prevent that; knowing what was touched can.
+   */
+  touchedSoFar: Set<number>;
 }
 
 export interface EngineResult {

@@ -25,13 +25,17 @@ const { registerEngine, resetRegistryToBuiltins } =
 // Measured against the pre-registry pipeline: snapshot + bytesBefore + the guard's own measure.
 const PRE_REGISTRY_BASELINE = 3;
 
-// Measured against the registry pipeline. `balanced` is one MORE than the baseline, and that one
-// buys per-engine reverts: an engine that inflates no longer discards every other engine's work.
-// `safe` is one FEWER, because a single-engine run needs no revert point advanced at all.
+// Measured against the registry pipeline. `balanced` MATCHES the pre-registry baseline and `safe`
+// beats it, while adding per-engine reverts that the old all-or-nothing guard did not have.
+//
+// It was 4 until RTK began reporting the indices it rewrote. Before that the runner could not
+// know what RTK had touched, so advancing the revert point meant re-cloning the whole body; with
+// a real scope it copies a few message entries instead. The lesson worth keeping: the cost was
+// never in guarding per engine, it was in engines that could not say what they had changed.
 const BUDGET = {
   safe: 2,
-  balanced: 4,
-  aggressive: 4,
+  balanced: 3,
+  aggressive: 3,
 };
 
 function toolBody() {
@@ -100,10 +104,10 @@ for (const [preset, budget] of Object.entries(BUDGET)) {
   });
 }
 
-test("the default engine set costs at most one serialization more than the pre-registry pipeline", () => {
+test("per-engine guarding costs nothing against the pre-registry pipeline", () => {
   assert.ok(
-    BUDGET.balanced <= PRE_REGISTRY_BASELINE + 1,
-    `per-engine guarding must not cost more than one extra pass over the body ` +
+    BUDGET.balanced <= PRE_REGISTRY_BASELINE,
+    `per-engine guarding must not cost extra passes over the body ` +
       `(baseline ${PRE_REGISTRY_BASELINE}, now ${BUDGET.balanced})`
   );
 });

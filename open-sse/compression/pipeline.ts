@@ -112,6 +112,7 @@ export function applyStackedCompression(
     bodyShape: detectBodyShape(body),
     conversationId: options.conversationId ?? null,
     apiKeyId: options.apiKeyId ?? null,
+    touchedSoFar: new Set<number>(),
   };
 
   // `caveman: false` is the historical way to ask for RTK without Caveman, and it predates
@@ -140,6 +141,11 @@ export function applyStackedCompression(
     engines[engine.id] = outcome.result;
     previous = outcome.previous;
     running = outcome.bytesAfter;
+    // A reverted engine left nothing behind, so its indices must not be reported as rewritten —
+    // a later engine skipping them would decline to compress content that is still untouched.
+    if (outcome.result.applied && !outcome.result.reverted) {
+      for (const index of outcome.result.touchedIndices ?? []) ctx.touchedSoFar.add(index);
+    }
   }
 
   // Legacy fields come from each engine's own stats object, untouched. Deriving them from the

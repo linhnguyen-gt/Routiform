@@ -6,6 +6,8 @@ import type { CompressionPreset } from "./preset.ts";
 import { liteEngine } from "./engines/lite.ts";
 import { rtkEngine } from "./engines/rtk-engine.ts";
 import { cavemanEngine } from "./engines/caveman-engine.ts";
+import { gcfEngine } from "./engines/gcf-engine.ts";
+import { responsesCompactEngine } from "./engines/responses-compact.ts";
 
 /**
  * The compression engine registry.
@@ -16,7 +18,13 @@ import { cavemanEngine } from "./engines/caveman-engine.ts";
  * to put the call.
  */
 
-const BUILTINS: readonly CompressionEngine[] = [liteEngine, rtkEngine, cavemanEngine];
+const BUILTINS: readonly CompressionEngine[] = [
+  liteEngine,
+  rtkEngine,
+  gcfEngine,
+  responsesCompactEngine,
+  cavemanEngine,
+];
 
 export const BUILTIN_ENGINE_IDS: string[] = BUILTINS.map((e) => e.id);
 

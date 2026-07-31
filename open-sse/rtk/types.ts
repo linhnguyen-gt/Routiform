@@ -14,6 +14,15 @@ export type FilterFn = ((text: string, ctx: RtkFilterContext, ...args: unknown[]
 // breaking filter signatures.
 export interface RtkFilterContext {
   profile: Exclude<RtkProfile, "off">;
+  /**
+   * Message indices this run actually rewrote, when the caller asks for them.
+   *
+   * Two consumers need it and neither can derive it afterwards: the per-engine inflation guard
+   * reverts only the entries an engine touched, and the Responses compaction engine must skip
+   * anything RTK already rewrote rather than compressing it twice. Optional so nothing that
+   * constructs a context today has to change.
+   */
+  touched?: Set<number>;
 }
 
 export interface RtkHit {

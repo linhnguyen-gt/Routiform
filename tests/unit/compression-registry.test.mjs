@@ -71,10 +71,10 @@ test("the built-in engines are registered and ordered lossless before lossy", ()
   assert.equal(stages.indexOf("lossy") > stages.lastIndexOf("lossless"), true);
 });
 
-test("lite runs before rtk, and caveman-en runs last", () => {
+test("engines run in declared order, lossless first and caveman-en last", () => {
   assert.deepEqual(
     listEngines().map((e) => e.id),
-    ["lite", "rtk", "caveman-en"]
+    ["lite", "rtk", "gcf", "responses-compact", "caveman-en"]
   );
 });
 
@@ -118,6 +118,9 @@ test("preset safe selects gate-cleared lossless engines only", () => {
 });
 
 test("preset balanced selects every gate-cleared engine, lossy included", () => {
+  // Still exactly what installs ran before the registry existed. Four engines have been added
+  // across two phases and none of them reached the default set, which is the point: `balanced`
+  // changes when something is measured, not when something is written.
   const ids = presetEngines("balanced", listEngines()).map((e) => e.id);
   assert.deepEqual(ids, ["rtk", "caveman-en"]);
 });

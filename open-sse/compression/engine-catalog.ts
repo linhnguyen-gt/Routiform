@@ -37,6 +37,22 @@ export const ENGINE_CATALOG: readonly EngineDescriptor[] = [
     summary: "Filters tool-result payloads: truncates long reads, caps grep and diff output.",
   },
   {
+    id: "gcf",
+    stage: "lossless",
+    order: 300,
+    gateCleared: false,
+    summary:
+      "Hoists shared keys out of homogeneous JSON arrays in tool output and emits rows as tuples.",
+  },
+  {
+    id: "responses-compact",
+    stage: "lossless",
+    order: 400,
+    gateCleared: false,
+    summary:
+      "Drops insignificant whitespace from Responses tool output, skipping anything RTK rewrote.",
+  },
+  {
     id: "caveman-en",
     stage: "lossy",
     order: 100,
