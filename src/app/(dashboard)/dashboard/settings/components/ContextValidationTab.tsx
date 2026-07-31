@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Card } from "@/shared/components";
 import { useTranslations } from "next-intl";
+import CompressionPresetCard, { SELECTABLE_PRESETS } from "./CompressionPresetCard";
+import type { CompressionPreset } from "./CompressionPresetCard";
 
 type ContextValidationMode = "passthrough" | "auto-compress";
 type CavemanOutputLevel = "off" | "lite" | "full";
@@ -18,6 +20,9 @@ export default function ContextValidationTab() {
   const [status, setStatus] = useState<"" | "saved" | "error">("");
   const [cavemanSaving, setCavemanSaving] = useState(false);
   const [cavemanStatus, setCavemanStatus] = useState<"" | "saved" | "error">("");
+  const [preset, setPreset] = useState<CompressionPreset | null>(null);
+  const [presetSaving, setPresetSaving] = useState(false);
+  const [presetStatus, setPresetStatus] = useState<"" | "saved" | "error">("");
   const savingRef = useRef(false);
 
   useEffect(() => {
@@ -50,6 +55,14 @@ export default function ContextValidationTab() {
           } else if (cavemanLevel === null) {
             setCavemanLevel("off");
           }
+          // An absent preset shows as `balanced` because that is what the server resolves it
+          // to — showing "off", or nothing, would misreport what the install is actually doing.
+          const presetValue = data?.compressionPreset;
+          if (SELECTABLE_PRESETS.includes(presetValue)) {
+            setPreset(presetValue);
+          } else if (preset === null) {
+            setPreset("balanced");
+          }
           setTimeout(poll, 500);
         })
         .catch(() => {
@@ -57,6 +70,7 @@ export default function ContextValidationTab() {
           if (attempts >= maxAttempts) {
             if (mode === null) setMode("passthrough");
             if (cavemanLevel === null) setCavemanLevel("off");
+            if (preset === null) setPreset("balanced");
             setLoading(false);
             setStatus("error");
           } else {
@@ -68,60 +82,63 @@ export default function ContextValidationTab() {
     return () => {
       cancelled = true;
     };
-  }, [mode, cavemanLevel, savingRef]);
+  }, [mode, cavemanLevel, preset, savingRef]);
 
-  const handleSave = async (newMode: ContextValidationMode) => {
+  /**
+   * PATCH one settings field and drive its own saving/status pair.
+   *
+   * Extracted when a third field arrived: the two existing handlers were byte-identical apart
+   * from the field name and which state they set, and a third copy is where the drift starts.
+   * `savingRef` stays shared — it pauses the poll loop for every field, not per field, so
+   * saving one setting cannot be clobbered by a poll answering for another.
+   */
+  const patchSetting = async (
+    patch: Record<string, unknown>,
+    setFieldSaving: (value: boolean) => void,
+    setFieldStatus: (value: "" | "saved" | "error") => void
+  ) => {
     savingRef.current = true;
-    setMode(newMode);
-    setSaving(true);
-    setStatus("");
+    setFieldSaving(true);
+    setFieldStatus("");
     try {
       const res = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contextValidation: newMode }),
+        body: JSON.stringify(patch),
       });
       if (!res.ok) throw new Error("Failed");
-      setStatus("saved");
-      setTimeout(() => setStatus(""), 2000);
+      setFieldStatus("saved");
+      setTimeout(() => setFieldStatus(""), 2000);
     } catch {
-      setStatus("error");
+      setFieldStatus("error");
     } finally {
-      setSaving(false);
+      setFieldSaving(false);
       setTimeout(() => {
         savingRef.current = false;
       }, 2000);
     }
   };
 
-  const handleSaveCavemanLevel = async (newLevel: CavemanOutputLevel) => {
-    savingRef.current = true;
+  const handleSave = (newMode: ContextValidationMode) => {
+    setMode(newMode);
+    return patchSetting({ contextValidation: newMode }, setSaving, setStatus);
+  };
+
+  const handleSaveCavemanLevel = (newLevel: CavemanOutputLevel) => {
     setCavemanLevel(newLevel);
-    setCavemanSaving(true);
-    setCavemanStatus("");
-    try {
-      const res = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cavemanOutputLevel: newLevel }),
-      });
-      if (!res.ok) throw new Error("Failed");
-      setCavemanStatus("saved");
-      setTimeout(() => setCavemanStatus(""), 2000);
-    } catch {
-      setCavemanStatus("error");
-    } finally {
-      setCavemanSaving(false);
-      setTimeout(() => {
-        savingRef.current = false;
-      }, 2000);
-    }
+    return patchSetting({ cavemanOutputLevel: newLevel }, setCavemanSaving, setCavemanStatus);
+  };
+
+  const handleSavePreset = (newPreset: CompressionPreset) => {
+    setPreset(newPreset);
+    return patchSetting({ compressionPreset: newPreset }, setPresetSaving, setPresetStatus);
   };
 
   const resolvedMode = mode ?? "passthrough";
   const noSelectionYet = mode === null;
   const resolvedCavemanLevel = cavemanLevel ?? "off";
   const noCavemanSelectionYet = cavemanLevel === null;
+  const resolvedPreset = preset ?? "balanced";
 
   return (
     <div className="space-y-4">
@@ -209,6 +226,16 @@ export default function ContextValidationTab() {
           </button>
         </div>
       </Card>
+
+      <CompressionPresetCard
+        t={t}
+        resolvedPreset={resolvedPreset}
+        disabled={resolvedMode !== "auto-compress"}
+        loading={loading}
+        saving={presetSaving}
+        status={presetStatus}
+        onSave={handleSavePreset}
+      />
 
       <CavemanOutputCard
         t={t}

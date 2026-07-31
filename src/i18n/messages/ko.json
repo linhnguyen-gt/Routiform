@@ -2305,7 +2305,18 @@
     "cavemanOutputLite": "라이트",
     "cavemanOutputLiteDesc": "군더더기, 망설임, 인사말을 제거합니다. 완전한 문장은 유지됩니다.",
     "cavemanOutputFull": "풀",
-    "cavemanOutputFullDesc": "최대 간결성. 단편적 표현, 관사 생략. 기술적 내용은 정확하게 유지됩니다."
+    "cavemanOutputFullDesc": "최대 간결성. 단편적 표현, 관사 생략. 기술적 내용은 정확하게 유지됩니다.",
+    "compressionPresetTitle": "Compression engines",
+    "compressionPresetDesc": "Which engines compress the request before it is sent upstream. Lossless engines always run before lossy ones. Requires request context to be set to auto-compress.",
+    "compressionPresetRequiresAutoCompress": "Set request context to auto-compress to choose an engine set.",
+    "compressionPresetOff": "Off",
+    "compressionPresetOffDesc": "No engines run. The request is sent exactly as received.",
+    "compressionPresetSafe": "Safe",
+    "compressionPresetSafeDesc": "Lossless engines only. Tool output is filtered; nothing the model wrote is rewritten.",
+    "compressionPresetBalanced": "Balanced",
+    "compressionPresetBalancedDesc": "Lossless engines plus lossy ones that have cleared the fidelity gate. The default.",
+    "compressionPresetAggressive": "Aggressive",
+    "compressionPresetAggressiveDesc": "Every registered engine, including ones not yet measured for fidelity. Highest saving, highest risk."
   },
   "translator": {
     "title": "번역기",

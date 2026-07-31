@@ -2304,7 +2304,18 @@
     "cavemanOutputLite": "Licht",
     "cavemanOutputLiteDesc": "Verwijdert opvulwoorden, aarzelingen en beleefdheden. Volledige zinnen blijven behouden.",
     "cavemanOutputFull": "Volledig",
-    "cavemanOutputFullDesc": "Maximale beknoptheid. Fragmenten, weggelaten lidwoorden. Technische inhoud blijft exact."
+    "cavemanOutputFullDesc": "Maximale beknoptheid. Fragmenten, weggelaten lidwoorden. Technische inhoud blijft exact.",
+    "compressionPresetTitle": "Compression engines",
+    "compressionPresetDesc": "Which engines compress the request before it is sent upstream. Lossless engines always run before lossy ones. Requires request context to be set to auto-compress.",
+    "compressionPresetRequiresAutoCompress": "Set request context to auto-compress to choose an engine set.",
+    "compressionPresetOff": "Off",
+    "compressionPresetOffDesc": "No engines run. The request is sent exactly as received.",
+    "compressionPresetSafe": "Safe",
+    "compressionPresetSafeDesc": "Lossless engines only. Tool output is filtered; nothing the model wrote is rewritten.",
+    "compressionPresetBalanced": "Balanced",
+    "compressionPresetBalancedDesc": "Lossless engines plus lossy ones that have cleared the fidelity gate. The default.",
+    "compressionPresetAggressive": "Aggressive",
+    "compressionPresetAggressiveDesc": "Every registered engine, including ones not yet measured for fidelity. Highest saving, highest risk."
   },
   "translator": {
     "title": "Vertaler",

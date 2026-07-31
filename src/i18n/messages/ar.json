@@ -2304,7 +2304,18 @@
     "cavemanOutputLite": "خفيف",
     "cavemanOutputLiteDesc": "يحذف الحشو والتردد والمجاملات. مع الحفاظ على الجمل الكاملة.",
     "cavemanOutputFull": "كامل",
-    "cavemanOutputFullDesc": "أقصى إيجاز. جمل مجتزأة وحذف أدوات التعريف. يبقى المحتوى التقني دقيقًا."
+    "cavemanOutputFullDesc": "أقصى إيجاز. جمل مجتزأة وحذف أدوات التعريف. يبقى المحتوى التقني دقيقًا.",
+    "compressionPresetTitle": "Compression engines",
+    "compressionPresetDesc": "Which engines compress the request before it is sent upstream. Lossless engines always run before lossy ones. Requires request context to be set to auto-compress.",
+    "compressionPresetRequiresAutoCompress": "Set request context to auto-compress to choose an engine set.",
+    "compressionPresetOff": "Off",
+    "compressionPresetOffDesc": "No engines run. The request is sent exactly as received.",
+    "compressionPresetSafe": "Safe",
+    "compressionPresetSafeDesc": "Lossless engines only. Tool output is filtered; nothing the model wrote is rewritten.",
+    "compressionPresetBalanced": "Balanced",
+    "compressionPresetBalancedDesc": "Lossless engines plus lossy ones that have cleared the fidelity gate. The default.",
+    "compressionPresetAggressive": "Aggressive",
+    "compressionPresetAggressiveDesc": "Every registered engine, including ones not yet measured for fidelity. Highest saving, highest risk."
   },
   "translator": {
     "title": "مترجم",
