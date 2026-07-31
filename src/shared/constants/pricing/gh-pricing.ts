@@ -1,0 +1,88 @@
+import { PricingRate } from "./base";
+
+export const ghPricing: Record<string, PricingRate> = {
+  "gpt-5": {
+    input: 3.0,
+    output: 12.0,
+    cached: 1.5,
+    reasoning: 18.0,
+    cache_creation: 3.0,
+  },
+  "gpt-5-mini": {
+    input: 0.75,
+    output: 3.0,
+    cached: 0.375,
+    reasoning: 4.5,
+    cache_creation: 0.75,
+  },
+  "gpt-5.1-codex": {
+    input: 4.0,
+    output: 16.0,
+    cached: 2.0,
+    reasoning: 24.0,
+    cache_creation: 4.0,
+  },
+  "gpt-5.1-codex-max": {
+    input: 8.0,
+    output: 32.0,
+    cached: 4.0,
+    reasoning: 48.0,
+    cache_creation: 8.0,
+  },
+  "gpt-4.1": {
+    input: 2.5,
+    output: 10.0,
+    cached: 1.25,
+    reasoning: 15.0,
+    cache_creation: 2.5,
+  },
+  "claude-4.5-sonnet": {
+    input: 3.0,
+    output: 15.0,
+    cached: 0.3,
+    reasoning: 22.5,
+    cache_creation: 3.0,
+  },
+  "claude-4.5-opus": {
+    input: 5.0,
+    output: 25.0,
+    cached: 0.5,
+    reasoning: 37.5,
+    cache_creation: 5.0,
+  },
+  "claude-4.5-haiku": {
+    input: 0.5,
+    output: 2.5,
+    cached: 0.05,
+    reasoning: 3.75,
+    cache_creation: 0.5,
+  },
+  "gemini-3-pro": {
+    input: 2.0,
+    output: 12.0,
+    cached: 0.25,
+    reasoning: 18.0,
+    cache_creation: 2.0,
+  },
+  "gemini-3-flash": {
+    input: 0.5,
+    output: 3.0,
+    cached: 0.03,
+    reasoning: 4.5,
+    cache_creation: 0.5,
+  },
+  "gemini-2.5-pro": {
+    input: 2.0,
+    output: 12.0,
+    cached: 0.25,
+    reasoning: 18.0,
+    cache_creation: 2.0,
+  },
+  "grok-code-fast-1": {
+    input: 0.5,
+    output: 2.0,
+    cached: 0.25,
+    reasoning: 3.0,
+    cache_creation: 0.5,
+  },
+};
