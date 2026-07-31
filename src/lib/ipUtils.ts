@@ -27,14 +27,54 @@ export function extractClientIp(
 }
 
 /**
+ * Peers whose forwarding headers may be believed, as a comma-separated list of IPs.
+ *
+ * Empty by default: forwarding headers are attacker-controlled unless a proxy you operate set
+ * them. Any client can send `X-Forwarded-For: 8.8.8.8`, so trusting the header unconditionally
+ * makes IP-based decisions — filtering, rate limiting, audit trails — trivially defeated.
+ */
+export const TRUSTED_PROXY_ENV = "TRUSTED_PROXY_IPS";
+
+function trustedProxies(): Set<string> {
+  const raw = process.env[TRUSTED_PROXY_ENV] ?? "";
+  return new Set(
+    raw
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+  );
+}
+
+/**
+ * Whether this request arrived from a peer allowed to speak for another address.
+ *
+ * A request with no derivable peer (Next middleware carries no socket) is never trusted: the
+ * alternative is believing headers on exactly the path where we cannot verify their origin.
+ */
+export function isTrustedProxyPeer(peerAddress: string | undefined): boolean {
+  const trusted = trustedProxies();
+  if (trusted.size === 0) return false;
+  const peer = peerAddress?.trim();
+  if (!peer) return false;
+  return trusted.has(peer);
+}
+
+/**
  * Extract client IP from a Request or NextRequest object.
- * Checks X-Forwarded-For, X-Real-IP, CF-Connecting-IP, then socket.
+ *
+ * Forwarding headers are consulted only when the immediate peer is in TRUSTED_PROXY_IPS.
+ * Otherwise the socket address is the answer, and "unknown" when there is none — callers must
+ * treat "unknown" as an address they cannot verify, not as one that matches nothing.
  */
 export function getClientIpFromRequest(req: {
   headers?: Headers | { get?: (n: string) => string | null };
   socket?: { remoteAddress?: string };
   ip?: string;
 }): string {
+  const peerAddress = req.ip ?? req.socket?.remoteAddress;
+  if (!isTrustedProxyPeer(peerAddress)) {
+    return extractClientIp(null, peerAddress);
+  }
   // Helper to get header value from either Headers object or plain object
   const getHeader = (name: string): string | null => {
     if (!req.headers) return null;
@@ -64,6 +104,5 @@ export function getClientIpFromRequest(req: {
     }
   }
 
-  const remoteAddress = req.ip ?? req.socket?.remoteAddress;
-  return extractClientIp(null, remoteAddress);
+  return extractClientIp(null, peerAddress);
 }

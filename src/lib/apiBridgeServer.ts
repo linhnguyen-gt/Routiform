@@ -21,6 +21,27 @@ function isOpenAiCompatiblePath(pathname: string): boolean {
   return OPENAI_COMPAT_PATHS.some((pattern) => pattern.test(pathname));
 }
 
+/**
+ * Replace any client-supplied forwarding headers with the real socket peer.
+ *
+ * The bridge re-issues the request to the dashboard port, so whatever it forwards becomes the
+ * origin as far as every downstream consumer is concerned. Passing the client's own
+ * `x-forwarded-for` through would let a caller name its own address to the IP filter, the rate
+ * limiter and the audit log.
+ */
+function withTrustedForwardingHeaders(req: IncomingMessage): Record<string, unknown> {
+  const headers: Record<string, unknown> = { ...req.headers };
+
+  for (const header of ["x-forwarded-for", "cf-connecting-ip", "x-real-ip", "forwarded"]) {
+    delete headers[header];
+  }
+
+  const peer = req.socket?.remoteAddress;
+  if (peer) headers["x-forwarded-for"] = peer;
+
+  return headers;
+}
+
 function proxyRequest(req: IncomingMessage, res: ServerResponse, dashboardPort: number): void {
   const targetReq = http.request(
     {
@@ -29,7 +50,7 @@ function proxyRequest(req: IncomingMessage, res: ServerResponse, dashboardPort: 
       method: req.method,
       path: req.url,
       headers: {
-        ...req.headers,
+        ...withTrustedForwardingHeaders(req),
         host: `127.0.0.1:${dashboardPort}`,
       },
       timeout: API_BRIDGE_TIMEOUTS.proxyTimeoutMs,
