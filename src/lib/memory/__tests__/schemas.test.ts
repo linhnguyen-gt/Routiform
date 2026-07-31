@@ -38,7 +38,16 @@ describe("Memory Schemas", () => {
 
   test("MemoryUpdateInputSchema validation", () => {
     expect(MemoryUpdateInputSchema.parse(validUpdateInput)).toBeDefined();
-    const invalidUpdate = { key: "test" };
-    expect(() => MemoryUpdateInputSchema.parse(invalidUpdate)).toThrow();
+
+    // Every field is optional, so a partial patch is valid by design — this used to assert that
+    // `{ key }` throws, which the schema never promised and never did.
+    expect(MemoryUpdateInputSchema.parse({ key: "test" })).toBeDefined();
+    expect(MemoryUpdateInputSchema.parse({})).toBeDefined();
+
+    // What it actually enforces: .strict() rejects unknown keys, and the declared fields keep
+    // their own constraints.
+    expect(() => MemoryUpdateInputSchema.parse({ unexpected: "field" })).toThrow();
+    expect(() => MemoryUpdateInputSchema.parse({ key: "" })).toThrow();
+    expect(() => MemoryUpdateInputSchema.parse({ content: "" })).toThrow();
   });
 });

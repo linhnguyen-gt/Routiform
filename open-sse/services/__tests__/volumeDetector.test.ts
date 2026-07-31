@@ -1,5 +1,20 @@
-import { describe, it } from "node:test";
+// Runs under vitest, which owns open-sse/**/__tests__. Importing describe/it from
+// node:test here made vitest report "no test suite found" and skip all 118 lines of it.
+import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
+
+// Two reasons this mock is not optional.
+//
+// `recommendStrategyOverride` returns early unless `adaptiveVolumeRouting` is enabled, so without
+// it every "recommends X" case here asserts against a hardcoded no-op — which is precisely what
+// was happening once the suite finally ran.
+//
+// And the real reader opens the operator's actual SQLite file. A unit test that reads (or worse,
+// writes) live storage is a test whose result depends on the machine it runs on.
+vi.mock("@/lib/localDb", () => ({
+  getSettings: vi.fn(async () => ({ adaptiveVolumeRouting: true })),
+}));
+
 import { detectVolumeSignals, recommendStrategyOverride } from "../volumeDetector";
 
 describe("volumeDetector", async () => {

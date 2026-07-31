@@ -82,6 +82,11 @@ export async function updateSettings(updates: Record<string, unknown>) {
   );
   const tx = db.transaction(() => {
     for (const [key, value] of Object.entries(updates)) {
+      // `JSON.stringify(undefined)` is `undefined`, not a string, so binding it throws
+      // SQLITE_CONSTRAINT_NOTNULL — a caller spreading an optional field into the patch got a
+      // crash instead of a no-op. Skipping is what every caller already assumed happened.
+      // Use `null` to store an explicit empty value.
+      if (value === undefined) continue;
       insert.run(key, JSON.stringify(value));
     }
   });

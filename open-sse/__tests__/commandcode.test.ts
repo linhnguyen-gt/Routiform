@@ -308,7 +308,16 @@ describe("commandcode-to-openai — finish", () => {
       { type: "finish", totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 } },
     ]);
     const last = chunks[chunks.length - 1];
-    expect(last.usage).toEqual({ prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 });
+    // Both spellings on purpose: the translator emits prompt/completion AND input/output because
+    // clients recognise one or the other (commandcode-to-openai.ts:79-99). Asserting only half
+    // of that made a deliberate compatibility alias look like a regression.
+    expect(last.usage).toEqual({
+      prompt_tokens: 10,
+      completion_tokens: 5,
+      total_tokens: 15,
+      input_tokens: 10,
+      output_tokens: 5,
+    });
   });
 });
 

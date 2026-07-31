@@ -13,7 +13,7 @@ const model = "test-model";
 
 function makePipeline() {
   return {
-    body: { messages: [{ role: "user", content: "run" }] },
+    body: { messages: [{ role: "tool", content: makeDiff() }] },
     modelInfo: { provider, model },
     requestedModel: model,
     startTime: 1,
@@ -36,6 +36,14 @@ vi.mock("@/lib/cacheControlSettings", () => ({
 
 vi.mock("../../../services/contextValidationSettings.ts", () => ({
   isProxyContextCompressionEnabled: mocks.isProxyContextCompressionEnabled,
+  // A partial mock of a module the code under test reads from is a mock that breaks the moment
+  // that code reads one more setting — which is exactly what happened here.
+  getCavemanOutputLevel: vi.fn(async () => "off"),
+  getCompressionPreset: vi.fn(async () => ({ preset: "balanced", engines: null })),
+}));
+
+vi.mock("../../../compression/engines/dedup-store-wiring.ts", () => ({
+  useDurableDedupStore: vi.fn(async () => {}),
 }));
 
 vi.mock("../../../utils/requestLogger.ts", () => ({
@@ -83,38 +91,53 @@ async function runPhaseWithRtk(enabled: boolean) {
   vi.clearAllMocks();
 
   const diff = makeDiff();
-  const translatedBody = { messages: [{ role: "tool", content: diff }] };
+  const pipeline = makePipeline();
   let bundledBody: Record<string, unknown> | null = null;
+  let bodyAtTranslateTime = "";
 
   mocks.isProxyContextCompressionEnabled.mockResolvedValue(enabled);
-  mocks.translateInboundRequestBody.mockResolvedValue({ ok: true, translatedBody });
+  // Compression runs on the INBOUND body, before translation, so the translator is where its
+  // effect first becomes observable. Capturing the content here is what proves the ordering
+  // rather than merely assuming it.
+  mocks.translateInboundRequestBody.mockImplementation(async (args) => {
+    const body = args.body as { messages: Array<{ content: string }> };
+    bodyAtTranslateTime = body.messages[0].content;
+    return { ok: true, translatedBody: body };
+  });
   mocks.createExecuteProviderRequestBundle.mockImplementation(async (args) => {
     bundledBody = args.translatedBody;
     return {};
   });
-  const outcome = await chatCorePhaseTranslateAndBundle(makePipeline() as never);
+  const outcome = await chatCorePhaseTranslateAndBundle(pipeline as never);
 
-  return { outcome, diff, translatedBody, bundledBody };
+  return { outcome, diff, pipeline, bundledBody, bodyAtTranslateTime };
 }
 
 describe("chatCorePhaseTranslateAndBundle RTK integration", () => {
-  it("compresses translated tool results before creating the execution bundle when enabled", async () => {
-    const { outcome, diff, translatedBody, bundledBody } = await runPhaseWithRtk(true);
-    const content = translatedBody.messages[0].content;
+  // These previously asserted that the TRANSLATED body was compressed. Compression moved to the
+  // inbound body, before translation, precisely so every target format benefits from it — the
+  // translated shapes (`input`, `contents`, `conversationState`) are ones the compression code
+  // does not understand, so compressing after translation silently no-oped for most providers.
+  // The assertions now follow the code: the body is already compressed when translation is
+  // handed it.
+  it("compresses tool results before translation runs, when enabled", async () => {
+    const { outcome, diff, bundledBody, bodyAtTranslateTime } = await runPhaseWithRtk(true);
 
     expect(outcome).toEqual({ done: false });
-    expect(content.length).toBeLessThan(diff.length);
-    expect(content).toContain("[diff truncated — re-read individual files for full hunks]");
-    expect(bundledBody).toBe(translatedBody);
+    expect(bodyAtTranslateTime.length).toBeLessThan(diff.length);
+    expect(bodyAtTranslateTime).toContain(
+      "[diff truncated — re-read individual files for full hunks]"
+    );
+    expect(bundledBody).not.toBeNull();
     expect(mocks.infoLog).toHaveBeenCalledWith("RTK", expect.stringContaining("[RTK] saved"));
     expect(mocks.infoLog).toHaveBeenCalledWith("RTK", expect.stringContaining("git-diff"));
   });
 
-  it("leaves translated tool results untouched when the reused toggle is disabled", async () => {
-    const { diff, translatedBody, bundledBody } = await runPhaseWithRtk(false);
+  it("leaves tool results untouched when compression is disabled", async () => {
+    const { diff, bundledBody, bodyAtTranslateTime } = await runPhaseWithRtk(false);
 
-    expect(translatedBody.messages[0].content).toBe(diff);
-    expect(bundledBody).toBe(translatedBody);
+    expect(bodyAtTranslateTime).toBe(diff);
+    expect(bundledBody).not.toBeNull();
     expect(mocks.infoLog).not.toHaveBeenCalled();
   });
 });
