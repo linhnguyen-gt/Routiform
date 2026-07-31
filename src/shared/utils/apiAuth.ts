@@ -10,6 +10,7 @@
 import { jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { getSettings } from "@/lib/localDb";
+import { getJwtSecret } from "@/shared/utils/jwtSecret";
 
 // ──────────────── Public Routes (No Auth Required) ────────────────
 
@@ -58,9 +59,12 @@ export async function verifyAuth(request: Request): Promise<string | null> {
     request as unknown as { cookies?: { get: (name: string) => { value: string } | undefined } }
   ).cookies;
   const token = cookies?.get("auth_token")?.value;
-  if (token && process.env.JWT_SECRET) {
+  // Verify against the same secret the login route mints with. Gating on process.env.JWT_SECRET
+  // meant a deployment that left it unset minted tokens through getJwtSecret's auto-generated
+  // secret which this path would then never validate.
+  if (token) {
     try {
-      const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+      const secret = getJwtSecret();
       await jwtVerify(token, secret);
       return null; // ✔ Authenticated via cookie
     } catch {
@@ -129,18 +133,15 @@ async function hasValidCredential(request: Request): Promise<boolean> {
   }
 
   // 2. Check JWT cookie (for dashboard session)
-  if (process.env.JWT_SECRET) {
-    try {
-      const cookieStore = await cookies();
-      const token = cookieStore.get("auth_token")?.value;
-      if (token) {
-        const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-        await jwtVerify(token, secret);
-        return true;
-      }
-    } catch {
-      // Invalid/expired token or cookies not available
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("auth_token")?.value;
+    if (token) {
+      await jwtVerify(token, getJwtSecret());
+      return true;
     }
+  } catch {
+    // Invalid/expired token or cookies not available
   }
 
   return false;
