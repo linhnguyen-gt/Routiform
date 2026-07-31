@@ -63,6 +63,7 @@
     "check:cycles": "node scripts/check-cycles.mjs",
     "check:route-validation:t06": "node scripts/check-route-validation.mjs",
     "check:any-budget:t11": "node scripts/check-t11-any-budget.mjs",
+    "check:audit": "node scripts/check-audit.mjs",
     "check:middleware-matcher": "node scripts/check-middleware-matcher.mjs",
     "check:docs-sync": "node scripts/check-docs-sync.mjs",
     "typecheck:core": "tsc --pretty false -p tsconfig.typecheck-core.json",

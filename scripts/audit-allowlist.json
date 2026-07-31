@@ -1,0 +1,44 @@
+{
+  "$comment": [
+    "Known high/critical npm audit findings, pinned so the gate can fail on anything NEW.",
+    "This is NOT a suppression: each entry names the package, why it is not fixed yet, and a date",
+    "by which it must be re-triaged. Past that date the gate fails, forcing a decision rather than",
+    "letting the backlog age silently \u2014 which is what `|| true` did for as long as it was there.",
+    "Removing an entry is the goal; adding one requires a reason."
+  ],
+  "reviewBy": "2026-10-31",
+  "allowed": [
+    {
+      "package": "next",
+      "reason": "Pinned to 16.0.10 exactly. The advisories resolve in 16.2.x, which is outside the stated dependency range and pulls a framework upgrade \u2014 a tracked upgrade, not an audit fix."
+    },
+    {
+      "package": "sharp",
+      "reason": "Inherited libvips CVEs. The fix requires next@16.2.12 via npm audit fix --force, so it is blocked behind the same framework upgrade."
+    },
+    {
+      "package": "postcss",
+      "reason": "Transitive through the Next build toolchain; not reachable at runtime and not upgradable independently of Next."
+    },
+    {
+      "package": "hono",
+      "reason": "Transitive dev/build-time dependency, not part of any request path in the shipped server."
+    },
+    {
+      "package": "fast-uri",
+      "reason": "Transitive through the schema validation stack; no direct import."
+    },
+    {
+      "package": "js-yaml",
+      "reason": "Transitive tooling dependency; no untrusted YAML is parsed at runtime."
+    },
+    {
+      "package": "js-cookie",
+      "reason": "Transitive through the vendored Open WebUI SPA bundle, which is a prebuilt third-party artifact."
+    },
+    {
+      "package": "http-proxy-middleware",
+      "reason": "Direct dependency used for the local socket.io passthrough on 127.0.0.1 only; the advisories concern untrusted upstream targets."
+    }
+  ]
+}

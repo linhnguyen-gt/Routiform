@@ -82,10 +82,16 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # Fails on any high/critical finding that is not pinned in scripts/audit-allowlist.json,
+      # and fails once that allowlist's review date passes. `|| true` meant this job could never
+      # fail, so it reported nothing for as long as it existed.
       - name: Dependency audit
-        run: npm audit --audit-level=high --omit=dev || true
-      - name: Check for known vulnerabilities
-        run: npx is-my-node-vulnerable || true
+        run: npm run check:audit
+      # Advisory only: Node runtime advisories are acted on by upgrading the runtime, which is not
+      # this job's call. Marked at step level so the intent is visible rather than hidden in a pipe.
+      - name: Check for known Node vulnerabilities
+        run: npx is-my-node-vulnerable
+        continue-on-error: true
 
   build:
     name: Build
