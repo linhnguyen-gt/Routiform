@@ -1,3 +1,4 @@
+import { commitCompressionWrites } from "./chat-core-compression-commit.ts";
 import { recordCost } from "@/domain/costRules";
 import { calculateCost } from "@/lib/usage/costCalculator";
 import { saveRequestUsage } from "@/lib/usageDb";
@@ -112,6 +113,10 @@ export async function chatCorePhaseStreamingResponse(
   if (p.onRequestSuccess) {
     await p.onRequestSuccess();
   }
+
+  // Same ordering rule as onRequestSuccess above: the response has been validated, so what the
+  // compression store records now matches what the provider actually received.
+  await commitCompressionWrites(p);
 
   const responseHeaders: Record<string, string> = {
     "Content-Type": "text/event-stream",

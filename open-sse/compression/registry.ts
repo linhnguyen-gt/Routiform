@@ -6,6 +6,7 @@ import type { CompressionPreset } from "./preset.ts";
 import { liteEngine } from "./engines/lite.ts";
 import { rtkEngine } from "./engines/rtk-engine.ts";
 import { cavemanEngine } from "./engines/caveman-engine.ts";
+import { sessionDedupEngine } from "./engines/session-dedup.ts";
 import { gcfEngine } from "./engines/gcf-engine.ts";
 import { responsesCompactEngine } from "./engines/responses-compact.ts";
 
@@ -21,6 +22,7 @@ import { responsesCompactEngine } from "./engines/responses-compact.ts";
 const BUILTINS: readonly CompressionEngine[] = [
   liteEngine,
   rtkEngine,
+  sessionDedupEngine,
   gcfEngine,
   responsesCompactEngine,
   cavemanEngine,

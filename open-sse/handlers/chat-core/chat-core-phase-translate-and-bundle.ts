@@ -19,6 +19,7 @@ import {
   isProxyContextCompressionEnabled,
 } from "../../services/contextValidationSettings.ts";
 import { resolveConversationId } from "../../services/conversationIdentity.ts";
+import { useDurableDedupStore } from "../../compression/engines/dedup-store-wiring.ts";
 import { sanitizeRequestInput } from "../phases/input-sanitizer.ts";
 import { checkSemanticCache } from "../phases/semantic-cache-handler.ts";
 import { createBuildUpstreamHeadersForExecute } from "./chat-core-build-upstream-headers.ts";
@@ -165,6 +166,9 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
     preset: "balanced" as const,
     engines: null,
   }));
+  // No-op after the first request. Session-Dedup defaults to an in-process store, which is right
+  // for a unit test and wrong for a server that restarts.
+  await useDurableDedupStore();
   const resolvedBodies = resolveCompressionBodies(p.body, {
     compressionEnabled,
     cavemanOutputLevel,
@@ -227,6 +231,9 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
     );
   }
   p.compressionHeader = formatStackHeader(stack);
+  // Replaced, not appended: each attempt stages its own writes, and carrying a failed attempt's
+  // staging forward would commit content the successful attempt did not send.
+  p.compressionDeferredWrites = stack.deferredWrites;
 
   const translateResult = await translateInboundRequestBody({
     nativeCodexPassthrough: !!p.nativeCodexPassthrough,

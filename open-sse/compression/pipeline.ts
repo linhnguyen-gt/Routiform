@@ -5,7 +5,7 @@ import { formatCavemanLog } from "./caveman-en.ts";
 import { formatCavemanOutputLog, injectCavemanOutputDirective } from "./caveman-output.ts";
 import { applyInflationGuard, measureBodyBytes, snapshotAndMeasure } from "./inflation-guard.ts";
 import { detectBodyShape } from "./engine-types.ts";
-import type { EngineContext, EngineResult } from "./engine-types.ts";
+import type { DeferredWrite, EngineContext, EngineResult } from "./engine-types.ts";
 import { selectEngines } from "./registry.ts";
 import { runEngine } from "./run-engine.ts";
 import type { CompressionPreset } from "./preset.ts";
@@ -57,6 +57,13 @@ export type StackApplyResult = StackCompressionResult & {
   logs: string[];
   /** Per-engine outcome, keyed by engine id. */
   engines: Record<string, EngineResult>;
+  /**
+   * Work to run only once the request has succeeded upstream.
+   *
+   * Surfaced rather than executed here because this function runs per retry attempt: committing
+   * from inside it would record state about attempts that never reached a provider.
+   */
+  deferredWrites: DeferredWrite[];
 };
 
 /**
@@ -100,6 +107,7 @@ export function applyStackedCompression(
       bytesBefore: measureBodyBytes(body),
       bytesAfter: measureBodyBytes(body),
       engines: {},
+      deferredWrites: [],
       logs,
     };
   }
@@ -113,6 +121,7 @@ export function applyStackedCompression(
     conversationId: options.conversationId ?? null,
     apiKeyId: options.apiKeyId ?? null,
     touchedSoFar: new Set<number>(),
+    deferredWrites: [],
   };
 
   // `caveman: false` is the historical way to ask for RTK without Caveman, and it predates
@@ -191,6 +200,8 @@ export function applyStackedCompression(
     bytesBefore,
     bytesAfter,
     engines,
+    // A reverted run must not commit anything: the markers it staged against were rolled back.
+    deferredWrites: reverted ? [] : ctx.deferredWrites,
     logs,
   };
 }

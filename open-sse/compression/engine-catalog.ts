@@ -37,6 +37,14 @@ export const ENGINE_CATALOG: readonly EngineDescriptor[] = [
     summary: "Filters tool-result payloads: truncates long reads, caps grep and diff output.",
   },
   {
+    id: "session-dedup",
+    stage: "lossless",
+    order: 200,
+    gateCleared: false,
+    summary:
+      "Replaces tool output already sent earlier in the same conversation with a back-reference marker.",
+  },
+  {
     id: "gcf",
     stage: "lossless",
     order: 300,

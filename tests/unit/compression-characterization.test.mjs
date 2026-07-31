@@ -206,10 +206,10 @@ for (const c of cases) {
       "the compressed request body changed"
     );
 
-    // Every field the old result carried still carries the same value. `engines` is new and
-    // additive (R5), so it is excluded here rather than forcing a golden rewrite that would
-    // destroy the recorded-before-the-refactor provenance.
-    const { engines: _engines, ...legacy } = actual.result;
+    // Every field the old result carried still carries the same value. `engines` and
+    // `deferredWrites` are new and additive, so they are excluded here rather than forcing a
+    // golden rewrite that would destroy the recorded-before-the-refactor provenance.
+    const { engines: _engines, deferredWrites: _deferred, ...legacy } = actual.result;
     assert.deepEqual(legacy, golden.result, "a legacy result field changed");
 
     // The header gains per-engine segments, which is the one intentional format change in this

@@ -1,3 +1,4 @@
+import { commitCompressionWrites } from "./chat-core-compression-commit.ts";
 import { recordCost } from "@/domain/costRules";
 import { saveIdempotency } from "@/lib/idempotencyLayer";
 import { calculateCost } from "@/lib/usage/costCalculator";
@@ -64,6 +65,10 @@ export async function chatCorePhaseNonStreamComplete(p: ChatCorePipeline): Promi
   if (p.onRequestSuccess) {
     await p.onRequestSuccess();
   }
+
+  // Same ordering rule as onRequestSuccess above: the response has been validated, so what the
+  // compression store records now matches what the provider actually received.
+  await commitCompressionWrites(p);
 
   // Pass targetFormat explicitly: it carries per-model overrides the provider-level
   // registry lookup cannot see, and it is what the request was actually built against.

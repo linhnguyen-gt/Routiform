@@ -80,6 +80,14 @@ export type ChatCorePipeline = HandleChatCoreArgs & {
   rawBody?: Record<string, unknown>;
   /** Applied compression plan echo (e.g. for X-Routiform-Compression). */
   compressionHeader?: string;
+  /**
+   * Compression work to run only if this request actually reaches a provider successfully.
+   *
+   * Set once per ATTEMPT by the compression phase and drained at the success points. An engine
+   * that persisted state during `apply()` would be recording facts about attempts that failed,
+   * and a later attempt would then compress against content no upstream ever received.
+   */
+  compressionDeferredWrites?: Array<{ engineId: string; commit: () => Promise<void> | void }>;
   ccSessionId?: string;
   toolNameMap?: unknown;
   executor?: unknown;

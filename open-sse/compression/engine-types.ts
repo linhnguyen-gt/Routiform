@@ -43,6 +43,21 @@ export interface EngineContext {
    * corrupt the filter's output. Ordering alone cannot prevent that; knowing what was touched can.
    */
   touchedSoFar: Set<number>;
+  /** Post-success work staged by engines during this attempt. See DeferredWrite. */
+  deferredWrites: DeferredWrite[];
+}
+
+/**
+ * Work an engine wants done only if the request actually succeeds.
+ *
+ * `applyStackedCompression` runs once per RETRY ATTEMPT, not once per logical request. Any engine
+ * that persists state has to account for that: a write issued during a doomed attempt is a write
+ * about content no upstream ever received. Staging the work here and committing it after success
+ * is the only ordering that makes those two facts compatible.
+ */
+export interface DeferredWrite {
+  engineId: string;
+  commit: () => Promise<void> | void;
 }
 
 export interface EngineResult {
