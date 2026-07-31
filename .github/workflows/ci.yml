@@ -28,6 +28,7 @@ jobs:
       - run: npm run check:cycles
       - run: npm run check:route-validation:t06
       - run: npm run check:any-budget:t11
+      - run: npm run check:middleware-matcher
       - run: npm run check:docs-sync
       - run: npm run typecheck:core
       - run: npm run typecheck:noimplicit:core

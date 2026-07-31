@@ -231,5 +231,22 @@ export async function proxy(request: unknown) {
 export const config = {
   // `/owui/:path*` covers both the SPA shell and its `/owui/api/*` backend. Without it the
   // guard above never runs and the chat is public.
-  matcher: ["/", "/dashboard/:path*", "/api/:path*", "/owui", "/owui/:path*"],
+  matcher: [
+    "/",
+    "/dashboard/:path*",
+    "/api/:path*",
+    "/owui",
+    "/owui/:path*",
+    // Clients reach the gateway on these paths, which next.config.mjs rewrites to /api/v1/*.
+    // Middleware runs before those rewrites, so without them here the drain guard, the body-size
+    // guard and IP filtering never see the traffic that matters. Kept in step with the rewrite
+    // list by scripts/check-middleware-matcher.mjs, which fails the lint job on a gap.
+    "/v1",
+    "/v1/:path*",
+    "/chat/completions",
+    "/responses",
+    "/responses/:path*",
+    "/models",
+    "/codex/:path*",
+  ],
 };
