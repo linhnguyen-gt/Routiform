@@ -56,6 +56,18 @@ export function hasSpecializedExecutor(provider) {
   return !!executors[provider];
 }
 
+/**
+ * Value a registry entry uses to say "no specialised executor, use the OpenAI-compatible default".
+ * DefaultExecutor is not in the map because it is constructed per provider, so the sentinel is how
+ * an entry names it without inventing a key.
+ */
+export const DEFAULT_EXECUTOR_SENTINEL = "default";
+
+/** Every specialised executor key, including the short aliases. */
+export function getExecutorKeys() {
+  return Object.keys(executors);
+}
+
 export { BaseExecutor } from "./base.ts";
 export { AntigravityExecutor } from "./antigravity.ts";
 export { GeminiCLIExecutor } from "./gemini-cli.ts";
