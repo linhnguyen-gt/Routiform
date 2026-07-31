@@ -37,6 +37,24 @@ export function resolveCompressionBodies(
   return { rawBody: body, body: snapshotBody(body) };
 }
 
+/**
+ * Snapshot and measure in ONE serialization.
+ *
+ * `snapshotBody` followed by `measureBodyBytes` serializes a multi-MB payload twice to learn two
+ * things that fall out of the same string. The pipeline needs both at exactly the same instant,
+ * so it takes both from one pass.
+ */
+export function snapshotAndMeasure(body: Record<string, unknown>): {
+  snapshot: Record<string, unknown>;
+  bytes: number;
+} {
+  const serialized = JSON.stringify(body);
+  return {
+    snapshot: JSON.parse(serialized) as Record<string, unknown>,
+    bytes: Buffer.byteLength(serialized, "utf8"),
+  };
+}
+
 export function measureBodyBytes(body: Record<string, unknown>): number {
   return Buffer.byteLength(JSON.stringify(body), "utf8");
 }
@@ -48,9 +66,11 @@ export function measureBodyBytes(body: Record<string, unknown>): number {
 export function applyInflationGuard(
   body: Record<string, unknown>,
   snapshot: Record<string, unknown>,
-  bytesBefore: number
+  bytesBefore: number,
+  /** Current size, when the caller already measured it. Omit to measure here. */
+  knownBytesAfter?: number
 ): { reverted: boolean; bytesAfter: number } {
-  const bytesAfter = measureBodyBytes(body);
+  const bytesAfter = knownBytesAfter ?? measureBodyBytes(body);
   if (bytesAfter > bytesBefore) {
     for (const key of Object.keys(body)) {
       delete body[key];

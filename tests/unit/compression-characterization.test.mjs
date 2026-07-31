@@ -197,9 +197,46 @@ for (const c of cases) {
     const golden = goldens[c.key];
     assert.ok(golden, `no golden recorded for ${c.key}`);
     const actual = run(() => bodies()[c.shape], c.userAgent);
-    assert.equal(JSON.stringify(actual), JSON.stringify(golden));
+
+    // The contract: the request that goes upstream is unchanged. This is the assertion the
+    // whole file exists for, and it is compared as a string, not structurally.
+    assert.equal(
+      JSON.stringify(actual.body),
+      JSON.stringify(golden.body),
+      "the compressed request body changed"
+    );
+
+    // Every field the old result carried still carries the same value. `engines` is new and
+    // additive (R5), so it is excluded here rather than forcing a golden rewrite that would
+    // destroy the recorded-before-the-refactor provenance.
+    const { engines: _engines, ...legacy } = actual.result;
+    assert.deepEqual(legacy, golden.result, "a legacy result field changed");
+
+    // The header gains per-engine segments, which is the one intentional format change in this
+    // phase. Asserting the old value is still a prefix pins that it is an ADDITION: nothing
+    // that was in the header before has moved or changed meaning.
+    assert.ok(
+      actual.header.startsWith(golden.header),
+      `header no longer extends the recorded value:\n  was: ${golden.header}\n  now: ${actual.header}`
+    );
   });
 }
+
+test("the header's new per-engine segments name only engines that actually ran", () => {
+  const actual = run(() => bodies()["openai-chat"], "curl/8.0");
+  const applied = Object.entries(actual.result.engines)
+    .filter(([, r]) => r.applied)
+    .map(([id]) => id);
+  assert.ok(applied.length > 0);
+  for (const id of applied) {
+    assert.ok(actual.header.includes(`${id}=`), `header omits ${id}`);
+  }
+  for (const [id, r] of Object.entries(actual.result.engines)) {
+    if (!r.applied) {
+      assert.ok(!actual.header.includes(`${id}=`), `header names ${id}, which never applied`);
+    }
+  }
+});
 
 test("the golden file covers every recorded case and nothing else", () => {
   assert.deepEqual(Object.keys(goldens).sort(), cases.map((c) => c.key).sort());
