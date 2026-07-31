@@ -74,7 +74,7 @@ test("the built-in engines are registered and ordered lossless before lossy", ()
 test("engines run in declared order, lossless first and caveman-en last", () => {
   assert.deepEqual(
     listEngines().map((e) => e.id),
-    ["lite", "rtk", "session-dedup", "gcf", "responses-compact", "caveman-en"]
+    ["lite", "rtk", "session-dedup", "gcf", "responses-compact", "caveman-en", "caveman-kiro"]
   );
 });
 

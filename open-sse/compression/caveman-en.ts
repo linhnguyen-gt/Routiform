@@ -138,6 +138,51 @@ export function cavemanCompressMessages(
   return stats;
 }
 
+/**
+ * The same prose rules over Kiro's `conversationState` shape.
+ *
+ * Kiro was the one inbound shape getting RTK's tool-result filtering and no prose compression at
+ * all, because `cavemanCompressMessages` only walks `messages` / `input` / `contents`. The gap was
+ * found by the characterization goldens and pinned there before being closed here.
+ *
+ * Deliberately a SEPARATE function rather than another branch in `cavemanCompressMessages`:
+ * that function backs the `caveman-en` engine, which ships in the default preset, so widening it
+ * would change what every existing Kiro install sends the moment it upgrades. This is reached
+ * only through its own engine, which has not cleared the fidelity gate.
+ *
+ * Only the user's own prose is touched. `userInputMessageContext.toolResults` is tool output and
+ * is left to RTK, exactly as tool roles are skipped on every other shape.
+ */
+export function cavemanCompressKiro(
+  body: Record<string, unknown> | null | undefined
+): CavemanStats | null {
+  const state = body?.conversationState as Record<string, unknown> | undefined;
+  if (!state || typeof state !== "object") return null;
+
+  const stats: CavemanStats = { messagesTouched: 0, bytesBefore: 0, bytesAfter: 0 };
+
+  const entries = [...(Array.isArray(state.history) ? state.history : [])];
+  if (state.currentMessage) entries.push(state.currentMessage);
+
+  for (const rawEntry of entries) {
+    const entry = rawEntry as Record<string, unknown> | null;
+    const userInputMessage = entry?.userInputMessage as Record<string, unknown> | undefined;
+    if (!userInputMessage || typeof userInputMessage.content !== "string") continue;
+
+    const before = userInputMessage.content;
+    stats.bytesBefore += before.length;
+    const next = compressText(before);
+    stats.bytesAfter += next.length;
+    if (next !== before) {
+      userInputMessage.content = next;
+      stats.messagesTouched += 1;
+    }
+  }
+
+  if (stats.messagesTouched === 0 && stats.bytesBefore === 0) return null;
+  return stats;
+}
+
 export function formatCavemanLog(stats: CavemanStats | null): string | null {
   if (!stats || stats.bytesBefore <= 0 || stats.messagesTouched <= 0) return null;
   const saved = stats.bytesBefore - stats.bytesAfter;

@@ -67,6 +67,13 @@ export const ENGINE_CATALOG: readonly EngineDescriptor[] = [
     gateCleared: true,
     summary: "Strips English filler from prose. Lossy; never touches code fences or URLs.",
   },
+  {
+    id: "caveman-kiro",
+    stage: "lossy",
+    order: 110,
+    gateCleared: false,
+    summary: "The same prose rules for Kiro's conversationState, which caveman-en cannot walk.",
+  },
 ];
 
 export const CATALOG_ENGINE_IDS: string[] = ENGINE_CATALOG.map((e) => e.id);
