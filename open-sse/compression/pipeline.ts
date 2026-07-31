@@ -188,9 +188,14 @@ export function applyStackedCompression(
   const outputLine = formatCavemanOutputLog(cavemanOutput);
   if (outputLine) logs.push(outputLine);
 
+  // `mode` is otherwise derived from configuration rather than from what happened, which is fine
+  // while the config always produces at least one engine — and wrong the moment it does not. A
+  // request whose preset selected NOTHING was reporting "stacked", so the eval harness would have
+  // accepted a fully compressed body as its uncompressed baseline and passed every engine.
+  const anyEngineRan = Object.values(engines).some((result) => result.applied);
   const mode = cavemanOn ? "stacked" : "rtk";
   return {
-    mode: reverted ? "off" : mode,
+    mode: reverted || !anyEngineRan ? "off" : mode,
     rtkHits: rtkStats?.hits?.length ?? 0,
     rtkStats,
     rtkProfile,

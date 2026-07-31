@@ -20,6 +20,7 @@ import {
 } from "../../services/contextValidationSettings.ts";
 import { resolveConversationId } from "../../services/conversationIdentity.ts";
 import { useDurableDedupStore } from "../../compression/engines/dedup-store-wiring.ts";
+import { overrideToStackOptions, resolveCompressionOverride } from "../../compression/override.ts";
 import { sanitizeRequestInput } from "../phases/input-sanitizer.ts";
 import { checkSemanticCache } from "../phases/semantic-cache-handler.ts";
 import { createBuildUpstreamHeadersForExecute } from "./chat-core-build-upstream-headers.ts";
@@ -196,13 +197,31 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
   // engines that key on either (Phase 02's dedup) cannot be written against a field that has no
   // producer. Both are null when the request genuinely carries no identity — never a fabricated
   // value, which would look like an identity while guaranteeing every lookup misses.
+  // Per-request override, default deny. Without it the eval harness cannot produce an uncompressed
+  // baseline: both arms would be compressed by whatever the instance is configured to do, and every
+  // engine would clear the fidelity gate trivially.
+  const overrideOutcome = resolveCompressionOverride(
+    (p.clientRawRequest as { headers?: unknown } | undefined)?.headers as never,
+    (p.apiKeyInfo as { id?: string } | null | undefined)?.id ?? null
+  );
+  if (overrideOutcome.status === "denied" || overrideOutcome.status === "invalid") {
+    // Logged rather than silently dropped: a caller that believes it disabled compression, while
+    // the gateway kept compressing, produces a measurement that looks valid and is not.
+    log?.warn?.(
+      "Compression",
+      `ignoring ${overrideOutcome.status} override header: ${overrideOutcome.reason}`
+    );
+  }
+  const applied =
+    overrideOutcome.status === "applied" ? overrideToStackOptions(overrideOutcome.override) : null;
+
   const stack = applyStackedCompression(p.body, {
     enabled: compressionEnabled,
     userAgent: p.userAgent,
     caveman: true,
     cavemanOutputLevel,
-    preset: compression.preset,
-    engineToggles: compression.engines,
+    preset: applied?.preset ?? compression.preset,
+    engineToggles: applied ? applied.engineToggles : compression.engines,
     provider: p.provider,
     conversationId: resolveConversationId(
       (p.clientRawRequest as { headers?: unknown } | undefined)?.headers as never,
