@@ -86,9 +86,21 @@ export default function FreeTiersPage() {
           <p className="text-xs uppercase tracking-wide text-text-muted">
             {t("knownMonthlyTokens")}
           </p>
-          <p className="mt-1 text-2xl font-semibold text-text-main">
-            {formatTokens(summary.approxKnownMonthlyTokens)}
-          </p>
+          <div className="mt-1 space-y-0.5">
+            {(Object.entries(summary.tokensByKind) as Array<[FreeTierKind, number]>)
+              .filter(([, tokens]) => tokens > 0)
+              .map(([kind, tokens]) => (
+                <p key={kind} className="text-sm font-semibold text-text-main">
+                  {formatTokens(tokens)}
+                  <span className="ml-1 text-[11px] font-normal text-text-muted">
+                    {kindLabel(kind)}
+                  </span>
+                </p>
+              ))}
+            {summary.entriesWithKnownTokens === 0 && (
+              <p className="text-2xl font-semibold text-text-main">—</p>
+            )}
+          </div>
           <p className="mt-1 text-[11px] text-text-muted">{t("knownMonthlyTokensHint")}</p>
         </div>
       </div>

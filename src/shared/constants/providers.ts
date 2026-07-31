@@ -89,3 +89,5 @@ export const USAGE_SUPPORTED_PROVIDERS = [
 validateProviders(FREE_PROVIDERS, "FREE_PROVIDERS");
 validateProviders(OAUTH_PROVIDERS, "OAUTH_PROVIDERS");
 validateProviders(APIKEY_PROVIDERS, "APIKEY_PROVIDERS");
+// Spread into AI_PROVIDERS above, so it reaches runtime and must be validated like the others.
+validateProviders(UPSTREAM_PROXY_PROVIDERS, "UPSTREAM_PROXY_PROVIDERS");

@@ -155,26 +155,45 @@ export function listFreeTierCatalog(): readonly FreeTierEntry[] {
   return FREE_TIER_CATALOG;
 }
 
+/**
+ * Token totals are reported per grant kind, never as one cross-kind figure.
+ *
+ * A "daily" allowance, a one-off "signup-credit" and a recurring monthly grant are different
+ * things; adding them produced a single "known monthly tokens" number that overstated recurring
+ * capacity by counting one-time credits as if they renewed.
+ */
 export function summarizeFreeTierCatalog(): {
   total: number;
   forever: number;
   oauthSub: number;
-  approxKnownMonthlyTokens: number;
+  tokensByKind: Record<FreeTierKind, number>;
+  entriesWithKnownTokens: number;
 } {
   let forever = 0;
   let oauthSub = 0;
-  let approxKnownMonthlyTokens = 0;
+  let entriesWithKnownTokens = 0;
+  const tokensByKind: Record<FreeTierKind, number> = {
+    forever: 0,
+    "signup-credit": 0,
+    daily: 0,
+    "rate-limited": 0,
+    "oauth-sub": 0,
+  };
+
   for (const e of FREE_TIER_CATALOG) {
     if (e.kind === "forever") forever += 1;
     if (e.kind === "oauth-sub") oauthSub += 1;
     if (typeof e.approxTokensPerMonth === "number") {
-      approxKnownMonthlyTokens += e.approxTokensPerMonth;
+      tokensByKind[e.kind] += e.approxTokensPerMonth;
+      entriesWithKnownTokens += 1;
     }
   }
+
   return {
     total: FREE_TIER_CATALOG.length,
     forever,
     oauthSub,
-    approxKnownMonthlyTokens,
+    tokensByKind,
+    entriesWithKnownTokens,
   };
 }

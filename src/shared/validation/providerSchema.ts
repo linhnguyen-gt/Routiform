@@ -10,22 +10,33 @@
 
 import { z } from "zod";
 
-export const ProviderSchema = z.object({
-  id: z.string().min(1),
-  alias: z.string().min(1).optional(),
-  name: z.string().min(1),
-  icon: z.string().min(1),
-  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color (#RRGGBB)"),
-  textIcon: z.string().optional(),
-  website: z.string().url().optional(),
-  passthroughModels: z.boolean().optional(),
-  deprecated: z.boolean().optional(),
-  deprecationReason: z.string().optional(),
-  hasFree: z.boolean().optional(),
-  freeNote: z.string().optional(),
-  authHint: z.string().optional(),
-  apiHint: z.string().optional(),
-});
+export const ProviderSchema = z
+  .object({
+    id: z.string().min(1),
+    alias: z.string().min(1).optional(),
+    name: z.string().min(1),
+    icon: z.string().min(1),
+    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color (#RRGGBB)"),
+    textIcon: z.string().optional(),
+    website: z.string().url().optional(),
+    passthroughModels: z.boolean().optional(),
+    deprecated: z.boolean().optional(),
+    deprecationReason: z.string().optional(),
+    hasFree: z.boolean().optional(),
+    freeNote: z.string().optional(),
+    authHint: z.string().optional(),
+    apiHint: z.string().optional(),
+    // Local / CLI-backed provider fields. Present on ProviderDefinition but previously absent here,
+    // so Zod's default stripping silently discarded them instead of checking them.
+    defaultPort: z.number().int().min(1).max(65535).optional(),
+    healthEndpoint: z.string().optional(),
+    managementPrefix: z.string().optional(),
+    configDir: z.string().optional(),
+    binaryName: z.string().optional(),
+    githubRepo: z.string().optional(),
+    // Strict so a typo'd field name is an error rather than a silently dropped value.
+  })
+  .strict();
 
 export const ProvidersMapSchema = z.record(z.string(), ProviderSchema);
 
