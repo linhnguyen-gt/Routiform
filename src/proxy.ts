@@ -88,8 +88,14 @@ export async function proxy(request: unknown) {
       return response;
     }
 
-    // Allow settings API for initial password configuration when no password exists
-    if (pathname === "/api/settings") {
+    // Allow the settings API for initial password configuration when no password exists.
+    //
+    // Prefix rather than an exact match: the settings surface is more than one route
+    // (/api/settings/require-login among them), and an install that completed onboarding without
+    // a password can now reach nothing else — isAuthRequired no longer exempts the whole API for
+    // that state. Matching only "/api/settings" exactly would leave such an install unable to
+    // finish configuring itself.
+    if (pathname === "/api/settings" || pathname.startsWith("/api/settings/")) {
       const settings = await getSettings();
       if (!settings.password && !process.env.INITIAL_PASSWORD) {
         return response;

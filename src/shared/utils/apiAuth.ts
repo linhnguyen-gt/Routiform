@@ -162,16 +162,21 @@ export async function isAuthRequired(): Promise<boolean> {
   try {
     const settings = await getSettings();
     if (settings.requireLogin === false) return false;
-    // Allow access with no password set — there's nothing to authenticate against.
-    // This covers two cases:
-    //   1. Fresh installs (setupComplete=false) — first-run, no password yet
-    //   2. setupComplete=true but password was skipped during onboarding (#256)
-    //      The user needs unauthenticated access to /dashboard/settings to set a password.
-    // Note: this is safe because Bearer API key auth is still checked in verifyAuth().
-    // The security concern from #151 (password row lost after being set) is handled by the
-    // hasPassword flag — if a password WAS set and then somehow lost, the user can use the
-    // reset-password CLI tool (bin/reset-password.mjs).
-    if (!settings.password && !process.env.INITIAL_PASSWORD) return false;
+    // Fresh installs only: before onboarding completes there is nothing to authenticate against,
+    // so first run has to be reachable.
+    //
+    // The `!setupComplete` term is load-bearing and used to be missing here, which made `/api/*`
+    // strictly looser than `/dashboard/*`. proxy.ts has always required it (#151): a password that
+    // was set and then lost leaves setupComplete=true with no password, and without this term that
+    // state handed the entire management API to an unauthenticated caller — including the routes
+    // that mint API keys. The dashboard in that state admits only /dashboard/settings; the API now
+    // matches, admitting only the settings surface via the carve-out in proxy.ts.
+    //
+    // Recovering from a lost password is the reset-password CLI tool (bin/reset-password.mjs),
+    // not an open API.
+    if (!settings.setupComplete && !settings.password && !process.env.INITIAL_PASSWORD) {
+      return false;
+    }
     return true;
   } catch (error: unknown) {
     // On error, require auth (secure by default)
