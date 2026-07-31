@@ -840,8 +840,7 @@ export function createMcpServer(): McpServer {
         stack: ["rtk", "caveman-en", "inflation-guard"],
         gate: "Dashboard AI request context: auto-compress | passthrough (isProxyContextCompressionEnabled)",
         modes: ["off", "rtk", "stacked"],
-        header:
-          "X-Routiform-Compression (pipeline field compressionHeader; response wire-up optional)",
+        header: "X-Routiform-Compression",
       };
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     })
