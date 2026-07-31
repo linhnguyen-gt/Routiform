@@ -62,6 +62,8 @@ import {
 } from "./tools/advancedTools.ts";
 import { memoryTools } from "./tools/memoryTools.ts";
 import { normalizeQuotaResponse } from "../../src/shared/contracts/quota.ts";
+import { COMPRESSION_PRESETS, DEFAULT_COMPRESSION_PRESET } from "../compression/preset.ts";
+import { ENGINE_CATALOG } from "../compression/engine-catalog.ts";
 
 // ============ Configuration ============
 
@@ -831,15 +833,21 @@ export function createMcpServer(): McpServer {
     "routiform_get_compression_info",
     {
       description:
-        "Describes the request compression stack (RTK → Caveman EN → inflation guard) and how it is gated.",
+        "Describes the registered compression engines, the presets that select them, and how compression is gated.",
       inputSchema: getCompressionInfoInput,
     },
     withScopeEnforcement("routiform_get_compression_info", async (args) => {
       getCompressionInfoInput.parse(args ?? {});
+      // `presets` is what a caller can configure; `resultModes` is what a response reports.
+      // Advertising only the latter, as this tool used to, told callers to set values that were
+      // never settable — they are the discriminator the pipeline emits, not an input vocabulary.
       const result = {
-        stack: ["rtk", "caveman-en", "inflation-guard"],
+        engines: ENGINE_CATALOG,
+        stage_order: "lossless engines always run before lossy ones, then the inflation guard",
         gate: "Dashboard AI request context: auto-compress | passthrough (isProxyContextCompressionEnabled)",
-        modes: ["off", "rtk", "stacked"],
+        presets: COMPRESSION_PRESETS,
+        defaultPreset: DEFAULT_COMPRESSION_PRESET,
+        resultModes: ["off", "rtk", "stacked"],
         header: "X-Routiform-Compression",
       };
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };

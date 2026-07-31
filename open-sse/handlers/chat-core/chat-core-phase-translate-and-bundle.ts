@@ -15,8 +15,10 @@ import {
 } from "../../compression/index.ts";
 import {
   getCavemanOutputLevel,
+  getCompressionPreset,
   isProxyContextCompressionEnabled,
 } from "../../services/contextValidationSettings.ts";
+import { resolveConversationId } from "../../services/conversationIdentity.ts";
 import { sanitizeRequestInput } from "../phases/input-sanitizer.ts";
 import { checkSemanticCache } from "../phases/semantic-cache-handler.ts";
 import { createBuildUpstreamHeadersForExecute } from "./chat-core-build-upstream-headers.ts";
@@ -159,6 +161,10 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
   // varying with the requester's compression settings.
   const compressionEnabled = await isProxyContextCompressionEnabled();
   const cavemanOutputLevel = await getCavemanOutputLevel().catch(() => "off" as const);
+  const compression = await getCompressionPreset().catch(() => ({
+    preset: "balanced" as const,
+    engines: null,
+  }));
   const resolvedBodies = resolveCompressionBodies(p.body, {
     compressionEnabled,
     cavemanOutputLevel,
@@ -181,11 +187,25 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
   // how to carry a system prompt into its own shape) carries the
   // compressed/injected content forward for free. See
   // docs/CODEBASE_DOCUMENTATION.md and tests/unit/compression-cross-provider-injection.test.mjs.
+  //
+  // `conversationId` and `apiKeyId` are resolved from the request rather than left undefined:
+  // engines that key on either (Phase 02's dedup) cannot be written against a field that has no
+  // producer. Both are null when the request genuinely carries no identity — never a fabricated
+  // value, which would look like an identity while guaranteeing every lookup misses.
   const stack = applyStackedCompression(p.body, {
     enabled: compressionEnabled,
     userAgent: p.userAgent,
     caveman: true,
     cavemanOutputLevel,
+    preset: compression.preset,
+    engineToggles: compression.engines,
+    provider: p.provider,
+    conversationId: resolveConversationId(
+      (p.clientRawRequest as { headers?: unknown } | undefined)?.headers as never,
+      p.rawBody,
+      { provider: p.provider, connectionId: p.connectionId }
+    ),
+    apiKeyId: (p.apiKeyInfo as { id?: string } | null | undefined)?.id ?? null,
   });
   for (const line of stack.logs) {
     const tag = line.startsWith("[Caveman]")

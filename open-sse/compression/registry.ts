@@ -1,4 +1,5 @@
 import { ENGINE_STAGES } from "./engine-types.ts";
+import { ENGINE_CATALOG } from "./engine-catalog.ts";
 import type { CompressionEngine, EngineContext, EngineStage } from "./engine-types.ts";
 import { presetEngines } from "./preset.ts";
 import type { CompressionPreset } from "./preset.ts";
@@ -82,4 +83,34 @@ export function selectEngines(
   return presetEngines(preset, listEngines(), toggles).filter((engine) => engine.supports(ctx));
 }
 
+/**
+ * The catalog is what the MCP tool advertises; the registry is what actually runs. They are two
+ * files precisely so the MCP surface does not have to import the engines — which means nothing
+ * but this check stops them drifting apart.
+ */
+function assertCatalogMatchesRegistry(): void {
+  const registered = listEngines();
+  const mismatch =
+    registered.length !== ENGINE_CATALOG.length ||
+    registered.some((engine, i) => {
+      const described = ENGINE_CATALOG[i];
+      return (
+        !described ||
+        described.id !== engine.id ||
+        described.stage !== engine.stage ||
+        described.order !== engine.order ||
+        described.gateCleared !== engine.gateCleared
+      );
+    });
+
+  if (mismatch) {
+    throw new Error(
+      "[Compression] engine-catalog.ts does not match the registered engines. " +
+        `Registered: ${registered.map((e) => `${e.id}/${e.stage}/${e.order}/${e.gateCleared}`).join(", ")}. ` +
+        "Update the catalog — it is what the MCP surface advertises."
+    );
+  }
+}
+
 resetRegistryToBuiltins();
+assertCatalogMatchesRegistry();

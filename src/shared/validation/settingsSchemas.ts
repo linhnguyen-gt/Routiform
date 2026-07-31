@@ -104,6 +104,14 @@ export const updateSettingsSchema = z.object({
    */
   cavemanOutputLevel: z.enum(["off", "lite", "full"]).optional(),
   /**
+   * Which compression engines run. Separate from `contextValidation`, which stays the on/off
+   * switch: overloading that field would give one setting two meanings and a DB default that
+   * answers only one of them. Absent resolves to `balanced`, which is what installs run today.
+   */
+  compressionPreset: z.enum(["off", "safe", "balanced", "aggressive", "custom"]).optional(),
+  /** Per-engine toggles, read only under the `custom` preset. */
+  compressionEngines: z.record(z.string(), z.boolean()).optional(),
+  /**
    * Request deduplication config (plan 260531-1214-request-dedupe).
    * Generic, opt-out chokepoint that prevents duplicate concurrent requests
    * (from buggy clients/gateways) from costing tokens twice at the proxy.

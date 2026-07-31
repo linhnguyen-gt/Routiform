@@ -1,6 +1,6 @@
 import { withPreservedSpans } from "../preservation.ts";
 import { resolveContainer } from "../engine-types.ts";
-import type { CompressionEngine, EngineContext } from "../engine-types.ts";
+import type { CompressionEngine, EngineContext, EngineResult } from "../engine-types.ts";
 
 /**
  * Lite: whitespace collapse and data-URL trimming. Lossless, order 50 — ahead of RTK, because
@@ -105,7 +105,7 @@ export const liteEngine: CompressionEngine = {
     return ctx.bodyShape !== "kiro" && ctx.bodyShape !== "unknown";
   },
 
-  apply(body: Record<string, unknown>) {
+  apply(body: Record<string, unknown>): Omit<EngineResult, "reverted"> {
     const container = resolveContainer(body);
     if (!container) {
       return {
