@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { isAuthenticated } from "@/shared/utils/apiAuth";
+import { isPrivilegedAuthenticated } from "@/shared/utils/apiAuth";
 import { getRegisteredKey, revokeRegisteredKey } from "@/lib/db/registeredKeys";
 
 // ─── GET /api/v1/registered-keys/[id] ────────────────────────────────────────
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAuthenticated(request))) {
+  if (!(await isPrivilegedAuthenticated(request))) {
     return NextResponse.json({ error: { message: "Authentication required" } }, { status: 401 });
   }
 
@@ -21,7 +21,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 // ─── DELETE /api/v1/registered-keys/[id] ─────────────────────────────────────
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAuthenticated(request))) {
+  if (!(await isPrivilegedAuthenticated(request))) {
     return NextResponse.json({ error: { message: "Authentication required" } }, { status: 401 });
   }
 

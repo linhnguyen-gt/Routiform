@@ -99,6 +99,23 @@ export async function isAuthenticated(request: Request): Promise<boolean> {
   if (!(await isAuthRequired())) {
     return true;
   }
+  return hasValidCredential(request);
+}
+
+/**
+ * Credential check for routes that must never be satisfied by "auth is not required".
+ *
+ * `isAuthenticated` short-circuits to true whenever `isAuthRequired()` is false — which happens on
+ * any install with `requireLogin: false`, and on any install where onboarding skipped the password.
+ * That is acceptable for read surfaces, but not for routes that mint API keys or write upstream
+ * OAuth credentials: those sit behind the `/api/v1/` and `/api/oauth/` public prefixes, so
+ * `proxy.ts` returns before `verifyAuth` runs and no Bearer token is ever inspected.
+ */
+export async function isPrivilegedAuthenticated(request: Request): Promise<boolean> {
+  return hasValidCredential(request);
+}
+
+async function hasValidCredential(request: Request): Promise<boolean> {
   // 1. Check API key (for external clients)
   const authHeader = request.headers.get("authorization");
   if (authHeader?.startsWith("Bearer ")) {

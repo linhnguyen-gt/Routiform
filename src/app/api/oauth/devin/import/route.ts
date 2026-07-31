@@ -2,16 +2,14 @@ import { NextResponse } from "next/server";
 import { createProviderConnection, isCloudEnabled, resolveProxyForProvider } from "@/models";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 import { syncToCloud } from "@/lib/cloudSync";
-import { isAuthRequired, isAuthenticated } from "@/shared/utils/apiAuth";
+import { isPrivilegedAuthenticated } from "@/shared/utils/apiAuth";
 import { runWithProxyContext } from "@routiform/open-sse/utils/proxyFetch.ts";
 import { devinImportSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 
 export async function POST(request: Request) {
-  if (await isAuthRequired()) {
-    if (!(await isAuthenticated(request))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!(await isPrivilegedAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   let rawBody;

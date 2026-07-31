@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { readFile, readdir } from "fs/promises";
 import { homedir } from "os";
 import { join } from "path";
-import { isAuthRequired, isAuthenticated } from "@/shared/utils/apiAuth";
+import { isPrivilegedAuthenticated } from "@/shared/utils/apiAuth";
 
 /**
  * GET /api/oauth/kiro/auto-import
@@ -11,10 +11,8 @@ import { isAuthRequired, isAuthenticated } from "@/shared/utils/apiAuth";
  * 🔒 Auth-guarded: requires JWT cookie or Bearer API key (finding #258-5).
  */
 export async function GET(request: Request) {
-  if (await isAuthRequired()) {
-    if (!(await isAuthenticated(request))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!(await isPrivilegedAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {

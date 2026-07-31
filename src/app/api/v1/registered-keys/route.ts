@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { isAuthenticated } from "@/shared/utils/apiAuth";
+import { isPrivilegedAuthenticated } from "@/shared/utils/apiAuth";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { issueRegisteredKey, checkQuota, listRegisteredKeys } from "@/lib/db/registeredKeys";
 
@@ -23,7 +23,7 @@ const issueKeySchema = z.object({
  * Optional query params: ?provider=&accountId=
  */
 export async function GET(request: Request) {
-  if (!(await isAuthenticated(request))) {
+  if (!(await isPrivilegedAuthenticated(request))) {
     return NextResponse.json({ error: { message: "Authentication required" } }, { status: 401 });
   }
 
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
  * Subsequent fetches will only return the masked prefix.
  */
 export async function POST(request: Request) {
-  if (!(await isAuthenticated(request))) {
+  if (!(await isPrivilegedAuthenticated(request))) {
     return NextResponse.json({ error: { message: "Authentication required" } }, { status: 401 });
   }
 
