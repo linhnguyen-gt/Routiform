@@ -2,16 +2,17 @@ import { NextResponse } from "next/server";
 import { homedir } from "os";
 import { join } from "path";
 import Database from "better-sqlite3";
-import { isPrivilegedAuthenticated } from "@/shared/utils/apiAuth";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 /**
  * GET /api/oauth/cursor/auto-import
  * Auto-detect and extract Cursor tokens from local SQLite database.
  *
- * 🔒 Auth-guarded: requires JWT cookie or Bearer API key (finding #258-4).
+ * Reads credentials belonging to the host machine, so a gateway API key does not satisfy it:
+ * a dashboard session, or same-origin on an install with no login at all.
  */
 export async function GET(request: Request) {
-  if (!(await isPrivilegedAuthenticated(request))) {
+  if (!(await isHostSecretAuthenticated(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

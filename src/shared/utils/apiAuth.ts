@@ -119,6 +119,65 @@ export async function isPrivilegedAuthenticated(request: Request): Promise<boole
   return hasValidCredential(request);
 }
 
+/**
+ * Credential check for routes that read secrets belonging to the host machine — a local IDE's
+ * stored OAuth tokens, for example.
+ *
+ * Stricter than `isPrivilegedAuthenticated` in one specific way: a gateway API key never satisfies
+ * it. Those keys are handed to inference clients (Cursor, Cline, any `/v1` consumer) and live in
+ * the same key space `validateApiKey` checks, so accepting one here would let a key issued for
+ * chat completions read the operator's upstream credentials off disk.
+ *
+ * A dashboard session cookie is the primary proof. Installs with `requireLogin: false` have no
+ * session to prove, so same-origin is the only signal left — which is what the browser actually
+ * sends, and what a bare `curl` with a Bearer token does not.
+ */
+export async function isHostSecretAuthenticated(request: Request): Promise<boolean> {
+  if (await hasValidSessionCookie()) return true;
+  if (await isAuthRequired()) return false;
+  return isSameOriginRequest(request);
+}
+
+/**
+ * True when the request carries a valid dashboard session cookie. Unlike `hasValidCredential`,
+ * a Bearer API key does not satisfy this.
+ */
+async function hasValidSessionCookie(): Promise<boolean> {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("auth_token")?.value;
+    if (!token) return false;
+    await jwtVerify(token, getJwtSecret());
+    return true;
+  } catch {
+    // Invalid/expired token or cookies not available
+    return false;
+  }
+}
+
+/**
+ * True when the request demonstrably originated from a page served by this origin.
+ *
+ * `Sec-Fetch-Site` is the reliable signal and every current browser sends it. `Referer` is the
+ * fallback for clients that do not. Absent both, the answer is no: an origin that cannot be
+ * established is not the dashboard.
+ */
+function isSameOriginRequest(request: Request): boolean {
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite) return fetchSite === "same-origin";
+
+  const host = request.headers.get("host");
+  if (!host) return false;
+
+  const referer = request.headers.get("referer");
+  if (!referer) return false;
+  try {
+    return new URL(referer).host === host;
+  } catch {
+    return false;
+  }
+}
+
 async function hasValidCredential(request: Request): Promise<boolean> {
   // 1. Check API key (for external clients)
   const authHeader = request.headers.get("authorization");

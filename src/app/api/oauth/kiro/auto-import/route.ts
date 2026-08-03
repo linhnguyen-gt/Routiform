@@ -2,16 +2,17 @@ import { NextResponse } from "next/server";
 import { readFile, readdir } from "fs/promises";
 import { homedir } from "os";
 import { join } from "path";
-import { isPrivilegedAuthenticated } from "@/shared/utils/apiAuth";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 /**
  * GET /api/oauth/kiro/auto-import
  * Auto-detect and extract Kiro refresh token from AWS SSO cache.
  *
- * 🔒 Auth-guarded: requires JWT cookie or Bearer API key (finding #258-5).
+ * Reads credentials belonging to the host machine, so a gateway API key does not satisfy it:
+ * a dashboard session, or same-origin on an install with no login at all.
  */
 export async function GET(request: Request) {
-  if (!(await isPrivilegedAuthenticated(request))) {
+  if (!(await isHostSecretAuthenticated(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { homedir } from "os";
 import { join } from "path";
 import { readFileSync, existsSync } from "fs";
-import { isPrivilegedAuthenticated } from "@/shared/utils/apiAuth";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 export async function GET(request: Request) {
-  if (!(await isPrivilegedAuthenticated(request))) {
+  if (!(await isHostSecretAuthenticated(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
