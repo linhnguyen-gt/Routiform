@@ -6,8 +6,17 @@ import {
   type CustomAgentDef,
 } from "@/lib/acp/registry";
 import { getSettings, updateSettings } from "@/lib/localDb";
+import { isValidVersionCommand } from "@/lib/acp/version-command";
 import { jsonObjectSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
+
+/**
+ * Writing a custom agent stores a binary and a version command that this host then executes on
+ * every cache refresh. That is a host-capability grant, not ordinary configuration, so a gateway
+ * API key issued to an inference client does not open it.
+ */
+const FORBIDDEN = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
 export async function GET() {
   try {
@@ -38,6 +47,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) return FORBIDDEN;
+
   let rawBody: unknown;
   try {
     rawBody = await request.json();
@@ -63,6 +74,19 @@ export async function POST(request: Request) {
     if (!id || !name || !binary || !versionCommand) {
       return NextResponse.json(
         { error: "Missing required fields: id, name, binary, versionCommand" },
+        { status: 400 }
+      );
+    }
+
+    // Rejected at the boundary as well as before execution: a command that cannot be tokenized is
+    // silently undetectable later, and telling the operator now is more useful than an agent that
+    // permanently reads as "not installed".
+    if (!isValidVersionCommand(versionCommand)) {
+      return NextResponse.json(
+        {
+          error:
+            "versionCommand must be a plain command such as `mytool --version` — no shell operators, quotes, or redirection",
+        },
         { status: 400 }
       );
     }
@@ -103,6 +127,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) return FORBIDDEN;
+
   try {
     const { searchParams } = new URL(request.url);
     const agentId = searchParams.get("id");

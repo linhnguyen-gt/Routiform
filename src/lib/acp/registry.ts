@@ -10,7 +10,8 @@
  * Reference: https://github.com/iOfficeAI/AionUi (auto-detects CLI agents)
  */
 
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
+import { needsShellForExec, parseVersionCommand } from "./version-command";
 
 export interface CliAgentInfo {
   /** Agent identifier (e.g., "codex", "claude", "goose") */
@@ -213,11 +214,20 @@ function detectAgent(
   let version: string | null = null;
   let installed = false;
 
+  // A stored command that is not a plain `binary arg arg` invocation is never executed. Custom
+  // agent definitions are operator input that lands here, and this probe runs automatically on
+  // every cache refresh — so the string is tokenized rather than interpreted.
+  const argv = parseVersionCommand(def.versionCommand);
+  if (!argv) {
+    return { ...def, version, installed, isCustom };
+  }
+
   try {
-    const output = execSync(def.versionCommand, {
+    const output = execFileSync(argv[0], argv.slice(1), {
       timeout: 5000,
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
+      shell: needsShellForExec(),
     }).trim();
 
     // Extract version number from output
