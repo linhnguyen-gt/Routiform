@@ -64,7 +64,10 @@ test("getModelInfoCore returns explicit ambiguity metadata for ambiguous unprefi
 test("getModelInfoCore canonicalizes github legacy alias with explicit provider prefix", async () => {
   const info = await getModelInfoCore("gh/claude-4.5-opus", {});
   assert.equal(info.provider, "github");
-  assert.equal(info.model, "claude-opus-4-5-20251101");
+  // Was "claude-opus-4-5-20251101" — a dated ID Copilot no longer serves, so the alias
+  // sent every caller to a 404. The live ID is "claude-opus-4.5"; see
+  // tests/unit/github-copilot-model-catalog.test.mjs for the guard against a repeat.
+  assert.equal(info.model, "claude-opus-4.5");
 });
 
 test("GithubExecutor routes codex-family model to /responses", () => {

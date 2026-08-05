@@ -7,8 +7,12 @@ export async function handleGithubModels(
 ): Promise<NextResponse | null> {
   if (ctx.provider !== "github") return null;
 
-  // GitHub Copilot does not support API models list
-  // Return static models from local catalog
+  // Served from the shared catalog rather than fetched. GitHub Copilot *does* expose
+  // GET api.githubcopilot.com/models (an earlier comment here claimed otherwise), but
+  // reaching it needs a Copilot token minted from the connection's OAuth token, and it
+  // answers with ~30 internal orchestration and retired-snapshot entries alongside the
+  // real ones. The catalog is that response with the noise filtered out; refreshing it
+  // is a deliberate step, not something a page load should do.
   return ctx.buildResponse({
     provider: ctx.provider,
     connectionId: ctx.connectionId,

@@ -17,26 +17,43 @@ for (const [id, alias] of Object.entries(PROVIDER_ID_TO_ALIAS)) {
 // and keep backward compatibility when upstream IDs change.
 const PROVIDER_MODEL_ALIASES = {
   github: {
-    "claude-4.5-opus": "claude-opus-4-5-20251101",
-    "claude-opus-4.5": "claude-opus-4-5-20251101",
-    "gemini-3-pro": "gemini-3.1-pro-preview",
-    "gemini-3-pro-preview": "gemini-3.1-pro-preview",
-    "gemini-3-flash": "gemini-3-flash-preview",
+    // Every target below must be an ID `api.githubcopilot.com/models` currently advertises
+    // — see `src/shared/constants/github-copilot-models.ts`. An alias whose target upstream
+    // has dropped is worse than no alias at all: without it the original ID passes through
+    // and may still work, with it every request is a guaranteed failure. Half of this map
+    // was in that state, pointing at claude-opus-4-5-20251101, claude-opus-4.6 and
+    // gpt-5.2-codex — IDs upstream does not recognise at all.
+    //
+    // Display name → real ID.
     "raptor-mini": "oswe-vscode-prime",
-    // Retired / closing-down Copilot models → see supported-models + retirement tables on GitHub Docs
-    "gpt-5": "gpt-5.2",
-    "gpt-5-codex": "gpt-5.2-codex",
-    "gpt-5.1": "gpt-5.2",
+    // Retired Copilot models → the successor GitHub names in its retirement table.
+    "gpt-5": "gpt-5.5",
+    "gpt-5.1": "gpt-5.5",
+    "gpt-5.2": "gpt-5.5",
+    "gpt-5-codex": "gpt-5.3-codex",
     "gpt-5.1-codex": "gpt-5.3-codex",
     "gpt-5.1-codex-mini": "gpt-5.3-codex",
     "gpt-5.1-codex-max": "gpt-5.3-codex",
-    "claude-opus-4.1": "claude-opus-4.6",
-    // Removed from static catalog (not in supported-models table) → nearest supported ID
-    "gpt-4o": "gpt-4.1",
-    "gpt-4o-mini": "gpt-5-mini",
-    "gpt-4": "gpt-4.1",
-    "gpt-3.5-turbo": "gpt-4.1",
-    "gemini-2.5-flash": "gemini-2.5-pro",
+    "gpt-5.2-codex": "gpt-5.3-codex",
+    "claude-4.5-opus": "claude-opus-4.5",
+    "claude-opus-4-5-20251101": "claude-opus-4.5",
+    "claude-opus-4.1": "claude-opus-4.8",
+    "claude-opus-4.6": "claude-opus-4.8",
+    "claude-opus-4.6-fast": "claude-opus-4.8-fast",
+    "claude-sonnet-4": "claude-sonnet-4.6",
+    "gemini-3-pro": "gemini-3.1-pro-preview",
+    "gemini-3-pro-preview": "gemini-3.1-pro-preview",
+    "gemini-3-flash": "gemini-3.6-flash",
+    "gemini-3-flash-preview": "gemini-3.6-flash",
+    "gemini-2.5-flash": "gemini-3.6-flash",
+    "gemini-2.5-pro": "gemini-3.1-pro-preview",
+    // GitHub's retirement table names GPT-5 mini as the successor to Grok Code Fast 1 —
+    // the cross-vendor jump is theirs, not ours.
+    "grok-code-fast-1": "gpt-5-mini",
+    goldeneye: "gpt-5.3-codex",
+    // gpt-4o, gpt-4o-mini, gpt-4 and gpt-3.5-turbo used to be rewritten here on the
+    // assumption they had been withdrawn. Upstream still serves all four; the rewrites
+    // only sent callers to a model they had not asked for. They pass through now.
   },
   gemini: {
     "gemini-3.1-pro-preview": "gemini-3.1-pro",

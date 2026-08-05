@@ -3,11 +3,21 @@
  */
 
 import { CONTEXT_CONFIG } from "../../src/shared/constants/context";
+import { githubCopilotRegistryModels } from "../../src/shared/constants/github-copilot-models";
 import { antigravityUserAgent } from "../services/antigravityHeaders.ts";
 import { ANTIGRAVITY_BASE_URLS } from "./antigravityUpstream.ts";
 import { getCodexDefaultHeaders } from "./codexClient.ts";
 import { mapStainlessArch, mapStainlessOs } from "./registry-internal.ts";
-import type { RegistryEntry } from "./registry-types.ts";
+import type { RegistryEntry, RegistryModel } from "./registry-types.ts";
+
+/**
+ * Per-model routing tuning for GitHub Copilot that the upstream `/models` payload does not
+ * describe, merged over the shared catalog. Keep this to genuine request-shaping choices —
+ * anything upstream reports (limits, endpoint support, thinking) belongs in the catalog.
+ */
+const GITHUB_REQUEST_DEFAULTS: Record<string, Partial<RegistryModel>> = {
+  "gpt-5.3-codex": { defaultParams: { reasoning: { effort: "high" } } },
+};
 
 export const OAUTH_PROVIDERS: Record<string, RegistryEntry> = {
   claude: {
@@ -234,36 +244,14 @@ export const OAUTH_PROVIDERS: Record<string, RegistryEntry> = {
       Accept: "application/json",
       "Content-Type": "application/json",
     },
-    // Only models listed under "Supported AI models in Copilot" (excl. GPT-5.1 — closing down 2026-04-15):
-    // https://docs.github.com/en/copilot/reference/ai-models/supported-models#supported-ai-models-in-copilot
-    models: [
-      { id: "gpt-4.1", name: "GPT-4.1" },
-      { id: "gpt-5-mini", name: "GPT-5 mini" },
-      { id: "gpt-5.2", name: "GPT-5.2" },
-      { id: "gpt-5.2-codex", name: "GPT-5.2-Codex", targetFormat: "openai-responses" },
-      {
-        id: "gpt-5.3-codex",
-        name: "GPT-5.3-Codex",
-        targetFormat: "openai-responses",
-        defaultParams: { reasoning: { effort: "high" } },
-      },
-      { id: "gpt-5.4", name: "GPT-5.4" },
-      { id: "gpt-5.4-mini", name: "GPT-5.4 mini", targetFormat: "openai-responses" },
-      // Must stay on /chat/completions — Copilot returns 400 unsupported_api_for_model on /responses.
-      { id: "claude-haiku-4.5", name: "Claude Haiku 4.5" },
-      { id: "claude-opus-4-5-20251101", name: "Claude Opus 4.5" },
-      { id: "claude-opus-4.6", name: "Claude Opus 4.6" },
-      { id: "claude-opus-4.6-fast", name: "Claude Opus 4.6 (fast mode) (preview)" },
-      { id: "claude-sonnet-4", name: "Claude Sonnet 4" },
-      { id: "claude-sonnet-4.5", name: "Claude Sonnet 4.5" },
-      { id: "claude-sonnet-4.6", name: "Claude Sonnet 4.6" },
-      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
-      { id: "gemini-3-flash-preview", name: "Gemini 3 Flash" },
-      { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro" },
-      { id: "grok-code-fast-1", name: "Grok Code Fast 1" },
-      { id: "oswe-vscode-prime", name: "Raptor mini" },
-      { id: "goldeneye", name: "Goldeneye" },
-    ],
+    // Derived from the shared catalog so this list and the dashboard's
+    // /api/providers/:id/models response cannot drift. Entries come from
+    // GET api.githubcopilot.com/models — the docs page publishes display names only.
+    // GITHUB_REQUEST_DEFAULTS carries the routing-side tuning upstream does not describe.
+    models: githubCopilotRegistryModels().map((m) => ({
+      ...m,
+      ...(GITHUB_REQUEST_DEFAULTS[m.id] ?? {}),
+    })),
   },
 
   kiro: {
