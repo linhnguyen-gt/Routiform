@@ -4,697 +4,613 @@ All notable changes to this project will be documented in this file. See [standa
 
 ## [5.0.0](https://github.com/linhnguyen-gt/Routiform/compare/v4.0.0...v5.0.0) (2026-08-05)
 
-
 ### ⚠ BREAKING CHANGES
 
-* **providers:** creating, updating, or deleting a provider node now requires a
-dashboard session. A gateway API key no longer suffices. Provider-node setup is
-an operator action, not a runtime one, and the CLI does not use these endpoints.
-* **models:** /v1/models no longer reports vision on a model whose provider
-discards images in translation. The previous answer was optimistic and wrong; a
-client that filtered on it now sees a smaller, correct set.
-* **auth:** a Bearer gateway API key no longer opens the CLI-tools,
-version-manager, restart, tunnel, db-backup, cloud-sync, or ACP-agent management
-routes. Use the dashboard, which sends a session cookie. Installs with
-requireLogin: false continue to work from the dashboard via same-origin.
+- **providers:** creating, updating, or deleting a provider node now requires a
+  dashboard session. A gateway API key no longer suffices. Provider-node setup is
+  an operator action, not a runtime one, and the CLI does not use these endpoints.
+- **models:** /v1/models no longer reports vision on a model whose provider
+  discards images in translation. The previous answer was optimistic and wrong; a
+  client that filtered on it now sees a smaller, correct set.
+- **auth:** a Bearer gateway API key no longer opens the CLI-tools,
+  version-manager, restart, tunnel, db-backup, cloud-sync, or ACP-agent management
+  routes. Use the dashboard, which sends a session cookie. Installs with
+  requireLogin: false continue to work from the dashboard via same-origin.
 
 ### Features
 
-* **compression:** add Session-Dedup with a post-success commit ([66cd764](https://github.com/linhnguyen-gt/Routiform/commit/66cd7644f6c06a8384fdf5dfdb4b885deb82c71a))
-* **compression:** add the /api/compression control surface ([0a97b40](https://github.com/linhnguyen-gt/Routiform/commit/0a97b40ad6b464e7a03ac6d8a6c2320e399e1f47))
-* **compression:** add the GCF tabular codec and Responses compaction ([229389d](https://github.com/linhnguyen-gt/Routiform/commit/229389d1dd44abd684c10703418c6a5c7332a13f))
-* **compression:** add the per-request override and the fidelity gate ([9d4cb8e](https://github.com/linhnguyen-gt/Routiform/commit/9d4cb8ee7db6411b1ff7847b6a8215f946e5cfaa))
-* **compression:** emit X-Routiform-Compression on responses ([c6fc0b1](https://github.com/linhnguyen-gt/Routiform/commit/c6fc0b1a6e120486aa8ef5f10c809801d85e5a52))
-* **compression:** give Kiro bodies the prose compression they never had ([751a0e0](https://github.com/linhnguyen-gt/Routiform/commit/751a0e0d87bbc623bd67439cd2b223d00ea46716))
-* **compression:** make the preset reachable and give engines a real context ([1803072](https://github.com/linhnguyen-gt/Routiform/commit/180307292d8f5d44005d75c2e3db7066bb49e2e4))
-* **compression:** put system directives inside the prompt cache, add scope restraint ([efd999c](https://github.com/linhnguyen-gt/Routiform/commit/efd999cc1d5dc9faa9f92657e31b8cd9695d808d))
-* **compression:** replace the hardcoded stack with an engine registry ([17bd65d](https://github.com/linhnguyen-gt/Routiform/commit/17bd65d4e44d121d020f879099760c36dbf3e74a))
-* **compression:** stop git-diff from eating git log output ([439fcfb](https://github.com/linhnguyen-gt/Routiform/commit/439fcfb1e394aedf1005a6a294235a32e6146420))
-* **github:** rebuild the Copilot catalog from the IDs upstream actually serves ([d6892f8](https://github.com/linhnguyen-gt/Routiform/commit/d6892f88d63df05afe76628ebdfb7e271470890f))
-* **providers:** import several provider keys from one paste ([53b1c1d](https://github.com/linhnguyen-gt/Routiform/commit/53b1c1d0e654cbf4573c68a152ad62ab018827d0))
-* **providers:** make local endpoints a supported configuration, with an Ollama preset ([733c8b4](https://github.com/linhnguyen-gt/Routiform/commit/733c8b4273531d929722a37a52898acd6957fae5))
-* **providers:** show which models an account can actually call ([c638af8](https://github.com/linhnguyen-gt/Routiform/commit/c638af8f2de9d0d4a7c822f3218d199c69ab08e9))
-* **settings:** add a compression engine picker ([7250bbe](https://github.com/linhnguyen-gt/Routiform/commit/7250bbe9fefbaf27a2c1638f71e2b043e1df7277))
-
+- **compression:** add Session-Dedup with a post-success commit ([66cd764](https://github.com/linhnguyen-gt/Routiform/commit/66cd7644f6c06a8384fdf5dfdb4b885deb82c71a))
+- **compression:** add the /api/compression control surface ([0a97b40](https://github.com/linhnguyen-gt/Routiform/commit/0a97b40ad6b464e7a03ac6d8a6c2320e399e1f47))
+- **compression:** add the GCF tabular codec and Responses compaction ([229389d](https://github.com/linhnguyen-gt/Routiform/commit/229389d1dd44abd684c10703418c6a5c7332a13f))
+- **compression:** add the per-request override and the fidelity gate ([9d4cb8e](https://github.com/linhnguyen-gt/Routiform/commit/9d4cb8ee7db6411b1ff7847b6a8215f946e5cfaa))
+- **compression:** emit X-Routiform-Compression on responses ([c6fc0b1](https://github.com/linhnguyen-gt/Routiform/commit/c6fc0b1a6e120486aa8ef5f10c809801d85e5a52))
+- **compression:** give Kiro bodies the prose compression they never had ([751a0e0](https://github.com/linhnguyen-gt/Routiform/commit/751a0e0d87bbc623bd67439cd2b223d00ea46716))
+- **compression:** make the preset reachable and give engines a real context ([1803072](https://github.com/linhnguyen-gt/Routiform/commit/180307292d8f5d44005d75c2e3db7066bb49e2e4))
+- **compression:** put system directives inside the prompt cache, add scope restraint ([efd999c](https://github.com/linhnguyen-gt/Routiform/commit/efd999cc1d5dc9faa9f92657e31b8cd9695d808d))
+- **compression:** replace the hardcoded stack with an engine registry ([17bd65d](https://github.com/linhnguyen-gt/Routiform/commit/17bd65d4e44d121d020f879099760c36dbf3e74a))
+- **compression:** stop git-diff from eating git log output ([439fcfb](https://github.com/linhnguyen-gt/Routiform/commit/439fcfb1e394aedf1005a6a294235a32e6146420))
+- **github:** rebuild the Copilot catalog from the IDs upstream actually serves ([d6892f8](https://github.com/linhnguyen-gt/Routiform/commit/d6892f88d63df05afe76628ebdfb7e271470890f))
+- **providers:** import several provider keys from one paste ([53b1c1d](https://github.com/linhnguyen-gt/Routiform/commit/53b1c1d0e654cbf4573c68a152ad62ab018827d0))
+- **providers:** make local endpoints a supported configuration, with an Ollama preset ([733c8b4](https://github.com/linhnguyen-gt/Routiform/commit/733c8b4273531d929722a37a52898acd6957fae5))
+- **providers:** show which models an account can actually call ([c638af8](https://github.com/linhnguyen-gt/Routiform/commit/c638af8f2de9d0d4a7c822f3218d199c69ab08e9))
+- **settings:** add a compression engine picker ([7250bbe](https://github.com/linhnguyen-gt/Routiform/commit/7250bbe9fefbaf27a2c1638f71e2b043e1df7277))
 
 ### Bug Fixes
 
-* **acp:** stop running a stored version command through a shell ([755ed2c](https://github.com/linhnguyen-gt/Routiform/commit/755ed2ca9231543c588286017ece654992e49c5c))
-* **antigravity:** stop rewriting the only GPT-OSS id upstream serves ([7e220a4](https://github.com/linhnguyen-gt/Routiform/commit/7e220a408ae61c4daaec7d873aebd69affb7482a))
-* **auth:** keep gateway API keys out of host-credential routes ([52da4d1](https://github.com/linhnguyen-gt/Routiform/commit/52da4d166ac8c4c68fdeb21e3f2cefe82fab5715))
-* **auth:** make /api require auth in the same cases /dashboard does ([ab6d896](https://github.com/linhnguyen-gt/Routiform/commit/ab6d896167360d0a4930ed9cf86cce83c2e03bfa)), closes [#151](https://github.com/linhnguyen-gt/Routiform/issues/151)
-* **auth:** repair the password reset path and stop advertising a default ([a916b34](https://github.com/linhnguyen-gt/Routiform/commit/a916b34da54b97c8e30f27819c95d628f7b9feb2))
-* **auth:** require a dashboard session on every route that touches the host ([4da9be3](https://github.com/linhnguyen-gt/Routiform/commit/4da9be3b9eed986ca3e23753fc51e38c109567f2))
-* **auth:** require a real credential to mint keys or import provider credentials ([e2ef84c](https://github.com/linhnguyen-gt/Routiform/commit/e2ef84c6657708ddb873ce8b2694b0e03fbc7afc))
-* **auth:** scope the refresh circuit breaker to a connection, and make it able to trip ([4516116](https://github.com/linhnguyen-gt/Routiform/commit/4516116403d072bcd2c2dbc8c43e6d3e6deb14d6))
-* **auth:** throttle login attempts and unify the JWT secret between mint and verify ([7c9e085](https://github.com/linhnguyen-gt/Routiform/commit/7c9e085d697da559b2335ce07be72a0cb84202c8))
-* **ci:** make the dependency audit able to fail ([6677018](https://github.com/linhnguyen-gt/Routiform/commit/6677018ac4bdd696b958e1d9a9c0e621412accb5))
-* **cli,auth,mcp:** non-zero CLI exit on failure, timing-safe login, correct analytics param ([91e7c57](https://github.com/linhnguyen-gt/Routiform/commit/91e7c578b38dc7d2e43661c8cb610fdd0ff73f06))
-* **deps:** clear the three unallowlisted high advisories ([dd911ca](https://github.com/linhnguyen-gt/Routiform/commit/dd911cae3e1043e45ce79c22187e04012a8ba062))
-* **mcp:** register the cache tools and drop the dead explain_route tool ([1f295f1](https://github.com/linhnguyen-gt/Routiform/commit/1f295f17702d6d49a9bdc3135297b1b7b58a4438))
-* **mcp:** stop trusting caller-supplied scopes and register the memory tools ([714791c](https://github.com/linhnguyen-gt/Routiform/commit/714791c1de77ca8151a709783126cfdc63eae726))
-* **models:** answer "can this model see an image?" the same way everywhere ([137d17c](https://github.com/linhnguyen-gt/Routiform/commit/137d17c7e75b1404ee61fd4207d438cb5e297ee0))
-* **openapi:** import js-yaml by name so the v5 bump can land ([777c18a](https://github.com/linhnguyen-gt/Routiform/commit/777c18ae8a352146edbb34e176fa062edd40b059))
-* **providers:** bind the check-all refs the hook actually reads ([e36da16](https://github.com/linhnguyen-gt/Routiform/commit/e36da1653cc862ed7790fe54f05fa169b2b30489))
-* **providers:** make RegistryEntry.executor truthful and pin it with a test ([d806a95](https://github.com/linhnguyen-gt/Routiform/commit/d806a95b8f3a22fa88331af926b65b2802edb641))
-* **providers:** validate the upstream-proxy map, tighten the schema, split free-tier totals ([a5aa0b4](https://github.com/linhnguyen-gt/Routiform/commit/a5aa0b40253abdcb675f79b788ddb2be997c3db7))
-* **proxy:** cover the LLM ingress paths in the middleware matcher ([0230aed](https://github.com/linhnguyen-gt/Routiform/commit/0230aede5a3cf62e2f5ac364a5404decc70eee66))
-* **routing:** hydrate auto-combo candidates with real quota data ([d75ff4e](https://github.com/linhnguyen-gt/Routiform/commit/d75ff4e6c0c8c0e4574cfae96e0f4830ccd7ac56))
-* **security:** actually consult the IP filter in the middleware ([fcede16](https://github.com/linhnguyen-gt/Routiform/commit/fcede1681bf3a0b02cfb0055118aded5c1a86908))
-* **security:** stop trusting client-supplied forwarding headers ([9f8f1a3](https://github.com/linhnguyen-gt/Routiform/commit/9f8f1a3360ee498e512c35f7ba6b7c413bb6b8b0))
-* **security:** wire the PII response sanitizer and make block mode block ([7d3676c](https://github.com/linhnguyen-gt/Routiform/commit/7d3676c16d9bad225223a94b91a4a856d4eb7408))
-* **settings:** reconcile fallbackStrategy schemas and add a quota-cache test seam ([d924aff](https://github.com/linhnguyen-gt/Routiform/commit/d924affc9b18940769238819e87d50abe6a4a0f7))
-* **translator:** close four wire-correctness defects in the Gemini and Responses paths ([924c68c](https://github.com/linhnguyen-gt/Routiform/commit/924c68ca7125e10295c19d71c8f73b25bad69c23))
+- **acp:** stop running a stored version command through a shell ([755ed2c](https://github.com/linhnguyen-gt/Routiform/commit/755ed2ca9231543c588286017ece654992e49c5c))
+- **antigravity:** stop rewriting the only GPT-OSS id upstream serves ([7e220a4](https://github.com/linhnguyen-gt/Routiform/commit/7e220a408ae61c4daaec7d873aebd69affb7482a))
+- **auth:** keep gateway API keys out of host-credential routes ([52da4d1](https://github.com/linhnguyen-gt/Routiform/commit/52da4d166ac8c4c68fdeb21e3f2cefe82fab5715))
+- **auth:** make /api require auth in the same cases /dashboard does ([ab6d896](https://github.com/linhnguyen-gt/Routiform/commit/ab6d896167360d0a4930ed9cf86cce83c2e03bfa)), closes [#151](https://github.com/linhnguyen-gt/Routiform/issues/151)
+- **auth:** repair the password reset path and stop advertising a default ([a916b34](https://github.com/linhnguyen-gt/Routiform/commit/a916b34da54b97c8e30f27819c95d628f7b9feb2))
+- **auth:** require a dashboard session on every route that touches the host ([4da9be3](https://github.com/linhnguyen-gt/Routiform/commit/4da9be3b9eed986ca3e23753fc51e38c109567f2))
+- **auth:** require a real credential to mint keys or import provider credentials ([e2ef84c](https://github.com/linhnguyen-gt/Routiform/commit/e2ef84c6657708ddb873ce8b2694b0e03fbc7afc))
+- **auth:** scope the refresh circuit breaker to a connection, and make it able to trip ([4516116](https://github.com/linhnguyen-gt/Routiform/commit/4516116403d072bcd2c2dbc8c43e6d3e6deb14d6))
+- **auth:** throttle login attempts and unify the JWT secret between mint and verify ([7c9e085](https://github.com/linhnguyen-gt/Routiform/commit/7c9e085d697da559b2335ce07be72a0cb84202c8))
+- **ci:** make the dependency audit able to fail ([6677018](https://github.com/linhnguyen-gt/Routiform/commit/6677018ac4bdd696b958e1d9a9c0e621412accb5))
+- **cli,auth,mcp:** non-zero CLI exit on failure, timing-safe login, correct analytics param ([91e7c57](https://github.com/linhnguyen-gt/Routiform/commit/91e7c578b38dc7d2e43661c8cb610fdd0ff73f06))
+- **deps:** clear the three unallowlisted high advisories ([dd911ca](https://github.com/linhnguyen-gt/Routiform/commit/dd911cae3e1043e45ce79c22187e04012a8ba062))
+- **deps:** pin undici to v7 so Node 22's fetch accepts our dispatcher ([0997f84](https://github.com/linhnguyen-gt/Routiform/commit/0997f8401))
+- **mcp:** register the cache tools and drop the dead explain_route tool ([1f295f1](https://github.com/linhnguyen-gt/Routiform/commit/1f295f17702d6d49a9bdc3135297b1b7b58a4438))
+- **mcp:** stop trusting caller-supplied scopes and register the memory tools ([714791c](https://github.com/linhnguyen-gt/Routiform/commit/714791c1de77ca8151a709783126cfdc63eae726))
+- **models:** answer "can this model see an image?" the same way everywhere ([137d17c](https://github.com/linhnguyen-gt/Routiform/commit/137d17c7e75b1404ee61fd4207d438cb5e297ee0))
+- **openapi:** import js-yaml by name so the v5 bump can land ([777c18a](https://github.com/linhnguyen-gt/Routiform/commit/777c18ae8a352146edbb34e176fa062edd40b059))
+- **providers:** bind the check-all refs the hook actually reads ([e36da16](https://github.com/linhnguyen-gt/Routiform/commit/e36da1653cc862ed7790fe54f05fa169b2b30489))
+- **providers:** make RegistryEntry.executor truthful and pin it with a test ([d806a95](https://github.com/linhnguyen-gt/Routiform/commit/d806a95b8f3a22fa88331af926b65b2802edb641))
+- **providers:** validate the upstream-proxy map, tighten the schema, split free-tier totals ([a5aa0b4](https://github.com/linhnguyen-gt/Routiform/commit/a5aa0b40253abdcb675f79b788ddb2be997c3db7))
+- **proxy:** cover the LLM ingress paths in the middleware matcher ([0230aed](https://github.com/linhnguyen-gt/Routiform/commit/0230aede5a3cf62e2f5ac364a5404decc70eee66))
+- **routing:** hydrate auto-combo candidates with real quota data ([d75ff4e](https://github.com/linhnguyen-gt/Routiform/commit/d75ff4e6c0c8c0e4574cfae96e0f4830ccd7ac56))
+- **security:** actually consult the IP filter in the middleware ([fcede16](https://github.com/linhnguyen-gt/Routiform/commit/fcede1681bf3a0b02cfb0055118aded5c1a86908))
+- **security:** stop trusting client-supplied forwarding headers ([9f8f1a3](https://github.com/linhnguyen-gt/Routiform/commit/9f8f1a3360ee498e512c35f7ba6b7c413bb6b8b0))
+- **security:** wire the PII response sanitizer and make block mode block ([7d3676c](https://github.com/linhnguyen-gt/Routiform/commit/7d3676c16d9bad225223a94b91a4a856d4eb7408))
+- **settings:** reconcile fallbackStrategy schemas and add a quota-cache test seam ([d924aff](https://github.com/linhnguyen-gt/Routiform/commit/d924affc9b18940769238819e87d50abe6a4a0f7))
+- **translator:** close four wire-correctness defects in the Gemini and Responses paths ([924c68c](https://github.com/linhnguyen-gt/Routiform/commit/924c68ca7125e10295c19d71c8f73b25bad69c23))
 
 ## [4.0.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.37.0...v4.0.0) (2026-07-14)
 
-
 ### ⚠ BREAKING CHANGES
 
-* **chat:** serve Open WebUI at /owui on a Next/SQLite backend
-* **chat:** vendor the Open WebUI frontend source
-* **chat:** Open WebUI is no longer bundled or spawned. /dashboard/chat is now
-Routiform's own chat and no longer embeds an external application. The Docker volume
-routiform-open-webui-data is ORPHANED, NOT DELETED -- it still holds any conversation
-history from the old chat. It is no longer mounted by docker-compose.full.yml. Remove
-it manually with `docker volume rm routiform-open-webui-data` once you no longer need
-it. The OPEN_WEBUI_PORT and OPEN_WEBUI_ROUTIFORM_KEY environment variables are gone.
+- **chat:** serve Open WebUI at /owui on a Next/SQLite backend
+- **chat:** vendor the Open WebUI frontend source
+- **chat:** Open WebUI is no longer bundled or spawned. /dashboard/chat is now
+  Routiform's own chat and no longer embeds an external application. The Docker volume
+  routiform-open-webui-data is ORPHANED, NOT DELETED -- it still holds any conversation
+  history from the old chat. It is no longer mounted by docker-compose.full.yml. Remove
+  it manually with `docker volume rm routiform-open-webui-data` once you no longer need
+  it. The OPEN_WEBUI_PORT and OPEN_WEBUI_ROUTIFORM_KEY environment variables are gone.
 
 ### Features
 
-* **chat:** attachments with a translator-verified vision flag ([0c26ee6](https://github.com/linhnguyen-gt/Routiform/commit/0c26ee64ecb5369fffbb046ce7bb1d65d6d04105))
-* **chat:** drop the Open WebUI dependency, ship the native chat at /dashboard/chat ([6dad9cf](https://github.com/linhnguyen-gt/Routiform/commit/6dad9cf677807ca79e70e933799ba6e298178b42))
-* **chat:** native chat foundation — in-process router bridge, schema, parity test ([a16b31c](https://github.com/linhnguyen-gt/Routiform/commit/a16b31ca61dc2e282f2bade6d06b3c2d0f8153b9))
-* **chat:** native chat UI at /dashboard/chat/native ([e1edef2](https://github.com/linhnguyen-gt/Routiform/commit/e1edef26d0d4175130949fcb14dd46fc2fd99b40))
-* **chat:** restyle the chat shell to match Open WebUI ([ef494ef](https://github.com/linhnguyen-gt/Routiform/commit/ef494ef81d2f37cd8f14b5124c7d9fab2e57700a))
-* **chat:** serve Open WebUI at /owui on a Next/SQLite backend ([0b0cf11](https://github.com/linhnguyen-gt/Routiform/commit/0b0cf11921384bfb15f399ba8b1d61173eafa097))
-* **chat:** sign out of the chat back to the dashboard ([b9da193](https://github.com/linhnguyen-gt/Routiform/commit/b9da1930d884148b6f179d1d7243e5e2501b523c))
-
+- **chat:** attachments with a translator-verified vision flag ([0c26ee6](https://github.com/linhnguyen-gt/Routiform/commit/0c26ee64ecb5369fffbb046ce7bb1d65d6d04105))
+- **chat:** drop the Open WebUI dependency, ship the native chat at /dashboard/chat ([6dad9cf](https://github.com/linhnguyen-gt/Routiform/commit/6dad9cf677807ca79e70e933799ba6e298178b42))
+- **chat:** native chat foundation — in-process router bridge, schema, parity test ([a16b31c](https://github.com/linhnguyen-gt/Routiform/commit/a16b31ca61dc2e282f2bade6d06b3c2d0f8153b9))
+- **chat:** native chat UI at /dashboard/chat/native ([e1edef2](https://github.com/linhnguyen-gt/Routiform/commit/e1edef26d0d4175130949fcb14dd46fc2fd99b40))
+- **chat:** restyle the chat shell to match Open WebUI ([ef494ef](https://github.com/linhnguyen-gt/Routiform/commit/ef494ef81d2f37cd8f14b5124c7d9fab2e57700a))
+- **chat:** serve Open WebUI at /owui on a Next/SQLite backend ([0b0cf11](https://github.com/linhnguyen-gt/Routiform/commit/0b0cf11921384bfb15f399ba8b1d61173eafa097))
+- **chat:** sign out of the chat back to the dashboard ([b9da193](https://github.com/linhnguyen-gt/Routiform/commit/b9da1930d884148b6f179d1d7243e5e2501b523c))
 
 ### Bug Fixes
 
-* **chat:** close bugs from the /owui code review ([e3ac1c5](https://github.com/linhnguyen-gt/Routiform/commit/e3ac1c55071370b6b4e25708a073a054ce611781))
-* **chat:** load history before useChat, and stop corrupting the transcript ([3629cd0](https://github.com/linhnguyen-gt/Routiform/commit/3629cd012ac294d662f5a09da9ab0552a08bb8b2))
+- **chat:** close bugs from the /owui code review ([e3ac1c5](https://github.com/linhnguyen-gt/Routiform/commit/e3ac1c55071370b6b4e25708a073a054ce611781))
+- **chat:** load history before useChat, and stop corrupting the transcript ([3629cd0](https://github.com/linhnguyen-gt/Routiform/commit/3629cd012ac294d662f5a09da9ab0552a08bb8b2))
 
-
-* **chat:** vendor the Open WebUI frontend source ([44f3f0e](https://github.com/linhnguyen-gt/Routiform/commit/44f3f0e8730031a757bb6a8bcad94d627f06b3b7))
+- **chat:** vendor the Open WebUI frontend source ([44f3f0e](https://github.com/linhnguyen-gt/Routiform/commit/44f3f0e8730031a757bb6a8bcad94d627f06b3b7))
 
 ## [3.37.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.5...v3.37.0) (2026-07-13)
 
-
 ### Features
 
-* compression stack, routing strategies, free-tiers, and chat iframe fix ([8b72124](https://github.com/linhnguyen-gt/Routiform/commit/8b72124b62cc36df66d05f09c006aa41f3bb56b4))
-* **oauth:** add xAI SuperGrok OAuth (device code + PKCE) ([22881b4](https://github.com/linhnguyen-gt/Routiform/commit/22881b4f58246e80576515e88f1ef15df50983d8))
-
+- compression stack, routing strategies, free-tiers, and chat iframe fix ([8b72124](https://github.com/linhnguyen-gt/Routiform/commit/8b72124b62cc36df66d05f09c006aa41f3bb56b4))
+- **oauth:** add xAI SuperGrok OAuth (device code + PKCE) ([22881b4](https://github.com/linhnguyen-gt/Routiform/commit/22881b4f58246e80576515e88f1ef15df50983d8))
 
 ### Bug Fixes
 
-* **compression:** apply both compression settings to every provider, not just OpenAI/Claude ([d354daa](https://github.com/linhnguyen-gt/Routiform/commit/d354daa5abef00701c09861ea46139bd3faeb794))
-* **i18n:** sync free-tiers, headroom, and chatLauncher keys across locales ([0b9ab5e](https://github.com/linhnguyen-gt/Routiform/commit/0b9ab5eca64765a8af2a177454525f53b34ca528))
-* **router:** correctness pass across billing, translators, Kiro, Codex, and the model catalog ([27d808c](https://github.com/linhnguyen-gt/Routiform/commit/27d808cfab67a859d9d64d5da730214c572dd4a6))
-* **rtk:** stop cutting the middle out of Claude Code's file reads ([873d5c9](https://github.com/linhnguyen-gt/Routiform/commit/873d5c98211f6b33711a38ea81cc39c1c29b6442))
+- **compression:** apply both compression settings to every provider, not just OpenAI/Claude ([d354daa](https://github.com/linhnguyen-gt/Routiform/commit/d354daa5abef00701c09861ea46139bd3faeb794))
+- **i18n:** sync free-tiers, headroom, and chatLauncher keys across locales ([0b9ab5e](https://github.com/linhnguyen-gt/Routiform/commit/0b9ab5eca64765a8af2a177454525f53b34ca528))
+- **router:** correctness pass across billing, translators, Kiro, Codex, and the model catalog ([27d808c](https://github.com/linhnguyen-gt/Routiform/commit/27d808cfab67a859d9d64d5da730214c572dd4a6))
+- **rtk:** stop cutting the middle out of Claude Code's file reads ([873d5c9](https://github.com/linhnguyen-gt/Routiform/commit/873d5c98211f6b33711a38ea81cc39c1c29b6442))
 
 ### [3.36.5](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.4...v3.36.5) (2026-06-22)
 
-
 ### Bug Fixes
 
-* **chat:** append timestamp cache-buster to iframe URL ([9f19db2](https://github.com/linhnguyen-gt/Routiform/commit/9f19db22890fd4ff6788f9ed1636e6320eca97fa))
+- **chat:** append timestamp cache-buster to iframe URL ([9f19db2](https://github.com/linhnguyen-gt/Routiform/commit/9f19db22890fd4ff6788f9ed1636e6320eca97fa))
 
 ### [3.36.4](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.3...v3.36.4) (2026-06-22)
 
-
 ### Bug Fixes
 
-* **chat:** force iframe remount on reload to bust cached assets ([251f51a](https://github.com/linhnguyen-gt/Routiform/commit/251f51a5933bdcc10d7768299a56701a19b6ffe1))
-* **docker:** use command instead of entrypoint for open-webui ([621c61f](https://github.com/linhnguyen-gt/Routiform/commit/621c61fe66897f17b048e431f3880705656feb74))
+- **chat:** force iframe remount on reload to bust cached assets ([251f51a](https://github.com/linhnguyen-gt/Routiform/commit/251f51a5933bdcc10d7768299a56701a19b6ffe1))
+- **docker:** use command instead of entrypoint for open-webui ([621c61f](https://github.com/linhnguyen-gt/Routiform/commit/621c61fe66897f17b048e431f3880705656feb74))
 
 ### [3.36.3](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.2...v3.36.3) (2026-06-22)
 
-
 ### Bug Fixes
 
-* **docker:** use official open-webui entrypoint (bash start.sh) ([3f8b8cb](https://github.com/linhnguyen-gt/Routiform/commit/3f8b8cb83dc03af0166ee4b3dd7dfd8dbd7ad31d))
+- **docker:** use official open-webui entrypoint (bash start.sh) ([3f8b8cb](https://github.com/linhnguyen-gt/Routiform/commit/3f8b8cb83dc03af0166ee4b3dd7dfd8dbd7ad31d))
 
 ### [3.36.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.1...v3.36.2) (2026-06-22)
 
-
 ### Bug Fixes
 
-* **docker:** add header comment to bust CDN cache for compose file ([9ecde0a](https://github.com/linhnguyen-gt/Routiform/commit/9ecde0a6584ad5776339ce80ee35be3af3e66988))
-* **docker:** fix volumes indentation in docker-compose.full.yml ([4b20663](https://github.com/linhnguyen-gt/Routiform/commit/4b206637e988a1bab24550c4ba41e1504ab0af73))
+- **docker:** add header comment to bust CDN cache for compose file ([9ecde0a](https://github.com/linhnguyen-gt/Routiform/commit/9ecde0a6584ad5776339ce80ee35be3af3e66988))
+- **docker:** fix volumes indentation in docker-compose.full.yml ([4b20663](https://github.com/linhnguyen-gt/Routiform/commit/4b206637e988a1bab24550c4ba41e1504ab0af73))
 
 ### [3.36.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.36.0...v3.36.1) (2026-06-21)
 
-
 ### Bug Fixes
 
-* **docker:** auto-provision open-webui API key in Docker mode ([58e640f](https://github.com/linhnguyen-gt/Routiform/commit/58e640f2f2655a75247b63fb60986c5a27ebcfed))
-* **lint:** remove unused existsSync import in instrumentation-node ([64d37be](https://github.com/linhnguyen-gt/Routiform/commit/64d37be16567b336747bd9f5a51f3c26b64b0e66))
+- **docker:** auto-provision open-webui API key in Docker mode ([58e640f](https://github.com/linhnguyen-gt/Routiform/commit/58e640f2f2655a75247b63fb60986c5a27ebcfed))
+- **lint:** remove unused existsSync import in instrumentation-node ([64d37be](https://github.com/linhnguyen-gt/Routiform/commit/64d37be16567b336747bd9f5a51f3c26b64b0e66))
 
 ## [3.36.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.35.2...v3.36.0) (2026-06-21)
 
-
 ### Features
 
-* **chat:** embed Open WebUI full-viewport in dashboard chat tab ([3d2324c](https://github.com/linhnguyen-gt/Routiform/commit/3d2324c02e717c9f92810c36956463d1ec6e0113))
-* **cli:** add management subcommands with Docker entrypoint ([44d08bb](https://github.com/linhnguyen-gt/Routiform/commit/44d08bb7e484882fb752d7868e75422de1bc48c5))
-* **rtk:** add off/safe/full profile system with actionable truncation hints ([52e2558](https://github.com/linhnguyen-gt/Routiform/commit/52e255845a6f4055d5e40fc69ad8dd06c1736d80))
+- **chat:** embed Open WebUI full-viewport in dashboard chat tab ([3d2324c](https://github.com/linhnguyen-gt/Routiform/commit/3d2324c02e717c9f92810c36956463d1ec6e0113))
+- **cli:** add management subcommands with Docker entrypoint ([44d08bb](https://github.com/linhnguyen-gt/Routiform/commit/44d08bb7e484882fb752d7868e75422de1bc48c5))
+- **rtk:** add off/safe/full profile system with actionable truncation hints ([52e2558](https://github.com/linhnguyen-gt/Routiform/commit/52e255845a6f4055d5e40fc69ad8dd06c1736d80))
 
 ### [3.35.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.35.1...v3.35.2) (2026-06-20)
 
-
 ### Bug Fixes
 
-* **chat:** add version query param to Open WebUI URL to bust stale index.html cache ([374ca1d](https://github.com/linhnguyen-gt/Routiform/commit/374ca1d9779d610f23f248ed2b0929eef7c12dc7))
+- **chat:** add version query param to Open WebUI URL to bust stale index.html cache ([374ca1d](https://github.com/linhnguyen-gt/Routiform/commit/374ca1d9779d610f23f248ed2b0929eef7c12dc7))
 
 ### [3.35.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.35.0...v3.35.1) (2026-06-19)
 
-
 ### Bug Fixes
 
-* **chat:** probe sibling container for Open WebUI reachability in Docker mode ([b906896](https://github.com/linhnguyen-gt/Routiform/commit/b906896b17f5e452d4660f11edf0d20ab2c9c28d))
-* **chat:** propagate custom Open WebUI host port to browser URL ([efeb164](https://github.com/linhnguyen-gt/Routiform/commit/efeb16453afcc197da987440050bc2a1ac3a204b))
+- **chat:** probe sibling container for Open WebUI reachability in Docker mode ([b906896](https://github.com/linhnguyen-gt/Routiform/commit/b906896b17f5e452d4660f11edf0d20ab2c9c28d))
+- **chat:** propagate custom Open WebUI host port to browser URL ([efeb164](https://github.com/linhnguyen-gt/Routiform/commit/efeb16453afcc197da987440050bc2a1ac3a204b))
 
 ## [3.35.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.34.0...v3.35.0) (2026-06-19)
 
-
 ### Features
 
-* **chat:** add Chat sidebar entry that auto-spawns Open WebUI ([439fd5c](https://github.com/linhnguyen-gt/Routiform/commit/439fd5cebd627ec7e053e1383acd97829351d65e))
-* **rtk:** replace context compression with RTK Token Saver ([b90ce12](https://github.com/linhnguyen-gt/Routiform/commit/b90ce1260a5acbb39fd9d8203525b72e39068e60))
-
+- **chat:** add Chat sidebar entry that auto-spawns Open WebUI ([439fd5c](https://github.com/linhnguyen-gt/Routiform/commit/439fd5cebd627ec7e053e1383acd97829351d65e))
+- **rtk:** replace context compression with RTK Token Saver ([b90ce12](https://github.com/linhnguyen-gt/Routiform/commit/b90ce1260a5acbb39fd9d8203525b72e39068e60))
 
 ### Bug Fixes
 
-* **chat:** fix TDZ crash, add log tail during startup, fix error button label ([7a4e0bc](https://github.com/linhnguyen-gt/Routiform/commit/7a4e0bc0f992ba30ee29f9ad6abc50201b9774ce))
+- **chat:** fix TDZ crash, add log tail during startup, fix error button label ([7a4e0bc](https://github.com/linhnguyen-gt/Routiform/commit/7a4e0bc0f992ba30ee29f9ad6abc50201b9774ce))
 
 ## [3.34.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.33.0...v3.34.0) (2026-06-01)
 
-
 ### Features
 
-* **kiro:** forward real reasoning content instead of synthetic spinner ([e0eaa6b](https://github.com/linhnguyen-gt/Routiform/commit/e0eaa6be6a591b39bc33c6824f7997971f75b736))
-* **qoder:** full provider rewrite with device-flow OAuth + COSY signing ([edaa04d](https://github.com/linhnguyen-gt/Routiform/commit/edaa04d4ba341f48e1f6ab52350bd8c189aabe50))
-
+- **kiro:** forward real reasoning content instead of synthetic spinner ([e0eaa6b](https://github.com/linhnguyen-gt/Routiform/commit/e0eaa6be6a591b39bc33c6824f7997971f75b736))
+- **qoder:** full provider rewrite with device-flow OAuth + COSY signing ([edaa04d](https://github.com/linhnguyen-gt/Routiform/commit/edaa04d4ba341f48e1f6ab52350bd8c189aabe50))
 
 ### Bug Fixes
 
-* **ollama-cloud:** per-model lock for 403 subscription errors ([a4b6473](https://github.com/linhnguyen-gt/Routiform/commit/a4b647381cc5b1fa5fed3929bd3aa61d997103ba))
+- **ollama-cloud:** per-model lock for 403 subscription errors ([a4b6473](https://github.com/linhnguyen-gt/Routiform/commit/a4b647381cc5b1fa5fed3929bd3aa61d997103ba))
 
 ## [3.33.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.32.0...v3.33.0) (2026-05-31)
 
-
 ### Features
 
-* **dedupe:** add proxy-level request deduplication ([4fd341e](https://github.com/linhnguyen-gt/Routiform/commit/4fd341eedd6670d760522481c84b6f150e973a0b)), closes [#10377](https://github.com/linhnguyen-gt/Routiform/issues/10377)
-* **openclaw:** add API protocol dropdown (anthropic-messages | openai-completions) ([20fa51a](https://github.com/linhnguyen-gt/Routiform/commit/20fa51a59e3e4040969eea01a3f13559b16360e6))
-
+- **dedupe:** add proxy-level request deduplication ([4fd341e](https://github.com/linhnguyen-gt/Routiform/commit/4fd341eedd6670d760522481c84b6f150e973a0b)), closes [#10377](https://github.com/linhnguyen-gt/Routiform/issues/10377)
+- **openclaw:** add API protocol dropdown (anthropic-messages | openai-completions) ([20fa51a](https://github.com/linhnguyen-gt/Routiform/commit/20fa51a59e3e4040969eea01a3f13559b16360e6))
 
 ### Bug Fixes
 
-* **antigravity:** resolve project at runtime and harden test probes ([512084d](https://github.com/linhnguyen-gt/Routiform/commit/512084d7d331773055127848c9978ee2a74d7dc0))
+- **antigravity:** resolve project at runtime and harden test probes ([512084d](https://github.com/linhnguyen-gt/Routiform/commit/512084d7d331773055127848c9978ee2a74d7dc0))
 
 ## [3.32.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.31.2...v3.32.0) (2026-05-30)
 
-
 ### Features
 
-* **responses:** preserve native responses passthrough ([4b7a91a](https://github.com/linhnguyen-gt/Routiform/commit/4b7a91a763d870360dd13e111c25a0d4edc3d23c))
-
+- **responses:** preserve native responses passthrough ([4b7a91a](https://github.com/linhnguyen-gt/Routiform/commit/4b7a91a763d870360dd13e111c25a0d4edc3d23c))
 
 ### Bug Fixes
 
-* **kiro:** show thinking while awaiting stream content ([ea7b019](https://github.com/linhnguyen-gt/Routiform/commit/ea7b019510e9717d74424826da20eb3bd682af10))
+- **kiro:** show thinking while awaiting stream content ([ea7b019](https://github.com/linhnguyen-gt/Routiform/commit/ea7b019510e9717d74424826da20eb3bd682af10))
 
 ### [3.31.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.31.1...v3.31.2) (2026-05-29)
 
-
 ### Bug Fixes
 
-* **kiro:** strip system messages & fix Claude Code base URL ([f369b44](https://github.com/linhnguyen-gt/Routiform/commit/f369b44ebeaebb6dfea6b6d60adbf2d99265dd7a))
+- **kiro:** strip system messages & fix Claude Code base URL ([f369b44](https://github.com/linhnguyen-gt/Routiform/commit/f369b44ebeaebb6dfea6b6d60adbf2d99265dd7a))
 
 ### [3.31.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.31.0...v3.31.1) (2026-05-29)
 
-
 ### Bug Fixes
 
-* **kiro:** support IDC token import & fetch models from live API ([bbf9432](https://github.com/linhnguyen-gt/Routiform/commit/bbf94322969ea324af42b1afa707f446271d5cf9))
+- **kiro:** support IDC token import & fetch models from live API ([bbf9432](https://github.com/linhnguyen-gt/Routiform/commit/bbf94322969ea324af42b1afa707f446271d5cf9))
 
 ## [3.31.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.30.4...v3.31.0) (2026-05-29)
 
-
 ### Features
 
-* **dashboard:** improve logs and storage controls ([b64bf56](https://github.com/linhnguyen-gt/Routiform/commit/b64bf56417cae48656b9817af521b02808d1258d))
-* **models:** sync provider token limits ([42a741a](https://github.com/linhnguyen-gt/Routiform/commit/42a741a920a8b28edbae531de29839f670780b65))
-* **ui:** refresh docs and sidebar surfaces ([16c5012](https://github.com/linhnguyen-gt/Routiform/commit/16c5012865737132024d97e6539bcef6dacdd088))
-
+- **dashboard:** improve logs and storage controls ([b64bf56](https://github.com/linhnguyen-gt/Routiform/commit/b64bf56417cae48656b9817af521b02808d1258d))
+- **models:** sync provider token limits ([42a741a](https://github.com/linhnguyen-gt/Routiform/commit/42a741a920a8b28edbae531de29839f670780b65))
+- **ui:** refresh docs and sidebar surfaces ([16c5012](https://github.com/linhnguyen-gt/Routiform/commit/16c5012865737132024d97e6539bcef6dacdd088))
 
 ### Bug Fixes
 
-* **build:** avoid open-sse alias in db settings ([bf672ae](https://github.com/linhnguyen-gt/Routiform/commit/bf672aeefba38acb5b257dcf51ff05e1d97171f7))
-* **cli-runtime:** respect CLI_CONFIG_HOME in opencode config path resolution ([88c1ffc](https://github.com/linhnguyen-gt/Routiform/commit/88c1ffc6fc2314ac83aa23fa6f74b6c1c33ae539))
-* **cli-tools:** support docker full-mode detection ([ea12e50](https://github.com/linhnguyen-gt/Routiform/commit/ea12e5030ec299fcda989693aa09bbd31e7e5c02))
-* **i18n:** add missing disabled key to settings namespace ([dcc06bc](https://github.com/linhnguyen-gt/Routiform/commit/dcc06bc05e22260d9187ff00806f73546f795c51))
-* **routing:** respect account limits in live tests ([1ac48ad](https://github.com/linhnguyen-gt/Routiform/commit/1ac48addf986df5a5c3fb1682a7e34880e4bebf8))
+- **build:** avoid open-sse alias in db settings ([bf672ae](https://github.com/linhnguyen-gt/Routiform/commit/bf672aeefba38acb5b257dcf51ff05e1d97171f7))
+- **cli-runtime:** respect CLI_CONFIG_HOME in opencode config path resolution ([88c1ffc](https://github.com/linhnguyen-gt/Routiform/commit/88c1ffc6fc2314ac83aa23fa6f74b6c1c33ae539))
+- **cli-tools:** support docker full-mode detection ([ea12e50](https://github.com/linhnguyen-gt/Routiform/commit/ea12e5030ec299fcda989693aa09bbd31e7e5c02))
+- **i18n:** add missing disabled key to settings namespace ([dcc06bc](https://github.com/linhnguyen-gt/Routiform/commit/dcc06bc05e22260d9187ff00806f73546f795c51))
+- **routing:** respect account limits in live tests ([1ac48ad](https://github.com/linhnguyen-gt/Routiform/commit/1ac48addf986df5a5c3fb1682a7e34880e4bebf8))
 
 ### [3.30.4](https://github.com/linhnguyen-gt/Routiform/compare/v3.30.3...v3.30.4) (2026-05-28)
 
-
 ### Bug Fixes
 
-* **ci:** harden playwright install in e2e workflow ([cb3a5ae](https://github.com/linhnguyen-gt/Routiform/commit/cb3a5ae7d7880f0994b1061e264c8874b2948e1f))
-* **claude:** improve oauth callback and header handling ([c31d290](https://github.com/linhnguyen-gt/Routiform/commit/c31d290087fc57c666cbe00e89c8ec553b380a76))
-* **claude:** prefer fetched model catalog in provider detail ([09901d5](https://github.com/linhnguyen-gt/Routiform/commit/09901d5d1ff866d7617220f147722872aabef866))
-* **claude:** preserve native response fidelity ([bbc3783](https://github.com/linhnguyen-gt/Routiform/commit/bbc3783c1fa201c83128489f52f8f4bba16b70d4))
-* **claude:** refresh model handling and CLI defaults ([8032624](https://github.com/linhnguyen-gt/Routiform/commit/8032624b07106ff0b4a2ce1bf6aab2565332dd66))
-* **openai:** improve Responses API native response parity ([2d49983](https://github.com/linhnguyen-gt/Routiform/commit/2d499836d5353af46e8b8bb8b1266c06052e11ae))
-* **types:** filter undefined id from ClaudeModelRow before casting to RegistryModel ([91e170e](https://github.com/linhnguyen-gt/Routiform/commit/91e170e32381cd466f7ed365a9ebf384a3c4e6f1))
+- **ci:** harden playwright install in e2e workflow ([cb3a5ae](https://github.com/linhnguyen-gt/Routiform/commit/cb3a5ae7d7880f0994b1061e264c8874b2948e1f))
+- **claude:** improve oauth callback and header handling ([c31d290](https://github.com/linhnguyen-gt/Routiform/commit/c31d290087fc57c666cbe00e89c8ec553b380a76))
+- **claude:** prefer fetched model catalog in provider detail ([09901d5](https://github.com/linhnguyen-gt/Routiform/commit/09901d5d1ff866d7617220f147722872aabef866))
+- **claude:** preserve native response fidelity ([bbc3783](https://github.com/linhnguyen-gt/Routiform/commit/bbc3783c1fa201c83128489f52f8f4bba16b70d4))
+- **claude:** refresh model handling and CLI defaults ([8032624](https://github.com/linhnguyen-gt/Routiform/commit/8032624b07106ff0b4a2ce1bf6aab2565332dd66))
+- **openai:** improve Responses API native response parity ([2d49983](https://github.com/linhnguyen-gt/Routiform/commit/2d499836d5353af46e8b8bb8b1266c06052e11ae))
+- **types:** filter undefined id from ClaudeModelRow before casting to RegistryModel ([91e170e](https://github.com/linhnguyen-gt/Routiform/commit/91e170e32381cd466f7ed365a9ebf384a3c4e6f1))
 
 ### [3.30.3](https://github.com/linhnguyen-gt/Routiform/compare/v3.30.2...v3.30.3) (2026-05-25)
 
-
 ### Bug Fixes
 
-* **opencode:** generate protocol-correct OpenCode config ([34b477e](https://github.com/linhnguyen-gt/Routiform/commit/34b477e35e9b62cfcf2d8ee9e4d924abb71b5385))
-* **release:** lock publish workflows to release tags ([294e36b](https://github.com/linhnguyen-gt/Routiform/commit/294e36ba80fb7714578aaf23da48c7194b051c5f))
+- **opencode:** generate protocol-correct OpenCode config ([34b477e](https://github.com/linhnguyen-gt/Routiform/commit/34b477e35e9b62cfcf2d8ee9e4d924abb71b5385))
+- **release:** lock publish workflows to release tags ([294e36b](https://github.com/linhnguyen-gt/Routiform/commit/294e36ba80fb7714578aaf23da48c7194b051c5f))
 
 ### [3.30.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.30.1...v3.30.2) (2026-05-24)
 
-
 ### Bug Fixes
 
-* **antigravity:** model handling and logging ([8301ce1](https://github.com/linhnguyen-gt/Routiform/commit/8301ce149cbd276b12b3455d1e6a98d1d4758b50))
+- **antigravity:** model handling and logging ([8301ce1](https://github.com/linhnguyen-gt/Routiform/commit/8301ce149cbd276b12b3455d1e6a98d1d4758b50))
 
 ### [3.30.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.30.0...v3.30.1) (2026-05-24)
 
-
 ### Bug Fixes
 
-* **cli-tools:** repair codex configuration flow ([0c40037](https://github.com/linhnguyen-gt/Routiform/commit/0c40037b8bf86cc40947dcd45ae0b0903c6244e8))
+- **cli-tools:** repair codex configuration flow ([0c40037](https://github.com/linhnguyen-gt/Routiform/commit/0c40037b8bf86cc40947dcd45ae0b0903c6244e8))
 
 ## [3.30.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.29.2...v3.30.0) (2026-05-24)
 
-
 ### Features
 
-* **context:** raise default token limits ([fa2e493](https://github.com/linhnguyen-gt/Routiform/commit/fa2e4935fc6cd7f1ffdb32b667655bf137d817d7))
-* **devin:** add request and response translators ([d2a41b2](https://github.com/linhnguyen-gt/Routiform/commit/d2a41b20addc3b141f3261526649e1bbb5c394ad))
-
+- **context:** raise default token limits ([fa2e493](https://github.com/linhnguyen-gt/Routiform/commit/fa2e4935fc6cd7f1ffdb32b667655bf137d817d7))
+- **devin:** add request and response translators ([d2a41b2](https://github.com/linhnguyen-gt/Routiform/commit/d2a41b20addc3b141f3261526649e1bbb5c394ad))
 
 ### Bug Fixes
 
-* **models:** update gpt-5 context limits ([2691aef](https://github.com/linhnguyen-gt/Routiform/commit/2691aef4597f524ebf44575d39c37221a3614183))
-* **runtime:** stabilize provider adapters and refactor stream handling ([011d877](https://github.com/linhnguyen-gt/Routiform/commit/011d87729827896ed42c2b983dd9af4f68367589))
+- **models:** update gpt-5 context limits ([2691aef](https://github.com/linhnguyen-gt/Routiform/commit/2691aef4597f524ebf44575d39c37221a3614183))
+- **runtime:** stabilize provider adapters and refactor stream handling ([011d877](https://github.com/linhnguyen-gt/Routiform/commit/011d87729827896ed42c2b983dd9af4f68367589))
 
 ### [3.29.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.29.1...v3.29.2) (2026-05-22)
 
-
 ### Bug Fixes
 
-* **codex:** remove session_id from body before native passthrough return ([9d0bfb1](https://github.com/linhnguyen-gt/Routiform/commit/9d0bfb17358be63c2e2b4cf394ad7011edac6130))
+- **codex:** remove session_id from body before native passthrough return ([9d0bfb1](https://github.com/linhnguyen-gt/Routiform/commit/9d0bfb17358be63c2e2b4cf394ad7011edac6130))
 
 ### [3.29.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.29.0...v3.29.1) (2026-05-20)
 
-
 ### Bug Fixes
 
-* **devin:** bundle Linux CLI in Docker and resolve executable path ([e7a4f57](https://github.com/linhnguyen-gt/Routiform/commit/e7a4f57ab30b17b77c82ad4c9be1ca49e345f28c))
-* **provider:** align Antigravity Gemini model IDs ([fcff039](https://github.com/linhnguyen-gt/Routiform/commit/fcff03959397a32be97fc7b93aaf980f238c8c85))
+- **devin:** bundle Linux CLI in Docker and resolve executable path ([e7a4f57](https://github.com/linhnguyen-gt/Routiform/commit/e7a4f57ab30b17b77c82ad4c9be1ca49e345f28c))
+- **provider:** align Antigravity Gemini model IDs ([fcff039](https://github.com/linhnguyen-gt/Routiform/commit/fcff03959397a32be97fc7b93aaf980f238c8c85))
 
 ## [3.29.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.28.0...v3.29.0) (2026-05-20)
 
-
 ### Features
 
-* **translator:** align Kiro request types with native API schema ([daf06ae](https://github.com/linhnguyen-gt/Routiform/commit/daf06aec18edfc2f1613b71e91ea8ae0c5e44c64))
+- **translator:** align Kiro request types with native API schema ([daf06ae](https://github.com/linhnguyen-gt/Routiform/commit/daf06aec18edfc2f1613b71e91ea8ae0c5e44c64))
 
 ## [3.28.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.27.2...v3.28.0) (2026-05-20)
 
-
 ### Features
 
-* **provider:** add Devin CLI provider integration ([d967854](https://github.com/linhnguyen-gt/Routiform/commit/d967854a04fd9e488b1f2b9b5c85bc5278e85ab0))
-* **provider:** add Devin CLI provider integration ([8fd6f43](https://github.com/linhnguyen-gt/Routiform/commit/8fd6f437beeabc9475d3df0d8da6b3f923593bdd))
-* **provider:** add Devin icon, fix models list and test support ([20db03b](https://github.com/linhnguyen-gt/Routiform/commit/20db03becb4e26d7b66a5ab9031ab85b0215a4fa))
-* **provider:** fetch Devin models dynamically ([8952209](https://github.com/linhnguyen-gt/Routiform/commit/895220939d116772a4655efec0b85d3d2a864996))
-
+- **provider:** add Devin CLI provider integration ([d967854](https://github.com/linhnguyen-gt/Routiform/commit/d967854a04fd9e488b1f2b9b5c85bc5278e85ab0))
+- **provider:** add Devin CLI provider integration ([8fd6f43](https://github.com/linhnguyen-gt/Routiform/commit/8fd6f437beeabc9475d3df0d8da6b3f923593bdd))
+- **provider:** add Devin icon, fix models list and test support ([20db03b](https://github.com/linhnguyen-gt/Routiform/commit/20db03becb4e26d7b66a5ab9031ab85b0215a4fa))
+- **provider:** fetch Devin models dynamically ([8952209](https://github.com/linhnguyen-gt/Routiform/commit/895220939d116772a4655efec0b85d3d2a864996))
 
 ### Bug Fixes
 
-* **provider:** add validateBody to Devin import route ([09e1d46](https://github.com/linhnguyen-gt/Routiform/commit/09e1d465cf3c6aa1a6edcdf7267246e01f74b073))
+- **provider:** add validateBody to Devin import route ([09e1d46](https://github.com/linhnguyen-gt/Routiform/commit/09e1d465cf3c6aa1a6edcdf7267246e01f74b073))
 
 ### [3.27.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.27.1...v3.27.2) (2026-05-15)
 
-
 ### Bug Fixes
 
-* **executor:** sanitize reasoning_effort per provider capability ([0abbd7d](https://github.com/linhnguyen-gt/Routiform/commit/0abbd7d13b848946721905110e68ea5b39a1d3ce))
-* **kiro:** extract system prompt and prepend to current message ([e1da1f3](https://github.com/linhnguyen-gt/Routiform/commit/e1da1f3daf40f22b0374c8e018ec79608d757ddb))
-* **kiro:** fix response translator — reasoning_content, tool index, truncation, bracket tools ([a5dc36f](https://github.com/linhnguyen-gt/Routiform/commit/a5dc36f259356cbb96bfa4f12db142795595c478))
-* **oauth:** remove premature client_secret check in Gemini OAuth ([5c45735](https://github.com/linhnguyen-gt/Routiform/commit/5c45735eeadc032de49ca43944c8512184ea0e3a))
-* **reasoning:** add deepseek-v4 to replay model patterns ([626e04c](https://github.com/linhnguyen-gt/Routiform/commit/626e04c352139baf714ba8612648cc585efa56fe))
-* **translator:** coerce submit_pr_review array fields ([a8c9021](https://github.com/linhnguyen-gt/Routiform/commit/a8c9021deb6b5923ea3b3459a99e19206f7ae596))
-* **translator:** emit reasoning_content for redacted_thinking blocks ([3d8b634](https://github.com/linhnguyen-gt/Routiform/commit/3d8b634c4611c03b7752cde59b2516bdea63192e))
-* **translator:** preserve include array and degrade background:true in Responses API ([0a83d87](https://github.com/linhnguyen-gt/Routiform/commit/0a83d8786f6dd9e6e250e5fec49f10f57e29ac3f))
-* **translator:** preserve latest assistant thinking blocks verbatim ([1787ab7](https://github.com/linhnguyen-gt/Routiform/commit/1787ab7d3b8b4b7bf7bbb404e5242bf217fc9ed4))
+- **executor:** sanitize reasoning_effort per provider capability ([0abbd7d](https://github.com/linhnguyen-gt/Routiform/commit/0abbd7d13b848946721905110e68ea5b39a1d3ce))
+- **kiro:** extract system prompt and prepend to current message ([e1da1f3](https://github.com/linhnguyen-gt/Routiform/commit/e1da1f3daf40f22b0374c8e018ec79608d757ddb))
+- **kiro:** fix response translator — reasoning_content, tool index, truncation, bracket tools ([a5dc36f](https://github.com/linhnguyen-gt/Routiform/commit/a5dc36f259356cbb96bfa4f12db142795595c478))
+- **oauth:** remove premature client_secret check in Gemini OAuth ([5c45735](https://github.com/linhnguyen-gt/Routiform/commit/5c45735eeadc032de49ca43944c8512184ea0e3a))
+- **reasoning:** add deepseek-v4 to replay model patterns ([626e04c](https://github.com/linhnguyen-gt/Routiform/commit/626e04c352139baf714ba8612648cc585efa56fe))
+- **translator:** coerce submit_pr_review array fields ([a8c9021](https://github.com/linhnguyen-gt/Routiform/commit/a8c9021deb6b5923ea3b3459a99e19206f7ae596))
+- **translator:** emit reasoning_content for redacted_thinking blocks ([3d8b634](https://github.com/linhnguyen-gt/Routiform/commit/3d8b634c4611c03b7752cde59b2516bdea63192e))
+- **translator:** preserve include array and degrade background:true in Responses API ([0a83d87](https://github.com/linhnguyen-gt/Routiform/commit/0a83d8786f6dd9e6e250e5fec49f10f57e29ac3f))
+- **translator:** preserve latest assistant thinking blocks verbatim ([1787ab7](https://github.com/linhnguyen-gt/Routiform/commit/1787ab7d3b8b4b7bf7bbb404e5242bf217fc9ed4))
 
 ### [3.27.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.27.0...v3.27.1) (2026-05-15)
 
-
 ### Bug Fixes
 
-* **executor:** sanitize reasoning_effort per provider capability ([9d4634c](https://github.com/linhnguyen-gt/Routiform/commit/9d4634cdd1b850565e5818620b8adba1d6b62b96))
-* **reasoning:** add deepseek-v4 to replay model patterns ([d29ca3d](https://github.com/linhnguyen-gt/Routiform/commit/d29ca3d5341bbee1d9e1568c59fe037819a148dd))
-* **translator:** coerce submit_pr_review array fields ([85bbe2d](https://github.com/linhnguyen-gt/Routiform/commit/85bbe2d2a5257c6c5a905c4e318d30ec27a7f647))
-* **translator:** emit reasoning_content for redacted_thinking blocks ([627a43a](https://github.com/linhnguyen-gt/Routiform/commit/627a43a604b3fc39fc290e49bf2395b7ad52ceee))
-* **translator:** preserve include array and degrade background:true in Responses API ([f647033](https://github.com/linhnguyen-gt/Routiform/commit/f647033c0d02fe1572fec73c685812d13b5dc687))
-* **translator:** preserve latest assistant thinking blocks verbatim ([0e00ed7](https://github.com/linhnguyen-gt/Routiform/commit/0e00ed70c763521f54c23818c6cf289b2b330f6a))
+- **executor:** sanitize reasoning_effort per provider capability ([9d4634c](https://github.com/linhnguyen-gt/Routiform/commit/9d4634cdd1b850565e5818620b8adba1d6b62b96))
+- **reasoning:** add deepseek-v4 to replay model patterns ([d29ca3d](https://github.com/linhnguyen-gt/Routiform/commit/d29ca3d5341bbee1d9e1568c59fe037819a148dd))
+- **translator:** coerce submit_pr_review array fields ([85bbe2d](https://github.com/linhnguyen-gt/Routiform/commit/85bbe2d2a5257c6c5a905c4e318d30ec27a7f647))
+- **translator:** emit reasoning_content for redacted_thinking blocks ([627a43a](https://github.com/linhnguyen-gt/Routiform/commit/627a43a604b3fc39fc290e49bf2395b7ad52ceee))
+- **translator:** preserve include array and degrade background:true in Responses API ([f647033](https://github.com/linhnguyen-gt/Routiform/commit/f647033c0d02fe1572fec73c685812d13b5dc687))
+- **translator:** preserve latest assistant thinking blocks verbatim ([0e00ed7](https://github.com/linhnguyen-gt/Routiform/commit/0e00ed70c763521f54c23818c6cf289b2b330f6a))
 
 ## [3.27.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.26.0...v3.27.0) (2026-05-15)
 
-
 ### Features
 
-* **open-sse:** add CommandCode provider ([c539db0](https://github.com/linhnguyen-gt/Routiform/commit/c539db0691c0226b0847c1524acc3420485dc420))
-
+- **open-sse:** add CommandCode provider ([c539db0](https://github.com/linhnguyen-gt/Routiform/commit/c539db0691c0226b0847c1524acc3420485dc420))
 
 ### Bug Fixes
 
-* **translator:** type Kiro converters ([5927d0d](https://github.com/linhnguyen-gt/Routiform/commit/5927d0da915b1d98a8200745f7455adfdc8b8676))
+- **translator:** type Kiro converters ([5927d0d](https://github.com/linhnguyen-gt/Routiform/commit/5927d0da915b1d98a8200745f7455adfdc8b8676))
 
 ## [3.26.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.25.3...v3.26.0) (2026-05-14)
 
-
 ### Features
 
-* **opencode:** add limit.output to opencode model config ([a218418](https://github.com/linhnguyen-gt/Routiform/commit/a21841817bbd6e76d18e5dc1c11f0721f6e70332))
-
+- **opencode:** add limit.output to opencode model config ([a218418](https://github.com/linhnguyen-gt/Routiform/commit/a21841817bbd6e76d18e5dc1c11f0721f6e70332))
 
 ### Bug Fixes
 
-* **opencode:** always include limit.output when limit.context is set ([30f713a](https://github.com/linhnguyen-gt/Routiform/commit/30f713a22de8668cccf91ab0f1f4ec3e5fb9d2f9))
+- **opencode:** always include limit.output when limit.context is set ([30f713a](https://github.com/linhnguyen-gt/Routiform/commit/30f713a22de8668cccf91ab0f1f4ec3e5fb9d2f9))
 
 ### [3.25.3](https://github.com/linhnguyen-gt/Routiform/compare/v3.25.2...v3.25.3) (2026-05-14)
 
-
 ### Bug Fixes
 
-* **opencode:** fix provider key, add context window lookup, update Kiro config ([34ffc83](https://github.com/linhnguyen-gt/Routiform/commit/34ffc83c27ecf6a7625461a5254b489034984510))
+- **opencode:** fix provider key, add context window lookup, update Kiro config ([34ffc83](https://github.com/linhnguyen-gt/Routiform/commit/34ffc83c27ecf6a7625461a5254b489034984510))
 
 ### [3.25.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.25.1...v3.25.2) (2026-05-06)
 
-
 ### Bug Fixes
 
-* **mitm:** block scanner bots on raw IP + skip sudo password in Docker root ([37646eb](https://github.com/linhnguyen-gt/Routiform/commit/37646ebc68d9703afaae0a1f24ad009fd6f95ba2))
+- **mitm:** block scanner bots on raw IP + skip sudo password in Docker root ([37646eb](https://github.com/linhnguyen-gt/Routiform/commit/37646ebc68d9703afaae0a1f24ad009fd6f95ba2))
 
 ### [3.25.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.25.0...v3.25.1) (2026-05-06)
 
-
 ### Bug Fixes
 
-* resolve TypeScript errors — unknown type narrowing, missing imports, type predicates ([4dc374e](https://github.com/linhnguyen-gt/Routiform/commit/4dc374e7564d963b5937a1085675b7c0589367cd))
+- resolve TypeScript errors — unknown type narrowing, missing imports, type predicates ([4dc374e](https://github.com/linhnguyen-gt/Routiform/commit/4dc374e7564d963b5937a1085675b7c0589367cd))
 
 ## [3.25.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.24.3...v3.25.0) (2026-05-06)
 
-
 ### Features
 
-* MITM multi-tool proxy + Hermes Agent + Cowork tool ([4604e6f](https://github.com/linhnguyen-gt/Routiform/commit/4604e6f2ae50e09c0163ac5fd7a0e008f60fdfb6))
-
+- MITM multi-tool proxy + Hermes Agent + Cowork tool ([4604e6f](https://github.com/linhnguyen-gt/Routiform/commit/4604e6f2ae50e09c0163ac5fd7a0e008f60fdfb6))
 
 ### Bug Fixes
 
-* add Zod validation to cowork-settings and hermes-settings routes ([63f4f5e](https://github.com/linhnguyen-gt/Routiform/commit/63f4f5e6f614eeb36bc4fbe79e0b20e7da047332))
+- add Zod validation to cowork-settings and hermes-settings routes ([63f4f5e](https://github.com/linhnguyen-gt/Routiform/commit/63f4f5e6f614eeb36bc4fbe79e0b20e7da047332))
 
 ### [3.24.3](https://github.com/linhnguyen-gt/Routiform/compare/v3.24.2...v3.24.3) (2026-05-04)
 
-
 ### Bug Fixes
 
-* **ci:** repair 3 failing tests — format detection and live combo tests ([fd91317](https://github.com/linhnguyen-gt/Routiform/commit/fd913170786e88cb1fd1fe3ac1a416602d975377))
-* GitHub OAuth display name + Kiro quotas Refreshing loop ([aa51d45](https://github.com/linhnguyen-gt/Routiform/commit/aa51d4525c56b1b9c51614ef3cd0036edb618387))
+- **ci:** repair 3 failing tests — format detection and live combo tests ([fd91317](https://github.com/linhnguyen-gt/Routiform/commit/fd913170786e88cb1fd1fe3ac1a416602d975377))
+- GitHub OAuth display name + Kiro quotas Refreshing loop ([aa51d45](https://github.com/linhnguyen-gt/Routiform/commit/aa51d4525c56b1b9c51614ef3cd0036edb618387))
 
 ### [3.24.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.24.1...v3.24.2) (2026-05-02)
 
-
 ### Bug Fixes
 
-* **cline:** handle unix timestamp expiresAt in both OAuth and refresh paths ([c3b62ca](https://github.com/linhnguyen-gt/Routiform/commit/c3b62ca63b7706ba1ffbba6b8abfc82a9ff30e13))
-* **cline:** handle unix timestamp expiresAt in OAuth token mapping ([99528db](https://github.com/linhnguyen-gt/Routiform/commit/99528db8709590dde2c102a5ad7a657b7d90a7f9))
-* **cline:** rewrite OAuth exchange, refresh, and auth prefix from upstream ([16e8191](https://github.com/linhnguyen-gt/Routiform/commit/16e8191212c5ed389550246ed98c5f390271c275))
-* **codex:** update CLI fingerprint body order + filter Responses deltas ([1dd587a](https://github.com/linhnguyen-gt/Routiform/commit/1dd587abab2c1466b28879192e81d72a18996c0c))
-* **db:** tolerate missing request_detail_logs table in legacy databases ([9216971](https://github.com/linhnguyen-gt/Routiform/commit/9216971bf522c411076084fb0032c522732dbc47))
-* **gemini-cli:** add capture-backed fingerprint + UI redesign ([33e4277](https://github.com/linhnguyen-gt/Routiform/commit/33e4277e5d3009f3b3f9a6591e965d31599534f8))
-* **mitm:** Antigravity MITM proxy improvements + Docker support ([6fe6690](https://github.com/linhnguyen-gt/Routiform/commit/6fe66907f7bf61730ee6f88ba880ad57e2e1fffa))
-* **workflow:** trigger docker build on version tags + grok toolCalling ([2675120](https://github.com/linhnguyen-gt/Routiform/commit/2675120cfe1726b271dcdc93e755e6bf03e2a529))
+- **cline:** handle unix timestamp expiresAt in both OAuth and refresh paths ([c3b62ca](https://github.com/linhnguyen-gt/Routiform/commit/c3b62ca63b7706ba1ffbba6b8abfc82a9ff30e13))
+- **cline:** handle unix timestamp expiresAt in OAuth token mapping ([99528db](https://github.com/linhnguyen-gt/Routiform/commit/99528db8709590dde2c102a5ad7a657b7d90a7f9))
+- **cline:** rewrite OAuth exchange, refresh, and auth prefix from upstream ([16e8191](https://github.com/linhnguyen-gt/Routiform/commit/16e8191212c5ed389550246ed98c5f390271c275))
+- **codex:** update CLI fingerprint body order + filter Responses deltas ([1dd587a](https://github.com/linhnguyen-gt/Routiform/commit/1dd587abab2c1466b28879192e81d72a18996c0c))
+- **db:** tolerate missing request_detail_logs table in legacy databases ([9216971](https://github.com/linhnguyen-gt/Routiform/commit/9216971bf522c411076084fb0032c522732dbc47))
+- **gemini-cli:** add capture-backed fingerprint + UI redesign ([33e4277](https://github.com/linhnguyen-gt/Routiform/commit/33e4277e5d3009f3b3f9a6591e965d31599534f8))
+- **mitm:** Antigravity MITM proxy improvements + Docker support ([6fe6690](https://github.com/linhnguyen-gt/Routiform/commit/6fe66907f7bf61730ee6f88ba880ad57e2e1fffa))
+- **workflow:** trigger docker build on version tags + grok toolCalling ([2675120](https://github.com/linhnguyen-gt/Routiform/commit/2675120cfe1726b271dcdc93e755e6bf03e2a529))
 
 ### [3.24.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.24.0...v3.24.1) (2026-04-30)
 
-
 ### Bug Fixes
 
-* **normalize:** strip stale unsupported-image error blocks when switching models mid-session ([40cd311](https://github.com/linhnguyen-gt/Routiform/commit/40cd3113039a20a2c66dcd05c09eb1acc553e82f))
+- **normalize:** strip stale unsupported-image error blocks when switching models mid-session ([40cd311](https://github.com/linhnguyen-gt/Routiform/commit/40cd3113039a20a2c66dcd05c09eb1acc553e82f))
 
 ## [3.24.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.23.4...v3.24.0) (2026-04-29)
 
-
 ### Features
 
-* **open-sse:** stream stability parity — Gemini chunks, proxy pipelining, Codex session ([f3de5eb](https://github.com/linhnguyen-gt/Routiform/commit/f3de5eb63f7a37bd31a2623d190b65982bf6421c))
-* **registry,ui:** reasoning effort defaults for o1/o3/deepseek-reasoner, fix UI extraction ([0685e38](https://github.com/linhnguyen-gt/Routiform/commit/0685e3861a4de89d93c1a8a8ceda677e2a42905c))
-
+- **open-sse:** stream stability parity — Gemini chunks, proxy pipelining, Codex session ([f3de5eb](https://github.com/linhnguyen-gt/Routiform/commit/f3de5eb63f7a37bd31a2623d190b65982bf6421c))
+- **registry,ui:** reasoning effort defaults for o1/o3/deepseek-reasoner, fix UI extraction ([0685e38](https://github.com/linhnguyen-gt/Routiform/commit/0685e3861a4de89d93c1a8a8ceda677e2a42905c))
 
 ### Bug Fixes
 
-* **open-sse:** gateway parity stability for rate limits, SSE idle, and tools ([b550d6f](https://github.com/linhnguyen-gt/Routiform/commit/b550d6f0a70cae6f93456164772d4c363664eab3))
-* **open-sse:** improve auto-compress efficiency with turn-based purification and proactive threshold ([64e2b16](https://github.com/linhnguyen-gt/Routiform/commit/64e2b162f362a22a2628452fdf8301c6fa67651d))
-* **ui:** cast reasoningEffort to string to satisfy ReactNode type ([fe43d28](https://github.com/linhnguyen-gt/Routiform/commit/fe43d2871fcaaad01a133b3f5e7e3c10726a82cd))
-* **ui:** prevent contextValidation race by pausing poll during save ([be5ee80](https://github.com/linhnguyen-gt/Routiform/commit/be5ee80b1368b50855684e048a71ac31fc075f17))
+- **open-sse:** gateway parity stability for rate limits, SSE idle, and tools ([b550d6f](https://github.com/linhnguyen-gt/Routiform/commit/b550d6f0a70cae6f93456164772d4c363664eab3))
+- **open-sse:** improve auto-compress efficiency with turn-based purification and proactive threshold ([64e2b16](https://github.com/linhnguyen-gt/Routiform/commit/64e2b162f362a22a2628452fdf8301c6fa67651d))
+- **ui:** cast reasoningEffort to string to satisfy ReactNode type ([fe43d28](https://github.com/linhnguyen-gt/Routiform/commit/fe43d2871fcaaad01a133b3f5e7e3c10726a82cd))
+- **ui:** prevent contextValidation race by pausing poll during save ([be5ee80](https://github.com/linhnguyen-gt/Routiform/commit/be5ee80b1368b50855684e048a71ac31fc075f17))
 
 ### [3.23.4](https://github.com/linhnguyen-gt/Routiform/compare/v3.23.3...v3.23.4) (2026-04-28)
 
-
 ### Bug Fixes
 
-* harden antigravity routing and reasoning replay reliability ([df4d409](https://github.com/linhnguyen-gt/Routiform/commit/df4d409b9a896f7813461fef5f58121cf050c4dd))
-* preserve tool fields named pattern in Antigravity schema sanitizer ([da3d51b](https://github.com/linhnguyen-gt/Routiform/commit/da3d51be3b9e865ad10e85989dc638da51499705))
-* treat placeholder-only assistant content as empty ([d20fd99](https://github.com/linhnguyen-gt/Routiform/commit/d20fd99b70e8d28968b8cb6ea858b15b805f7090))
+- harden antigravity routing and reasoning replay reliability ([df4d409](https://github.com/linhnguyen-gt/Routiform/commit/df4d409b9a896f7813461fef5f58121cf050c4dd))
+- preserve tool fields named pattern in Antigravity schema sanitizer ([da3d51b](https://github.com/linhnguyen-gt/Routiform/commit/da3d51be3b9e865ad10e85989dc638da51499705))
+- treat placeholder-only assistant content as empty ([d20fd99](https://github.com/linhnguyen-gt/Routiform/commit/d20fd99b70e8d28968b8cb6ea858b15b805f7090))
 
 ### [3.23.3](https://github.com/linhnguyen-gt/Routiform/compare/v3.23.2...v3.23.3) (2026-04-28)
 
-
 ### Bug Fixes
 
-* add python3, make, g++ to builder stage for better-sqlite3 native build ([eb666f4](https://github.com/linhnguyen-gt/Routiform/commit/eb666f40ed2ed41cd15d4d88c43f6895af6e4e5b))
+- add python3, make, g++ to builder stage for better-sqlite3 native build ([eb666f4](https://github.com/linhnguyen-gt/Routiform/commit/eb666f40ed2ed41cd15d4d88c43f6895af6e4e5b))
 
 ### [3.23.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.23.1...v3.23.2) (2026-04-28)
 
-
 ### Bug Fixes
 
-* map gemini-3.1-pro-high/low to upstream model names ([d3cf9e6](https://github.com/linhnguyen-gt/Routiform/commit/d3cf9e64a2d3ba3ae3e92874cd58ee68a09e8886))
+- map gemini-3.1-pro-high/low to upstream model names ([d3cf9e6](https://github.com/linhnguyen-gt/Routiform/commit/d3cf9e64a2d3ba3ae3e92874cd58ee68a09e8886))
 
 ### [3.23.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.23.0...v3.23.1) (2026-04-28)
 
-
 ### Bug Fixes
 
-* correct token estimation ratios to prevent context overflow 500 errors ([fcd330b](https://github.com/linhnguyen-gt/Routiform/commit/fcd330be741d07f74fefeb7ed9b5e9c5de77371b))
+- correct token estimation ratios to prevent context overflow 500 errors ([fcd330b](https://github.com/linhnguyen-gt/Routiform/commit/fcd330be741d07f74fefeb7ed9b5e9c5de77371b))
 
 ## [3.23.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.22.1...v3.23.0) (2026-04-27)
 
-
 ### Features
 
-* **cli:** add interactive menu with log suppression ([6c46f4b](https://github.com/linhnguyen-gt/Routiform/commit/6c46f4bf6c50eee419b22f35a19cabf0393600a5))
+- **cli:** add interactive menu with log suppression ([6c46f4b](https://github.com/linhnguyen-gt/Routiform/commit/6c46f4bf6c50eee419b22f35a19cabf0393600a5))
 
 ### [3.22.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.22.0...v3.22.1) (2026-04-27)
 
-
 ### Bug Fixes
 
-* context validation resets to passthrough on server restart ([87ca2d2](https://github.com/linhnguyen-gt/Routiform/commit/87ca2d2d36b1805e7ad312b0d19d6e915b7f95a6))
+- context validation resets to passthrough on server restart ([87ca2d2](https://github.com/linhnguyen-gt/Routiform/commit/87ca2d2d36b1805e7ad312b0d19d6e915b7f95a6))
 
 ## [3.22.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.21.1...v3.22.0) (2026-04-27)
 
-
 ### Features
 
-* improve auto-compress with 7-layer intelligent pipeline ([266acab](https://github.com/linhnguyen-gt/Routiform/commit/266acabea1c90b515dbf4e7357fa5ce925e6f154))
+- improve auto-compress with 7-layer intelligent pipeline ([266acab](https://github.com/linhnguyen-gt/Routiform/commit/266acabea1c90b515dbf4e7357fa5ce925e6f154))
 
 ### [3.21.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.21.0...v3.21.1) (2026-04-27)
 
-
 ### Bug Fixes
 
-* remove contextValidation default override and add cache headers to settings endpoint ([b33d9da](https://github.com/linhnguyen-gt/Routiform/commit/b33d9dafe3cc3c001c2a65d53c63744a30393bf4))
+- remove contextValidation default override and add cache headers to settings endpoint ([b33d9da](https://github.com/linhnguyen-gt/Routiform/commit/b33d9dafe3cc3c001c2a65d53c63744a30393bf4))
 
 ## [3.21.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.20.0...v3.21.0) (2026-04-27)
 
-
 ### Features
 
-* add analytics API endpoints ([fab15f2](https://github.com/linhnguyen-gt/Routiform/commit/fab15f2efd582ba3a0642d7cd9177c4108bdf513))
-* add provider analytics dashboard ([d4ac905](https://github.com/linhnguyen-gt/Routiform/commit/d4ac905d555ca6e766c1e66b5b15441a137a3d35))
-* add registry models support for kilo-gateway provider ([641bbe3](https://github.com/linhnguyen-gt/Routiform/commit/641bbe38d41169d19926d808c4cc99ec1f6ddbf7))
-* redesign request log detail modal with better visual hierarchy ([7c2b507](https://github.com/linhnguyen-gt/Routiform/commit/7c2b50719aba14c0244019601bae0d17e4b94682))
-
+- add analytics API endpoints ([fab15f2](https://github.com/linhnguyen-gt/Routiform/commit/fab15f2efd582ba3a0642d7cd9177c4108bdf513))
+- add provider analytics dashboard ([d4ac905](https://github.com/linhnguyen-gt/Routiform/commit/d4ac905d555ca6e766c1e66b5b15441a137a3d35))
+- add registry models support for kilo-gateway provider ([641bbe3](https://github.com/linhnguyen-gt/Routiform/commit/641bbe38d41169d19926d808c4cc99ec1f6ddbf7))
+- redesign request log detail modal with better visual hierarchy ([7c2b507](https://github.com/linhnguyen-gt/Routiform/commit/7c2b50719aba14c0244019601bae0d17e4b94682))
 
 ### Bug Fixes
 
-* analytics e2e tests and client-side compatibility ([699ebea](https://github.com/linhnguyen-gt/Routiform/commit/699ebeaa71bdda246adb9a49160589113e62a669))
-* **tests:** stabilize context validation coverage ([da0ef07](https://github.com/linhnguyen-gt/Routiform/commit/da0ef07afc391004f1316028dd6c91f9b1c10714))
+- analytics e2e tests and client-side compatibility ([699ebea](https://github.com/linhnguyen-gt/Routiform/commit/699ebeaa71bdda246adb9a49160589113e62a669))
+- **tests:** stabilize context validation coverage ([da0ef07](https://github.com/linhnguyen-gt/Routiform/commit/da0ef07afc391004f1316028dd6c91f9b1c10714))
 
 ## [3.20.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.19.2...v3.20.0) (2026-04-25)
 
-
 ### Features
 
-* **combos:** support disabling models in combo editor ([4928aac](https://github.com/linhnguyen-gt/Routiform/commit/4928aac6f6416ac170d035b01ffa6f33fc78642d))
-
+- **combos:** support disabling models in combo editor ([4928aac](https://github.com/linhnguyen-gt/Routiform/commit/4928aac6f6416ac170d035b01ffa6f33fc78642d))
 
 ### Bug Fixes
 
-* **context:** preserve tool workflows during compression and improve combo model handling ([36c32b4](https://github.com/linhnguyen-gt/Routiform/commit/36c32b4beda0570403b5b93364175ebf9817445a))
+- **context:** preserve tool workflows during compression and improve combo model handling ([36c32b4](https://github.com/linhnguyen-gt/Routiform/commit/36c32b4beda0570403b5b93364175ebf9817445a))
 
 ### [3.19.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.19.1...v3.19.2) (2026-04-25)
 
-
 ### Bug Fixes
 
-* **kiro:** constrain translated request payload size ([f6600b7](https://github.com/linhnguyen-gt/Routiform/commit/f6600b79b323e0bdab3d4b7f59f51a06a7dd7925))
+- **kiro:** constrain translated request payload size ([f6600b7](https://github.com/linhnguyen-gt/Routiform/commit/f6600b79b323e0bdab3d4b7f59f51a06a7dd7925))
 
 ### [3.19.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.19.0...v3.19.1) (2026-04-25)
 
-
 ### Bug Fixes
 
-* **context:** preserve agent tools during compression ([8197f3a](https://github.com/linhnguyen-gt/Routiform/commit/8197f3a2fedcdbbc8fcb945fccbbeb1143257e58))
+- **context:** preserve agent tools during compression ([8197f3a](https://github.com/linhnguyen-gt/Routiform/commit/8197f3a2fedcdbbc8fcb945fccbbeb1143257e58))
 
 ## [3.19.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.18.0...v3.19.0) (2026-04-25)
 
-
 ### Features
 
-* **context:** add dynamic context window management with model-specific limits ([6e36ee1](https://github.com/linhnguyen-gt/Routiform/commit/6e36ee1c63dedaa5a04ceab390b587b859a82613))
-* **kiro:** add dynamic model sync with dual-target API retry ([cd945d8](https://github.com/linhnguyen-gt/Routiform/commit/cd945d8f920c9af3da7d94cf04f3f758134b8f55))
-
+- **context:** add dynamic context window management with model-specific limits ([6e36ee1](https://github.com/linhnguyen-gt/Routiform/commit/6e36ee1c63dedaa5a04ceab390b587b859a82613))
+- **kiro:** add dynamic model sync with dual-target API retry ([cd945d8](https://github.com/linhnguyen-gt/Routiform/commit/cd945d8f920c9af3da7d94cf04f3f758134b8f55))
 
 ### Bug Fixes
 
-* **codex:** add x-codex-version and x-codex-installation-id headers ([01aff97](https://github.com/linhnguyen-gt/Routiform/commit/01aff9743c70476389be71ae99d8bf3997fc6f61))
-* **codex:** align client fingerprint with codex cli 0.124.0 ([fa25813](https://github.com/linhnguyen-gt/Routiform/commit/fa25813adeb6f99ec180f7e9c3f88acc60f5f088))
-* **codex:** preserve tool calls and dedupe repeated responses ([c7ddf33](https://github.com/linhnguyen-gt/Routiform/commit/c7ddf331d4d261056ed167af1273c6bb56ea1ec9))
-* **context:** improve contextManager type safety and remove env override ([83b0d7a](https://github.com/linhnguyen-gt/Routiform/commit/83b0d7adf86b07751a5da7b1b37d4d6a29fa12e5))
-* **kiro:** enforce payload size limit and truncate tool descriptions ([ee606d3](https://github.com/linhnguyen-gt/Routiform/commit/ee606d367ebc32fd848b983ccf8943113c6b1a86))
+- **codex:** add x-codex-version and x-codex-installation-id headers ([01aff97](https://github.com/linhnguyen-gt/Routiform/commit/01aff9743c70476389be71ae99d8bf3997fc6f61))
+- **codex:** align client fingerprint with codex cli 0.124.0 ([fa25813](https://github.com/linhnguyen-gt/Routiform/commit/fa25813adeb6f99ec180f7e9c3f88acc60f5f088))
+- **codex:** preserve tool calls and dedupe repeated responses ([c7ddf33](https://github.com/linhnguyen-gt/Routiform/commit/c7ddf331d4d261056ed167af1273c6bb56ea1ec9))
+- **context:** improve contextManager type safety and remove env override ([83b0d7a](https://github.com/linhnguyen-gt/Routiform/commit/83b0d7adf86b07751a5da7b1b37d4d6a29fa12e5))
+- **kiro:** enforce payload size limit and truncate tool descriptions ([ee606d3](https://github.com/linhnguyen-gt/Routiform/commit/ee606d367ebc32fd848b983ccf8943113c6b1a86))
 
 ## [3.18.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.17.3...v3.18.0) (2026-04-24)
 
-
 ### Features
 
-* **open-sse:** Kiro tool schema, context UI, thinking and fallback fixes ([f5c8a3e](https://github.com/linhnguyen-gt/Routiform/commit/f5c8a3e70421fa88095131ef35ccec8c502eb193))
-
+- **open-sse:** Kiro tool schema, context UI, thinking and fallback fixes ([f5c8a3e](https://github.com/linhnguyen-gt/Routiform/commit/f5c8a3e70421fa88095131ef35ccec8c502eb193))
 
 ### Bug Fixes
 
-* **deepseek:** inject empty reasoning_content for all assistant messages ([77db382](https://github.com/linhnguyen-gt/Routiform/commit/77db38256e2e1d7b51b4094ca74996502f2410b0))
+- **deepseek:** inject empty reasoning_content for all assistant messages ([77db382](https://github.com/linhnguyen-gt/Routiform/commit/77db38256e2e1d7b51b4094ca74996502f2410b0))
 
 ### [3.17.3](https://github.com/linhnguyen-gt/Routiform/compare/v3.17.2...v3.17.3) (2026-04-24)
 
-
 ### Bug Fixes
 
-* **deepseek:** preserve reasoning_content in multi-turn conversations ([de12540](https://github.com/linhnguyen-gt/Routiform/commit/de12540e5b4d533d30cfd33aaf4b8ae449ed65b5))
+- **deepseek:** preserve reasoning_content in multi-turn conversations ([de12540](https://github.com/linhnguyen-gt/Routiform/commit/de12540e5b4d533d30cfd33aaf4b8ae449ed65b5))
 
 ### [3.17.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.17.1...v3.17.2) (2026-04-24)
 
-
 ### Bug Fixes
 
-* **tests:** update integration tests after chat-core refactor ([2b2ba7a](https://github.com/linhnguyen-gt/Routiform/commit/2b2ba7adebf324c2dec9cb2d674a0e1145b88a7c))
-* **tests:** use readOpenSse for chat-core phase modules ([82d42b5](https://github.com/linhnguyen-gt/Routiform/commit/82d42b54ecf10bf8b4a12d607404cab877bfe1c8))
+- **tests:** update integration tests after chat-core refactor ([2b2ba7a](https://github.com/linhnguyen-gt/Routiform/commit/2b2ba7adebf324c2dec9cb2d674a0e1145b88a7c))
+- **tests:** use readOpenSse for chat-core phase modules ([82d42b5](https://github.com/linhnguyen-gt/Routiform/commit/82d42b54ecf10bf8b4a12d607404cab877bfe1c8))
 
 ### [3.17.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.17.0...v3.17.1) (2026-04-23)
 
-
 ### Bug Fixes
 
-* **api:** persist model reasoning defaults via DB instead of runtime map ([47a3d7c](https://github.com/linhnguyen-gt/Routiform/commit/47a3d7c4d37007027b470734ed4ffe4450ae96d3))
+- **api:** persist model reasoning defaults via DB instead of runtime map ([47a3d7c](https://github.com/linhnguyen-gt/Routiform/commit/47a3d7c4d37007027b470734ed4ffe4450ae96d3))
 
 ## [3.17.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.16.2...v3.17.0) (2026-04-23)
 
-
 ### Features
 
-* **providers:** add Xiaomi MiMo Token Plan with cluster-only connection ([bd1f0c1](https://github.com/linhnguyen-gt/Routiform/commit/bd1f0c12f007e69100b1639b2ac0991c7c3f76d0))
+- **providers:** add Xiaomi MiMo Token Plan with cluster-only connection ([bd1f0c1](https://github.com/linhnguyen-gt/Routiform/commit/bd1f0c12f007e69100b1639b2ac0991c7c3f76d0))
 
 ### [3.16.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.16.1...v3.16.2) (2026-04-23)
 
-
 ### Bug Fixes
 
-* **providers/client:** include displayName for OAuth providers in client API ([11ad7a5](https://github.com/linhnguyen-gt/Routiform/commit/11ad7a5791434e017170e4fe75a579196526b9f0))
-* **providers:** align OpenRouter models UI and add Xiaomi MiMo model sync ([c8ff64a](https://github.com/linhnguyen-gt/Routiform/commit/c8ff64a9cf94467917eacd9942ea5bda526531bb))
+- **providers/client:** include displayName for OAuth providers in client API ([11ad7a5](https://github.com/linhnguyen-gt/Routiform/commit/11ad7a5791434e017170e4fe75a579196526b9f0))
+- **providers:** align OpenRouter models UI and add Xiaomi MiMo model sync ([c8ff64a](https://github.com/linhnguyen-gt/Routiform/commit/c8ff64a9cf94467917eacd9942ea5bda526531bb))
 
 ### [3.16.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.16.0...v3.16.1) (2026-04-22)
 
-
 ### Bug Fixes
 
-* **translator:** apply thoughtSignature to all functionCall parts universally ([c306631](https://github.com/linhnguyen-gt/Routiform/commit/c30663116d9eb9f781a5ef33d5f6d7128f5660fb))
+- **translator:** apply thoughtSignature to all functionCall parts universally ([c306631](https://github.com/linhnguyen-gt/Routiform/commit/c30663116d9eb9f781a5ef33d5f6d7128f5660fb))
 
 ## [3.16.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.15.0...v3.16.0) (2026-04-22)
 
-
 ### Features
 
-* improve request handling and provider compatibility ([fcaa64a](https://github.com/linhnguyen-gt/Routiform/commit/fcaa64a8d2e093f95e147d5f18f6966337d1d106))
-
+- improve request handling and provider compatibility ([fcaa64a](https://github.com/linhnguyen-gt/Routiform/commit/fcaa64a8d2e093f95e147d5f18f6966337d1d106))
 
 ### Bug Fixes
 
-* add GitHub Copilot models handler with official whitelist and auto-sync support ([ee4619c](https://github.com/linhnguyen-gt/Routiform/commit/ee4619c218befffb9bd93219811e3e9828eaccf2))
+- add GitHub Copilot models handler with official whitelist and auto-sync support ([ee4619c](https://github.com/linhnguyen-gt/Routiform/commit/ee4619c218befffb9bd93219811e3e9828eaccf2))
 
 ## [3.15.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.14.4...v3.15.0) (2026-04-22)
 
-
 ### Features
 
-* improve request handling and provider compatibility ([372984d](https://github.com/linhnguyen-gt/Routiform/commit/372984d41096804481278013d6965667b0279a35))
+- improve request handling and provider compatibility ([372984d](https://github.com/linhnguyen-gt/Routiform/commit/372984d41096804481278013d6965667b0279a35))
 
 ### [3.14.4](https://github.com/linhnguyen-gt/Routiform/compare/v3.14.3...v3.14.4) (2026-04-21)
 
-
 ### Bug Fixes
 
-* combo 400 fallback + kimi models fetch ([01e5b01](https://github.com/linhnguyen-gt/Routiform/commit/01e5b01351de504e801358af358334f734e6453a))
+- combo 400 fallback + kimi models fetch ([01e5b01](https://github.com/linhnguyen-gt/Routiform/commit/01e5b01351de504e801358af358334f734e6453a))
 
 ### [3.14.3](https://github.com/linhnguyen-gt/Routiform/compare/v3.14.2...v3.14.3) (2026-04-21)
 
-
 ### Bug Fixes
 
-* add more subscription error patterns and guard in provider-account-error-state ([8e15553](https://github.com/linhnguyen-gt/Routiform/commit/8e155538333b8ff851a5911bbe31d11061cb887d))
+- add more subscription error patterns and guard in provider-account-error-state ([8e15553](https://github.com/linhnguyen-gt/Routiform/commit/8e155538333b8ff851a5911bbe31d11061cb887d))
 
 ### [3.14.2](https://github.com/linhnguyen-gt/Routiform/compare/v3.14.1...v3.14.2) (2026-04-21)
 
-
 ### Bug Fixes
 
-* prevent auto-ban for temporary subscription/capacity errors ([4389d17](https://github.com/linhnguyen-gt/Routiform/commit/4389d17edfe6b44c0c81cf651e0fde3eb0e6a4b4))
+- prevent auto-ban for temporary subscription/capacity errors ([4389d17](https://github.com/linhnguyen-gt/Routiform/commit/4389d17edfe6b44c0c81cf651e0fde3eb0e6a4b4))
 
 ### [3.14.1](https://github.com/linhnguyen-gt/Routiform/compare/v3.14.0...v3.14.1) (2026-04-21)
 
-
 ### Bug Fixes
 
-* **core:** harden auth and routing reliability ([f2c9ddf](https://github.com/linhnguyen-gt/Routiform/commit/f2c9ddf2374cfef4dee540e6ebdba0e6d1cd2099))
-* increase model test timeout from 20s to 30s ([b6a60b8](https://github.com/linhnguyen-gt/Routiform/commit/b6a60b8ecf232cf0122caaca801071357b94d6f5))
+- **core:** harden auth and routing reliability ([f2c9ddf](https://github.com/linhnguyen-gt/Routiform/commit/f2c9ddf2374cfef4dee540e6ebdba0e6d1cd2099))
+- increase model test timeout from 20s to 30s ([b6a60b8](https://github.com/linhnguyen-gt/Routiform/commit/b6a60b8ecf232cf0122caaca801071357b94d6f5))
 
 ## [3.14.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.13.0...v3.14.0) (2026-04-20)
 
