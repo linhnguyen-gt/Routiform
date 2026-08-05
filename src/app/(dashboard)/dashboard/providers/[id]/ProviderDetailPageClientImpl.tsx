@@ -95,6 +95,7 @@ export function ProviderDetailPageClientImpl() {
             : orchestrator.setShowAddApiKeyModal(true)
         }
         setShowAddApiKeyModal={orchestrator.setShowAddApiKeyModal}
+        setShowBulkImportModal={orchestrator.setShowBulkImportModal}
         handleBatchTestAll={orchestrator.handleBatchTestAll}
         batchTesting={orchestrator.batchTesting}
         retestingId={orchestrator.retestingId}
@@ -214,6 +215,9 @@ export function ProviderDetailPageClientImpl() {
         }}
         showAddApiKeyModal={orchestrator.showAddApiKeyModal}
         setShowAddApiKeyModal={orchestrator.setShowAddApiKeyModal}
+        showBulkImportModal={orchestrator.showBulkImportModal}
+        setShowBulkImportModal={orchestrator.setShowBulkImportModal}
+        fetchConnections={orchestrator.fetchConnections}
         isCompatible={orchestrator.isCompatible}
         isAnthropicProtocolCompatible={orchestrator.isAnthropicProtocolCompatible}
         isCcCompatible={orchestrator.isCcCompatible}

@@ -82,6 +82,34 @@ async function backfillGithubUserInfo(connection: Record<string, unknown>) {
   }
 }
 
+/**
+ * The stored credentials are never returned to the client, so the duplicate check has to happen
+ * here rather than in the dashboard: only the server can compare a pasted value against what is
+ * already on disk without exposing the values it is comparing against.
+ */
+async function findConnectionWithSameCredential(
+  provider: string,
+  apiKey: unknown,
+  accessToken: unknown
+): Promise<{ name: string | null } | null> {
+  const incoming = [apiKey, accessToken]
+    .filter((v): v is string => typeof v === "string")
+    .map((v) => v.trim())
+    .filter(Boolean);
+  if (incoming.length === 0) return null;
+
+  const existing = await getProviderConnections({ provider });
+  for (const connection of existing as Record<string, unknown>[]) {
+    const stored = [connection.apiKey, connection.accessToken]
+      .filter((v): v is string => typeof v === "string")
+      .map((v) => v.trim());
+    if (stored.some((value) => value && incoming.includes(value))) {
+      return { name: typeof connection.name === "string" ? connection.name : null };
+    }
+  }
+  return null;
+}
+
 // GET /api/providers - List all connections
 export async function GET() {
   try {
@@ -153,6 +181,24 @@ export async function POST(request: Request) {
 
     if (!isValidProvider) {
       return NextResponse.json({ error: "Invalid provider" }, { status: 400 });
+    }
+
+    // Same credential, already stored for this provider. Without this the second copy becomes a
+    // second connection under a different name, and the rotation pool silently double-counts one
+    // upstream quota. Reported distinctly so a bulk paste can call it "skipped", not "failed".
+    const duplicate = await findConnectionWithSameCredential(provider, apiKey, accessToken);
+    if (duplicate) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "duplicate_credential",
+            message: `This credential is already stored for ${provider}${
+              duplicate.name ? ` as "${duplicate.name}"` : ""
+            }`,
+          },
+        },
+        { status: 409 }
+      );
     }
 
     let providerSpecificData = incomingPsd || null;

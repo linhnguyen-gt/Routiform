@@ -8,6 +8,7 @@ import {
   ProxyConfigModal,
 } from "@/shared/components";
 import { ProviderDetailAddApiKeyModal } from "../../components/ProviderDetailAddApiKeyModal";
+import { ProviderDetailBulkImportKeysModal } from "../../components/ProviderDetailBulkImportKeysModal";
 import { ProviderDetailEditConnectionModal } from "../../components/ProviderDetailEditConnectionModal";
 import { ProviderDetailEditCompatibleNodeModal } from "../../components/ProviderDetailEditCompatibleNodeModal";
 import { ProviderDetailBatchTestResultsModal } from "../../components/ProviderDetailBatchTestResultsModal";
@@ -20,6 +21,9 @@ interface ProviderDetailModalsSectionProps {
   handleOAuthSuccess: () => void;
   showAddApiKeyModal: boolean;
   setShowAddApiKeyModal: (val: boolean) => void;
+  showBulkImportModal: boolean;
+  setShowBulkImportModal: (val: boolean) => void;
+  fetchConnections: () => void | Promise<void>;
   isCompatible: boolean;
   isAnthropicProtocolCompatible: boolean;
   isCcCompatible: boolean;
@@ -49,6 +53,9 @@ export function ProviderDetailModalsSection({
   handleOAuthSuccess,
   showAddApiKeyModal,
   setShowAddApiKeyModal,
+  showBulkImportModal,
+  setShowBulkImportModal,
+  fetchConnections,
   isCompatible,
   isAnthropicProtocolCompatible,
   isCcCompatible,
@@ -108,6 +115,16 @@ export function ProviderDetailModalsSection({
         isCcCompatible={isCcCompatible}
         onSave={handleSaveApiKey}
         onClose={() => setShowAddApiKeyModal(false)}
+      />
+      <ProviderDetailBulkImportKeysModal
+        isOpen={showBulkImportModal}
+        provider={providerId}
+        providerName={providerInfo?.name}
+        existingNames={connections
+          .map((c) => (c as { name?: unknown }).name)
+          .filter((n): n is string => typeof n === "string")}
+        onImported={fetchConnections}
+        onClose={() => setShowBulkImportModal(false)}
       />
       <ProviderDetailEditConnectionModal
         isOpen={showEditModal}

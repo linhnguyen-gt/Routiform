@@ -5,6 +5,8 @@ export interface UseProviderDetailModalsReturn {
   setShowOAuthModal: (show: boolean) => void;
   showAddApiKeyModal: boolean;
   setShowAddApiKeyModal: (show: boolean) => void;
+  showBulkImportModal: boolean;
+  setShowBulkImportModal: (show: boolean) => void;
   showEditModal: boolean;
   setShowEditModal: (show: boolean) => void;
   showEditNodeModal: boolean;
@@ -18,6 +20,7 @@ export interface UseProviderDetailModalsReturn {
 export function useProviderDetailModals(): UseProviderDetailModalsReturn {
   const [showOAuthModal, setShowOAuthModal] = useState(false);
   const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
+  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditNodeModal, setShowEditNodeModal] = useState(false);
   const [selectedConnection, setSelectedConnection] = useState<
@@ -30,6 +33,8 @@ export function useProviderDetailModals(): UseProviderDetailModalsReturn {
     setShowOAuthModal,
     showAddApiKeyModal,
     setShowAddApiKeyModal,
+    showBulkImportModal,
+    setShowBulkImportModal,
     showEditModal,
     setShowEditModal,
     showEditNodeModal,

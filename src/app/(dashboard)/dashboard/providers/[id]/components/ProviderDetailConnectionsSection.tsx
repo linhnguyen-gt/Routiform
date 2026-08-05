@@ -14,6 +14,7 @@ interface ProviderDetailConnectionsSectionProps {
   providerSupportsPat: boolean;
   openPrimaryAddFlow: () => void;
   setShowAddApiKeyModal: (val: boolean) => void;
+  setShowBulkImportModal: (val: boolean) => void;
   handleBatchTestAll: () => void;
   batchTesting: boolean;
   retestingId: string | null;
@@ -63,6 +64,7 @@ export function ProviderDetailConnectionsSection({
   providerSupportsPat,
   openPrimaryAddFlow,
   setShowAddApiKeyModal,
+  setShowBulkImportModal,
   handleBatchTestAll,
   batchTesting,
   retestingId,
@@ -205,6 +207,17 @@ export function ProviderDetailConnectionsSection({
               </span>
               {batchTesting ? t("testing") : t("testAll")}
             </button>
+          )}
+          {!isCompatible && !isOAuth && (
+            <Button
+              size="sm"
+              variant="secondary"
+              icon="content_paste"
+              onClick={() => setShowBulkImportModal(true)}
+              className="h-8 rounded-lg px-3 text-xs"
+            >
+              Bulk import
+            </Button>
           )}
           {!isCompatible ? (
             providerId === "xai" ? (
