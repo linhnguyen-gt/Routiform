@@ -104,6 +104,12 @@ export const updateSettingsSchema = z.object({
    */
   cavemanOutputLevel: z.enum(["off", "lite", "full"]).optional(),
   /**
+   * Output-side ponytail: injects a scope-restraint directive into the system prompt so the model
+   * does no more than it was asked to. A separate axis from `cavemanOutputLevel` (terseness), so
+   * both can be on. Default "off" — opt-in per user.
+   */
+  ponytailOutput: z.enum(["off", "on"]).optional(),
+  /**
    * Which compression engines run. Separate from `contextValidation`, which stays the on/off
    * switch: overloading that field would give one setting two meanings and a DB default that
    * answers only one of them. Absent resolves to `balanced`, which is what installs run today.

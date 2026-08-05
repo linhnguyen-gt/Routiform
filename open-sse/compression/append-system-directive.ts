@@ -4,8 +4,8 @@ import type { CavemanOutputTarget } from "./types.ts";
  * Append a system-prompt directive to whichever system-ish field a request body actually carries.
  *
  * Extracted from `injectCavemanOutputDirective` so more than one directive can share the target
- * resolution. Every directive that ships through this seam gets the same shape handling; adding
- * one is a call, not another copy of this ladder.
+ * resolution. Every directive that ships through this seam gets the same shape handling and the
+ * same prompt-cache placement; adding one is a call, not another copy of this ladder.
  *
  * Handles all four inbound request shapes this stage of the pipeline ever sees (one per source
  * format — compression runs on the pre-translation client body):
@@ -91,6 +91,27 @@ function appendText(existing: string, addition: string): string {
   return existing.length > 0 ? `${existing}\n\n${addition}` : addition;
 }
 
+/**
+ * Place a text block inside the Anthropic prompt-cache prefix when there is one.
+ *
+ * The cache covers everything up to and including the last `cache_control` marker. A block pushed
+ * onto the end therefore sits outside that prefix and is re-sent, and re-billed, on every turn.
+ * Inserting immediately before the last marker is the smallest move that lands inside it — the
+ * block stays as late as it can, so any ordering the caller depends on is disturbed as little as
+ * possible.
+ *
+ * The block itself carries no marker: it must not become a new cache boundary.
+ */
 function insertTextBlock(blocks: unknown[], block: Record<string, unknown>): void {
-  blocks.push(block);
+  let lastMarked = -1;
+  for (let i = blocks.length - 1; i >= 0; i -= 1) {
+    const entry = blocks[i];
+    if (entry && typeof entry === "object" && "cache_control" in (entry as object)) {
+      lastMarked = i;
+      break;
+    }
+  }
+
+  if (lastMarked === -1) blocks.push(block);
+  else blocks.splice(lastMarked, 0, block);
 }

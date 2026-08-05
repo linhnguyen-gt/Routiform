@@ -1,4 +1,4 @@
-import type { CavemanOutputLevel } from "./types.ts";
+import type { CavemanOutputLevel, PonytailOutputMode } from "./types.ts";
 
 /**
  * Deep-clone a JSON-safe request body for inflation-guard restore.
@@ -22,15 +22,22 @@ export function snapshotBody(body: Record<string, unknown>): Record<string, unkn
  * the caller's own data and re-inject on every retry.
  *
  * When compression cannot mutate anything — the input-side stack is
- * disabled AND the output-side directive is off — `body` IS `rawBody` (no
+ * disabled AND every output-side directive is off — `body` IS `rawBody` (no
  * clone): the default request stays byte-identical with zero clone cost,
  * even on multi-MB agentic payloads with base64 images.
  */
 export function resolveCompressionBodies(
   body: Record<string, unknown>,
-  options: { compressionEnabled: boolean; cavemanOutputLevel: CavemanOutputLevel }
+  options: {
+    compressionEnabled: boolean;
+    cavemanOutputLevel: CavemanOutputLevel;
+    ponytailOutput?: PonytailOutputMode;
+  }
 ): { rawBody: Record<string, unknown>; body: Record<string, unknown> } {
-  const mutationPossible = options.compressionEnabled || options.cavemanOutputLevel !== "off";
+  const mutationPossible =
+    options.compressionEnabled ||
+    options.cavemanOutputLevel !== "off" ||
+    options.ponytailOutput === "on";
   if (!mutationPossible) {
     return { rawBody: body, body };
   }

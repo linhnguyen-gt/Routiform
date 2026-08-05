@@ -8,6 +8,9 @@ export {
   injectCavemanOutputDirective,
   formatCavemanOutputLog,
 } from "./caveman-output.ts";
+export { PONYTAIL_PROMPT, injectPonytailDirective, formatPonytailLog } from "./ponytail-prompt.ts";
+export { canInjectSystemDirective } from "./directive-gates.ts";
+export { appendSystemDirective } from "./append-system-directive.ts";
 export {
   applyInflationGuard,
   measureBodyBytes,
@@ -47,5 +50,7 @@ export type {
   CavemanOutputLevel,
   CavemanOutputTarget,
   CavemanOutputResult,
+  PonytailOutputMode,
+  PonytailOutputResult,
   StackCompressionResult,
 } from "./types.ts";

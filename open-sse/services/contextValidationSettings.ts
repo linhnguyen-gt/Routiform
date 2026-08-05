@@ -3,12 +3,13 @@
  * Reads from settings DB with short TTL to avoid per-request SQLite hits.
  */
 
-import type { CavemanOutputLevel } from "../compression/types.ts";
+import type { CavemanOutputLevel, PonytailOutputMode } from "../compression/types.ts";
 import { resolvePreset } from "../compression/preset.ts";
 import type { CompressionPreset } from "../compression/preset.ts";
 
 type CacheEntry = { value: boolean; at: number };
 type LevelCacheEntry = { value: CavemanOutputLevel; at: number };
+type PonytailCacheEntry = { value: PonytailOutputMode; at: number };
 type PresetCacheEntry = {
   value: { preset: CompressionPreset; engines: Record<string, boolean> | null };
   at: number;
@@ -17,11 +18,13 @@ type PresetCacheEntry = {
 const TTL_MS = 4000;
 let cache: CacheEntry | null = null;
 let cavemanOutputCache: LevelCacheEntry | null = null;
+let ponytailOutputCache: PonytailCacheEntry | null = null;
 let compressionPresetCache: PresetCacheEntry | null = null;
 
 export function invalidateContextValidationSettingsCache(): void {
   cache = null;
   cavemanOutputCache = null;
+  ponytailOutputCache = null;
   compressionPresetCache = null;
 }
 
@@ -94,5 +97,23 @@ export async function getCavemanOutputLevel(): Promise<CavemanOutputLevel> {
     ? (raw as CavemanOutputLevel)
     : "off";
   cavemanOutputCache = { value, at: now };
+  return value;
+}
+
+/**
+ * Output-side scope-restraint directive. A separate axis from the caveman level: both can be on,
+ * so they are read independently rather than folded into one enum.
+ */
+export async function getPonytailOutputMode(): Promise<PonytailOutputMode> {
+  const now = Date.now();
+  if (ponytailOutputCache && now - ponytailOutputCache.at < TTL_MS) {
+    return ponytailOutputCache.value;
+  }
+
+  const { getSettings } = await import("@/lib/db/settings");
+  const settings = await getSettings();
+  const raw = (settings as { ponytailOutput?: string }).ponytailOutput;
+  const value: PonytailOutputMode = raw === "on" ? "on" : "off";
+  ponytailOutputCache = { value, at: now };
   return value;
 }

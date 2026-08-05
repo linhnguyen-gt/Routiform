@@ -16,6 +16,7 @@ import {
 import {
   getCavemanOutputLevel,
   getCompressionPreset,
+  getPonytailOutputMode,
   isProxyContextCompressionEnabled,
 } from "../../services/contextValidationSettings.ts";
 import { resolveConversationId } from "../../services/conversationIdentity.ts";
@@ -163,6 +164,7 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
   // varying with the requester's compression settings.
   const compressionEnabled = await isProxyContextCompressionEnabled();
   const cavemanOutputLevel = await getCavemanOutputLevel().catch(() => "off" as const);
+  const ponytailOutput = await getPonytailOutputMode().catch(() => "off" as const);
   const compression = await getCompressionPreset().catch(() => ({
     preset: "balanced" as const,
     engines: null,
@@ -173,6 +175,7 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
   const resolvedBodies = resolveCompressionBodies(p.body, {
     compressionEnabled,
     cavemanOutputLevel,
+    ponytailOutput,
   });
   p.rawBody = resolvedBodies.rawBody;
   p.body = resolvedBodies.body;
@@ -220,6 +223,7 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
     userAgent: p.userAgent,
     caveman: true,
     cavemanOutputLevel,
+    ponytailOutput,
     preset: applied?.preset ?? compression.preset,
     engineToggles: applied ? applied.engineToggles : compression.engines,
     provider: p.provider,

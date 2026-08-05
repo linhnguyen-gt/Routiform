@@ -3,13 +3,19 @@ import type { RtkProfile, RtkStats } from "../rtk/types.ts";
 import { resolveRtkProfile } from "../rtk/profile-resolver.ts";
 import { formatCavemanLog } from "./caveman-en.ts";
 import { formatCavemanOutputLog, injectCavemanOutputDirective } from "./caveman-output.ts";
+import { formatPonytailLog, injectPonytailDirective } from "./ponytail-prompt.ts";
 import { applyInflationGuard, measureBodyBytes, snapshotAndMeasure } from "./inflation-guard.ts";
 import { detectBodyShape } from "./engine-types.ts";
 import type { DeferredWrite, EngineContext, EngineResult } from "./engine-types.ts";
 import { selectEngines } from "./registry.ts";
 import { runEngine } from "./run-engine.ts";
 import type { CompressionPreset } from "./preset.ts";
-import type { CavemanOutputLevel, CavemanStats, StackCompressionResult } from "./types.ts";
+import type {
+  CavemanOutputLevel,
+  CavemanStats,
+  PonytailOutputMode,
+  StackCompressionResult,
+} from "./types.ts";
 
 export type StackOptions = {
   enabled: boolean;
@@ -36,6 +42,13 @@ export type StackOptions = {
    * working even when the request-compaction stack is disabled.
    */
   cavemanOutputLevel?: CavemanOutputLevel;
+  /**
+   * Output-side ponytail: injects a scope-restraint directive into the system
+   * prompt. A separate axis from `cavemanOutputLevel` (terseness), so both can
+   * be on. Default `"off"`, and independent of `enabled` for the same reason
+   * the caveman directive is.
+   */
+  ponytailOutput?: PonytailOutputMode;
   /**
    * Optional override for what the caveman-output gates (forced tool_choice /
    * structured output) inspect. Historically needed because the real caller
@@ -86,6 +99,7 @@ export function applyStackedCompression(
   const rtkProfile = resolveRtkProfile(options.enabled, options.userAgent);
   const cavemanOn = options.enabled && options.caveman !== false;
   const cavemanOutputLevel: CavemanOutputLevel = options.cavemanOutputLevel ?? "off";
+  const ponytailOutput: PonytailOutputMode = options.ponytailOutput ?? "off";
 
   if (!options.enabled || rtkProfile === "off") {
     const cavemanOutput = injectCavemanOutputDirective(
@@ -96,6 +110,10 @@ export function applyStackedCompression(
     const outputLine = formatCavemanOutputLog(cavemanOutput);
     if (outputLine) logs.push(outputLine);
 
+    const ponytail = injectPonytailDirective(body, ponytailOutput, options.cavemanOutputGateBody);
+    const ponytailLine = formatPonytailLog(ponytail);
+    if (ponytailLine) logs.push(ponytailLine);
+
     return {
       mode: "off",
       rtkHits: 0,
@@ -103,6 +121,7 @@ export function applyStackedCompression(
       rtkProfile: "off",
       caveman: null,
       cavemanOutput,
+      ponytail,
       inflationReverted: false,
       bytesBefore: measureBodyBytes(body),
       bytesAfter: measureBodyBytes(body),
@@ -188,6 +207,10 @@ export function applyStackedCompression(
   const outputLine = formatCavemanOutputLog(cavemanOutput);
   if (outputLine) logs.push(outputLine);
 
+  const ponytail = injectPonytailDirective(body, ponytailOutput, options.cavemanOutputGateBody);
+  const ponytailLine = formatPonytailLog(ponytail);
+  if (ponytailLine) logs.push(ponytailLine);
+
   // `mode` is otherwise derived from configuration rather than from what happened, which is fine
   // while the config always produces at least one engine — and wrong the moment it does not. A
   // request whose preset selected NOTHING was reporting "stacked", so the eval harness would have
@@ -201,6 +224,7 @@ export function applyStackedCompression(
     rtkProfile,
     caveman: reverted ? null : caveman,
     cavemanOutput,
+    ponytail,
     inflationReverted: reverted,
     bytesBefore,
     bytesAfter,

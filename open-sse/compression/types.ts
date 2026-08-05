@@ -24,11 +24,23 @@ export type CavemanOutputResult = {
   target: CavemanOutputTarget;
 };
 
+/**
+ * Scope-restraint directive. A separate axis from `CavemanOutputLevel`, not a fourth level of it:
+ * terseness is how many words the answer spends, scope is how much work it proposes. Both can be
+ * on at once, so making them one enum would force a choice that has no reason to exist.
+ */
+export type PonytailOutputMode = "off" | "on";
+
+export type PonytailOutputResult = {
+  target: CavemanOutputTarget;
+};
+
 export type StackCompressionResult = {
   mode: CompressionStackMode;
   rtkHits: number;
   caveman: CavemanStats | null;
   cavemanOutput: CavemanOutputResult | null;
+  ponytail: PonytailOutputResult | null;
   inflationReverted: boolean;
   bytesBefore: number;
   bytesAfter: number;
