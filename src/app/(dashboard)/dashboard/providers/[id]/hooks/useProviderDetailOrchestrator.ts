@@ -35,6 +35,7 @@ import { useProviderDetailPriorityActions } from "./useProviderDetailPriorityAct
 import { useProviderDetailSelection } from "./useProviderDetailSelection";
 import { useProviderDetailSyncActions } from "./useProviderDetailSyncActions";
 import { useProviderDetailTestActions } from "./useProviderDetailTestActions";
+import { useProviderDetailModelAvailability } from "./useProviderDetailModelAvailability";
 import { useProviderDetailTokenActions } from "./useProviderDetailTokenActions";
 
 import { CC_COMPATIBLE_LABEL } from "../../providerDetailCompatUtils";
@@ -146,6 +147,8 @@ export function useProviderDetailOrchestrator() {
   const [testingModelKey, setTestingModelKey] = useState<string | null>(null);
   const [modelTestBannerError, setModelTestBannerError] = useState("");
   const modelTestInFlightRef = useRef(false);
+  const [testingAllModels, setTestingAllModels] = useState(false);
+  const testAllModelsInFlightRef = useRef(false);
   const [bulkDeletingConnections, setBulkDeletingConnections] = useState(false);
   const [bulkUpdatingStatus, setBulkUpdatingStatus] = useState(false);
   const [compatSavingModelId, setCompatSavingModelId] = useState<string | null>(null);
@@ -233,16 +236,29 @@ export function useProviderDetailOrchestrator() {
       clearingModels,
     });
 
-  const { handleTestModel, handleBatchTestAll } = useProviderDetailTestActions({
-    ...actionProps,
-    setBatchTesting,
-    setBatchTestResults,
-    setTestingModelKey,
-    setModelTestBannerError,
+  const { handleTestModel, handleBatchTestAll, handleTestAllModels } = useProviderDetailTestActions(
+    {
+      ...actionProps,
+      setBatchTesting,
+      setBatchTestResults,
+      setTestingModelKey,
+      setModelTestBannerError,
+      setModelTestResults,
+      batchTesting,
+      retestingId,
+      modelTestInFlightRef,
+      setTestingAllModels,
+      testAllModelsInFlightRef,
+    }
+  );
+
+  // Restore per-model pass/fail marks recorded by earlier requests, so a reload does not
+  // present every model as untested.
+  useProviderDetailModelAvailability({
+    providerId,
+    keyPrefixes: [providerId, providerAlias, actionProps.providerDisplayAlias as string],
+    loading,
     setModelTestResults,
-    batchTesting,
-    retestingId,
-    modelTestInFlightRef,
   });
 
   const { handleRefreshToken } = useProviderDetailTokenActions({
@@ -601,6 +617,8 @@ export function useProviderDetailOrchestrator() {
     handleClearAllModels,
     handleTestModel,
     handleBatchTestAll,
+    handleTestAllModels,
+    testingAllModels,
     handleRefreshToken,
     handleSwapPriority,
     handleToggleCodexLimit,

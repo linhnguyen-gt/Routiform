@@ -1800,7 +1800,11 @@
     "chatPathHint": "Custom chat path for providers with non-standard APIs (e.g. /v4/chat/completions)",
     "modelsPathLabel": "Models Endpoint Path",
     "modelsPathPlaceholder": "/models",
-    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)"
+    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)",
+    "checkAllModels": "Tjek alle ({n})",
+    "checkingAllModels": "Tjekker…",
+    "checkAllModelsHint": "Sender én anmodning pr. model for at se, hvilke af dem denne konto reelt kan kalde.",
+    "modelAvailabilitySummary": "{passed} af {total} modeller er tilgængelige"
   },
   "settings": {
     "title": "Indstillinger",

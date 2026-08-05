@@ -28,6 +28,8 @@ export function useProviderDetailTestActions({
   batchTesting: boolean;
   retestingId: string | null;
   modelTestInFlightRef: { current: boolean };
+  setTestingAllModels: (val: boolean) => void;
+  testAllModelsInFlightRef: { current: boolean };
 }) {
   const handleTestModel = useCallback(
     async (fullModel: string): Promise<boolean> => {
@@ -110,6 +112,44 @@ export function useProviderDetailTestActions({
     ]
   );
 
+  /**
+   * Probe every listed model once, so the page can show which of them this account can
+   * actually call. Sequential on purpose: each probe is a real upstream request against the
+   * user's quota, and `handleTestModel` refuses to start while another is in flight — firing
+   * them in parallel would silently drop all but the first.
+   */
+  const handleTestAllModels = useCallback(
+    async (fullModels: string[]) => {
+      // Re-entrancy is guarded by a ref, not the `testingAllModels` state: the state exists
+      // to re-render the button, and reading it here would capture a stale value from the
+      // render that created this callback. Same reason `handleTestModel` uses a ref.
+      if (testAllModelsInFlightRef.current || connections.length === 0) return;
+      const targets = [...new Set(fullModels.filter(Boolean))];
+      if (targets.length === 0) return;
+
+      testAllModelsInFlightRef.current = true;
+      setTestingAllModels(true);
+      setModelTestBannerError("");
+      let passed = 0;
+      let done = 0;
+      try {
+        for (const fullModel of targets) {
+          if (await handleTestModel(fullModel)) passed++;
+          done++;
+        }
+        // handleTestModel already toasts per model; this is the only summary the user sees,
+        // and it must report what actually ran, not the size of the list.
+        notify.info(t("modelAvailabilitySummary", { passed, total: done }));
+      } finally {
+        testAllModelsInFlightRef.current = false;
+        setTestingAllModels(false);
+      }
+    },
+    // setTestingAllModels and testAllModelsInFlightRef are stable (a setState setter and a
+    // ref), so they are deliberately absent — including them only trips exhaustive-deps.
+    [connections.length, handleTestModel, notify, t, setModelTestBannerError]
+  );
+
   const handleBatchTestAll = useCallback(async () => {
     if (batchTesting || connections.length === 0) return;
     setBatchTesting(true);
@@ -167,5 +207,5 @@ export function useProviderDetailTestActions({
     setBatchTestResults,
   ]);
 
-  return { handleTestModel, handleBatchTestAll };
+  return { handleTestModel, handleBatchTestAll, handleTestAllModels };
 }

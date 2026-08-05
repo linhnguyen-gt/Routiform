@@ -49,6 +49,8 @@ interface ProviderDetailModelsSectionProps {
   modelTestResults: Record<string, "ok" | "error">;
   testingModelKey: string | null;
   handleTestModel: (key: string) => Promise<boolean>;
+  handleTestAllModels: (fullModels: string[]) => Promise<void>;
+  testingAllModels: boolean;
   providerInfo: { passthroughModels?: boolean };
   models: { id: string }[];
   autoSyncConnection: unknown;
@@ -95,6 +97,8 @@ export function ProviderDetailModelsSection({
   modelTestResults,
   testingModelKey,
   handleTestModel,
+  handleTestAllModels,
+  testingAllModels,
   providerInfo,
   models,
   autoSyncConnection,
@@ -169,6 +173,31 @@ export function ProviderDetailModelsSection({
         <span className="text-text-main">Refresh</span>
       </button>
     );
+
+    // Probes every listed model so the rows show what this account can actually call —
+    // entitlement varies by plan, so a model being in the catalog does not mean it answers.
+    // Each probe is a real upstream request, so this stays an explicit action.
+    const renderCheckAllButton = (fullModels: string[]) =>
+      connections.length > 0 &&
+      fullModels.length > 0 && (
+        <button
+          onClick={() => void handleTestAllModels(fullModels)}
+          disabled={testingAllModels}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-transparent cursor-pointer text-[12px] disabled:opacity-50 disabled:cursor-not-allowed"
+          title={t("checkAllModelsHint")}
+        >
+          <span
+            className={`material-symbols-outlined text-[16px] ${testingAllModels ? "animate-spin" : ""}`}
+          >
+            {testingAllModels ? "progress_activity" : "checklist"}
+          </span>
+          <span className="text-text-main">
+            {testingAllModels
+              ? t("checkingAllModels")
+              : t("checkAllModels", { n: fullModels.length })}
+          </span>
+        </button>
+      );
 
     const isOpenRouterProvider =
       providerId === "openrouter" || providerStorageAlias === "openrouter";
@@ -247,6 +276,7 @@ export function ProviderDetailModelsSection({
             {autoSyncToggle}
             {refreshModelsButton}
             {clearAllButton}
+            {renderCheckAllButton(models.map((m) => `${providerId}/${m.id}`))}
             {!canImportModels && (
               <span className="text-xs text-text-muted">{t("addConnectionToImport")}</span>
             )}
@@ -278,6 +308,7 @@ export function ProviderDetailModelsSection({
       <div className="mb-5 flex flex-wrap items-center gap-2 border-b border-border/40 pb-4">
         {autoSyncToggle}
         {refreshModelsButton}
+        {renderCheckAllButton(models.map((m) => `${providerDisplayAlias}/${m.id}`))}
         {!canImportModels && (
           <span className="text-xs text-text-muted">{t("addConnectionToImport")}</span>
         )}

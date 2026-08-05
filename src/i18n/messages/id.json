@@ -1800,7 +1800,11 @@
     "chatPathHint": "Custom chat path for providers with non-standard APIs (e.g. /v4/chat/completions)",
     "modelsPathLabel": "Models Endpoint Path",
     "modelsPathPlaceholder": "/models",
-    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)"
+    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)",
+    "checkAllModels": "Periksa semua ({n})",
+    "checkingAllModels": "Memeriksa…",
+    "checkAllModelsHint": "Mengirim satu permintaan per model untuk melihat model mana yang benar-benar dapat dipanggil akun ini.",
+    "modelAvailabilitySummary": "{passed} dari {total} model tersedia"
   },
   "settings": {
     "title": "Pengaturan",

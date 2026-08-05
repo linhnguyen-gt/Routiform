@@ -1800,7 +1800,11 @@
     "chatPathHint": "Custom chat path for providers with non-standard APIs (e.g. /v4/chat/completions)",
     "modelsPathLabel": "Models Endpoint Path",
     "modelsPathPlaceholder": "/models",
-    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)"
+    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)",
+    "checkAllModels": "Verifică toate ({n})",
+    "checkingAllModels": "Se verifică…",
+    "checkAllModelsHint": "Trimite câte o cerere per model pentru a vedea pe care le poate apela efectiv acest cont.",
+    "modelAvailabilitySummary": "{passed} din {total} modele disponibile"
   },
   "settings": {
     "title": "Setări",

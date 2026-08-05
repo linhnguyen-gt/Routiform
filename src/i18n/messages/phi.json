@@ -1800,7 +1800,11 @@
     "chatPathHint": "Custom chat path for providers with non-standard APIs (e.g. /v4/chat/completions)",
     "modelsPathLabel": "Models Endpoint Path",
     "modelsPathPlaceholder": "/models",
-    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)"
+    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)",
+    "checkAllModels": "Suriin lahat ({n})",
+    "checkingAllModels": "Sinusuri…",
+    "checkAllModelsHint": "Nagpapadala ng isang request bawat modelo upang makita kung alin ang talagang matatawag ng account na ito.",
+    "modelAvailabilitySummary": "{passed} sa {total} na modelo ang available"
   },
   "settings": {
     "title": "Mga setting",

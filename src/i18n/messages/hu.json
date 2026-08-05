@@ -1800,7 +1800,11 @@
     "chatPathHint": "Custom chat path for providers with non-standard APIs (e.g. /v4/chat/completions)",
     "modelsPathLabel": "Models Endpoint Path",
     "modelsPathPlaceholder": "/models",
-    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)"
+    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)",
+    "checkAllModels": "Összes ellenőrzése ({n})",
+    "checkingAllModels": "Ellenőrzés…",
+    "checkAllModelsHint": "Modellenként egy kérést küld, hogy kiderüljön, melyeket tudja ez a fiók ténylegesen meghívni.",
+    "modelAvailabilitySummary": "{total} modellből {passed} érhető el"
   },
   "settings": {
     "title": "Beállítások elemre",

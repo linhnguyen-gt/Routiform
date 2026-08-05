@@ -1800,7 +1800,11 @@
     "chatPathHint": "Vlastní chat cesta pro poskytovatele s nestandardí API (např. /v4/chat/completions)",
     "modelsPathLabel": "Cesta koncového bodu modelu",
     "modelsPathPlaceholder": "/models",
-    "modelsPathHint": "Cesta k vlastním modelům pro validaci (např. /v4/models)"
+    "modelsPathHint": "Cesta k vlastním modelům pro validaci (např. /v4/models)",
+    "checkAllModels": "Zkontrolovat vše ({n})",
+    "checkingAllModels": "Kontroluje se…",
+    "checkAllModelsHint": "Odešle jeden požadavek na každý model, aby se zjistilo, které z nich tento účet skutečně může volat.",
+    "modelAvailabilitySummary": "Dostupných modelů: {passed} z {total}"
   },
   "settings": {
     "title": "Nastavení",

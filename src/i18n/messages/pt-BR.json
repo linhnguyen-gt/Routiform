@@ -1808,7 +1808,11 @@
     "modelsPathHint": "Custom models path for validation (e.g. /v4/models)",
     "statusDeactivated": "Desativado (Manual)",
     "statusBanned": "Banido / Sandbox Violation",
-    "statusCreditsExhausted": "Saldo Insuficiente"
+    "statusCreditsExhausted": "Saldo Insuficiente",
+    "checkAllModels": "Verificar todos ({n})",
+    "checkingAllModels": "Verificando…",
+    "checkAllModelsHint": "Envia uma requisição por modelo para ver quais esta conta consegue realmente chamar.",
+    "modelAvailabilitySummary": "{passed} de {total} modelos disponíveis"
   },
   "settings": {
     "title": "Configurações",

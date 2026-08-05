@@ -1802,7 +1802,11 @@
     "chatPathHint": "为非标准 API 的提供商自定义聊天路径（例如：/v4/chat/completions）",
     "modelsPathLabel": "模型端点路径",
     "modelsPathPlaceholder": "/models",
-    "modelsPathHint": "为验证流程自定义模型路径（例如：/v4/models）"
+    "modelsPathHint": "为验证流程自定义模型路径（例如：/v4/models）",
+    "checkAllModels": "全部检查 ({n})",
+    "checkingAllModels": "检查中…",
+    "checkAllModelsHint": "为每个模型发送一次请求，查看此账号实际可以调用哪些模型。",
+    "modelAvailabilitySummary": "{total} 个模型中有 {passed} 个可用"
   },
   "settings": {
     "title": "设置",

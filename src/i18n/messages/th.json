@@ -1800,7 +1800,11 @@
     "chatPathHint": "Custom chat path for providers with non-standard APIs (e.g. /v4/chat/completions)",
     "modelsPathLabel": "Models Endpoint Path",
     "modelsPathPlaceholder": "/models",
-    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)"
+    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)",
+    "checkAllModels": "ตรวจสอบทั้งหมด ({n})",
+    "checkingAllModels": "กำลังตรวจสอบ…",
+    "checkAllModelsHint": "ส่งคำขอหนึ่งครั้งต่อหนึ่งโมเดล เพื่อดูว่าบัญชีนี้เรียกใช้โมเดลใดได้จริง",
+    "modelAvailabilitySummary": "ใช้งานได้ {passed} จาก {total} โมเดล"
   },
   "settings": {
     "title": "การตั้งค่า",

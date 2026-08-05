@@ -1800,7 +1800,11 @@
     "chatPathHint": "Custom chat path for providers with non-standard APIs (e.g. /v4/chat/completions)",
     "modelsPathLabel": "Models Endpoint Path",
     "modelsPathPlaceholder": "/models",
-    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)"
+    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)",
+    "checkAllModels": "בדוק הכול ({n})",
+    "checkingAllModels": "בודק…",
+    "checkAllModelsHint": "שולח בקשה אחת לכל מודל כדי לראות אילו מהם החשבון הזה יכול באמת להפעיל.",
+    "modelAvailabilitySummary": "{passed} מתוך {total} מודלים זמינים"
   },
   "settings": {
     "title": "הגדרות",

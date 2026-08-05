@@ -1800,7 +1800,11 @@
     "chatPathHint": "Standart dışı API'lere sahip sağlayıcılar için özel sohbet yolu (ör. /v4/chat/completions)",
     "modelsPathLabel": "Model Uç Noktası Yolu",
     "modelsPathPlaceholder": "/models",
-    "modelsPathHint": "Doğrulama için özel model yolu (ör. /v4/models)"
+    "modelsPathHint": "Doğrulama için özel model yolu (ör. /v4/models)",
+    "checkAllModels": "Tümünü kontrol et ({n})",
+    "checkingAllModels": "Kontrol ediliyor…",
+    "checkAllModelsHint": "Bu hesabın hangi modelleri gerçekten çağırabildiğini görmek için model başına bir istek gönderir.",
+    "modelAvailabilitySummary": "{total} modelden {passed} tanesi kullanılabilir"
   },
   "settings": {
     "title": "Ayarlar",

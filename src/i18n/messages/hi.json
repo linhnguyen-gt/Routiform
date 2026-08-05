@@ -1800,7 +1800,11 @@
     "chatPathHint": "Custom chat path for providers with non-standard APIs (e.g. /v4/chat/completions)",
     "modelsPathLabel": "Models Endpoint Path",
     "modelsPathPlaceholder": "/models",
-    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)"
+    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)",
+    "checkAllModels": "सभी जाँचें ({n})",
+    "checkingAllModels": "जाँच हो रही है…",
+    "checkAllModelsHint": "यह देखने के लिए कि यह खाता वास्तव में किन मॉडलों को कॉल कर सकता है, प्रति मॉडल एक अनुरोध भेजता है।",
+    "modelAvailabilitySummary": "{total} में से {passed} मॉडल उपलब्ध"
   },
   "settings": {
     "title": "सेटिंग्स",

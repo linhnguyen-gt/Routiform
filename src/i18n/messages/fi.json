@@ -1800,7 +1800,11 @@
     "chatPathHint": "Custom chat path for providers with non-standard APIs (e.g. /v4/chat/completions)",
     "modelsPathLabel": "Models Endpoint Path",
     "modelsPathPlaceholder": "/models",
-    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)"
+    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)",
+    "checkAllModels": "Tarkista kaikki ({n})",
+    "checkingAllModels": "Tarkistetaan…",
+    "checkAllModelsHint": "Lähettää yhden pyynnön mallia kohden sen selvittämiseksi, mitä malleja tämä tili voi todella kutsua.",
+    "modelAvailabilitySummary": "{passed}/{total} mallia käytettävissä"
   },
   "settings": {
     "title": "Asetukset",

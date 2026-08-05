@@ -1800,7 +1800,11 @@
     "chatPathHint": "Custom chat path for providers with non-standard APIs (e.g. /v4/chat/completions)",
     "modelsPathLabel": "Models Endpoint Path",
     "modelsPathPlaceholder": "/models",
-    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)"
+    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)",
+    "checkAllModels": "Kontrollera alla ({n})",
+    "checkingAllModels": "Kontrollerar…",
+    "checkAllModelsHint": "Skickar en förfrågan per modell för att se vilka det här kontot faktiskt kan anropa.",
+    "modelAvailabilitySummary": "{passed} av {total} modeller tillgängliga"
   },
   "settings": {
     "title": "Inställningar",

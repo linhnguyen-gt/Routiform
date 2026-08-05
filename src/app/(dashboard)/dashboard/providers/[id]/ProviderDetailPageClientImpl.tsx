@@ -191,6 +191,8 @@ export function ProviderDetailPageClientImpl() {
         modelTestResults={orchestrator.modelTestResults}
         testingModelKey={orchestrator.testingModelKey}
         handleTestModel={orchestrator.handleTestModel}
+        handleTestAllModels={orchestrator.handleTestAllModels}
+        testingAllModels={orchestrator.testingAllModels}
         providerInfo={orchestrator.providerInfo}
         models={orchestrator.models}
         autoSyncConnection={orchestrator.autoSyncConnection}

@@ -1803,7 +1803,11 @@
     "chatPathHint": "Custom chat path for providers with non-standard APIs (e.g. /v4/chat/completions)",
     "modelsPathLabel": "Models Endpoint Path",
     "modelsPathPlaceholder": "/models",
-    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)"
+    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)",
+    "checkAllModels": "Comprobar todos ({n})",
+    "checkingAllModels": "Comprobando…",
+    "checkAllModelsHint": "Envía una solicitud por modelo para ver cuáles puede llamar realmente esta cuenta.",
+    "modelAvailabilitySummary": "{passed} de {total} modelos disponibles"
   },
   "settings": {
     "title": "Configuración",

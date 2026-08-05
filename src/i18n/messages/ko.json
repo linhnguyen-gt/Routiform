@@ -1801,7 +1801,11 @@
     "chatPathHint": "Custom chat path for providers with non-standard APIs (e.g. /v4/chat/completions)",
     "modelsPathLabel": "Models Endpoint Path",
     "modelsPathPlaceholder": "/models",
-    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)"
+    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)",
+    "checkAllModels": "전체 확인 ({n})",
+    "checkingAllModels": "확인 중…",
+    "checkAllModelsHint": "모델당 요청을 한 번씩 보내 이 계정이 실제로 호출할 수 있는 모델을 확인합니다.",
+    "modelAvailabilitySummary": "{total}개 중 {passed}개 모델 사용 가능"
   },
   "settings": {
     "title": "설정",

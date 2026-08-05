@@ -1800,7 +1800,11 @@
     "chatPathHint": "Custom chat path for providers with non-standard APIs (e.g. /v4/chat/completions)",
     "modelsPathLabel": "Models Endpoint Path",
     "modelsPathPlaceholder": "/models",
-    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)"
+    "modelsPathHint": "Custom models path for validation (e.g. /v4/models)",
+    "checkAllModels": "Перевірити всі ({n})",
+    "checkingAllModels": "Перевірка…",
+    "checkAllModelsHint": "Надсилає по одному запиту на модель, щоб побачити, які з них цей обліковий запис справді може викликати.",
+    "modelAvailabilitySummary": "Доступно моделей: {passed} з {total}"
   },
   "settings": {
     "title": "Налаштування",
