@@ -9,6 +9,7 @@ export async function chatCorePhaseUpstreamOauthRetry(p: ChatCorePipeline): Prom
   };
   const credentials = p.credentials as {
     refreshToken?: string;
+    connectionId?: string;
   } & Record<string, unknown>;
   const translatedBody = p.translatedBody as Record<string, unknown>;
   const effectiveModel = p.effectiveModel || "";
@@ -54,7 +55,10 @@ export async function chatCorePhaseUpstreamOauthRetry(p: ChatCorePipeline): Prom
       () => executor.refreshCredentials(credentials, log),
       3,
       log,
-      p.provider
+      p.provider,
+      // Scopes the circuit breaker to this connection: one revoked refresh token must not block
+      // the operator's other accounts on the same provider.
+      credentials?.connectionId ?? null
     )) as null | {
       accessToken?: string;
       copilotToken?: string;

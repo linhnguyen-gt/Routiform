@@ -858,7 +858,7 @@ export async function getAllAccessTokens(userInfo, log) {
  * Retries on failure with increasing delay: 1s, 2s, 3s...
  *
  * Includes:
- * - Per-provider circuit breaker (5 consecutive failures → 30min pause)
+ * - Per-connection circuit breaker (5 consecutive failures → 30min pause)
  * - 30s timeout per refresh attempt to prevent hanging connections
  *
  * @param {function} refreshFn - Async function that returns token or null
@@ -869,6 +869,9 @@ export async function getAllAccessTokens(userInfo, log) {
  */
 
 // ─── Circuit Breaker State ──────────────────────────────────────────────────
+// Keyed per CONNECTION, not per provider. A provider-wide key meant one revoked refresh token
+// blocked every other account of that provider for the full cooldown — an operator running four
+// Claude connections lost all four because one died.
 const _circuitBreaker: Record<string, { failures: number; blockedUntil: number }> = {};
 const CIRCUIT_BREAKER_THRESHOLD = 5; // consecutive failures before tripping
 const CIRCUIT_BREAKER_COOLDOWN = 30 * 60 * 1000; // 30 minutes
@@ -887,24 +890,43 @@ interface RefreshLoggerLike {
 }
 
 /**
- * Check if a provider is circuit-breaker blocked.
+ * Breaker key for a connection.
+ *
+ * An absent connection id falls back to the provider-wide key rather than to no key at all: it
+ * degrades to the old behaviour, which is safe, instead of letting a caller escape the breaker,
+ * which is not.
  */
-export function isProviderBlocked(provider: string): boolean {
-  const state = _circuitBreaker[provider];
+function getBreakerKey(provider: string, connectionId?: string | null): string {
+  return connectionId ? `${provider}:${connectionId}` : provider;
+}
+
+/**
+ * Check if a connection is circuit-breaker blocked.
+ */
+export function isProviderBlocked(provider: string, connectionId?: string | null): boolean {
+  const key = getBreakerKey(provider, connectionId);
+  const state = _circuitBreaker[key];
   if (!state) return false;
   if (state.blockedUntil > Date.now()) return true;
-  // Cooldown expired — reset
-  delete _circuitBreaker[provider];
+
+  // Cooldown expired — reset. Guarded on `blockedUntil > 0`, which is the difference between
+  // "this connection served its 30 minutes" and "this connection has failed a few times and has
+  // not tripped yet". The unguarded delete wiped the consecutive-failure counter on every check,
+  // and since every refresh checks before it records, the count could never get past 1 — the
+  // threshold of 5 was unreachable and the breaker could not trip at all.
+  if (state.blockedUntil > 0) delete _circuitBreaker[key];
   return false;
 }
 
 /**
- * Get circuit breaker status for all providers (for diagnostics).
+ * Get circuit breaker status for every tracked connection (for diagnostics).
+ *
+ * Keys are `provider:connectionId`, or a bare provider when the caller had no connection id.
  */
 export function getCircuitBreakerStatus(): Record<string, CircuitBreakerStatusEntry> {
   const result: Record<string, CircuitBreakerStatusEntry> = {};
-  for (const [provider, state] of Object.entries(_circuitBreaker)) {
-    result[provider] = {
+  for (const [key, state] of Object.entries(_circuitBreaker)) {
+    result[key] = {
       failures: state.failures,
       blocked: state.blockedUntil > Date.now(),
       blockedUntil:
@@ -916,29 +938,36 @@ export function getCircuitBreakerStatus(): Record<string, CircuitBreakerStatusEn
 }
 
 /**
- * Record a successful refresh — resets circuit breaker for provider.
+ * Record a successful refresh — resets the circuit breaker for that connection only.
  */
-function recordSuccess(provider: string) {
-  if (_circuitBreaker[provider]) {
-    delete _circuitBreaker[provider];
+function recordSuccess(provider: string, connectionId?: string | null) {
+  const key = getBreakerKey(provider, connectionId);
+  if (_circuitBreaker[key]) {
+    delete _circuitBreaker[key];
   }
 }
 
 /**
  * Record a failed refresh — increments circuit breaker counter.
  */
-function recordFailure(provider: string, log: RefreshLoggerLike | null = null) {
-  if (!_circuitBreaker[provider]) {
-    _circuitBreaker[provider] = { failures: 0, blockedUntil: 0 };
+function recordFailure(
+  provider: string,
+  log: RefreshLoggerLike | null = null,
+  connectionId?: string | null
+) {
+  const key = getBreakerKey(provider, connectionId);
+  if (!_circuitBreaker[key]) {
+    _circuitBreaker[key] = { failures: 0, blockedUntil: 0 };
   }
-  _circuitBreaker[provider].failures++;
+  _circuitBreaker[key].failures++;
 
-  if (_circuitBreaker[provider].failures >= CIRCUIT_BREAKER_THRESHOLD) {
-    _circuitBreaker[provider].blockedUntil = Date.now() + CIRCUIT_BREAKER_COOLDOWN;
+  if (_circuitBreaker[key].failures >= CIRCUIT_BREAKER_THRESHOLD) {
+    _circuitBreaker[key].blockedUntil = Date.now() + CIRCUIT_BREAKER_COOLDOWN;
+    // `key` is provider + connection id. Neither is credential material.
     log?.error?.(
       "TOKEN_REFRESH",
-      `🔴 Circuit breaker tripped for ${provider}: ${CIRCUIT_BREAKER_THRESHOLD} consecutive failures. ` +
-        `Blocked for ${CIRCUIT_BREAKER_COOLDOWN / 60000}min. Provider needs re-authentication.`
+      `🔴 Circuit breaker tripped for ${key}: ${CIRCUIT_BREAKER_THRESHOLD} consecutive failures. ` +
+        `Blocked for ${CIRCUIT_BREAKER_COOLDOWN / 60000}min. This connection needs re-authentication.`
     );
   }
 }
@@ -947,21 +976,42 @@ function recordFailure(provider: string, log: RefreshLoggerLike | null = null) {
  * Execute a function with a timeout.
  */
 async function withTimeout<T>(fn: () => Promise<T>, timeoutMs: number): Promise<T | null> {
-  return Promise.race([
-    fn(),
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
-  ]);
+  // The timer is cleared once the race settles. Left dangling it keeps its closure — and the
+  // event loop — alive for the full 30 seconds after every refresh that already finished.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      fn(),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
+/**
+ * The chat path has TWO independent refresh entry points, with different semantics, and only one
+ * of them reaches this function:
+ *   - proactive:  src/sse/handlers/chat.ts:510 → src/sse/services/tokenRefresh.ts:150 →
+ *                 getAccessToken. No retry, no circuit breaker.
+ *   - reactive:   handlers/chat-core/chat-core-phase-upstream-oauth-retry.ts, on a 401/403.
+ *                 3 retries, breaker-protected — this function.
+ * Do not assume breaker coverage on the proactive path. Reconciling the two is a separate job.
+ */
 export async function refreshWithRetry(
   refreshFn,
   maxRetries = 3,
   log = null,
-  provider = "unknown"
+  provider = "unknown",
+  connectionId: string | null = null
 ) {
+  const breakerKey = getBreakerKey(provider, connectionId);
+
   // Circuit breaker check
-  if (isProviderBlocked(provider)) {
-    log?.warn?.("TOKEN_REFRESH", `⚡ Circuit breaker active for ${provider}, skipping refresh`);
+  if (isProviderBlocked(provider, connectionId)) {
+    log?.warn?.("TOKEN_REFRESH", `⚡ Circuit breaker active for ${breakerKey}, skipping refresh`);
     return null;
   }
 
@@ -975,7 +1025,7 @@ export async function refreshWithRetry(
     try {
       const result = await withTimeout(refreshFn, REFRESH_TIMEOUT_MS);
       if (result) {
-        recordSuccess(provider);
+        recordSuccess(provider, connectionId);
         return result;
       }
     } catch (error) {
@@ -984,7 +1034,7 @@ export async function refreshWithRetry(
   }
 
   // All retries exhausted — record failure for circuit breaker
-  recordFailure(provider, log);
-  log?.error?.("TOKEN_REFRESH", `All ${maxRetries} retry attempts failed for ${provider}`);
+  recordFailure(provider, log, connectionId);
+  log?.error?.("TOKEN_REFRESH", `All ${maxRetries} retry attempts failed for ${breakerKey}`);
   return null;
 }
