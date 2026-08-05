@@ -26,10 +26,15 @@ test("T28: antigravity no longer exposes a static catalog fallback", () => {
   assert.equal(getStaticModelsForProvider("antigravity"), undefined);
 });
 
-test("T28: antigravity legacy GPT-OSS alias resolves to the current canonical ID", async () => {
-  const legacy = await getModelInfoCore("antigravity/gpt-oss-120b-medium", {});
-  assert.equal(legacy.provider, "antigravity");
-  assert.equal(legacy.model, "gpt-oss-120b");
+test("T28: antigravity GPT-OSS keeps its tier suffix — the bare ID does not exist upstream", async () => {
+  // This assertion used to expect "gpt-oss-120b", locking in an alias that rewrote the only ID
+  // upstream serves into one it does not, so every request came back 404 "Requested entity was not
+  // found". `fetchAvailableModels` lists gpt-oss-120b-medium and no bare gpt-oss-120b; sending the
+  // suffixed ID returns a real completion. The test below it already asserted this same principle
+  // for agent IDs — the two contradicted each other.
+  const live = await getModelInfoCore("antigravity/gpt-oss-120b-medium", {});
+  assert.equal(live.provider, "antigravity");
+  assert.equal(live.model, "gpt-oss-120b-medium");
 });
 
 test("T28: antigravity passes agent IDs through to the upstream without tier downcast", async () => {

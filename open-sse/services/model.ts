@@ -58,7 +58,13 @@ const PROVIDER_MODEL_ALIASES = {
     // `v1internal:fetchAvailableModels` response — see
     // `src/lib/providers/antigravityLiveModels.ts`. Add an entry here only if
     // the upstream itself drops a model ID and a deprecation alias is needed.
-    "gpt-oss-120b-medium": "gpt-oss-120b",
+    //
+    // Deliberately empty. A `gpt-oss-120b-medium -> gpt-oss-120b` entry lived
+    // here and was the same downcast in a new costume: upstream advertises
+    // `gpt-oss-120b-medium` and no bare `gpt-oss-120b`, so the alias rewrote
+    // the one valid ID into one that does not exist and the request came back
+    // 404 "Requested entity was not found". Every Antigravity model carries a
+    // tier suffix — the suffix is the name, not noise to strip.
   },
 };
 
