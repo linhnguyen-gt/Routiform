@@ -18,6 +18,11 @@ on:
         description: "Version tag to build (e.g. 2.6.0)"
         required: true
         type: string
+      ref:
+        description: "Commit/branch to build instead of the release tag (hotfix republish)"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -36,11 +41,15 @@ jobs:
     name: Build and Push Docker (multi-arch)
     runs-on: ubuntu-latest
     steps:
+      # Defaults to the release tag so a normal publish is reproducible from it. `ref` is the
+      # hotfix escape hatch: when a published image is broken but the version must not move,
+      # build the fix from a later commit and keep the tag where it is. The version sanity
+      # check below still runs, so the ref's package.json must agree with the image tag.
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          ref: refs/tags/v${{ inputs.version }}
+          ref: ${{ inputs.ref != '' && inputs.ref || format('refs/tags/v{0}', inputs.version) }}
 
       - name: Set up QEMU (for multi-arch builds)
         uses: docker/setup-qemu-action@v4
