@@ -113,8 +113,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     strategy:
+      # 22 is what the Docker image and .nvmrc ship; 24 is the other supported major. Runtime
+      # -coupled breakage hides in the gap between them -- an undici 8 bump passed on 24 and
+      # broke every request on 22, because each Node major bundles a different undici.
       matrix:
-        node-version: [24]
+        node-version: [22, 24]
     env:
       JWT_SECRET: ci-test-secret-with-sufficient-length-for-validation
       API_KEY_SECRET: ci-test-api-key-secret-long

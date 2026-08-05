@@ -30,6 +30,13 @@ updates:
       # Drop this entry once typescript-eslint widens the peer range.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
+      # We hand our own `undici` Agent to the runtime's global `fetch`, which is backed by
+      # the undici that Node bundles (6.28.0 on Node 22). undici 8 rewrote the Dispatcher
+      # handler interface, so a v8 Agent rejects the legacy handler Node's fetch builds and
+      # every outbound request dies with `UND_ERR_INVALID_ARG: invalid onRequestStart method`.
+      # Only lift this once the bundled undici is >= the major we depend on.
+      - dependency-name: "undici"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
