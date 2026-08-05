@@ -2,6 +2,70 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [5.0.0](https://github.com/linhnguyen-gt/Routiform/compare/v4.0.0...v5.0.0) (2026-08-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **providers:** creating, updating, or deleting a provider node now requires a
+dashboard session. A gateway API key no longer suffices. Provider-node setup is
+an operator action, not a runtime one, and the CLI does not use these endpoints.
+* **models:** /v1/models no longer reports vision on a model whose provider
+discards images in translation. The previous answer was optimistic and wrong; a
+client that filtered on it now sees a smaller, correct set.
+* **auth:** a Bearer gateway API key no longer opens the CLI-tools,
+version-manager, restart, tunnel, db-backup, cloud-sync, or ACP-agent management
+routes. Use the dashboard, which sends a session cookie. Installs with
+requireLogin: false continue to work from the dashboard via same-origin.
+
+### Features
+
+* **compression:** add Session-Dedup with a post-success commit ([66cd764](https://github.com/linhnguyen-gt/Routiform/commit/66cd7644f6c06a8384fdf5dfdb4b885deb82c71a))
+* **compression:** add the /api/compression control surface ([0a97b40](https://github.com/linhnguyen-gt/Routiform/commit/0a97b40ad6b464e7a03ac6d8a6c2320e399e1f47))
+* **compression:** add the GCF tabular codec and Responses compaction ([229389d](https://github.com/linhnguyen-gt/Routiform/commit/229389d1dd44abd684c10703418c6a5c7332a13f))
+* **compression:** add the per-request override and the fidelity gate ([9d4cb8e](https://github.com/linhnguyen-gt/Routiform/commit/9d4cb8ee7db6411b1ff7847b6a8215f946e5cfaa))
+* **compression:** emit X-Routiform-Compression on responses ([c6fc0b1](https://github.com/linhnguyen-gt/Routiform/commit/c6fc0b1a6e120486aa8ef5f10c809801d85e5a52))
+* **compression:** give Kiro bodies the prose compression they never had ([751a0e0](https://github.com/linhnguyen-gt/Routiform/commit/751a0e0d87bbc623bd67439cd2b223d00ea46716))
+* **compression:** make the preset reachable and give engines a real context ([1803072](https://github.com/linhnguyen-gt/Routiform/commit/180307292d8f5d44005d75c2e3db7066bb49e2e4))
+* **compression:** put system directives inside the prompt cache, add scope restraint ([efd999c](https://github.com/linhnguyen-gt/Routiform/commit/efd999cc1d5dc9faa9f92657e31b8cd9695d808d))
+* **compression:** replace the hardcoded stack with an engine registry ([17bd65d](https://github.com/linhnguyen-gt/Routiform/commit/17bd65d4e44d121d020f879099760c36dbf3e74a))
+* **compression:** stop git-diff from eating git log output ([439fcfb](https://github.com/linhnguyen-gt/Routiform/commit/439fcfb1e394aedf1005a6a294235a32e6146420))
+* **github:** rebuild the Copilot catalog from the IDs upstream actually serves ([d6892f8](https://github.com/linhnguyen-gt/Routiform/commit/d6892f88d63df05afe76628ebdfb7e271470890f))
+* **providers:** import several provider keys from one paste ([53b1c1d](https://github.com/linhnguyen-gt/Routiform/commit/53b1c1d0e654cbf4573c68a152ad62ab018827d0))
+* **providers:** make local endpoints a supported configuration, with an Ollama preset ([733c8b4](https://github.com/linhnguyen-gt/Routiform/commit/733c8b4273531d929722a37a52898acd6957fae5))
+* **providers:** show which models an account can actually call ([c638af8](https://github.com/linhnguyen-gt/Routiform/commit/c638af8f2de9d0d4a7c822f3218d199c69ab08e9))
+* **settings:** add a compression engine picker ([7250bbe](https://github.com/linhnguyen-gt/Routiform/commit/7250bbe9fefbaf27a2c1638f71e2b043e1df7277))
+
+
+### Bug Fixes
+
+* **acp:** stop running a stored version command through a shell ([755ed2c](https://github.com/linhnguyen-gt/Routiform/commit/755ed2ca9231543c588286017ece654992e49c5c))
+* **antigravity:** stop rewriting the only GPT-OSS id upstream serves ([7e220a4](https://github.com/linhnguyen-gt/Routiform/commit/7e220a408ae61c4daaec7d873aebd69affb7482a))
+* **auth:** keep gateway API keys out of host-credential routes ([52da4d1](https://github.com/linhnguyen-gt/Routiform/commit/52da4d166ac8c4c68fdeb21e3f2cefe82fab5715))
+* **auth:** make /api require auth in the same cases /dashboard does ([ab6d896](https://github.com/linhnguyen-gt/Routiform/commit/ab6d896167360d0a4930ed9cf86cce83c2e03bfa)), closes [#151](https://github.com/linhnguyen-gt/Routiform/issues/151)
+* **auth:** repair the password reset path and stop advertising a default ([a916b34](https://github.com/linhnguyen-gt/Routiform/commit/a916b34da54b97c8e30f27819c95d628f7b9feb2))
+* **auth:** require a dashboard session on every route that touches the host ([4da9be3](https://github.com/linhnguyen-gt/Routiform/commit/4da9be3b9eed986ca3e23753fc51e38c109567f2))
+* **auth:** require a real credential to mint keys or import provider credentials ([e2ef84c](https://github.com/linhnguyen-gt/Routiform/commit/e2ef84c6657708ddb873ce8b2694b0e03fbc7afc))
+* **auth:** scope the refresh circuit breaker to a connection, and make it able to trip ([4516116](https://github.com/linhnguyen-gt/Routiform/commit/4516116403d072bcd2c2dbc8c43e6d3e6deb14d6))
+* **auth:** throttle login attempts and unify the JWT secret between mint and verify ([7c9e085](https://github.com/linhnguyen-gt/Routiform/commit/7c9e085d697da559b2335ce07be72a0cb84202c8))
+* **ci:** make the dependency audit able to fail ([6677018](https://github.com/linhnguyen-gt/Routiform/commit/6677018ac4bdd696b958e1d9a9c0e621412accb5))
+* **cli,auth,mcp:** non-zero CLI exit on failure, timing-safe login, correct analytics param ([91e7c57](https://github.com/linhnguyen-gt/Routiform/commit/91e7c578b38dc7d2e43661c8cb610fdd0ff73f06))
+* **deps:** clear the three unallowlisted high advisories ([dd911ca](https://github.com/linhnguyen-gt/Routiform/commit/dd911cae3e1043e45ce79c22187e04012a8ba062))
+* **mcp:** register the cache tools and drop the dead explain_route tool ([1f295f1](https://github.com/linhnguyen-gt/Routiform/commit/1f295f17702d6d49a9bdc3135297b1b7b58a4438))
+* **mcp:** stop trusting caller-supplied scopes and register the memory tools ([714791c](https://github.com/linhnguyen-gt/Routiform/commit/714791c1de77ca8151a709783126cfdc63eae726))
+* **models:** answer "can this model see an image?" the same way everywhere ([137d17c](https://github.com/linhnguyen-gt/Routiform/commit/137d17c7e75b1404ee61fd4207d438cb5e297ee0))
+* **openapi:** import js-yaml by name so the v5 bump can land ([777c18a](https://github.com/linhnguyen-gt/Routiform/commit/777c18ae8a352146edbb34e176fa062edd40b059))
+* **providers:** bind the check-all refs the hook actually reads ([e36da16](https://github.com/linhnguyen-gt/Routiform/commit/e36da1653cc862ed7790fe54f05fa169b2b30489))
+* **providers:** make RegistryEntry.executor truthful and pin it with a test ([d806a95](https://github.com/linhnguyen-gt/Routiform/commit/d806a95b8f3a22fa88331af926b65b2802edb641))
+* **providers:** validate the upstream-proxy map, tighten the schema, split free-tier totals ([a5aa0b4](https://github.com/linhnguyen-gt/Routiform/commit/a5aa0b40253abdcb675f79b788ddb2be997c3db7))
+* **proxy:** cover the LLM ingress paths in the middleware matcher ([0230aed](https://github.com/linhnguyen-gt/Routiform/commit/0230aede5a3cf62e2f5ac364a5404decc70eee66))
+* **routing:** hydrate auto-combo candidates with real quota data ([d75ff4e](https://github.com/linhnguyen-gt/Routiform/commit/d75ff4e6c0c8c0e4574cfae96e0f4830ccd7ac56))
+* **security:** actually consult the IP filter in the middleware ([fcede16](https://github.com/linhnguyen-gt/Routiform/commit/fcede1681bf3a0b02cfb0055118aded5c1a86908))
+* **security:** stop trusting client-supplied forwarding headers ([9f8f1a3](https://github.com/linhnguyen-gt/Routiform/commit/9f8f1a3360ee498e512c35f7ba6b7c413bb6b8b0))
+* **security:** wire the PII response sanitizer and make block mode block ([7d3676c](https://github.com/linhnguyen-gt/Routiform/commit/7d3676c16d9bad225223a94b91a4a856d4eb7408))
+* **settings:** reconcile fallbackStrategy schemas and add a quota-cache test seam ([d924aff](https://github.com/linhnguyen-gt/Routiform/commit/d924affc9b18940769238819e87d50abe6a4a0f7))
+* **translator:** close four wire-correctness defects in the Gemini and Responses paths ([924c68c](https://github.com/linhnguyen-gt/Routiform/commit/924c68ca7125e10295c19d71c8f73b25bad69c23))
+
 ## [4.0.0](https://github.com/linhnguyen-gt/Routiform/compare/v3.37.0...v4.0.0) (2026-07-14)
 
 
