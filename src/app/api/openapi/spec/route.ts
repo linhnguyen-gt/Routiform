@@ -6,7 +6,9 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import yaml from "js-yaml";
+// Named import, not default: js-yaml 5 dropped the default export. v4 exposes both, so
+// this builds against either and unblocks the 4 → 5 bump.
+import { load as loadYaml } from "js-yaml";
 
 let cachedSpec: { data: unknown; mtime: number; specPath: string } | null = null;
 
@@ -45,7 +47,7 @@ export async function GET() {
     }
 
     const content = fs.readFileSync(specPath, "utf-8");
-    const raw: Record<string, unknown> = yaml.load(content) as Record<string, unknown>;
+    const raw: Record<string, unknown> = loadYaml(content) as Record<string, unknown>;
 
     // Build a structured catalog
     const catalog: {
