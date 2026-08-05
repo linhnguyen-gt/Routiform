@@ -7,6 +7,8 @@ import { filterOrderedModelsForToolCalling } from "./combo-tool-calling-filter.t
 import { createHandleSingleModelWrapped } from "./combo-handle-single-model-wrapped.ts";
 import { resolveInitialOrderedModels } from "./combo-ordered-models-base.ts";
 import { applyStrategyOrdering } from "./combo-ordered-models-strategy.ts";
+import { partitionByImageSupport } from "./combo-image-partition.ts";
+import { requestHasImage } from "../request-has-image.ts";
 import { runStandardComboFallbackChain } from "./combo-standard-fallback-chain.ts";
 import { handleRoundRobinCombo } from "./combo-round-robin.ts";
 
@@ -100,11 +102,19 @@ export async function handleComboChat(options: {
   }
 
   orderedModels = filterOrderedModelsForToolCalling(orderedModels, combo, body, log);
+
   if (orderedModels.length === 0) {
     return unavailableResponse(
       400,
       "Combo requireToolCalling: no models in this combo support tool calling for this request"
     );
+  }
+
+  // Last ordering step, and only when the current turn actually carries an image: try candidates
+  // whose translator carries images before the ones that silently drop them. Text traffic returns
+  // the identical array, by reference.
+  if (requestHasImage(body)) {
+    orderedModels = partitionByImageSupport(orderedModels, log);
   }
 
   return runStandardComboFallbackChain({

@@ -10,6 +10,7 @@ import {
   getModelIsHidden,
 } from "@/lib/localDb";
 import { isAuthenticated } from "@/shared/utils/apiAuth";
+import { modelSupportsImages } from "@/lib/chat/model-vision";
 import { getAllEmbeddingModels } from "@routiform/open-sse/config/embeddingRegistry.ts";
 import { getAllImageModels } from "@routiform/open-sse/config/imageRegistry.ts";
 import { getAllRerankModels } from "@routiform/open-sse/config/rerankRegistry.ts";
@@ -38,50 +39,17 @@ const FALLBACK_ALIAS_TO_PROVIDER = {
 
 const LIVE_SYNC_MODEL_PROVIDERS = new Set(["claude", "gemini"]);
 
-const VISION_MODEL_KEYWORDS = [
-  "gpt-5.6",
-  "gpt-5.5",
-  "gpt-5.4",
-  "gpt-5.4-mini",
-  "gpt-5.3-codex",
-  "gpt-5.2",
-  "gpt-4o",
-  "gpt-4.1",
-  "gpt-4-vision",
-  "gpt-4-turbo",
-  "claude-3",
-  "claude-3.5",
-  "claude-3-5",
-  "claude-4",
-  "claude-opus",
-  "claude-sonnet",
-  "claude-haiku",
-  "gemini",
-  "gemma",
-  "llava",
-  "bakllava",
-  "pixtral",
-  "mistral-pixtral",
-  "qwen-vl",
-  "qvq",
-  "qwen3.5",
-  "qwen3.6",
-  "qwen3.7",
-  "qwen-omni",
-  "glm-4.6v",
-  "glm-4.5v",
-  "vision",
-  "multimodal",
-];
-
-function isVisionModelId(modelId: string): boolean {
-  const normalized = String(modelId || "").toLowerCase();
-  if (!normalized) return false;
-  return VISION_MODEL_KEYWORDS.some((keyword) => normalized.includes(keyword));
-}
-
-function getVisionCapabilityFields(modelId: string) {
-  if (!isVisionModelId(modelId)) return null;
+/**
+ * Vision fields for a model, sourced from the translator that will actually carry the request.
+ *
+ * This used to be a 33-substring keyword match on the model id, which made `/v1/models` disagree
+ * with `/api/models` for every provider whose translator discards image parts: `cursor/gpt-4o`
+ * was advertised as vision-capable while the cursor translator returns text only. Vision is not a
+ * property of the model id — it is a property of the model reached through a specific provider.
+ */
+export function getVisionCapabilityFields(provider: string, modelId: string) {
+  if (!provider || !modelId) return null;
+  if (!modelSupportsImages(provider, modelId)) return null;
   return {
     capabilities: { vision: true },
     supports_vision: true,
@@ -280,8 +248,7 @@ export async function getUnifiedModelsResponse(
         const aliasId = `${alias}/${model.id}`;
         if (getModelIsHidden(canonicalProviderId, model.id)) continue;
 
-        const visionFields =
-          getVisionCapabilityFields(aliasId) || getVisionCapabilityFields(model.id);
+        const visionFields = getVisionCapabilityFields(canonicalProviderId, model.id);
         // Model-level context length overrides provider default
         const contextLength = model.contextLength || defaultContextLength;
         const maxOutputTokens = model.maxOutputTokens || defaultMaxOutputTokens;
@@ -303,8 +270,7 @@ export async function getUnifiedModelsResponse(
         // This improves compatibility for clients that expect full provider names.
         if (canonicalProviderId !== alias) {
           const providerIdModel = `${canonicalProviderId}/${model.id}`;
-          const providerVisionFields =
-            getVisionCapabilityFields(providerIdModel) || getVisionCapabilityFields(model.id);
+          const providerVisionFields = getVisionCapabilityFields(canonicalProviderId, model.id);
           models.push({
             id: providerIdModel,
             object: "model",
@@ -334,8 +300,7 @@ export async function getUnifiedModelsResponse(
           const modelId = `antigravity/${model.id}`;
           if (getModelIsHidden("antigravity", model.id)) continue;
 
-          const visionFields =
-            getVisionCapabilityFields(modelId) || getVisionCapabilityFields(model.id);
+          const visionFields = getVisionCapabilityFields("antigravity", model.id);
           models.push({
             id: modelId,
             object: "model",
@@ -552,9 +517,7 @@ export async function getUnifiedModelsResponse(
           else if (endpoints.includes("images")) modelType = "image";
           else if (endpoints.includes("audio")) modelType = "audio";
           const visionFields =
-            modelType === "chat"
-              ? getVisionCapabilityFields(aliasId) || getVisionCapabilityFields(modelId)
-              : null;
+            modelType === "chat" ? getVisionCapabilityFields(canonicalProviderId, modelId) : null;
 
           models.push({
             id: aliasId,
@@ -584,10 +547,7 @@ export async function getUnifiedModelsResponse(
             const providerPrefixedId = `${canonicalProviderId}/${modelId}`;
             if (models.some((m) => m.id === providerPrefixedId)) continue;
             const providerVisionFields =
-              modelType === "chat"
-                ? getVisionCapabilityFields(providerPrefixedId) ||
-                  getVisionCapabilityFields(modelId)
-                : null;
+              modelType === "chat" ? getVisionCapabilityFields(canonicalProviderId, modelId) : null;
             models.push({
               id: providerPrefixedId,
               object: "model",
@@ -633,8 +593,7 @@ export async function getUnifiedModelsResponse(
         const aliasId = `${alias}/${modelId}`;
         if (models.some((m) => m.id === aliasId)) continue;
 
-        const visionFields =
-          getVisionCapabilityFields(aliasId) || getVisionCapabilityFields(modelId);
+        const visionFields = getVisionCapabilityFields(providerId, modelId);
         const contextLength =
           typeof (model as Record<string, unknown>).contextLength === "number"
             ? (model as Record<string, unknown>).contextLength
