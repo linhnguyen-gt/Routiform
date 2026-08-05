@@ -19,7 +19,7 @@ on:
         required: true
         type: string
       ref:
-        description: "Commit/branch to build instead of the release tag (hotfix republish)"
+        description: "Branch name or FULL 40-char commit SHA to build instead of the release tag (hotfix republish). A short SHA fails checkout."
         required: false
         type: string
         default: ""
