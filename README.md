@@ -1,16 +1,17 @@
 # Routiform
 
-One AI endpoint for your apps, tools, and agents.
+🌐 **Languages:** 🇺🇸 English · 🇪🇸 [es](docs/i18n/es/README.md) · 🇫🇷 [fr](docs/i18n/fr/README.md) · 🇩🇪 [de](docs/i18n/de/README.md) · 🇮🇹 [it](docs/i18n/it/README.md) · 🇷🇺 [ru](docs/i18n/ru/README.md) · 🇨🇳 [zh-CN](docs/i18n/zh-CN/README.md) · 🇯🇵 [ja](docs/i18n/ja/README.md) · 🇰🇷 [ko](docs/i18n/ko/README.md) · 🇸🇦 [ar](docs/i18n/ar/README.md) · 🇮🇳 [hi](docs/i18n/hi/README.md) · 🇮🇳 [in](docs/i18n/in/README.md) · 🇹🇭 [th](docs/i18n/th/README.md) · 🇻🇳 [vi](docs/i18n/vi/README.md) · 🇮🇩 [id](docs/i18n/id/README.md) · 🇲🇾 [ms](docs/i18n/ms/README.md) · 🇳🇱 [nl](docs/i18n/nl/README.md) · 🇵🇱 [pl](docs/i18n/pl/README.md) · 🇸🇪 [sv](docs/i18n/sv/README.md) · 🇳🇴 [no](docs/i18n/no/README.md) · 🇩🇰 [da](docs/i18n/da/README.md) · 🇫🇮 [fi](docs/i18n/fi/README.md) · 🇵🇹 [pt](docs/i18n/pt/README.md) · 🇷🇴 [ro](docs/i18n/ro/README.md) · 🇭🇺 [hu](docs/i18n/hu/README.md) · 🇧🇬 [bg](docs/i18n/bg/README.md) · 🇸🇰 [sk](docs/i18n/sk/README.md) · 🇺🇦 [uk-UA](docs/i18n/uk-UA/README.md) · 🇮🇱 [he](docs/i18n/he/README.md) · 🇵🇭 [phi](docs/i18n/phi/README.md) · 🇧🇷 [pt-BR](docs/i18n/pt-BR/README.md) · 🇨🇿 [cs](docs/i18n/cs/README.md) · 🇹🇷 [tr](docs/i18n/tr/README.md)
 
-Routiform is a self-hosted AI gateway and dashboard for teams that want one stable integration point across 60+ providers. You send OpenAI-compatible requests to one `/v1/*` endpoint, and Routiform handles translation, routing, retries, fallback, and operations.
+**Your agent stops mid-task because one provider rate-limited you.** One outage takes the workflow
+down, every new provider is another client rewrite and another key to store, and nothing tells you
+what the whole thing cost.
 
-It is built for developers who want to:
+**Routiform is a self-hosted gateway that puts all of it behind one OpenAI-compatible `/v1/*`
+endpoint.** Point Cursor, Codex, Claude Code, Cline, an MCP client, or your own app at one base URL:
+it translates the request, picks an account, retries, falls back when a model or a provider dies,
+and logs what that cost.
 
-- integrate once, then swap providers and models without rewriting client code
-- keep Cursor, Devin, Cline, Claude Desktop, Codex, MCP clients, and internal apps on one base URL
-- survive provider outages, model deprecations, and quota limits with policy-driven fallback
-- reduce cost using combo routing, budget guards, and lower-cost model paths
-- run their own gateway with full visibility into keys, logs, quotas, and health
+**61 providers ship in the registry today**, configurable without writing an adapter.[^count]
 
 ## Why teams choose Routiform
 
@@ -56,7 +57,7 @@ These screens show the day-to-day workflow: manage unified endpoints, configure 
 - Native CLI-backed bridges for providers like Devin, including subprocess execution and streaming normalization back to OpenAI-compatible responses
 - Works with local apps, server deployments, CLI tools, browser clients, and agent frameworks
 
-### 60+ providers
+### 61 providers in the registry
 
 Routiform supports a broad provider mix, including:
 
@@ -299,8 +300,8 @@ npm run build       # Build the Next.js application
 npm start           # Start the server
 ```
 
-The `npm run owui:build` step is required — it compiles the vendored Open WebUI (`open-webui/`) 
-into `public/owui/`, which is then embedded by Next's `output: standalone`. 
+The `npm run owui:build` step is required — it compiles the vendored Open WebUI (`open-webui/`)
+into `public/owui/`, which is then embedded by Next's `output: standalone`.
 Without it, `/owui` returns 404 and `/dashboard/chat` redirects to a missing chat interface.
 
 ### Built-in Chat
@@ -310,6 +311,7 @@ It is a vendored Open WebUI SvelteKit SPA with a native Next.js backend that tal
 Nothing to install and nothing to launch — it works anywhere Routiform runs, on every install option.
 
 **Features:**
+
 - Streaming completions via socket.io
 - Conversation history with search and tagging
 - File attachments (images, code, documents)
@@ -601,3 +603,5 @@ Routiform wouldn't exist without the foundations laid by:
 - Repository: <https://github.com/linhnguyen-gt/Routiform>
 - npm: <https://www.npmjs.com/package/routiform>
 - Docker: <https://hub.docker.com/r/linhnguyen0944/routiform>
+
+[^count]: Counted from the shipped registry — `open-sse/config/registry-providers-{apikey,oauth,free,local}.ts`: 42 API-key, 10 OAuth, 8 free-tier, 1 local (Ollama). `tests/unit/readme-provider-count.test.mjs` fails if this number and the registry ever disagree, so it cannot quietly drift.

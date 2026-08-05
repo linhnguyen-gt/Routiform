@@ -59,7 +59,7 @@ Add to your MCP client configuration:
   "mcpServers": {
     "routiform": {
       "command": "node",
-      "args": ["path/to/9router/open-sse/mcp-server/server.ts"],
+      "args": ["path/to/Routiform/open-sse/mcp-server/server.ts"],
       "env": {
         "ROUTIFORM_BASE_URL": "http://localhost:20128",
         "ROUTIFORM_API_KEY": "your-key"
