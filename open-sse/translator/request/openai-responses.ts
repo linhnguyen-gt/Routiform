@@ -278,11 +278,14 @@ export function openaiResponsesToOpenAIRequest(
   // providers as a cache-affinity signal. Stripping it breaks prompt caching (#517).
   // Note: include is preserved — clients like Codex send include:["reasoning.encrypted_content"]
   // to request encrypted thinking blocks; stripping it breaks the thinking panel.
+  // Note: client_metadata is Anthropic-origin (codex-request-transform injects it)
+  // and has no Chat Completions equivalent — strict upstreams reject unknown fields.
   delete result.input;
   delete result.instructions;
   delete result.store;
   delete result.reasoning;
   delete result.background;
+  delete result.client_metadata;
 
   return result;
 }

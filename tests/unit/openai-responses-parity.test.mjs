@@ -651,3 +651,31 @@ test("Responses→Chat: unsupported tool error has statusCode 400 and errorType"
   assert.equal(caughtError.statusCode, 400);
   assert.equal(caughtError.errorType, "unsupported_feature");
 });
+
+// ---------------------------------------------------------------------------
+// Responses→Chat field cleanup: client_metadata is Anthropic-origin and has no
+// Chat Completions equivalent; prompt_cache_key and include are load-bearing.
+// ---------------------------------------------------------------------------
+
+test("Responses→Chat: strips client_metadata, keeps prompt_cache_key and include", () => {
+  const body = {
+    model: "gpt-5",
+    input: "hello",
+    instructions: "be brief",
+    store: false,
+    reasoning: { effort: "low" },
+    client_metadata: { user_id: "u-1" },
+    prompt_cache_key: "cache-key-1",
+    include: ["reasoning.encrypted_content"],
+  };
+
+  const result = openaiResponsesToOpenAIRequest(null, body, null, null);
+
+  assert.ok(!("client_metadata" in result), "client_metadata must be stripped");
+  assert.equal(result.prompt_cache_key, "cache-key-1");
+  assert.deepEqual(result.include, ["reasoning.encrypted_content"]);
+  assert.ok(!("input" in result));
+  assert.ok(!("instructions" in result));
+  assert.ok(!("store" in result));
+  assert.ok(!("reasoning" in result));
+});

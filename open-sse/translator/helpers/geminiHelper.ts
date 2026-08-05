@@ -159,6 +159,58 @@ function removeUnsupportedKeywords(obj, keywords, inPropertiesMap = false) {
   }
 }
 
+// Keys whose value is itself a schema (or an array of schemas).
+const SCHEMA_CHILD_KEYS = new Set(["items", "prefixItems", "anyOf", "oneOf", "allOf", "not"]);
+// Keys whose value is a name -> schema map, so the schemas sit one level deeper.
+const SCHEMA_MAP_KEYS = new Set(["properties", "$defs", "definitions"]);
+
+const EMPTY_SCHEMA_PLACEHOLDER = {
+  reason: {
+    type: "string",
+    description: "Brief explanation of why you are calling this tool",
+  },
+};
+
+// Antigravity rejects an object schema with no properties, and `$ref` stripping
+// can reduce a node to `{}`. Backfill a placeholder property — but only at
+// positions that actually hold a schema. A position-blind walk would inject the
+// placeholder into `default: {}`, `const: {}`, `enum: [{}]` and friends, silently
+// corrupting the tool contract. Mirrors the `inPropertiesMap` threading in
+// removeUnsupportedKeywords.
+export function addSchemaPlaceholders(obj, inSchemaPosition = false) {
+  if (!obj || typeof obj !== "object") return;
+
+  if (Array.isArray(obj)) {
+    // Only reached from a schema-child key (anyOf/oneOf/allOf/prefixItems/items),
+    // where every element is a schema.
+    for (const item of obj) {
+      addSchemaPlaceholders(item, inSchemaPosition);
+    }
+    return;
+  }
+
+  if (inSchemaPosition) {
+    const isObjectSchema = obj.type === "object" || Object.keys(obj).length === 0;
+    const hasProperties = obj.properties && Object.keys(obj.properties).length > 0;
+    if (isObjectSchema && !hasProperties) {
+      obj.type = "object";
+      obj.properties = structuredClone(EMPTY_SCHEMA_PLACEHOLDER);
+      obj.required = ["reason"];
+    }
+  }
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (!value || typeof value !== "object") continue;
+    if (SCHEMA_MAP_KEYS.has(key)) {
+      for (const child of Object.values(value)) {
+        addSchemaPlaceholders(child, true);
+      }
+    } else {
+      addSchemaPlaceholders(value, SCHEMA_CHILD_KEYS.has(key));
+    }
+  }
+}
+
 // Convert const to enum
 function convertConstToEnum(obj) {
   if (!obj || typeof obj !== "object") return;
@@ -386,31 +438,9 @@ export function cleanJSONSchemaForAntigravity(schema) {
 
   cleanupRequired(cleaned);
 
-  // Phase 5: Add placeholder for empty object schemas (Antigravity requirement)
-  function addPlaceholders(obj) {
-    if (!obj || typeof obj !== "object") return;
-
-    if (obj.type === "object") {
-      if (!obj.properties || Object.keys(obj.properties).length === 0) {
-        obj.properties = {
-          reason: {
-            type: "string",
-            description: "Brief explanation of why you are calling this tool",
-          },
-        };
-        obj.required = ["reason"];
-      }
-    }
-
-    // Recurse into nested objects
-    for (const value of Object.values(obj)) {
-      if (value && typeof value === "object") {
-        addPlaceholders(value);
-      }
-    }
-  }
-
-  addPlaceholders(cleaned);
+  // Phase 5: Add placeholder for empty object schemas (Antigravity requirement).
+  // `cleaned` is the tool parameters schema, which is itself a schema position.
+  addSchemaPlaceholders(cleaned, true);
 
   return cleaned;
 }

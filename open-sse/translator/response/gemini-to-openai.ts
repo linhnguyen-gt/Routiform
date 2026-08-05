@@ -1,6 +1,26 @@
 import { register } from "../registry.ts";
 import { FORMATS } from "../formats.ts";
 import { storeGeminiThoughtSignature } from "../../services/geminiThoughtSignatureStore.ts";
+import { logger } from "../../utils/logger.ts";
+
+const log = logger("TRANSLATOR");
+
+// Gemini finishReason (lowercased) -> OpenAI finish_reason enum
+// (stop | length | tool_calls | content_filter | function_call).
+// Anything outside the enum makes a conforming client treat a truncated
+// completion as a normal stop, so every documented Gemini value is mapped.
+const GEMINI_FINISH_REASON: Record<string, string> = {
+  stop: "stop",
+  max_tokens: "length",
+  safety: "content_filter",
+  recitation: "content_filter",
+  blocklist: "content_filter",
+  prohibited_content: "content_filter",
+  spii: "content_filter",
+  malformed_function_call: "tool_calls",
+  other: "stop",
+  finish_reason_unspecified: "stop",
+};
 
 // Convert Gemini response chunk to OpenAI format
 export function geminiToOpenAIResponse(chunk, state) {
@@ -235,18 +255,17 @@ export function geminiToOpenAIResponse(chunk, state) {
 
   // Finish reason - include usage in final chunk
   if (candidate.finishReason) {
-    let finishReason = candidate.finishReason.toLowerCase();
-    if (finishReason === "stop" && state.toolCalls.size > 0) {
+    const rawFinishReason = candidate.finishReason.toLowerCase();
+    let finishReason;
+    if (rawFinishReason === "stop" && state.toolCalls.size > 0) {
+      // Tool-call promotion wins over the plain "stop" mapping.
       finishReason = "tool_calls";
-    }
-    // Content blocked by Gemini safety filters — pass through as "content_filter"
-    // so downstream clients can distinguish from normal completion.
-    if (
-      finishReason === "safety" ||
-      finishReason === "recitation" ||
-      finishReason === "blocklist"
-    ) {
-      finishReason = "content_filter";
+    } else {
+      finishReason = GEMINI_FINISH_REASON[rawFinishReason];
+      if (!finishReason) {
+        log.warn(`Unmapped Gemini finishReason "${candidate.finishReason}", defaulting to "stop"`);
+        finishReason = "stop";
+      }
     }
 
     const finalChunk: Record<string, unknown> = {
