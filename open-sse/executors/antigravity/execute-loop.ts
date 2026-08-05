@@ -36,9 +36,10 @@ export async function executeAntigravityRequest(
   const upstreamStream = true;
 
   // Account ID for credits-exhausted tracking.
-  // Key must match getAntigravityUsage() in fetcher.ts (providerSpecificData?.email || sub).
+  // Key must match getAntigravityUsage() in services/usage/antigravity-usage.ts
+  // (providerSpecificData?.email || sub).
   // credentials.email and credentials.sub are populated from the same OAuth token store,
-  // so the cache keys written here and read in the fetcher will always match.
+  // so the cache keys written here and read by the usage dispatcher will always match.
   const accountId: string = credentials?.email || credentials?.sub || "unknown";
   const accessToken: string = credentials?.accessToken || "";
 
