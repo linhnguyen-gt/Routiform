@@ -1,12 +1,13 @@
 // Auto-detect the right filter for a tool_result blob by inspecting its head.
-// Order: git-diff → git-status → build-output → grep → find → tree → ls → search-list
-//        → read-numbered → dedup-log → smart-truncate → null
+// Order: git-log → git-diff → git-status → build-output → porcelain(git-status) → grep → find
+//        → tree → ls → search-list → read-numbered → dedup-log → smart-truncate → null
 import {
   DETECT_WINDOW,
   READ_NUMBERED_MIN_HIT_RATIO,
   SMART_TRUNCATE_MIN_LINES,
 } from "./constants.ts";
 import { gitDiff } from "./filters/git-diff.ts";
+import { gitLog } from "./filters/git-log.ts";
 import { gitStatus } from "./filters/git-status.ts";
 import { buildOutput } from "./filters/build-output.ts";
 import { grep } from "./filters/grep.ts";
@@ -19,6 +20,9 @@ import { readNumbered, READ_NUMBERED_LINE_RE } from "./filters/read-numbered.ts"
 import { searchList, SEARCH_LIST_HEADER_RE } from "./filters/search-list.ts";
 import type { FilterFn } from "./types.ts";
 
+// Ahead of git-diff on purpose: `git log -p` contains `diff --git`, so git-diff would claim it
+// and discard every commit header.
+const RE_GIT_LOG = /^[*|\\/ ]*commit [0-9a-f]{7,64}\b/m;
 const RE_GIT_DIFF = /^diff --git /m;
 const RE_GIT_DIFF_HUNK = /^@@ /m;
 const RE_GIT_STATUS = /^On branch |^nothing to commit|^Changes (not |to be )|^Untracked files:/m;
@@ -33,6 +37,7 @@ export function autoDetectFilter(text: string): FilterFn | null {
   // JS .slice() by char is UTF-8 safe (no byte-boundary split needed)
   const head = text.length > DETECT_WINDOW ? text.slice(0, DETECT_WINDOW) : text;
 
+  if (RE_GIT_LOG.test(head)) return gitLog;
   if (RE_GIT_DIFF.test(head) || RE_GIT_DIFF_HUNK.test(head)) return gitDiff;
   if (RE_GIT_STATUS.test(head)) return gitStatus;
 

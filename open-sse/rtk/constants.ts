@@ -69,18 +69,5 @@ export const SMART_TRUNCATE_MIN_LINES = 250; // only kick in above this
 // readNumbered (files with "  N|content" lines, e.g. Cursor read_file)
 export const READ_NUMBERED_MIN_HIT_RATIO = 0.7;
 
-// Filter name strings
-export const FILTERS = {
-  GIT_DIFF: "git-diff",
-  GIT_STATUS: "git-status",
-  GIT_LOG: "git-log",
-  GREP: "grep",
-  FIND: "find",
-  LS: "ls",
-  TREE: "tree",
-  DEDUP_LOG: "dedup-log",
-  SMART_TRUNCATE: "smart-truncate",
-  READ_NUMBERED: "read-numbered",
-  SEARCH_LIST: "search-list",
-  BUILD_OUTPUT: "build-output",
-};
+// git log — kept lines before the "N more commits omitted" trailer
+export const GIT_LOG_MAX_LINES = 200;
