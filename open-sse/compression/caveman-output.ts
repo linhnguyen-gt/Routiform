@@ -1,4 +1,5 @@
-import type { CavemanOutputLevel, CavemanOutputResult, CavemanOutputTarget } from "./types.ts";
+import { appendSystemDirective } from "./append-system-directive.ts";
+import type { CavemanOutputLevel, CavemanOutputResult } from "./types.ts";
 
 /**
  * Output-side caveman: a system-prompt directive that makes the *model*
@@ -80,10 +81,6 @@ export const CAVEMAN_PROMPTS: Record<Exclude<CavemanOutputLevel, "off">, string>
 export function getCavemanOutputPrompt(level: CavemanOutputLevel): string | null {
   if (level === "off") return null;
   return CAVEMAN_PROMPTS[level] ?? null;
-}
-
-function appendText(existing: string, addition: string): string {
-  return existing.length > 0 ? `${existing}\n\n${addition}` : addition;
 }
 
 /**
@@ -200,16 +197,9 @@ function requiresStructuredOutput(body: Record<string, unknown> | null | undefin
  *     majority of agentic tool_choice:"auto" traffic; false positive
  *     injecting into structured-output requests, corrupting JSON output).
  *
- * Handles all four inbound request shapes this stage of the pipeline ever
- * sees (one per source format — compression now runs on the pre-translation
- * client body, see the module-level `applyStackedCompression` caller):
- *   - Claude Messages API: `body.system` (string or content-block array)
- *   - OpenAI-style: a `system` / `developer` message in `body.messages`
- *   - OpenAI Responses API (Codex CLI): `body.instructions` (string)
- *   - Gemini: `body.systemInstruction` (`{role?, parts:[{text}]}`), gated on
- *     the presence of `body.contents` (Gemini's messages-array field)
- * Falls back to prepending a new system message when none of the above is
- * present (OpenAI-shaped body with no system/developer message yet).
+ * The four inbound request shapes this stage ever sees, and the fallback for
+ * a body with no system surface at all, are handled by `appendSystemDirective`
+ * — shared with every other directive that injects here.
  */
 export function injectCavemanOutputDirective(
   body: Record<string, unknown> | null | undefined,
@@ -224,57 +214,8 @@ export function injectCavemanOutputDirective(
   const directive = getCavemanOutputPrompt(level);
   if (!directive) return null;
 
-  let target: CavemanOutputTarget;
-
-  if (typeof body.system === "string") {
-    body.system = appendText(body.system, directive);
-    target = "system-field";
-  } else if (Array.isArray(body.system)) {
-    (body.system as unknown[]).push({ type: "text", text: directive });
-    target = "system-field";
-  } else if (typeof body.instructions === "string") {
-    body.instructions = appendText(body.instructions, directive);
-    target = "system-field";
-  } else if (Array.isArray(body.contents)) {
-    const systemInstruction = body.systemInstruction;
-    if (
-      systemInstruction &&
-      typeof systemInstruction === "object" &&
-      Array.isArray((systemInstruction as Record<string, unknown>).parts)
-    ) {
-      ((systemInstruction as Record<string, unknown>).parts as unknown[]).push({ text: directive });
-    } else {
-      body.systemInstruction = { role: "user", parts: [{ text: directive }] };
-    }
-    target = "system-field";
-  } else if (Array.isArray(body.messages)) {
-    const messages = body.messages as Array<Record<string, unknown>>;
-    const systemMsg = messages.find(
-      (m) => m && typeof m === "object" && (m.role === "system" || m.role === "developer")
-    );
-    if (systemMsg && typeof systemMsg.content === "string") {
-      systemMsg.content = appendText(systemMsg.content, directive);
-      target = "system-message";
-    } else if (systemMsg && Array.isArray(systemMsg.content)) {
-      (systemMsg.content as unknown[]).push({ type: "text", text: directive });
-      target = "system-message";
-    } else if (systemMsg && systemMsg.content == null) {
-      // Nothing to preserve — safe to set directly.
-      systemMsg.content = directive;
-      target = "system-message";
-    } else if (systemMsg) {
-      // Non-standard content shape (object/number/boolean, not string,
-      // array, or null): do not clobber it. Prepend a new system message
-      // instead so the existing (unrecognized) content survives untouched.
-      messages.unshift({ role: "system", content: directive });
-      target = "new-system-message";
-    } else {
-      messages.unshift({ role: "system", content: directive });
-      target = "new-system-message";
-    }
-  } else {
-    return null;
-  }
+  const target = appendSystemDirective(body, directive);
+  if (!target) return null;
 
   return { level, target };
 }
