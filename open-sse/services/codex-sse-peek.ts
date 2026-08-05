@@ -26,7 +26,7 @@ const CODEX_SSE_PEEK_MAX_FRAMES = 32;
 // or the first content frame arrives essentially immediately at the start of
 // the stream — if a read takes this long, treat it as fail-open rather than
 // hanging execute() indefinitely.
-const CODEX_SSE_PEEK_READ_TIMEOUT_MS = 3000;
+export const CODEX_SSE_PEEK_READ_TIMEOUT_MS = 3000;
 
 export type CodexSsePeekResult = {
   matched: "retry" | "account-fallback" | null;

@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const { CodexExecutor } = await import("../../open-sse/executors/codex.ts");
+const { CODEX_SSE_PEEK_READ_TIMEOUT_MS } =
+  await import("../../open-sse/services/codex-sse-peek.ts");
 
 function streamFromText(text) {
   const encoder = new TextEncoder();
@@ -115,26 +117,38 @@ test("_peekSseTransientError: fails open (never throws) when the stream errors m
   assert.equal(peek.matched, null);
 });
 
-test("_peekSseTransientError: a hung upstream (no bytes, never closes) does not hang forever", async () => {
-  const executor = new CodexExecutor();
-  const response = new Response(
-    new ReadableStream({
-      start() {
-        // Never enqueue, never close — simulates a stalled upstream connection.
-        // Regression guard for: "no timeout on reader.read() → a hung upstream
-        // now hangs inside execute()".
-      },
-    }),
-    { status: 200, headers: { "content-type": "text/event-stream" } }
-  );
+test(
+  "_peekSseTransientError: a hung upstream (no bytes, never closes) does not hang forever",
+  { timeout: 30_000 },
+  async () => {
+    const executor = new CodexExecutor();
+    const response = new Response(
+      new ReadableStream({
+        start() {
+          // Never enqueue, never close — simulates a stalled upstream connection.
+          // Regression guard for: "no timeout on reader.read() → a hung upstream
+          // now hangs inside execute()".
+        },
+      }),
+      { status: 200, headers: { "content-type": "text/event-stream" } }
+    );
 
-  const startedAt = Date.now();
-  const peek = await executor._peekSseTransientError(response);
-  const elapsedMs = Date.now() - startedAt;
+    const startedAt = Date.now();
+    const peek = await executor._peekSseTransientError(response);
+    const elapsedMs = Date.now() - startedAt;
 
-  assert.equal(peek.matched, null, "fail open on a hung upstream");
-  assert.ok(elapsedMs < 4000, `peek took ${elapsedMs}ms — must be bounded, not hang indefinitely`);
-});
+    assert.equal(peek.matched, null, "fail open on a hung upstream");
+    // Measured against the configured bound, not a hardcoded number: the claim is that the peek is
+    // bounded by CODEX_SSE_PEEK_READ_TIMEOUT_MS, and a `< bound + 1s` margin was tight enough that a
+    // loaded CI runner failed it at 4636ms on a 3000ms timer — a scheduling delay, not a regression.
+    // The 3x headroom still catches the thing worth catching (a bound that grew, or went away); a
+    // genuine hang is caught by the test-level timeout above, since the assertion below never runs.
+    assert.ok(
+      elapsedMs < CODEX_SSE_PEEK_READ_TIMEOUT_MS * 3,
+      `peek took ${elapsedMs}ms against a ${CODEX_SSE_PEEK_READ_TIMEOUT_MS}ms bound — must stay bounded`
+    );
+  }
+);
 
 test("_peekSseTransientError: C3 regression — assistant content containing 'server_is_overloaded' is NOT an error", async () => {
   const executor = new CodexExecutor();
