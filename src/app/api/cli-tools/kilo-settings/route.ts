@@ -13,6 +13,7 @@ import { saveCliToolLastConfigured, deleteCliToolLastConfigured } from "@/lib/db
 import { cliModelConfigSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { getApiKeyById } from "@/lib/localDb";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 const getKiloDataDir = () => path.join(getCliConfigHome(), ".local", "share", "kilo");
 const getAuthPath = () => path.join(getKiloDataDir(), "auth.json");
@@ -42,7 +43,11 @@ const hasRoutiformConfig = (auth) => {
 };
 
 // GET - Check kilo CLI and read current settings
-export async function GET() {
+export async function GET(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const runtime = await getCliRuntimeStatus("kilo");
 
@@ -108,6 +113,10 @@ export async function GET() {
 
 // POST - Configure Kilo Code to use Routiform as OpenAI-compatible provider
 export async function POST(request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let rawBody;
   try {
     rawBody = await request.json();
@@ -223,7 +232,11 @@ export async function POST(request) {
 }
 
 // DELETE - Remove Routiform config from Kilo
-export async function DELETE() {
+export async function DELETE(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const writeGuard = ensureCliConfigWriteAllowed();
     if (writeGuard) {

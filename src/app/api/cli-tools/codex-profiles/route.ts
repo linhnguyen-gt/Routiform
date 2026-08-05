@@ -7,6 +7,7 @@ import { ensureCliConfigWriteAllowed, getCliConfigPaths } from "@/shared/service
 import { resolveDataDir } from "@/lib/dataPaths";
 import { codexProfileIdSchema, codexProfileNameSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 const PROFILES_DIR = path.join(resolveDataDir(), "codex-profiles");
 
@@ -52,7 +53,11 @@ function extractAuthLabel(authJson) {
 }
 
 // GET - List all saved profiles
-export async function GET() {
+export async function GET(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     await ensureProfilesDir();
 
@@ -94,6 +99,10 @@ export async function GET() {
 
 // POST - Save current config as a named profile
 export async function POST(request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let rawBody;
   try {
     rawBody = await request.json();
@@ -180,6 +189,10 @@ export async function POST(request) {
 
 // PUT - Activate a saved profile (restore its config + auth)
 export async function PUT(request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let rawBody;
   try {
     rawBody = await request.json();
@@ -251,6 +264,10 @@ export async function PUT(request) {
 
 // DELETE - Remove a saved profile
 export async function DELETE(request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let rawBody;
   try {
     rawBody = await request.json();

@@ -163,6 +163,10 @@ async function hasValidSessionCookie(): Promise<boolean> {
  * established is not the dashboard.
  */
 function isSameOriginRequest(request: Request): boolean {
+  // A handler invoked without a Request has no origin to establish, so the answer is no. Throwing
+  // here would turn a missing credential into a 500.
+  if (!request?.headers) return false;
+
   const fetchSite = request.headers.get("sec-fetch-site");
   if (fetchSite) return fetchSite === "same-origin";
 

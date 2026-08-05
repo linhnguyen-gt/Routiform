@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureCliConfigWriteAllowed } from "@/shared/services/cliRuntime";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 import { CodexAuthFileError, writeCodexAuthFileToLocalCli } from "@/lib/oauth/utils/codexAuthFile";
 
 function toErrorResponse(error: unknown) {
@@ -17,7 +18,12 @@ function toErrorResponse(error: unknown) {
   return NextResponse.json({ error: message }, { status: 500 });
 }
 
-export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+// Writes an OAuth credential file into the host's Codex CLI directory.
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const writeGuard = ensureCliConfigWriteAllowed();
     if (writeGuard) {

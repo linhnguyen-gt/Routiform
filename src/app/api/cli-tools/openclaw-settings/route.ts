@@ -13,6 +13,7 @@ import { saveCliToolLastConfigured, deleteCliToolLastConfigured } from "@/lib/db
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { getApiKeyById } from "@/lib/localDb";
 import { z } from "zod";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 const getOpenClawSettingsPath = () => getCliPrimaryConfigPath("openclaw");
 const getOpenClawDir = () => path.dirname(getOpenClawSettingsPath());
@@ -57,7 +58,11 @@ const hasRoutiformConfig = (settings: Record<string, unknown>) => {
 };
 
 // GET - Check openclaw CLI and read current settings
-export async function GET() {
+export async function GET(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const runtime = await getCliRuntimeStatus("openclaw");
 
@@ -98,6 +103,10 @@ export async function GET() {
 
 // POST - Update Routiform settings (merge with existing settings)
 export async function POST(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let rawBody;
   try {
     rawBody = await request.json();
@@ -226,7 +235,11 @@ export async function POST(request: Request) {
 }
 
 // DELETE - Remove Routiform settings only (keep other settings)
-export async function DELETE() {
+export async function DELETE(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const writeGuard = ensureCliConfigWriteAllowed();
     if (writeGuard) {

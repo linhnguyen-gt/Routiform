@@ -13,6 +13,7 @@ import { saveCliToolLastConfigured, deleteCliToolLastConfigured } from "@/lib/db
 import { cliModelConfigSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { getApiKeyById } from "@/lib/localDb";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 const getDroidSettingsPath = () => getCliPrimaryConfigPath("droid");
 const getDroidDir = () => path.dirname(getDroidSettingsPath());
@@ -46,7 +47,11 @@ const hasRoutiformConfig = (settings: Record<string, unknown>) => {
 };
 
 // GET - Check droid CLI and read current settings
-export async function GET() {
+export async function GET(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const runtime = await getCliRuntimeStatus("droid");
 
@@ -87,6 +92,10 @@ export async function GET() {
 
 // POST - Update Routiform customModels (merge with existing settings)
 export async function POST(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let rawBody;
   try {
     rawBody = await request.json();
@@ -201,7 +210,11 @@ export async function POST(request: Request) {
 }
 
 // DELETE - Remove Routiform customModels only (keep other settings)
-export async function DELETE() {
+export async function DELETE(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const writeGuard = ensureCliConfigWriteAllowed();
     if (writeGuard) {

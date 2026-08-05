@@ -5,8 +5,13 @@ import { installTool } from "@/lib/versionManager";
 import { versionManagerInstallSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 export async function POST(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const authError = await requireManagementAuth(request);
   if (authError) return authError;
 

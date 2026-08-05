@@ -91,6 +91,7 @@ Main pages under `src/app/(dashboard)/dashboard/`:
 The chat interface is a vendored Open WebUI SvelteKit SPA built at `/owui` with a Next.js backend (`src/app/owui/api/*`) and socket.io streaming.
 
 **Routing:**
+
 - `/dashboard/chat` → 307-redirects to `/owui` (middleware in `src/proxy.ts`)
 - `/owui` — SPA shell (SvelteKit-built static assets at `public/owui/`, gitignored)
 - `/owui/api/*` — Next.js backend routes (chat history, settings, models, etc.)
@@ -98,6 +99,7 @@ The chat interface is a vendored Open WebUI SvelteKit SPA built at `/owui` with 
 
 **Streaming Architecture:**
 Token streaming does NOT occur over the HTTP response. Instead:
+
 1. Client POSTs `/owui/api/chat/completions` → returns immediately with `{ task_ids, chat_id }` (no `messages` in the request — the server rebuilds history from the stored tree)
 2. Completion task runs server-side, fetches from Routiform's `/v1/chat/completions`
 3. Tokens are emitted as socket.io events: `{ chat_id, message_id, data: { type, data } }`
@@ -106,6 +108,7 @@ Token streaming does NOT occur over the HTTP response. Instead:
 The socket.io server is started in `src/instrumentation-node.ts` and configured to run loopback-only for security (only accessible via Next's `/owui/ws/socket.io` rewrite, which sits behind `src/proxy.ts` auth).
 
 **Database Tables:**
+
 - `owui_chats` — one row per chat; the entire conversation lives in a single JSON `chat` column (the Open WebUI message TREE: `history.messages` keyed by id, with `parentId`/`childrenIds`/`currentId` for branching/edit/regenerate). Row columns: `id`, `title`, `chat` (JSON), `created_at`, `updated_at`, `archived`, `pinned`, `folder_id`, `share_id` (nullable; unique index for authenticated share links).
 - `owui_memories` — user memories injected server-side as a system turn (`id`, `content`, `created_at`, `updated_at`).
 - `owui_settings` — single-row settings blob (`id` CHECK = 1, `settings` JSON, `updated_at`); the UI settings live nested under `ui`.
@@ -114,6 +117,7 @@ The socket.io server is started in `src/instrumentation-node.ts` and configured 
 The message tree is stored as one JSON blob rather than normalized rows because the SPA POSTs and reloads the whole tree; attachments are split out (referenced by sha256) to keep the chat JSON small and avoid the body-size limit when re-POSTing. Timestamps are stored in milliseconds and converted to seconds at the DTO boundary (the SPA expects seconds).
 
 **Build and Deployment:**
+
 - Source: `open-webui/` (committed, vendored)
 - Build: `npm run owui:build` generates `public/owui/` (SvelteKit static output + patches applied)
 - `public/owui/` is gitignored; clean clones have no chat until `npm run owui:build` runs
@@ -331,6 +335,30 @@ Domain State DB (SQLite):
 - API key generation/verification: `src/shared/utils/apiKey.ts`
 - Provider secrets persisted in `providerConnections` entries
 - Outbound proxy support via `open-sse/utils/proxyFetch.ts` (env vars) and `open-sse/utils/networkProxy.ts` (configurable per-provider or global)
+
+### Three credential tiers
+
+All three live in `src/shared/utils/apiAuth.ts`. They differ in what counts as proof, and the
+difference matters because a gateway API key is handed out to inference clients (Cursor, Cline, any
+`/v1` consumer) — it is not an operator credential.
+
+| Tier        | Helper                                    | Accepts                                                                          | Used for                                                                                                   |
+| ----------- | ----------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Gateway     | `verifyAuth` (middleware, `src/proxy.ts`) | dashboard session cookie **or** Bearer API key                                   | ordinary management routes                                                                                 |
+| Privileged  | `isPrivilegedAuthenticated`               | same, plus an explicit privilege check                                           | credential mint/revoke routes under `/api/v1/registered-keys`                                              |
+| Host secret | `isHostSecretAuthenticated`               | dashboard session cookie only; same-origin **only** when `requireLogin` is false | routes that spawn processes, write under the home directory, restart the service, or hand out the database |
+
+The host-secret set is enumerated and CI-enforced in
+`tests/unit/host-secret-route-coverage.test.mjs`: every route in the list must guard every exported
+handler, and any route file in `src/app/api/` that looks like it touches host capability must be
+either in that list or in the test's exclusion list with a stated reason. A new spawn route added
+without a guard fails that test.
+
+**What this defends, and what it does not.** These tiers scope _credentials_, not _network origin_.
+They do not make the dashboard safe to expose over a tunnel: `next start` is stock, the app is App
+Router only, middleware declares no socket, and cloudflared terminates on loopback — so no
+peer-address gate is reachable from an App Router handler. Remote exposure remains an unsupported
+deployment.
 
 ## 5) Cloud Sync
 

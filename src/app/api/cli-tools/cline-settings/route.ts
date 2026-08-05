@@ -13,6 +13,7 @@ import { saveCliToolLastConfigured, deleteCliToolLastConfigured } from "@/lib/db
 import { cliModelConfigSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { getApiKeyById } from "@/lib/localDb";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 const getClineDataDir = () => path.join(getCliConfigHome(), ".cline", "data");
 const getGlobalStatePath = () => path.join(getClineDataDir(), "globalState.json");
@@ -57,7 +58,11 @@ const hasRoutiformConfig = (globalState: Record<string, unknown>) => {
 };
 
 // GET - Check cline CLI and read current settings
-export async function GET() {
+export async function GET(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const runtime = await getCliRuntimeStatus("cline");
 
@@ -108,6 +113,10 @@ export async function GET() {
 
 // POST - Configure Cline to use Routiform as OpenAI-compatible provider
 export async function POST(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let rawBody;
   try {
     rawBody = await request.json();
@@ -211,7 +220,11 @@ export async function POST(request: Request) {
 }
 
 // DELETE - Remove Routiform OpenAI-compatible provider config
-export async function DELETE() {
+export async function DELETE(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const writeGuard = ensureCliConfigWriteAllowed();
     if (writeGuard) {

@@ -1,13 +1,18 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 import {
   CLI_TOOL_IDS,
   getCliPrimaryConfigPath,
   getCliRuntimeStatus,
 } from "@/shared/services/cliRuntime";
 
-export async function GET(_request, { params }) {
+export async function GET(request, { params }) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { toolId } = await params;
     const normalizedToolId = String(toolId || "")

@@ -8,6 +8,7 @@ import crypto from "crypto";
 import { getApiKeyById } from "@/lib/localDb";
 import { coworkSettingsSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 const PROVIDER = "gateway";
 
@@ -138,7 +139,11 @@ const ensureMeta = async () => {
   return meta;
 };
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const installed = await checkInstalled();
     if (!installed) {
@@ -183,6 +188,10 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let rawBody: Record<string, unknown>;
   try {
     rawBody = (await request.json()) as Record<string, unknown>;
@@ -266,7 +275,11 @@ export async function POST(request: Request) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const meta = await readJson(await getMetaPath());
     if (!meta?.appliedId) {

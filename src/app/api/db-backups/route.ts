@@ -2,11 +2,16 @@ import { NextResponse } from "next/server";
 import { listDbBackups, restoreDbBackup, backupDbFileBlocking } from "@/lib/localDb";
 import { dbBackupRestoreSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 /**
  * PUT /api/db-backups — Trigger a manual backup snapshot.
  */
-export async function PUT() {
+export async function PUT(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const result = await backupDbFileBlocking("manual");
     if (!result) {
@@ -22,7 +27,11 @@ export async function PUT() {
 /**
  * GET /api/db-backups — List available database backups.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const backups = await listDbBackups();
     return NextResponse.json({ backups });
@@ -37,6 +46,10 @@ export async function GET() {
  * Body: { backupId: "db_2026-02-11T14-00-00-000Z_pre-write.json" }
  */
 export async function POST(request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let rawBody;
   try {
     rawBody = await request.json();

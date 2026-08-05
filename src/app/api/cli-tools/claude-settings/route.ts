@@ -14,6 +14,7 @@ import { cliSettingsEnvSchema } from "@/shared/validation/schemas";
 import fs from "fs/promises";
 import { NextResponse } from "next/server";
 import path from "path";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 // Get claude settings path based on OS
 const getClaudeSettingsPath = () => getCliPrimaryConfigPath("claude");
@@ -42,7 +43,11 @@ const readSettings = async (): Promise<{
 };
 
 // GET - Check claude CLI and read current settings
-export async function GET() {
+export async function GET(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const runtime = await getCliRuntimeStatus("claude");
 
@@ -86,6 +91,10 @@ export async function GET() {
 
 // POST - Backup old fields and write new settings
 export async function POST(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let rawBody;
   try {
     rawBody = await request.json();
@@ -207,7 +216,11 @@ const RESET_ENV_KEYS = [
 ];
 
 // DELETE - Reset settings (remove env fields)
-export async function DELETE() {
+export async function DELETE(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const writeGuard = ensureCliConfigWriteAllowed();
     if (writeGuard) {

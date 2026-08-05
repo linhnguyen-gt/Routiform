@@ -4,7 +4,7 @@ import { getDbInstance, SQLITE_FILE, DATA_DIR } from "@/lib/db/core";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { isAuthRequired, isAuthenticated } from "@/shared/utils/apiAuth";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 const RESTORE_README = `Routiform portable backup
 ========================
@@ -35,11 +35,10 @@ Treat this archive like secrets: store it securely and do not share publicly.
  * 🔒 Auth-guarded: requires JWT cookie or Bearer API key (same as /export).
  */
 export async function GET(request: Request) {
-  if (await isAuthRequired()) {
-    if (!(await isAuthenticated(request))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
   try {
     if (!SQLITE_FILE) {
       return NextResponse.json(
@@ -133,7 +132,9 @@ export async function GET(request: Request) {
         includedServerEnv,
         contents: [
           "storage.sqlite - Full database",
-          includedServerEnv ? "server.env - Persisted secrets (STORAGE_ENCRYPTION_KEY, etc.)" : null,
+          includedServerEnv
+            ? "server.env - Persisted secrets (STORAGE_ENCRYPTION_KEY, etc.)"
+            : null,
           "RESTORE_README.txt - How to restore on another machine",
           "settings.json - Key-value settings",
           "combos.json - Combo configurations",

@@ -18,6 +18,7 @@ import assert from "node:assert/strict";
 
 const { isHostSecretAuthenticated, isPrivilegedAuthenticated } =
   await import("../../src/shared/utils/apiAuth.ts");
+const acpAgentsRoute = await import("../../src/app/api/acp/agents/route.ts");
 const localDb = await import("../../src/lib/localDb.ts");
 const { createApiKey, deleteApiKey } = await import("../../src/lib/db/apiKeys.ts");
 
@@ -145,5 +146,45 @@ test("same-origin does not substitute for a session once login is enforced", asy
       false,
       "on an install with login, only a real session opens this route"
     );
+  });
+});
+
+/**
+ * Route level, not just helper level: the ACP agents route persists a command this host later
+ * executes, so a gateway key reaching it is the whole reason `isHostSecretAuthenticated` exists.
+ */
+test("POST /api/acp/agents refuses a valid gateway key with no session", async () => {
+  await withSettings(LOGIN_ENFORCED, async () => {
+    await withRealGatewayKey(async (rawKey) => {
+      const response = await acpAgentsRoute.POST(
+        new Request("http://localhost:20128/api/acp/agents", {
+          method: "POST",
+          headers: {
+            host: "localhost:20128",
+            authorization: `Bearer ${rawKey}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            id: "evil",
+            name: "Evil",
+            binary: "evil",
+            versionCommand: "evil --version",
+          }),
+        })
+      );
+      assert.equal(response.status, 401);
+    });
+  });
+});
+
+test("GET /api/acp/agents refuses a request with no credential", async () => {
+  await withSettings(LOGIN_ENFORCED, async () => {
+    const response = await acpAgentsRoute.GET(
+      new Request("http://localhost:20128/api/acp/agents", {
+        method: "GET",
+        headers: { host: "localhost:20128" },
+      })
+    );
+    assert.equal(response.status, 401);
   });
 });

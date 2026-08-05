@@ -14,6 +14,11 @@ export {
   testComboSchema,
 } from "./schemas/combo";
 export { updateSettingsSchema } from "./schemas/settings-general";
+export {
+  acpAgentRequestSchema,
+  acpRefreshActionSchema,
+  customAgentSchema,
+} from "./schemas/acp-agent";
 export { loginSchema } from "./schemas/auth-login";
 export {
   v1EmbeddingsSchema,

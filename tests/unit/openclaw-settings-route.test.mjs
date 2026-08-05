@@ -26,7 +26,8 @@ async function resetStorage() {
 function makeRequest(body) {
   return new Request("http://localhost/api/cli-tools/openclaw-settings", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    // The route requires host-secret auth; a browser proves it with Sec-Fetch-Site.
+    headers: { "content-type": "application/json", "sec-fetch-site": "same-origin" },
     body: JSON.stringify(body),
   });
 }

@@ -9,6 +9,7 @@ import {
   opencodeGuideSettingsSaveSchema,
 } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 /**
  * POST /api/cli-tools/guide-settings/:toolId
@@ -17,6 +18,10 @@ import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
  * Currently supports: continue, opencode
  */
 export async function POST(request, { params }) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let rawBody;
   try {
     rawBody = await request.json();

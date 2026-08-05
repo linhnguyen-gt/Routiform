@@ -5,11 +5,16 @@
  */
 
 import { NextResponse } from "next/server";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 const ROUTIFORM_BASE_URL =
   process.env.ROUTIFORM_BASE_URL || process.env.ROUTIFORM_BASE_URL || "http://localhost:20128";
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     // Fetch current health and combos to determine best provider ordering
     const [healthRes, combosRes] = await Promise.allSettled([

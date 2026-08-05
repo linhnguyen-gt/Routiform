@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { isAuthenticated } from "@/shared/utils/apiAuth";
+import { isAuthenticated, isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 import {
   getAutoUpdateConfig,
   launchAutoUpdate,
@@ -70,8 +70,10 @@ export async function GET(req: NextRequest) {
   });
 }
 
+// POST launches an installer process on the host, so a gateway API key does not open it —
+// GET only reports versions and keeps the ordinary management guard.
 export async function POST(req: NextRequest) {
-  if (!(await isAuthenticated(req))) {
+  if (!(await isHostSecretAuthenticated(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

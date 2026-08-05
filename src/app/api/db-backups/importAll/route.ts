@@ -6,8 +6,8 @@ import os from "os";
 import { execSync } from "node:child_process";
 import { getDbInstance, resetDbInstance, SQLITE_FILE, DATA_DIR } from "@/lib/db/core";
 import { backupDbFile } from "@/lib/db/backup";
-import { isAuthRequired, isAuthenticated } from "@/shared/utils/apiAuth";
 import { clearJwtSecretCache } from "@/shared/utils/jwtSecret";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 const MAX_UPLOAD_SIZE = 200 * 1024 * 1024; // 200 MB — archive includes DB + JSON
 
@@ -150,10 +150,8 @@ function findFilesRecursive(rootDir: string, basename: string): string[] {
  * 🔒 Auth-guarded: requires JWT cookie or Bearer API key.
  */
 export async function POST(request: Request) {
-  if (await isAuthRequired()) {
-    if (!(await isAuthenticated(request))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   if (!SQLITE_FILE) {

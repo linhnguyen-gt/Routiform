@@ -7,12 +7,17 @@ import path from "path";
 import os from "os";
 import { cloudSyncActionSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 /**
  * GET /api/sync/cloud
  * Returns current cloud sync status for sidebar indicator
  */
-export async function GET() {
+export async function GET(request: Request)  {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { isCloudEnabled } = await import("@/lib/db/settings");
     const enabled = await isCloudEnabled();
@@ -60,7 +65,11 @@ export async function GET() {
  * POST /api/sync/cloud
  * Sync data with Cloud
  */
-export async function POST(request: Request) {
+export async function POST(request: Request)  {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let rawBody;
   try {
     rawBody = await request.json();

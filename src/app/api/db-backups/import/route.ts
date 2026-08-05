@@ -5,7 +5,7 @@ import fs from "fs";
 import os from "os";
 import { getDbInstance, resetDbInstance, SQLITE_FILE } from "@/lib/db/core";
 import { backupDbFile } from "@/lib/db/backup";
-import { isAuthRequired, isAuthenticated } from "@/shared/utils/apiAuth";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 const MAX_UPLOAD_SIZE = 100 * 1024 * 1024; // 100 MB
 
@@ -21,11 +21,10 @@ const REQUIRED_TABLES = ["provider_connections", "provider_nodes", "combos", "ap
  * 🔒 Auth-guarded: requires JWT cookie or Bearer API key (finding #258-3).
  */
 export async function POST(request: Request) {
-  if (await isAuthRequired()) {
-    if (!(await isAuthenticated(request))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
   let tmpPath: string | null = null;
 
   try {

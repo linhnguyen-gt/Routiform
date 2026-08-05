@@ -6,8 +6,7 @@ import {
   type CustomAgentDef,
 } from "@/lib/acp/registry";
 import { getSettings, updateSettings } from "@/lib/localDb";
-import { isValidVersionCommand } from "@/lib/acp/version-command";
-import { jsonObjectSchema } from "@/shared/validation/schemas";
+import { acpAgentRequestSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
@@ -18,7 +17,12 @@ import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
  */
 const FORBIDDEN = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-export async function GET() {
+// Listing runs detection, and detection executes every stored versionCommand — so a read here is
+// still a host-capability use. If a genuinely public agent list is ever needed, split detection out
+// rather than reopening this guard.
+export async function GET(request: Request) {
+  if (!(await isHostSecretAuthenticated(request))) return FORBIDDEN;
+
   try {
     // Load custom agents from settings on each GET to stay in sync
     const settings = await getSettings();
@@ -56,7 +60,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const validation = validateBody(jsonObjectSchema, rawBody);
+  // The schema carries the agent shape and the versionCommand rule (which reuses the same
+  // tokenizer the executor uses), so a command that cannot be tokenized is a 400 here rather than
+  // an agent that permanently reads as "not installed" later.
+  const validation = validateBody(acpAgentRequestSchema, rawBody);
   if (isValidationFailure(validation)) {
     return NextResponse.json({ error: validation.error }, { status: 400 });
   }
@@ -64,41 +71,22 @@ export async function POST(request: Request) {
   try {
     const body = validation.data;
 
-    if (body.action === "refresh") {
+    if ("action" in body && body.action === "refresh") {
       const agents = refreshAgentCache();
       return NextResponse.json({ agents, refreshed: true });
     }
 
     // Add custom agent
     const { id, name, binary, versionCommand, providerAlias, spawnArgs, protocol } = body;
-    if (!id || !name || !binary || !versionCommand) {
-      return NextResponse.json(
-        { error: "Missing required fields: id, name, binary, versionCommand" },
-        { status: 400 }
-      );
-    }
-
-    // Rejected at the boundary as well as before execution: a command that cannot be tokenized is
-    // silently undetectable later, and telling the operator now is more useful than an agent that
-    // permanently reads as "not installed".
-    if (!isValidVersionCommand(versionCommand)) {
-      return NextResponse.json(
-        {
-          error:
-            "versionCommand must be a plain command such as `mytool --version` — no shell operators, quotes, or redirection",
-        },
-        { status: 400 }
-      );
-    }
 
     const newAgent: CustomAgentDef = {
-      id: (id as string).toLowerCase().replace(/[^a-z0-9-]/g, "-"),
-      name: name as string,
-      binary: binary as string,
-      versionCommand: versionCommand as string,
-      providerAlias: (providerAlias as string) || (id as string),
-      spawnArgs: Array.isArray(spawnArgs) ? (spawnArgs as string[]) : [],
-      protocol: (protocol as "stdio" | "http") || "stdio",
+      id: id.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+      name,
+      binary,
+      versionCommand,
+      providerAlias: providerAlias || id,
+      spawnArgs: spawnArgs ?? [],
+      protocol: protocol ?? "stdio",
     };
 
     // Load current, append, save

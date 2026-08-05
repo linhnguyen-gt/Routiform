@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { isAuthenticated } from "@/shared/utils/apiAuth";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 import {
   getCloudflaredTunnelStatus,
   startCloudflaredTunnel,
@@ -19,7 +19,7 @@ function unauthorized() {
 }
 
 export async function GET(request: NextRequest) {
-  if (!(await isAuthenticated(request))) {
+  if (!(await isHostSecretAuthenticated(request))) {
     return unauthorized();
   }
 
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await isAuthenticated(request))) {
+  if (!(await isHostSecretAuthenticated(request))) {
     return unauthorized();
   }
 

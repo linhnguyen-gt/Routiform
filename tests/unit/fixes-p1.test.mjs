@@ -208,7 +208,13 @@ test("restart route uses SIGTERM for graceful restart", async () => {
   };
 
   try {
-    const response = await restartRoute.POST();
+    // The route requires host-secret auth; a browser proves it with Sec-Fetch-Site.
+    const response = await restartRoute.POST(
+      new Request("http://localhost/api/restart", {
+        method: "POST",
+        headers: { "sec-fetch-site": "same-origin" },
+      })
+    );
     assert.equal(response.status, 200);
     assert.deepEqual(calls, [{ pid: process.pid, signal: "SIGTERM" }]);
   } finally {
