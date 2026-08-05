@@ -14,6 +14,8 @@ export function useProviderDetailTestActions({
   setModelTestResults,
   batchTesting,
   modelTestInFlightRef,
+  setTestingAllModels,
+  testAllModelsInFlightRef,
 }: Pick<
   ProviderDetailActionProps,
   "providerId" | "connections" | "fetchConnections" | "notify" | "t"
@@ -145,9 +147,15 @@ export function useProviderDetailTestActions({
         setTestingAllModels(false);
       }
     },
-    // setTestingAllModels and testAllModelsInFlightRef are stable (a setState setter and a
-    // ref), so they are deliberately absent — including them only trips exhaustive-deps.
-    [connections.length, handleTestModel, notify, t, setModelTestBannerError]
+    [
+      connections.length,
+      handleTestModel,
+      notify,
+      t,
+      setModelTestBannerError,
+      setTestingAllModels,
+      testAllModelsInFlightRef,
+    ]
   );
 
   const handleBatchTestAll = useCallback(async () => {
