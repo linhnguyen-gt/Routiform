@@ -2779,7 +2779,7 @@
     "restartServerWithNewPassword": "Перезагрузите сервер - он будет использовать новый пароль.",
     "backToLogin": "Вернуться к входу",
     "forgotPassword": "Забыли пароль?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "Авторизация",
     "Content-Disposition": "Содержание-Расположение",
     "waitingForAuthorization": "Waiting for authorization...",

@@ -2778,7 +2778,7 @@
     "restartServerWithNewPassword": "Restartujte server - použije se nové heslo.",
     "backToLogin": "Zpět na přihlášení",
     "forgotPassword": "Zapomněli jste heslo?",
-    "defaultPasswordHint": "Výchozí heslo: 123456 (pokud nebylo nastaveno INITIAL_PASSWORD)",
+    "defaultPasswordHint": "Nastaveno při úvodním nastavení nebo proměnnou prostředí INITIAL_PASSWORD.",
     "Authorization": "Autorizace",
     "Content-Disposition": "Obsah-Dispozice",
     "waitingForAuthorization": "Čekám na autorizaci...",

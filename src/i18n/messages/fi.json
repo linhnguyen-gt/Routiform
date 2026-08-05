@@ -2778,7 +2778,7 @@
     "restartServerWithNewPassword": "Käynnistä palvelin uudelleen - se käyttää uutta salasanaa",
     "backToLogin": "Takaisin kirjautumiseen",
     "forgotPassword": "Unohditko salasanan?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "Valtuutus",
     "Content-Disposition": "Sisältö-sijoittelu",
     "waitingForAuthorization": "Odotetaan valtuutusta...",

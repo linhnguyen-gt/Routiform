@@ -2779,7 +2779,7 @@
     "restartServerWithNewPassword": "サーバーを再起動すると新しいパスワードが適用されます",
     "backToLogin": "ログインに戻る",
     "forgotPassword": "パスワードをお忘れですか?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "認可",
     "Content-Disposition": "コンテンツの配置",
     "waitingForAuthorization": "Waiting for authorization...",

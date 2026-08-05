@@ -2778,7 +2778,7 @@
     "restartServerWithNewPassword": "I-restart ang server - gagamitin nito ang bagong password",
     "backToLogin": "Bumalik sa Login",
     "forgotPassword": "Nakalimutan ang password?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "Awtorisasyon",
     "Content-Disposition": "Nilalaman-Disposisyon",
     "waitingForAuthorization": "Naghihintay ng awtorisasyon...",

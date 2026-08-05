@@ -2778,7 +2778,7 @@
     "restartServerWithNewPassword": "הפעל מחדש את השרת - הוא ישתמש בסיסמה החדשה",
     "backToLogin": "חזרה לכניסה",
     "forgotPassword": "שכחת סיסמה?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "הרשאה",
     "Content-Disposition": "תוכן-נטייה",
     "waitingForAuthorization": "ממתין לאישור...",

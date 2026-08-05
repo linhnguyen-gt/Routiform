@@ -2778,7 +2778,7 @@
     "restartServerWithNewPassword": "Reporniți serverul - va folosi noua parolă",
     "backToLogin": "Înapoi la Logare",
     "forgotPassword": "Ai uitat parola?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "Autorizare",
     "Content-Disposition": "Conținut-Dispoziție",
     "waitingForAuthorization": "Se așteaptă autorizația...",

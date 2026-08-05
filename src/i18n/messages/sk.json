@@ -2778,7 +2778,7 @@
     "restartServerWithNewPassword": "Reštartujte server - použije nové heslo",
     "backToLogin": "Späť na Prihlásenie",
     "forgotPassword": "Zabudli ste heslo?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "Autorizácia",
     "Content-Disposition": "Obsah-Dispozícia",
     "waitingForAuthorization": "Čaká sa na autorizáciu...",

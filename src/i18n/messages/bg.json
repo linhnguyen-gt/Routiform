@@ -2778,7 +2778,7 @@
     "restartServerWithNewPassword": "Рестартирайте сървъра - той ще използва новата парола",
     "backToLogin": "Назад към Вход",
     "forgotPassword": "Забравена парола?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "Упълномощаване",
     "Content-Disposition": "Съдържание-разположение",
     "waitingForAuthorization": "Чака се оторизация...",

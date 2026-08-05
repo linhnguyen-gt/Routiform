@@ -2796,7 +2796,7 @@
     "restartServerWithNewPassword": "Khởi động lại máy chủ - nó sẽ sử dụng mật khẩu mới",
     "backToLogin": "Quay lại đăng nhập",
     "forgotPassword": "Quên mật khẩu?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "Ủy quyền",
     "Content-Disposition": "Bố trí nội dung",
     "waitingForAuthorization": "Đang chờ cấp phép...",

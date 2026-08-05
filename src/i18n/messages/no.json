@@ -2778,7 +2778,7 @@
     "restartServerWithNewPassword": "Start serveren på nytt - den vil bruke det nye passordet",
     "backToLogin": "Tilbake til pålogging",
     "forgotPassword": "Glemt passord?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "Autorisasjon",
     "Content-Disposition": "Innhold-Disposisjon",
     "waitingForAuthorization": "Venter på autorisasjon...",

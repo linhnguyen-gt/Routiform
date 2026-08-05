@@ -2778,7 +2778,7 @@
     "restartServerWithNewPassword": "Genstart serveren - den vil bruge den nye adgangskode",
     "backToLogin": "Tilbage til Login",
     "forgotPassword": "Glemt adgangskode?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "Autorisation",
     "Content-Disposition": "Indhold-Disposition",
     "waitingForAuthorization": "Venter på godkendelse...",

@@ -2778,7 +2778,7 @@
     "restartServerWithNewPassword": "सर्वर को पुनरारंभ करें - यह नए पासवर्ड का उपयोग करेगा",
     "backToLogin": "लॉगइन पर वापस जाएँ",
     "forgotPassword": "पासवर्ड भूल गए?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "Authorization",
     "Content-Disposition": "Content-Disposition",
     "waitingForAuthorization": "Waiting for authorization...",

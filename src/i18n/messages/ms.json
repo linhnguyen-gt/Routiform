@@ -2778,7 +2778,7 @@
     "restartServerWithNewPassword": "Mulakan semula pelayan - ia akan menggunakan kata laluan baharu",
     "backToLogin": "Kembali ke Log Masuk",
     "forgotPassword": "Lupa kata laluan?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "Keizinan",
     "Content-Disposition": "Kandungan-Pelupusan",
     "waitingForAuthorization": "Menunggu kebenaran...",

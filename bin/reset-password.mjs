@@ -1,49 +1,68 @@
 #!/usr/bin/env node
 
 /**
- * Password Reset CLI — T-38
+ * Password Reset CLI
  *
  * Usage:
  *   node bin/reset-password.mjs
  *   npx routiform reset-password
  *
- * Resets the admin password for Routiform.
- * Prompts for a new password and updates the database directly.
+ * Resets the dashboard password. Prompts for a new one and writes it to the database
+ * directly, bcrypt-hashed, so `/api/auth/login` can verify it.
+ *
+ * The storage layout below must stay in step with `src/lib/db/core.ts` (file name),
+ * `src/lib/dataPaths.ts` (directory) and `src/lib/db/settings.ts` (table and encoding).
+ * This script cannot import them — it runs standalone against a built install with no
+ * TypeScript loader — so the shapes are duplicated here deliberately.
  *
  * @module bin/reset-password
  */
 
 import { createInterface } from "node:readline";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve, join } from "node:path";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import bcrypt from "bcryptjs";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+/** Mirror of `resolveDataDir` in src/lib/dataPaths.ts. */
+function resolveDataDir() {
+  const configured = process.env.DATA_DIR?.trim();
+  if (configured) return resolve(configured);
 
-// Resolve data directory — same logic as the server
-const DATA_DIR = process.env.DATA_DIR || resolve(__dirname, "..", "data");
-const DB_PATH = resolve(DATA_DIR, "settings.db");
+  let home;
+  try {
+    home = homedir();
+  } catch {
+    home = process.cwd();
+  }
 
-const rl = createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
+  if (process.platform === "win32") {
+    return join(process.env.APPDATA || join(home, "AppData", "Roaming"), "routiform");
+  }
+
+  const xdg = process.env.XDG_CONFIG_HOME?.trim();
+  if (xdg) return join(resolve(xdg), "routiform");
+
+  return join(home, ".routiform");
+}
+
+const DATA_DIR = resolveDataDir();
+const DB_PATH = join(DATA_DIR, "storage.sqlite");
+
+const rl = createInterface({ input: process.stdin, output: process.stdout });
 
 function ask(question) {
-  return new Promise((resolve) => rl.question(question, resolve));
+  return new Promise((res) => rl.question(question, res));
 }
 
 function generateSecretDigest(input) {
-  // Use bcrypt with a salt round of 10 to match login/route.ts expectations
-  // and resolve CodeQL js/insufficient-password-hash warning.
+  // bcrypt at cost 10, matching what /api/auth/login compares against.
   return bcrypt.hashSync(input, 10);
 }
 
 console.log("\n🔑 Routiform — Password Reset\n");
 
 async function main() {
-  // Check if database exists
   if (!existsSync(DB_PATH)) {
     console.error(`❌ Database not found at: ${DB_PATH}`);
     console.error(`   Make sure Routiform has been started at least once.`);
@@ -61,11 +80,31 @@ async function main() {
 
   const db = new Database(DB_PATH);
 
-  // Check current settings
-  const row = db.prepare("SELECT value FROM settings WHERE key = 'password'").get();
+  // Settings live in the shared key_value table under the 'settings' namespace, and every
+  // value is JSON-encoded — getSettings() runs JSON.parse over each row, so a bare bcrypt
+  // hash written without quotes makes the whole settings read throw.
+  const readSetting = db.prepare(
+    "SELECT value FROM key_value WHERE namespace = 'settings' AND key = ?"
+  );
+  const writeSetting = db.prepare(
+    "INSERT OR REPLACE INTO key_value (namespace, key, value) VALUES ('settings', ?, ?)"
+  );
 
-  if (row) {
-    console.log("ℹ️  A password is currently set.");
+  const existing = readSetting.get("password");
+  if (existing?.value) {
+    let stored = null;
+    try {
+      stored = JSON.parse(existing.value);
+    } catch {
+      stored = existing.value;
+    }
+    const looksHashed = typeof stored === "string" && /^\$2[aby]?\$/.test(stored);
+    console.log(
+      looksHashed
+        ? "ℹ️  A password is currently set."
+        : "⚠️  A password is set but is not a bcrypt hash, so login can never accept it. " +
+            "Resetting now will fix that."
+    );
   } else {
     console.log("ℹ️  No password is currently set.");
   }
@@ -88,21 +127,13 @@ async function main() {
     process.exit(1);
   }
 
-  const hashed = generateSecretDigest(password);
-
-  // Upsert the password
-  const stmt = db.prepare(`
-    INSERT INTO settings (key, value) VALUES ('password', ?)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value
-  `);
-  stmt.run(hashed);
-
-  // Also ensure requireLogin is true
-  const loginStmt = db.prepare(`
-    INSERT INTO settings (key, value) VALUES ('requireLogin', 'true')
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value
-  `);
-  loginStmt.run();
+  const tx = db.transaction(() => {
+    writeSetting.run("password", JSON.stringify(generateSecretDigest(password)));
+    writeSetting.run("requireLogin", JSON.stringify(true));
+    // Without this the app bounces to onboarding and the new password is never asked for.
+    writeSetting.run("setupComplete", JSON.stringify(true));
+  });
+  tx();
 
   db.close();
   rl.close();

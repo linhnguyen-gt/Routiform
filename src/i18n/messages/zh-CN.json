@@ -2798,7 +2798,7 @@
     "restartServerWithNewPassword": "重启服务器，系统会使用新密码",
     "backToLogin": "返回登录",
     "forgotPassword": "忘记密码？",
-    "defaultPasswordHint": "默认密码：123456（除非已设置 INITIAL_PASSWORD）",
+    "defaultPasswordHint": "在初始设置时设定，或通过 INITIAL_PASSWORD 环境变量设置。",
     "Authorization": "Authorization",
     "Content-Disposition": "Content-Disposition",
     "waitingForAuthorization": "正在等待授权...",

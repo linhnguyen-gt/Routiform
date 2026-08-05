@@ -2778,7 +2778,7 @@
     "restartServerWithNewPassword": "Indítsa újra a szervert - az új jelszót fogja használni",
     "backToLogin": "Vissza a Bejelentkezéshez",
     "forgotPassword": "Elfelejtetted a jelszavad?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "Engedélyezés",
     "Content-Disposition": "Tartalom-Diszpozíció",
     "waitingForAuthorization": "Várakozás az engedélyezésre...",

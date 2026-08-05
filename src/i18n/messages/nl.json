@@ -2778,7 +2778,7 @@
     "restartServerWithNewPassword": "Start de server opnieuw op. Deze gebruikt het nieuwe wachtwoord",
     "backToLogin": "Terug naar Inloggen",
     "forgotPassword": "Wachtwoord vergeten?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "Autorisatie",
     "Content-Disposition": "Inhoud-dispositie",
     "waitingForAuthorization": "Wachten op toestemming...",

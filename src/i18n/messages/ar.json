@@ -2778,7 +2778,7 @@
     "restartServerWithNewPassword": "أعد تشغيل الخادم وسيتم استخدام كلمة المرور الجديدة",
     "backToLogin": "العودة إلى تسجيل الدخول",
     "forgotPassword": "هل نسيت كلمة المرور؟",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "إذن",
     "Content-Disposition": "التصرف في المحتوى",
     "waitingForAuthorization": "في انتظار الترخيص...",

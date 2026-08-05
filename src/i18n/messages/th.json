@@ -2778,7 +2778,7 @@
     "restartServerWithNewPassword": "รีสตาร์ทเซิร์ฟเวอร์ - จะใช้รหัสผ่านใหม่",
     "backToLogin": "กลับไปที่เข้าสู่ระบบ",
     "forgotPassword": "ลืมรหัสผ่าน?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "การอนุญาต",
     "Content-Disposition": "การจัดการเนื้อหา",
     "waitingForAuthorization": "กำลังรอการอนุญาต...",

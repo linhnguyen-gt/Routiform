@@ -2790,7 +2790,7 @@
     "restartServerWithNewPassword": "Reinicie o servidor - ele usará a nova senha",
     "backToLogin": "Voltar para o Login",
     "forgotPassword": "Esqueceu a senha?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "Autorização",
     "Content-Disposition": "Disposição de conteúdo",
     "waitingForAuthorization": "Aguardando autorização...",

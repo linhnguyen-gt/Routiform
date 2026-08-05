@@ -2781,7 +2781,7 @@
     "restartServerWithNewPassword": "Reinicia el servidor; usará la nueva contraseña",
     "backToLogin": "Volver a iniciar sesión",
     "forgotPassword": "¿Olvidaste tu contraseña?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "Autorización",
     "Content-Disposition": "Disposición de contenido",
     "waitingForAuthorization": "Waiting for authorization...",

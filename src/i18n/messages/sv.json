@@ -2778,7 +2778,7 @@
     "restartServerWithNewPassword": "Starta om servern - den kommer att använda det nya lösenordet",
     "backToLogin": "Tillbaka till inloggning",
     "forgotPassword": "Glömt lösenordet?",
-    "defaultPasswordHint": "Default password: 123456 (unless INITIAL_PASSWORD was set)",
+    "defaultPasswordHint": "Set during setup, or via the INITIAL_PASSWORD environment variable.",
     "Authorization": "Auktorisation",
     "Content-Disposition": "Innehåll-Disposition",
     "waitingForAuthorization": "Väntar på auktorisation...",
