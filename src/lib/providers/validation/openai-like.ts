@@ -34,7 +34,12 @@ export async function validateOpenAILikeProvider({
         method: "GET",
         headers: buildBearerHeaders(apiKey, providerSpecificData),
       },
-      { timeoutMs: 10_000 }
+      // Same operator-configured base URL as the models path, same opt-in, written out for the
+      // same reason. See handle-openai-compatible-models.ts.
+      {
+        timeoutMs: 10_000,
+        guard: { allowLoopback: true, allowPrivateAddress: true },
+      }
     );
   } catch (error) {
     if (isTimeoutLikeError(error)) {

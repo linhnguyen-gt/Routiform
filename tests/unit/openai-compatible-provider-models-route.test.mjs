@@ -22,16 +22,66 @@ test.after(() => {
   fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
 });
 
-test("openai-compatible models route returns policy error for private base URL instead of fallback", async () => {
+test("openai-compatible models route now reaches a loopback base URL", async () => {
+  // This path used to be blocked by the outbound private-address policy, so an operator running a
+  // local Ollama got a provider they could chat with but could not list models for. The two
+  // operator-config call sites opt in; the base URL is written through a session-only route.
   await resetStorage();
 
   const connection = await providersDb.createProviderConnection({
-    provider: "openai-compatible-private-route",
+    provider: "openai-compatible-loopback-route",
     authType: "apikey",
-    name: "compat-private",
+    name: "compat-loopback",
     apiKey: "sk-test",
     providerSpecificData: {
       baseUrl: "http://127.0.0.1:11434/v1",
+    },
+  });
+
+  const attempted = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    attempted.push(String(input?.url || input));
+    return new Response(JSON.stringify({ data: [{ id: "llama3.2" }] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  try {
+    const response = await modelsRoute.GET(
+      new Request(`http://localhost/api/providers/${connection.id}/models`),
+      { params: { id: connection.id } }
+    );
+
+    assert.equal(response.status, 200);
+    assert.ok(
+      attempted.some((url) => url.includes("127.0.0.1:11434")),
+      `expected the loopback endpoint to be fetched, got ${JSON.stringify(attempted)}`
+    );
+    const body = await response.json();
+    assert.deepEqual(
+      body.models.map((m) => m.id),
+      ["llama3.2"]
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("openai-compatible models route still surfaces a policy error, not a silent fallback", async () => {
+  // Opting into loopback does not opt out of the rest of the policy. A credentialed URL is still
+  // refused, and the refusal still reaches the client as a 400 rather than degrading to the cached
+  // catalog, which would look like success.
+  await resetStorage();
+
+  const connection = await providersDb.createProviderConnection({
+    provider: "openai-compatible-credentialed-route",
+    authType: "apikey",
+    name: "compat-credentialed",
+    apiKey: "sk-test",
+    providerSpecificData: {
+      baseUrl: "http://user:pass@127.0.0.1:11434/v1",
     },
   });
 

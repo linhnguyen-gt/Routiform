@@ -902,6 +902,24 @@ Detailed request payload capture stores up to four JSON payload stages per route
 - Provider secrets (API keys/tokens) are persisted in local DB and should be protected at filesystem level
 - Cloud sync endpoints rely on API key auth + machine id semantics
 
+### Local endpoints are operator-only
+
+`safeOutboundFetch` blocks loopback and private-address targets by default. Two call sites opt out,
+both of them operator configuration rather than request content: OpenAI-compatible model listing
+(`src/app/api/providers/[id]/models/handle-openai-compatible-models.ts`) and provider key validation
+(`src/lib/providers/validation/openai-like.ts`). Nothing else in the tree passes `allowLoopback` or
+`allowPrivateAddress`, and `tests/unit/local-endpoint-outbound-policy.test.mjs` asserts both the
+count and the unchanged default.
+
+The opt-in is only defensible because the base URL it fetches cannot be set by an inference client:
+`POST /api/provider-nodes` and `PUT`/`DELETE /api/provider-nodes/[id]` require a dashboard session
+(`isHostSecretAuthenticated`). Without that, a gateway API key could point a node at
+`http://127.0.0.1:8080/admin` and read the response back through the model-listing endpoint.
+
+Chat completions never went through this policy — `BaseExecutor.execute` calls plain `fetch` — so
+local inference worked before this and is unchanged by it. The `ollama-local` registry entry is a
+preset for the default `http://localhost:11434/v1`, not a new capability.
+
 ## Environment and Runtime Matrix
 
 Environment variables actively used by code:

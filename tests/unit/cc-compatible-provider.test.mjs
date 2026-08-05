@@ -666,7 +666,8 @@ test("provider-nodes create route rejects CC mode when feature flag is disabled"
   const response = await providerNodesRoute.POST(
     new Request("http://localhost/api/provider-nodes", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // provider-nodes writes require host-secret auth; a browser proves it this way.
+      headers: { "Content-Type": "application/json", "sec-fetch-site": "same-origin" },
       body: JSON.stringify({
         name: "Hidden CC",
         prefix: "cc",
@@ -686,7 +687,8 @@ test("provider-nodes create route creates CC node with dedicated prefix when ena
   const response = await providerNodesRoute.POST(
     new Request("http://localhost/api/provider-nodes", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // provider-nodes writes require host-secret auth; a browser proves it this way.
+      headers: { "Content-Type": "application/json", "sec-fetch-site": "same-origin" },
       body: JSON.stringify({
         name: "Hidden CC",
         prefix: "cc",
@@ -713,7 +715,8 @@ test("provider-nodes validate route rejects CC mode when feature flag is disable
   const response = await providerNodesValidateRoute.POST(
     new Request("http://localhost/api/provider-nodes/validate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // provider-nodes writes require host-secret auth; a browser proves it this way.
+      headers: { "Content-Type": "application/json", "sec-fetch-site": "same-origin" },
       body: JSON.stringify({
         baseUrl: "https://proxy.example.com/v1",
         apiKey: "sk-test",

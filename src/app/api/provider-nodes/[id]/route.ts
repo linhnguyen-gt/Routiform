@@ -10,6 +10,7 @@ import {
 import { isClaudeCodeCompatibleProvider } from "@/shared/constants/providers";
 import { updateProviderNodeSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -32,7 +33,13 @@ function sanitizeClaudeCodeCompatibleBaseUrl(baseUrl: string) {
 }
 
 // PUT /api/provider-nodes/[id] - Update provider node
+// Session-only, for the same reason as POST /api/provider-nodes: it sets the base URL the
+// model-listing path fetches with the loopback opt-in.
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let rawBody;
   try {
     rawBody = await request.json();
@@ -132,6 +139,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
 // DELETE /api/provider-nodes/[id] - Delete provider node and its connections
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { id } = await params;
     const node = await getProviderNodeById(id);

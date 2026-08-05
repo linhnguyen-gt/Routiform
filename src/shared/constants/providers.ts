@@ -1,11 +1,18 @@
 import { validateProviders } from "../validation/providerSchema";
 import { APIKEY_PROVIDERS } from "./providers/apiKeyProviders";
 import { FREE_APIKEY_PROVIDER_IDS, FREE_PROVIDERS } from "./providers/freeProviders";
+import { LOCAL_PROVIDERS } from "./providers/localProviders";
 import { OAUTH_PROVIDERS } from "./providers/oauthProviders";
 import type { ProviderDefinition } from "./providers/types";
 import { UPSTREAM_PROXY_PROVIDERS } from "./providers/upstreamProxyProviders";
 
-export { APIKEY_PROVIDERS, FREE_APIKEY_PROVIDER_IDS, FREE_PROVIDERS, OAUTH_PROVIDERS };
+export {
+  APIKEY_PROVIDERS,
+  FREE_APIKEY_PROVIDER_IDS,
+  FREE_PROVIDERS,
+  LOCAL_PROVIDERS,
+  OAUTH_PROVIDERS,
+};
 
 export const OPENAI_COMPATIBLE_PREFIX = "openai-compatible-";
 export const ANTHROPIC_COMPATIBLE_PREFIX = "anthropic-compatible-";
@@ -32,6 +39,7 @@ export const AI_PROVIDERS = {
   ...OAUTH_PROVIDERS,
   ...APIKEY_PROVIDERS,
   ...UPSTREAM_PROXY_PROVIDERS,
+  ...LOCAL_PROVIDERS,
 };
 
 const ALL_PROVIDERS = Object.values(AI_PROVIDERS).filter(Boolean) as ProviderDefinition[];

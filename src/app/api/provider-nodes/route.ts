@@ -9,6 +9,7 @@ import { generateId } from "@/shared/utils";
 import { isCcCompatibleProviderEnabled } from "@/shared/utils/featureFlags";
 import { createProviderNodeSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
 const OPENAI_COMPATIBLE_DEFAULTS = {
   baseUrl: "https://api.openai.com/v1",
@@ -47,7 +48,15 @@ export async function GET() {
 }
 
 // POST /api/provider-nodes - Create provider node
+//
+// Session-only: this write sets the base URL that the model-listing path later fetches with the
+// loopback opt-in. A gateway API key reaching it would turn that path into an SSRF probe against
+// the host's own services. Reads keep the ordinary management guard.
 export async function POST(request) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let rawBody;
   try {
     rawBody = await request.json();
