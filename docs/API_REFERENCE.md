@@ -214,6 +214,29 @@ For `/api/providers/[id]/models`, outbound URL policy violations return `400` an
 | `/api/keys*`          | Various  | API key management                |
 | `/api/pricing`        | GET      | Model pricing                     |
 
+#### Combo Save Warnings
+
+`POST /api/combos` and `PUT /api/combos/[id]` validate each model entry against the same
+resolution order the router uses. An entry whose provider prefix resolves nowhere is a
+`400`; an entry that resolves but is absent from the provider's static model catalog is
+saved with a warning.
+
+```jsonc
+// 201 Created — the body is the combo record, with `warnings` spread onto it
+{
+  "id": "11111111-1111-1111-1111-111111111111",
+  "name": "free-stack",
+  "models": [{ "model": "groq/llama-3.1-70b-versatile", "weight": 0 }],
+  "warnings": ["groq/llama-3.1-70b-versatile"],
+}
+```
+
+`warnings` is **omitted entirely when empty**, is never persisted, and never appears in
+`GET /api/combos`. Treat it as a per-request diagnostic, not a field of the record.
+
+A `PUT` body without a `models` key skips model validation altogether, so partial updates
+such as `{ "isActive": false }` are unaffected.
+
 #### Combo Reordering
 
 ```bash

@@ -25,6 +25,8 @@ export const DEFAULT_PRICING: Record<string, Record<string, unknown>> = {
   cx: cxPricing,
   "gemini-cli": geminiCliPricing,
   qw: qwPricing,
+  // Legacy alias: the `iflow` provider was removed, but stored user rows and
+  // historical call logs may still reference the `if` prefix. Keep for lookup.
   if: ifPricing,
   ag: agPricing,
   gh: ghPricing,

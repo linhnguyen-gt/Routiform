@@ -2,6 +2,8 @@
 
 import { Button, Input, Modal, ModelSelectModal } from "@/shared/components";
 import Tooltip from "@/shared/components/Tooltip";
+import { splitModelString } from "@/shared/models/model-string";
+import { useAvailableModels } from "@/shared/models/use-available-models";
 import { useNotificationStore } from "@/store/notificationStore";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -13,37 +15,30 @@ import {
   VALID_NAME_REGEX,
 } from "./combo-constants";
 import { ComboReadinessPanel } from "./ComboReadinessPanel";
+import { ComboModelRow } from "./ComboModelRow";
+import { ComboTemplatePanel } from "./ComboTemplatePanel";
+import { distributeWeights } from "./combo-template-policies";
+import { resolveTemplate } from "./combo-template-resolver";
+import type { ComboTemplate, TemplateResolution } from "./combo-template-types";
 import { getProviderDisplayName, normalizeModelEntry } from "./combo-data";
 import type {
   ComboModelEntry,
   ComboRecord,
   ModelAliases,
   PricingByProvider,
+  ProviderConnection,
   ProviderNode,
 } from "./combo-types";
-import { getI18nOrFallback, getStrategyDescription, getStrategyLabel } from "./combo-utils";
+import {
+  getI18nOrFallback,
+  getStrategyDescription,
+  getStrategyLabel,
+  uniqueComboName,
+} from "./combo-utils";
 import { FieldLabelWithHelp } from "./FieldLabelWithHelp";
 import { StrategyGuidanceCard } from "./StrategyGuidanceCard";
 import { StrategyRecommendationsPanel } from "./StrategyRecommendationsPanel";
 import { WeightTotalBar } from "./WeightTotalBar";
-
-const FREE_STACK_PRESET_MODELS = [
-  { model: "gemini-cli/gemini-3-flash-preview", weight: 0 },
-  { model: "kr/claude-sonnet-4.5", weight: 0 },
-  { model: "if/kimi-k2-thinking", weight: 0 },
-  { model: "if/qwen3-coder-plus", weight: 0 },
-  { model: "if/deepseek-v3.2", weight: 0 },
-  { model: "nvidia/llama-3.3-70b-instruct", weight: 0 },
-  { model: "groq/llama-3.3-70b-versatile", weight: 0 },
-];
-
-const PAID_PREMIUM_PRESET_MODELS = [
-  { model: "cu/claude-4.6-opus-high", weight: 0 },
-  { model: "antigravity/claude-sonnet-4-6", weight: 0 },
-  { model: "cu/claude-4.6-sonnet-high", weight: 0 },
-  { model: "antigravity/gemini-3.1-pro-high", weight: 0 },
-  { model: "antigravity/gemini-3-pro-high", weight: 0 },
-];
 
 function createModelRowId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -59,7 +54,9 @@ interface ComboFormModalProps {
   combo: ComboRecord | null;
   onClose: () => void;
   onSave: (data: ComboSaveData) => Promise<void>;
-  activeProviders: ProviderNode[];
+  activeProviders: ProviderConnection[];
+  /** The combo list the user is already looking at — used to keep suggested names unique. */
+  combos: ComboRecord[];
 }
 
 export function ComboFormModal({
@@ -68,6 +65,7 @@ export function ComboFormModal({
   onClose,
   onSave,
   activeProviders,
+  combos,
 }: ComboFormModalProps) {
   const t = useTranslations("combos");
   const tc = useTranslations("common");
@@ -124,14 +122,47 @@ export function ComboFormModal({
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
+  /**
+   * Tier-C provenance for the rows a template just applied, keyed by ROW ID so a reorder
+   * or delete cannot desync it. Never persisted — `normalizeModelEntry` carries only
+   * model/weight/disabled, and this is provenance of a recommendation, not a combo field.
+   */
+  const [limitedFreeTierRows, setLimitedFreeTierRows] = useState<Record<string, boolean>>({});
+
+  // Single source of truth for "what can this user pick", shared with the picker below so
+  // the two never disagree and the fetch set runs once per session, not twice.
+  const {
+    groups: availableGroups,
+    models: availableModels,
+    combos: pickerCombos,
+  } = useAvailableModels({
+    enabled: isOpen,
+    connections: activeProviders,
+    modelAliases,
+  });
+
+  const templateResolutions = useMemo(() => {
+    const entries = COMBO_TEMPLATES.map((template) => [
+      template.id,
+      resolveTemplate({
+        template,
+        groups: availableGroups,
+        connections: activeProviders,
+        pricingByProvider,
+        providerNodes,
+      }),
+    ]);
+    return Object.fromEntries(entries) as Record<string, TemplateResolution>;
+  }, [availableGroups, activeProviders, pricingByProvider, providerNodes]);
+
   const hasPricingForModel = useCallback(
     (modelValue: string) => {
       if (!modelValue || typeof modelValue !== "string") return false;
 
-      const parts = modelValue.split("/");
-      if (parts.length !== 2) return false;
+      const split = splitModelString(modelValue);
+      if (!split) return false;
 
-      const [providerIdentifier, modelId] = parts;
+      const { providerRef: providerIdentifier, modelId } = split;
       const matchedNode = providerNodes.find(
         (node) => node.id === providerIdentifier || node.prefix === providerIdentifier
       );
@@ -305,6 +336,7 @@ export function ComboFormModal({
     setName(initialFormState.name);
     setModels(initialFormState.models);
     setModelRowIds(initialFormState.models.map(() => createModelRowId()));
+    setLimitedFreeTierRows({});
     setStrategy(initialFormState.strategy);
     setConfig(initialFormState.config);
     setAgentSystemMessage(initialFormState.agentSystemMessage);
@@ -389,6 +421,11 @@ export function ComboFormModal({
         delete next[rowId];
         return next;
       });
+      setLimitedFreeTierRows((prev) => {
+        const next = { ...prev };
+        delete next[rowId];
+        return next;
+      });
       setModels(models.filter((_, index) => index !== existingIndex));
       setModelRowIds(modelRowIds.filter((_, index) => index !== existingIndex));
     } else {
@@ -407,6 +444,11 @@ export function ComboFormModal({
       return next;
     });
     setModelTestStatus((prev) => {
+      const next = { ...prev };
+      delete next[rowId];
+      return next;
+    });
+    setLimitedFreeTierRows((prev) => {
       const next = { ...prev };
       delete next[rowId];
       return next;
@@ -432,23 +474,10 @@ export function ComboFormModal({
     };
     setModels(newModels);
   };
-  let activeIndex = 0;
-
-  const handleAutoBalance = () => {
-    const activeModels = models.filter((m) => !m.disabled);
-    const count = activeModels.length;
-    if (count === 0) return;
-    const weight = Math.floor(100 / count);
-    const remainder = 100 - weight * count;
-    setModels(
-      models.map((m) => {
-        if (m.disabled) return m;
-        const newWeight = weight + (activeIndex === 0 ? remainder : 0);
-        activeIndex++;
-        return { ...m, weight: newWeight };
-      })
-    );
-  };
+  // Weight splitting lives in distributeWeights because the old inline version kept its
+  // running counter in the component body and never reset it, so a second click in the
+  // same tick dropped the remainder and left the total at 99.
+  const handleAutoBalance = () => setModels((prev) => distributeWeights(prev));
 
   const applyStrategyRecommendations = () => {
     const strategyDefaults: Record<string, Record<string, string | number | boolean>> = {
@@ -490,16 +519,58 @@ export function ComboFormModal({
     );
   };
 
-  const applyTemplate = (template: (typeof COMBO_TEMPLATES)[number]) => {
+  const applyTemplate = (template: ComboTemplate, resolution: TemplateResolution) => {
+    if (!resolution.ok) return; // defensive; the panel already disabled this button
+
     setStrategy(template.strategy);
     setConfig((prev) => ({ ...prev, ...template.config }));
-    if (!name.trim()) setName(template.suggestedName);
-    if (template.id === "free-stack") {
-      setModels(FREE_STACK_PRESET_MODELS);
-      setModelRowIds(FREE_STACK_PRESET_MODELS.map(() => createModelRowId()));
-    } else if (template.id === "paid-premium") {
-      setModels(PAID_PREMIUM_PRESET_MODELS);
-      setModelRowIds(PAID_PREMIUM_PRESET_MODELS.map(() => createModelRowId()));
+    if (!name.trim()) {
+      setName(
+        uniqueComboName(
+          template.suggestedName,
+          combos.map((c) => c.name)
+        )
+      );
+    }
+
+    const rowIds = resolution.models.map(() => createModelRowId());
+    // Weights already match the template's strategy (phase 04 weightMode) — do NOT
+    // auto-balance here.
+    setModels(resolution.models.map(({ model, weight }) => ({ model, weight })));
+    setModelRowIds(rowIds);
+    setLimitedFreeTierRows(
+      Object.fromEntries(
+        resolution.models.flatMap((m, index) => (m.limitedFreeTier ? [[rowIds[index], true]] : []))
+      )
+    );
+
+    const metered = resolution.models.filter((m) => m.limitedFreeTier).length;
+    const applied = getI18nOrFallback(
+      t,
+      "templateAppliedCount",
+      "Applied {count} models from {template}.",
+      {
+        count: String(resolution.models.length),
+        template: getI18nOrFallback(t, template.titleKey, template.fallbackTitle),
+      }
+    );
+    const meteredSuffix =
+      metered > 0
+        ? ` ${getI18nOrFallback(t, "templateMeteredCount", "({metered} metered)", {
+            metered: String(metered),
+          })}`
+        : "";
+    notify.success(`${applied}${meteredSuffix}`);
+
+    if (resolution.models.length < resolution.requested) {
+      notify.info(
+        getI18nOrFallback(
+          t,
+          "templatePartialResult",
+          "Only {count} of {requested} models were available.",
+          { count: String(resolution.models.length), requested: String(resolution.requested) }
+        )
+      );
     }
   };
 
@@ -727,44 +798,7 @@ export function ComboFormModal({
                   )}
                 </p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
-                {COMBO_TEMPLATES.map((template) => (
-                  <button
-                    type="button"
-                    key={template.id}
-                    onClick={() => applyTemplate(template)}
-                    className={`text-left rounded-md border px-3 py-2 transition-all ${
-                      template.isFeatured
-                        ? "border-emerald-500/50 bg-emerald-500/5 hover:border-emerald-500/80 hover:bg-emerald-500/10 ring-1 ring-emerald-500/20"
-                        : "border-black/10 dark:border-white/10 bg-white/70 dark:bg-white/[0.03] hover:border-primary/40 hover:bg-primary/5"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`material-symbols-outlined text-[16px] ${template.isFeatured ? "text-emerald-500" : "text-primary"}`}
-                      >
-                        {template.icon}
-                      </span>
-                      <span className="text-[12px] font-semibold text-text-main">
-                        {getI18nOrFallback(t, template.titleKey, template.fallbackTitle)}
-                      </span>
-                      {template.isFeatured && (
-                        <span className="ml-auto text-[9px] font-bold uppercase tracking-wide bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded">
-                          FREE
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-text-muted mt-1.5 leading-[1.5]">
-                      {getI18nOrFallback(t, template.descKey, template.fallbackDesc)}
-                    </p>
-                    <p
-                      className={`text-[10px] mt-1.5 font-medium ${template.isFeatured ? "text-emerald-500" : "text-primary"}`}
-                    >
-                      {getI18nOrFallback(t, "templateApply", COMBO_TEMPLATE_FALLBACK.apply)} →
-                    </p>
-                  </button>
-                ))}
-              </div>
+              <ComboTemplatePanel resolutions={templateResolutions} onApply={applyTemplate} />
             </div>
           )}
 
@@ -840,158 +874,37 @@ export function ComboFormModal({
                 <p className="text-xs text-text-muted">{t("noModelsYet")}</p>
               </div>
             ) : (
-              <div className="flex flex-col gap-1 max-h-[240px] overflow-y-auto">
+              <div
+                data-testid="combo-model-list"
+                className="flex flex-col gap-1 max-h-[240px] overflow-y-auto"
+              >
                 {models.map((entry, index) => {
                   const modelTestKey = modelRowIds[index] || `${index}:${entry.model}`;
-                  const isTestingModel = !!testingModels[modelTestKey];
-                  const status = modelTestStatus[modelTestKey];
-
                   return (
-                    <div
+                    <ComboModelRow
                       key={modelTestKey}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, index)}
+                      entry={entry}
+                      index={index}
+                      total={models.length}
+                      strategy={strategy}
+                      displayName={formatModelDisplay(entry.model)}
+                      isTesting={!!testingModels[modelTestKey]}
+                      testStatus={modelTestStatus[modelTestKey]}
+                      limitedFreeTier={!!limitedFreeTierRows[modelTestKey]}
+                      hasPricing={hasPricingForModel(entry.model)}
+                      isDragging={dragIndex === index}
+                      isDropTarget={dragOverIndex === index && dragIndex !== index}
+                      onDragStart={handleDragStart}
                       onDragEnd={handleDragEnd}
-                      onDragOver={(e) => handleDragOver(e, index)}
-                      onDrop={(e) => handleDrop(e, index)}
-                      className={`group/item flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all cursor-grab active:cursor-grabbing ${
-                        dragOverIndex === index && dragIndex !== index
-                          ? "bg-primary/10 border border-primary/30"
-                          : "bg-black/[0.02] dark:bg-white/[0.02] hover:bg-black/[0.04] dark:hover:bg-white/[0.04] border border-transparent"
-                      } ${dragIndex === index ? "opacity-50" : ""} ${entry.disabled ? "opacity-50" : ""}`}
-                    >
-                      <button
-                        onClick={() => handleToggleDisabled(index)}
-                        className={`shrink-0 w-8 h-4 rounded-full transition-all relative ${
-                          entry.disabled ? "bg-black/10 dark:bg-white/10" : "bg-primary"
-                        }`}
-                        title={entry.disabled ? "Enable model" : "Disable model"}
-                        aria-label={entry.disabled ? "Enable model" : "Disable model"}
-                      >
-                        <span
-                          className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-all ${
-                            entry.disabled ? "left-0.5" : "left-[18px]"
-                          }`}
-                        />
-                      </button>
-
-                      <span className="material-symbols-outlined text-[14px] text-text-muted/40 cursor-grab shrink-0">
-                        drag_indicator
-                      </span>
-
-                      <span className="text-[10px] font-medium text-text-muted w-3 text-center shrink-0">
-                        {index + 1}
-                      </span>
-
-                      <div
-                        className={`flex-1 min-w-0 px-1 text-xs truncate ${entry.disabled ? "text-text-muted line-through" : "text-text-main"}`}
-                      >
-                        {formatModelDisplay(entry.model)}
-                      </div>
-
-                      {strategy === "cost-optimized" && (
-                        <span
-                          className={`text-[9px] px-1.5 py-0.5 rounded-full uppercase font-semibold ${
-                            hasPricingForModel(entry.model)
-                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                              : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                          }`}
-                          title={
-                            hasPricingForModel(entry.model)
-                              ? getI18nOrFallback(t, "pricingAvailable", "Pricing available")
-                              : getI18nOrFallback(t, "pricingMissing", "No pricing")
-                          }
-                        >
-                          {hasPricingForModel(entry.model)
-                            ? getI18nOrFallback(t, "pricingAvailableShort", "priced")
-                            : getI18nOrFallback(t, "pricingMissingShort", "no-price")}
-                        </span>
-                      )}
-
-                      {strategy === "weighted" && (
-                        <div className="flex items-center gap-0.5 shrink-0">
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={entry.weight}
-                            onChange={(e) => handleWeightChange(index, e.target.value)}
-                            className="w-10 text-[11px] text-center py-0.5 rounded border border-black/10 dark:border-white/10 bg-transparent focus:border-primary focus:outline-none"
-                          />
-                          <span className="text-[10px] text-text-muted">%</span>
-                        </div>
-                      )}
-
-                      {strategy === "priority" && (
-                        <div className="flex items-center gap-0.5">
-                          <button
-                            onClick={() => handleMoveUp(index)}
-                            disabled={index === 0}
-                            className={`p-0.5 rounded ${index === 0 ? "text-text-muted/20 cursor-not-allowed" : "text-text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5"}`}
-                            aria-label={t("moveUp")}
-                            title={t("moveUp")}
-                          >
-                            <span className="material-symbols-outlined text-[12px]">
-                              arrow_upward
-                            </span>
-                          </button>
-                          <button
-                            onClick={() => handleMoveDown(index)}
-                            disabled={index === models.length - 1}
-                            className={`p-0.5 rounded ${index === models.length - 1 ? "text-text-muted/20 cursor-not-allowed" : "text-text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5"}`}
-                            aria-label={t("moveDown")}
-                            title={t("moveDown")}
-                          >
-                            <span className="material-symbols-outlined text-[12px]">
-                              arrow_downward
-                            </span>
-                          </button>
-                        </div>
-                      )}
-
-                      <button
-                        onClick={() => handleTestModel(entry.model, modelTestKey)}
-                        disabled={isTestingModel}
-                        aria-label={
-                          isTestingModel
-                            ? getI18nOrFallback(t, "testingModel", "Testing model...")
-                            : getI18nOrFallback(t, "testModel", "Test model")
-                        }
-                        className={`p-0.5 rounded transition-all ${
-                          status === "ok"
-                            ? "text-emerald-500 hover:bg-emerald-500/10"
-                            : status === "error"
-                              ? "text-red-500 hover:bg-red-500/10"
-                              : "text-text-muted hover:text-emerald-500 hover:bg-black/5 dark:hover:bg-white/5"
-                        } ${isTestingModel ? "cursor-not-allowed opacity-60" : ""}`}
-                        title={
-                          isTestingModel
-                            ? getI18nOrFallback(t, "testingModel", "Testing model...")
-                            : getI18nOrFallback(t, "testModel", "Test model")
-                        }
-                      >
-                        <span
-                          className={`material-symbols-outlined text-[12px] ${isTestingModel ? "animate-spin" : ""}`}
-                        >
-                          {isTestingModel
-                            ? "progress_activity"
-                            : status === "ok"
-                              ? "check_circle"
-                              : status === "error"
-                                ? "error"
-                                : "play_arrow"}
-                        </span>
-                      </button>
-
-                      <button
-                        onClick={() => handleRemoveModel(index)}
-                        aria-label={t("removeModel")}
-                        className="p-0.5 hover:bg-red-500/10 rounded text-text-muted hover:text-red-500 transition-all"
-                        title={t("removeModel")}
-                      >
-                        <span className="material-symbols-outlined text-[12px]">close</span>
-                      </button>
-                    </div>
+                      onDragOver={handleDragOver}
+                      onDrop={handleDrop}
+                      onToggleDisabled={handleToggleDisabled}
+                      onWeightChange={handleWeightChange}
+                      onMoveUp={handleMoveUp}
+                      onMoveDown={handleMoveDown}
+                      onTest={() => handleTestModel(entry.model, modelTestKey)}
+                      onRemove={handleRemoveModel}
+                    />
                   );
                 })}
               </div>
@@ -1373,6 +1286,12 @@ export function ComboFormModal({
         addedModelValues={models.map((m) => m.model)}
         multiSelect
         enableModelTest
+        // Both components are MOUNTED at once. Passing the derived data down keeps the
+        // picker's own hook short-circuited, so the fetch set runs once per session
+        // instead of twice — and the template resolver and the picker cannot disagree.
+        groups={availableGroups}
+        models={availableModels}
+        combos={pickerCombos}
       />
     </>
   );

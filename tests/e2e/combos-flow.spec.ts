@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { signInIfNeeded } from "./helpers/dashboard-auth";
 
 type ComboStub = {
   id: string;
@@ -61,7 +62,17 @@ test.describe("Combos flow", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          connections: [{ id: "conn-openai", provider: "openai", testStatus: "active" }],
+          // Mirrors /api/providers: it always emits credentialsConfigured and isActive,
+          // and templates treat a connection without them as unusable.
+          connections: [
+            {
+              id: "conn-openai",
+              provider: "openai",
+              testStatus: "success",
+              credentialsConfigured: true,
+              isActive: 1,
+            },
+          ],
         }),
       });
     });
@@ -152,6 +163,7 @@ test.describe("Combos flow", () => {
 
     await page.goto("/dashboard/combos");
     await page.waitForLoadState("domcontentloaded");
+    await signInIfNeeded(page, "/dashboard/combos");
 
     const redirectedToLogin = page.url().includes("/login");
     test.skip(redirectedToLogin, "Authentication enabled without a login fixture.");

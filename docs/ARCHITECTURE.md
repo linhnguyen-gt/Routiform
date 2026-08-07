@@ -446,6 +446,53 @@ flowchart TD
 
 Fallback decisions are driven by `open-sse/services/accountFallback.ts` using status codes and error-message heuristics; for account fallback, explicit HTTP `429` with `Retry-After` or `x-ratelimit-reset` now takes precedence and sets cooldown from headers (instead of body/text heuristics). Operationally, this makes `src/sse/services/auth.ts` account cooldown marking deterministic in `markAccountUnavailable(...)` and avoids heuristic misclassification when upstream includes explicit reset timing. `markAccountUnavailable(...)` also treats model-unavailable errors (via `isModelUnavailableError(...)`) as model-only lockouts, so the connection stays active and fallback can continue on other accounts/models. Combo routing adds one extra guard: provider-scoped 400s such as upstream content-block and role-validation failures are treated as model-local failures so later combo targets can still run. Additionally, HTTP 503 responses containing "all accounts rate-limited" are detected by `isAllAccountsRateLimitedResponse()` in `open-sse/services/combo.ts` and treated as combo-fallback-eligible rather than terminal errors, allowing the next model in the chain to be attempted.
 
+## Combo Save-Path Model Validation
+
+`POST /api/combos` and `PUT /api/combos/[id]` run an advisory check over each model entry
+(`src/shared/validation/combo-model-validation.ts`). It is **not** the sanitisation
+boundary — `parseModel` still rejects path traversal and control characters at request
+time. It mirrors the router's own resolution order so a save is rejected only for input the
+router could not route either.
+
+```text
+entry
+ ├─ slash-less?                              → skip (nested combo name or model alias)
+ ├─ matches a known combo name (full string) → skip
+ ├─ matches a known model alias              → skip
+ └─ split on the FIRST slash → providerRef / modelId
+     ├─ providerRef matches a provider-node `prefix` row     → skip
+     ├─ providerRef resolves nowhere
+     │    ├─ settings.stripModelPrefix === true              → warning
+     │    ├─ entry already stored on this combo (PUT)        → warning
+     │    └─ otherwise                                       → 400
+     └─ providerRef resolves
+          ├─ passthrough provider (id or alias)              → skip
+          ├─ isValidModel(providerRef, modelId)              → skip
+          ├─ static catalog absent or empty                  → skip ("unknown")
+          ├─ static catalog lists modelId                    → skip
+          └─ otherwise                                       → warning
+```
+
+Three details are load-bearing:
+
+- **Combo names may contain `/`**, and nested combos are matched against the full entry
+  string, so that check precedes any split.
+- **`PROVIDER_MODELS` is keyed by a mix of provider ids and aliases**, so the catalog lookup
+  tries the ref, then its alias, then its id before concluding the catalog is unknown. A
+  single-key lookup silently skips validation for the providers keyed the other way.
+- **The passthrough set is the union of `AI_PROVIDERS[*].passthroughModels` and the open-sse
+  `REGISTRY[*].passthroughModels`, seeded with id and alias.** Neither list is a superset of
+  the other; using either alone reintroduces false warnings for its exclusive members.
+
+The node and alias reads **fail open**: if either store cannot be read, the whole pass is
+skipped and the save proceeds. This is the opposite of the chat route, which fails closed on
+the same uncertainty because there it would cause credential misdispatch.
+
+Warnings are returned as an optional `warnings: string[]` spread onto the combo entity, and
+only when non-empty. They are a transient per-request diagnostic — never persisted, never
+returned by `GET /api/combos`, never echoed back on a later `PUT`. The dashboard surfaces
+them as a single toast.
+
 ## OAuth Onboarding and Token Refresh Lifecycle
 
 ```mermaid

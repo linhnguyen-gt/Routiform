@@ -12,6 +12,8 @@ import { syncToCloud } from "@/lib/cloudSync";
 import { validateComboDAG } from "@routiform/open-sse/services/combo.ts";
 import { updateComboSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { validateComboModels, withComboWarnings } from "@/shared/validation/combo-model-validation";
+import { loadComboValidationContext } from "@/shared/validation/combo-validation-context";
 
 // GET /api/combos/[id] - Get combo by ID
 export async function GET(request, { params }) {
@@ -63,18 +65,40 @@ export async function PUT(request, { params }) {
       }
     }
 
-    // Validate nested combo DAG (no circular references, max depth)
+    // Validate nested combo DAG (no circular references, max depth).
+    // Everything model-related lives inside this guard: a body without `models` — what
+    // handleToggleCombo and MCPDashboard send — must not run model validation at all, and
+    // must never have the stored list validated on its behalf.
+    let modelCheck = null;
     if (body.models) {
       const allCombos = await getCombos();
       // Update the combo in the list temporarily for validation
       const updatedCombos = allCombos.map((c) => (c.id === id ? { ...c, ...body } : c));
-      const comboName = body.name || (await getComboById(id))?.name;
+      const stored = await getComboById(id);
+      const comboName = body.name || stored?.name;
       if (typeof comboName === "string") {
         try {
           validateComboDAG(comboName, updatedCombos);
         } catch (dagError) {
           return NextResponse.json({ error: dagError.message }, { status: 400 });
         }
+      }
+
+      // Entries the combo already had are exempt from the hard error, so editing only a
+      // combo's name never fails on a legacy entry the user did not touch.
+      const context = await loadComboValidationContext();
+      modelCheck = validateComboModels({
+        ...context,
+        models: body.models,
+        knownComboNames: new Set(allCombos.map((c) => c.name).filter(Boolean)),
+        existingModels: new Set(
+          (stored?.models || [])
+            .map((entry) => (typeof entry === "string" ? entry : entry?.model))
+            .filter((value) => typeof value === "string")
+        ),
+      });
+      if (modelCheck.errors.length > 0) {
+        return NextResponse.json({ error: modelCheck.errors[0] }, { status: 400 });
       }
     }
 
@@ -87,7 +111,7 @@ export async function PUT(request, { params }) {
     // Auto sync to Cloud if enabled
     await syncToCloudIfEnabled();
 
-    return NextResponse.json(combo);
+    return NextResponse.json(modelCheck ? withComboWarnings(combo, modelCheck) : combo);
   } catch (error) {
     console.log("Error updating combo:", error);
     return NextResponse.json({ error: "Failed to update combo" }, { status: 500 });

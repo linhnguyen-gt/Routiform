@@ -53,12 +53,6 @@ const OAUTH_TEST_CONFIG = {
     authPrefix: "Bearer ",
     extraHeaders: { "User-Agent": "Routiform", Accept: "application/vnd.github+json" },
   },
-  iflow: {
-    // iFlow's getUserInfo endpoint returns 400 without a specific format.
-    // Use checkExpiry instead — actual connectivity is validated via real requests.
-    checkExpiry: true,
-    refreshable: true,
-  },
   cursor: {
     checkExpiry: true,
   },

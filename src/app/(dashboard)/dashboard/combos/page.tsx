@@ -12,12 +12,39 @@ import type {
   ComboMetrics,
   ComboRecord,
   ComboTestResults,
+  ProviderConnection,
   ProviderNode,
 } from "./components/combo-types";
 import { ComboUsageGuide } from "./components/ComboUsageGuide";
 import { TestResultsView } from "./components/TestResultsView";
 import { COMBO_USAGE_GUIDE_STORAGE_KEY } from "./components/combo-constants";
 import { getI18nOrFallback } from "./components/combo-utils";
+
+/**
+ * `warnings` is a transient per-request diagnostic the save routes attach only when
+ * non-empty. A body that is not JSON, or has no warnings, is not an error.
+ */
+async function readWarnings(res: Response): Promise<string[]> {
+  try {
+    const body = await res.json();
+    const warnings = (body as { warnings?: unknown })?.warnings;
+    return Array.isArray(warnings)
+      ? warnings.filter((w): w is string => typeof w === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Provider refs behind a set of warned `provider/model` strings, in first-seen order. */
+function warnedProvidersOf(warnings: string[]): string[] {
+  const providers: string[] = [];
+  for (const warning of warnings) {
+    const ref = warning.split("/")[0]?.trim();
+    if (ref && !providers.includes(ref)) providers.push(ref);
+  }
+  return providers;
+}
 
 export default function CombosPage() {
   const t = useTranslations("combos");
@@ -26,7 +53,7 @@ export default function CombosPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCombo, setEditingCombo] = useState<ComboRecord | null>(null);
-  const [activeProviders, setActiveProviders] = useState<ProviderNode[]>([]);
+  const [activeProviders, setActiveProviders] = useState<ProviderConnection[]>([]);
   const [metrics, setMetrics] = useState<Record<string, ComboMetrics>>({});
   const [testResults, setTestResults] = useState<ComboTestResults | null>(null);
   const [testingCombo, setTestingCombo] = useState<string | null>(null);
@@ -91,6 +118,25 @@ export default function CombosPage() {
     }
   };
 
+  /**
+   * Exactly one toast, however many warnings there are: `notify.warning` does not group or
+   * de-duplicate, so an 8-model combo would otherwise stack 8 auto-dismissing toasts. The
+   * copy says only what the validator knows — the model is absent from the *static* list we
+   * ship, and may still work if the provider lists it live. Never "invalid".
+   */
+  const notifyModelWarnings = (warnings: string[]) => {
+    if (warnings.length === 0) return;
+    console.warn("[combos] saved with model warnings:", warnings);
+    notify.warning(
+      getI18nOrFallback(
+        t,
+        "saveModelsNotInCatalog",
+        "{count} model(s) are not in the known model list for {providers}. They may still work if the provider offers them. Saved anyway.",
+        { count: warnings.length, providers: warnedProvidersOf(warnings).join(", ") }
+      )
+    );
+  };
+
   const handleCreate = async (data: Omit<ComboRecord, "id">) => {
     try {
       const res = await fetch("/api/combos", {
@@ -104,6 +150,7 @@ export default function CombosPage() {
         setShowCreateModal(false);
         setRecentlyCreatedCombo(data.name?.trim() || "");
         notify.success(t("comboCreated"));
+        notifyModelWarnings(await readWarnings(res));
         await fetchData();
       } else {
         const err = await res.json();
@@ -122,9 +169,11 @@ export default function CombosPage() {
         body: JSON.stringify(data),
       });
       if (res.ok) {
+        const warnings = await readWarnings(res);
         await fetchData();
         setEditingCombo(null);
         notify.success(t("comboUpdated"));
+        notifyModelWarnings(warnings);
       } else {
         const err = await res.json();
         notify.error(err.error?.message || err.error || t("failedUpdate"));
@@ -553,6 +602,7 @@ export default function CombosPage() {
         onClose={() => setShowCreateModal(false)}
         onSave={handleCreate}
         activeProviders={activeProviders}
+        combos={combos}
         combo={null}
       />
 
@@ -563,6 +613,7 @@ export default function CombosPage() {
         onClose={() => setEditingCombo(null)}
         onSave={(data) => handleUpdate(editingCombo.id, data)}
         activeProviders={activeProviders}
+        combos={combos}
       />
 
       {proxyTargetCombo && (

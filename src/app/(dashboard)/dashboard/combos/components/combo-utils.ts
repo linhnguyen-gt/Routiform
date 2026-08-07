@@ -82,3 +82,33 @@ export function getStrategyRecommendationText(
     strategyFallback[field]
   );
 }
+
+/**
+ * A combo name that is not already taken: `base`, else `base-2`, `base-3`, …
+ *
+ * Applying a template fills a blank name with the template's `suggestedName`, and
+ * `POST /api/combos` 400s on a duplicate. Suffixes stay well inside `VALID_NAME_REGEX`
+ * and the 100-character limit.
+ *
+ * Uniqueness is computed from the client-held combo list, so it is not a server
+ * guarantee: a combo created in another tab or by the CLI between fetch and save will
+ * still 400. That residual is accepted, not eliminated.
+ */
+export function uniqueComboName(base: string, taken: Iterable<string>): string {
+  const used = new Set(
+    [...taken]
+      .map((name) =>
+        String(name ?? "")
+          .trim()
+          .toLowerCase()
+      )
+      .filter(Boolean)
+  );
+  if (!used.has(base.trim().toLowerCase())) return base;
+
+  for (let suffix = 2; suffix < 1000; suffix += 1) {
+    const candidate = `${base}-${suffix}`;
+    if (!used.has(candidate.toLowerCase())) return candidate;
+  }
+  return base;
+}
