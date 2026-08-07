@@ -1,4 +1,10 @@
-FROM node:22-bookworm-slim AS builder
+# Trixie (glibc 2.41), not bookworm (glibc 2.36). better-sqlite3 ships prebuildify binaries and
+# its own loader prefers prebuilds/<platform>-<arch>.node over anything node-gyp builds, so the
+# shipped binary is the one that runs. prebuilds/linux-arm64.node is linked against GLIBC_2.38
+# (upstream builds it on Ubuntu 24.04 arm runners; the x64 one still tops out at GLIBC_2.34).
+# On bookworm that means every arm64 image boots fine and then fails ERR_DLOPEN_FAILED on the
+# first DB call — health checks, model sync, proxy logging, all of it — while amd64 is healthy.
+FROM node:22-trixie-slim AS builder
 WORKDIR /app
 
 RUN apt-get update \
@@ -36,7 +42,8 @@ RUN NODE_OPTIONS=--max-old-space-size=4096 npm run owui:build \
 
 RUN mkdir -p /app/data && npm run build -- --webpack
 
-FROM node:22-bookworm-slim AS runner-base
+# Must stay on the same base as the builder — see the glibc note at the top of this file.
+FROM node:22-trixie-slim AS runner-base
 WORKDIR /app
 
 LABEL org.opencontainers.image.title="routiform" \
@@ -67,6 +74,12 @@ COPY --from=builder /app/node_modules/@swc/helpers ./node_modules/@swc/helpers
 COPY --from=builder /app/node_modules/pino-abstract-transport ./node_modules/pino-abstract-transport
 COPY --from=builder /app/node_modules/pino-pretty ./node_modules/pino-pretty
 COPY --from=builder /app/node_modules/split2 ./node_modules/split2
+
+# Fail the build rather than ship an image that boots and then throws ERR_DLOPEN_FAILED on every
+# DB call. This runs per-platform under buildx, so it catches a base image whose glibc is older
+# than the prebuilt native addon needs — the exact failure that shipped on arm64 before.
+RUN node -e "require('better-sqlite3'); console.log('better-sqlite3 native addon OK')"
+
 COPY --from=builder /app/scripts/run-standalone.mjs ./run-standalone.mjs
 COPY --from=builder /app/scripts/runtime-env.mjs ./runtime-env.mjs
 COPY --from=builder /app/scripts/bootstrap-env.mjs ./bootstrap-env.mjs
