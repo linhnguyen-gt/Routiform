@@ -64,7 +64,7 @@ function buildMissingProjectResponse(): Response {
  * escape hatch: ROUTIFORM_ALLOW_BODY_PROJECT_OVERRIDE=1.
  *
  * When nothing usable is stored, fall back to a runtime Cloud Code lookup
- * (loadCodeAssist + onboardUser), mirroring the gemini-cli executor — this
+ * (loadCodeAssist + onboardUser) — this
  * turns "Missing projectId" 422s into auto-recovery without an OAuth reconnect.
  */
 async function resolveProjectId(

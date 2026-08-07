@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/shared/components";
 import ModelSelectModal from "@/shared/components/ModelSelectModal";
+import type { ProviderConnection } from "@/shared/models/provider-connection";
 
 const EFFORT_OPTIONS = ["none", "low", "medium", "high", "xhigh"] as const;
 
@@ -41,7 +42,7 @@ export default function ModelDefaultsTab() {
 
   const [pendingModels, setPendingModels] = useState<string[]>([]);
   const [newEffort, setNewEffort] = useState<Effort>("high");
-  const [activeProviders, setActiveProviders] = useState<Array<Record<string, unknown>>>([]);
+  const [activeProviders, setActiveProviders] = useState<ProviderConnection[]>([]);
   const [showModelSelect, setShowModelSelect] = useState(false);
 
   useEffect(() => {

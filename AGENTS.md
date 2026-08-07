@@ -144,7 +144,7 @@ Zod schemas, and unit tests aligned when editing.
 
 ### Provider Categories
 
-- **Free** (4): Qoder AI, Qwen Code, Gemini CLI (deprecated), Kiro AI
+- **Free** (3): Qoder AI, Qwen Code, Kiro AI
 - **OAuth** (9): Claude Code, Antigravity, Codex, GitHub Copilot, Cursor, Kimi Coding, Kilo Code, Cline,
   xAI SuperGrok (provider id `xai`, device_code + PKCE; same catalog as API key)
 - **API Key** (48+): OpenAI, Anthropic, Gemini, DeepSeek, Groq, xAI, Mistral, Perplexity,
@@ -161,7 +161,7 @@ Providers are registered in `src/shared/constants/providers.ts` with Zod validat
 ### Executors (`open-sse/executors/`)
 
 Provider-specific request executors: `base.ts`, `default.ts`, `cursor.ts`, `codex.ts`,
-`antigravity.ts`, `github.ts`, `gemini-cli.ts`, `kiro.ts`, `qoder.ts`, `vertex.ts`,
+`antigravity.ts`, `github.ts`, `kiro.ts`, `qoder.ts`, `vertex.ts`,
 `cloudflare-ai.ts`, `opencode.ts`, `pollinations.ts`, `puter.ts`.
 
 ### Translator (`open-sse/translator/`)

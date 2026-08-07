@@ -52,10 +52,9 @@ const FORMAT_IMAGE_SUPPORT: Record<string, ImageSupport> = {
   [FORMATS.OPENAI_RESPONSES]: "carries",
   [FORMATS.CLAUDE]: "carries",
   [FORMATS.GEMINI]: "carries",
-  // Both reach convertOpenAIContentToParts via openaiToGeminiBase
-  // (openai-to-gemini.ts:360 and :712); antigravity's Claude branch goes through
-  // openaiToClaudeRequestForAntigravity, which carries images too.
-  [FORMATS.GEMINI_CLI]: "carries",
+  // Antigravity reaches convertOpenAIContentToParts via openaiToGeminiBase; its
+  // Claude branch goes through openaiToClaudeRequestForAntigravity, which carries
+  // images too.
   [FORMATS.ANTIGRAVITY]: "carries",
   [FORMATS.KIRO]: "carries",
 

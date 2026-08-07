@@ -7,7 +7,6 @@ import { handleClineModels } from "./handle-cline-models";
 import { handleCodexModels } from "./handle-codex-models";
 import { handleConfiguredProviderModels } from "./handle-configured-provider-models";
 import { handleDevinModels } from "./handle-devin-models";
-import { handleGeminiCliModels } from "./handle-gemini-cli-models";
 import { handleGithubModels } from "./handle-github-models";
 import { handleGlmModels } from "./handle-glm-models";
 import { handleKiroModels } from "./handle-kiro-models";
@@ -35,7 +34,6 @@ export async function handleGetModels(
       (await handleAntigravityModels(ctx)) ??
       (await handleGlmModels(ctx)) ??
       (await handleKiroModels(ctx)) ??
-      (await handleGeminiCliModels(ctx)) ??
       (await handleClineModels(ctx)) ??
       (await handleDevinModels(ctx)) ??
       (await handleAnthropicCompatibleModels(ctx)) ??

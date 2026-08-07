@@ -23,14 +23,19 @@ import { xaiPricing, zaiPricing, kiroPricing } from "./pricing/other-pricing";
 export const DEFAULT_PRICING: Record<string, Record<string, unknown>> = {
   cc: ccPricing,
   cx: cxPricing,
-  "gemini-cli": geminiCliPricing,
   qw: qwPricing,
+  // Legacy alias: the `iflow` provider was removed, but stored user rows and
+  // historical call logs may still reference the `if` prefix. Keep for lookup.
   if: ifPricing,
   ag: agPricing,
   gh: ghPricing,
   openai: openaiPricing,
   anthropic: anthropicPricing,
   gemini: geminiPricing,
+  // Legacy alias: the `gemini-cli` provider was removed, but stored usage rows
+  // and historical call logs still reference it, and cost is recomputed from
+  // this table at read time. Keep for lookup.
+  "gemini-cli": geminiCliPricing,
   deepseek: deepseekPricing,
   openrouter: openrouterPricing,
   glm: glmPricing,
@@ -55,7 +60,7 @@ type ProviderPricingTable = Record<string, Record<string, unknown>>;
 
 /**
  * Get pricing for a specific provider and model
- * @param {string} provider - Provider ID (e.g., "openai", "cc", "gemini-cli")
+ * @param {string} provider - Provider ID (e.g., "openai", "cc", "gemini")
  * @param {string} model - Model ID
  * @returns {object|null} Pricing object or null if not found
  */

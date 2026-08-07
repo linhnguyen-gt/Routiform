@@ -281,7 +281,6 @@ test("OAuth test config covers all expected providers", () => {
   const expected = [
     "claude",
     "codex",
-    "gemini-cli",
     "antigravity",
     "github",
     "qoder",
@@ -297,7 +296,6 @@ test("OAuth test config covers all expected providers", () => {
   const configuredProviders = [
     "claude",
     "codex",
-    "gemini-cli",
     "antigravity",
     "github",
     "qoder",
@@ -317,19 +315,11 @@ test("OAuth test config covers all expected providers", () => {
 });
 
 test("Refreshable OAuth providers are correctly identified", () => {
-  const refreshable = [
-    "codex",
-    "gemini-cli",
-    "antigravity",
-    "qoder",
-    "kimi-coding",
-    "cline",
-    "kiro",
-  ];
+  const refreshable = ["codex", "antigravity", "qoder", "kimi-coding", "cline", "kiro"];
   const nonRefreshable = ["claude", "github", "cursor", "kilocode"];
 
   // Verify these two sets are mutually exclusive and cover all providers
   const allProviders = [...refreshable, ...nonRefreshable];
-  assert.equal(allProviders.length, 11);
-  assert.equal(new Set(allProviders).size, 11);
+  assert.equal(allProviders.length, 10);
+  assert.equal(new Set(allProviders).size, 10);
 });

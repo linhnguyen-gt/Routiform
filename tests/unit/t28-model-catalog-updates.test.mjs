@@ -5,21 +5,12 @@ import { getModelInfoCore } from "../../open-sse/services/model.ts";
 import { REGISTRY } from "../../open-sse/config/providerRegistry.ts";
 import { getStaticModelsForProvider } from "../../src/app/api/providers/[id]/models/route.ts";
 
-test("T28: gemini-cli catalog includes preview models, gemini uses API sync", () => {
-  // Gemini (AI Studio) no longer has a hardcoded registry — models come from
-  // API sync via /api/providers/:id/models with pageSize=1000.
+test("T28: gemini uses API sync, not a hardcoded catalog", () => {
+  // Gemini (AI Studio) has no hardcoded registry — models come from API sync
+  // via /api/providers/:id/models with pageSize=1000.
   const geminiIds = REGISTRY.gemini.models.map((m) => m.id);
   assert.equal(geminiIds.length, 0, "gemini models should be empty (populated by API sync)");
-
-  // gemini-cli still has hardcoded models (Cloud Code doesn't have a models API).
-  // This used to assert on "gemini-3.1-flash-lite-preview", which pinned a model
-  // Google shut down 2026-05-25 into the catalog — the assertion was keeping a
-  // dead id alive. It now checks the live successor. See
-  // tests/unit/model-family-fallback-no-dead-models.test.mjs for the guard that
-  // rejects any shut-down id in any registry.
-  const geminiCliIds = REGISTRY["gemini-cli"].models.map((m) => m.id);
-  assert.ok(geminiCliIds.includes("gemini-3.1-flash-lite"));
-  assert.ok(geminiCliIds.includes("gemini-3-flash-preview"));
+  assert.equal(REGISTRY["gemini-cli"], undefined, "the gemini-cli provider was removed");
 });
 
 test("T28: antigravity no longer exposes a static catalog fallback", () => {

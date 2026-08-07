@@ -5,6 +5,8 @@ import { syncToCloud } from "@/lib/cloudSync";
 import { validateComboDAG } from "@routiform/open-sse/services/combo.ts";
 import { createComboSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { validateComboModels, withComboWarnings } from "@/shared/validation/combo-model-validation";
+import { loadComboValidationContext } from "@/shared/validation/combo-validation-context";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -55,6 +57,17 @@ export async function POST(request) {
       return NextResponse.json({ error: dagError.message }, { status: 400 });
     }
 
+    // Advisory model check. POST has no prior state, so every entry is new.
+    const context = await loadComboValidationContext();
+    const modelCheck = validateComboModels({
+      ...context,
+      models: models || [],
+      knownComboNames: new Set(allCombos.map((c) => c.name).filter(Boolean)),
+    });
+    if (modelCheck.errors.length > 0) {
+      return NextResponse.json({ error: modelCheck.errors[0] }, { status: 400 });
+    }
+
     const combo = await createCombo({
       ...validation.data,
       models: models || [],
@@ -63,7 +76,7 @@ export async function POST(request) {
     // Auto sync to Cloud if enabled
     await syncToCloudIfEnabled();
 
-    return NextResponse.json(combo, { status: 201 });
+    return NextResponse.json(withComboWarnings(combo, modelCheck), { status: 201 });
   } catch (error) {
     console.log("Error creating combo:", error);
     return NextResponse.json({ error: "Failed to create combo" }, { status: 500 });

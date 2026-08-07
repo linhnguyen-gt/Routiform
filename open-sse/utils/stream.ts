@@ -192,11 +192,9 @@ function mergeUsageNonDestructive(
   const targetUnknown = target as Record<string, unknown>;
   const extractedUnknown = extracted as Record<string, unknown>;
   const targetPromptDetails = targetUnknown.prompt_tokens_details as
-    | Record<string, number>
-    | undefined;
+    Record<string, number> | undefined;
   const euPromptDetails = extractedUnknown.prompt_tokens_details as
-    | Record<string, number>
-    | undefined;
+    Record<string, number> | undefined;
   if (targetPromptDetails || euPromptDetails) {
     merged.prompt_tokens_details = { ...targetPromptDetails, ...euPromptDetails } as Record<
       string,
@@ -204,11 +202,9 @@ function mergeUsageNonDestructive(
     >;
   }
   const targetCompletionDetails = targetUnknown.completion_tokens_details as
-    | Record<string, number>
-    | undefined;
+    Record<string, number> | undefined;
   const euCompletionDetails = extractedUnknown.completion_tokens_details as
-    | Record<string, number>
-    | undefined;
+    Record<string, number> | undefined;
   if (targetCompletionDetails || euCompletionDetails) {
     merged.completion_tokens_details = {
       ...targetCompletionDetails,
@@ -752,9 +748,7 @@ export function createSSEStream(options: StreamOptions = {}) {
           // Cloud Code API wraps in { response: { candidates: [...] } }, so unwrap.
           // Only applies to Gemini-family formats — skip for OpenAI, Claude, etc.
           const isGeminiFormat =
-            targetFormat === FORMATS.GEMINI ||
-            targetFormat === FORMATS.GEMINI_CLI ||
-            targetFormat === FORMATS.ANTIGRAVITY;
+            targetFormat === FORMATS.GEMINI || targetFormat === FORMATS.ANTIGRAVITY;
           const geminiChunk = isGeminiFormat ? unwrapGeminiChunk(parsed) : parsed;
           if (geminiChunk.candidates?.[0]?.content?.parts) {
             for (const part of geminiChunk.candidates[0].content.parts) {
@@ -1162,17 +1156,15 @@ export function createSSEStream(options: StreamOptions = {}) {
               if (hasToolCalls) {
                 // Normalize shape — translators may store different structures
                 message.tool_calls = [...state.toolCalls.values()]
-                  .map(
-                    (tc: Record<string, unknown>): ToolCall => ({
-                      id: (tc.id as string) ?? null,
-                      index: (tc.index as number) ?? (tc.blockIndex as number) ?? 0,
-                      type: (tc.type as string) ?? "function",
-                      function: (tc.function as ToolCall["function"]) ?? {
-                        name: (tc.name as string) ?? "",
-                        arguments: "",
-                      },
-                    })
-                  )
+                  .map((tc: Record<string, unknown>): ToolCall => ({
+                    id: (tc.id as string) ?? null,
+                    index: (tc.index as number) ?? (tc.blockIndex as number) ?? 0,
+                    type: (tc.type as string) ?? "function",
+                    function: (tc.function as ToolCall["function"]) ?? {
+                      name: (tc.name as string) ?? "",
+                      arguments: "",
+                    },
+                  }))
                   .sort((a, b) => a.index - b.index);
               }
               const responseBody = {

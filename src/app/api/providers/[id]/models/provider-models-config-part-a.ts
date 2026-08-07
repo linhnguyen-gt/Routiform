@@ -66,7 +66,6 @@ export const providerModelsConfigPartA: Record<string, ProviderModelsConfigEntry
       });
     },
   },
-  // gemini-cli handled via retrieveUserQuota (see GET handler)
   antigravity: {
     url: "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:models",
     method: "POST",

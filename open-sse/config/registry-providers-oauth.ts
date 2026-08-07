@@ -70,55 +70,9 @@ export const OAUTH_PROVIDERS: Record<string, RegistryEntry> = {
     authType: "apikey",
     authHeader: "x-goog-api-key",
     defaultContextLength: 1000000,
-    oauth: {
-      clientIdEnv: "GEMINI_OAUTH_CLIENT_ID",
-      clientIdDefault: "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com",
-      clientSecretEnv: "GEMINI_OAUTH_CLIENT_SECRET",
-      clientSecretDefault: "",
-    },
     models: [],
     // Models are populated from Google's API via sync-models (per API key).
     // No hardcoded fallback — show nothing until a key is added.
-  },
-
-  "gemini-cli": {
-    id: "gemini-cli",
-    alias: "gemini-cli",
-    format: "gemini-cli",
-    executor: "gemini-cli",
-    baseUrl: "https://daily-cloudcode-pa.googleapis.com/v1internal",
-    urlBuilder: (base, model, stream) => {
-      const action = stream ? "streamGenerateContent?alt=sse" : "generateContent";
-      return `${base}:${action}`;
-    },
-    authType: "oauth",
-    authHeader: "bearer",
-    defaultContextLength: 1000000,
-    oauth: {
-      clientIdEnv: "GEMINI_CLI_OAUTH_CLIENT_ID",
-      clientIdDefault: "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com",
-      clientSecretEnv: "GEMINI_OAUTH_CLIENT_SECRET",
-      clientSecretDefault: "",
-    },
-    models: [
-      // gemini-3-pro-preview was shut down 2026-03-09 (Google's Gemini API
-      // deprecations page: https://ai.google.dev/gemini-api/docs/deprecations)
-      // and removed from the picker so the default is a live model. Old
-      // configs pointing at the retired id still resolve via
-      // STARTUP_MODEL_ALIAS_SEEDS (src/lib/db/models.ts) and
-      // PROVIDER_MODEL_ALIASES (open-sse/services/model.ts), both of which
-      // redirect it to gemini-3.1-pro-preview.
-      { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro Preview" },
-      { id: "gemini-3.1-pro-preview-customtools", name: "Gemini 3.1 Pro Preview Custom Tools" },
-      { id: "gemini-3-flash-preview", name: "Gemini 3 Flash Preview" },
-      // gemini-3.1-flash-lite-preview was shut down 2026-05-25; the live
-      // successor is the non-preview id. Retired configs still resolve via
-      // BUILT_IN_ALIASES (open-sse/services/modelDeprecation.ts).
-      { id: "gemini-3.1-flash-lite", name: "Gemini 3.1 Flash Lite" },
-      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
-      { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
-      { id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash Lite" },
-    ],
   },
 
   codex: {

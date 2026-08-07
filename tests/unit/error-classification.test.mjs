@@ -18,7 +18,7 @@ test("getProviderCategory: OAuth providers return 'oauth'", () => {
   assert.equal(getProviderCategory("antigravity"), "oauth");
   assert.equal(getProviderCategory("cursor"), "oauth");
   assert.equal(getProviderCategory("kiro"), "oauth");
-  assert.equal(getProviderCategory("gemini-cli"), "oauth");
+  assert.equal(getProviderCategory("kilocode"), "oauth");
   assert.equal(getProviderCategory("cline"), "oauth");
 });
 

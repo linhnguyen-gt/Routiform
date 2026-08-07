@@ -1,12 +1,12 @@
 /**
  * Data-driven regression test: no MODEL_FAMILIES fallback chain may ever
- * list a shut-down model as a candidate TARGET, and the gemini-cli registry's
- * default (first) model must be live.
+ * list a shut-down model as a candidate TARGET, and no provider registry may
+ * offer one in the picker.
  *
  * Context: gemini-3-pro-preview was shut down 2026-03-09
- * (https://ai.google.dev/gemini-api/docs/deprecations). It previously
- * appeared as the first model in the gemini-cli registry (making it the
- * default in the UI picker) and as a fallback target in several
+ * (https://ai.google.dev/gemini-api/docs/deprecations). It appeared as the
+ * first model in a provider registry (making it the default in the UI picker)
+ * and as a fallback target in several
  * MODEL_FAMILIES chains (breaking Gemini failover). This test is written
  * against a DEPRECATED_MODEL_IDS set so it keeps catching this class of bug
  * as more models get shut down.
@@ -85,32 +85,13 @@ test("MODEL_FAMILIES: a DEPRECATED_MODEL_IDS entry may still be a family KEY (le
   }
 });
 
-test("registry: gemini-cli's default (first) model is not a known-dead model", () => {
-  const models = OAUTH_PROVIDERS["gemini-cli"].models;
-  assert.ok(Array.isArray(models) && models.length > 0, "gemini-cli must have at least one model");
-  const first = models[0].id;
-  assert.ok(
-    !DEPRECATED_MODEL_IDS.has(first),
-    `gemini-cli's default model "${first}" must not be a shut-down model`
-  );
-});
-
-test("registry: gemini-cli models list contains no known-dead model at all", () => {
-  const models = OAUTH_PROVIDERS["gemini-cli"].models;
-  const deadEntries = models.filter((m) => DEPRECATED_MODEL_IDS.has(m.id));
-  assert.deepEqual(
-    deadEntries.map((m) => m.id),
-    [],
-    "gemini-cli registry must not offer a shut-down model in the picker"
-  );
-});
-
 // ── Whole-catalog guard ──────────────────────────────────────────────────────
-// The gemini-cli-only checks above were how the first dead model got caught,
-// but they only ever looked at one provider. Dead models were simultaneously
-// being offered by the Vertex, OpenRouter-proxy, Puter and AI/ML API entries.
-// This sweeps EVERY registry so the next shutdown cannot hide in whichever
-// provider list nobody happened to be looking at.
+// This began as a pair of checks against a single provider registry, which was
+// how the first dead model got caught — but they only ever looked at that one
+// provider. Dead models were simultaneously being offered by the Vertex,
+// OpenRouter-proxy, Puter and AI/ML API entries. This sweeps EVERY registry so
+// the next shutdown cannot hide in whichever provider list nobody happened to
+// be looking at.
 
 const { APIKEY_PROVIDERS } = await import("../../open-sse/config/registry-providers-apikey.ts");
 const { FREE_PROVIDERS } = await import("../../open-sse/config/registry-providers-free.ts");

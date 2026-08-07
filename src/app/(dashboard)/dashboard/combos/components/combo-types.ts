@@ -29,12 +29,19 @@ export interface ComboMetrics {
   };
 }
 
+/**
+ * A row from `/api/provider-nodes` — a user-configured compatible endpoint.
+ * Distinct from `ProviderConnection` (a credential row from `/api/providers`);
+ * do not merge the two.
+ */
 export interface ProviderNode {
   id?: string;
   prefix?: string;
   name?: string;
   apiType?: string;
 }
+
+export type { ProviderConnection } from "@/shared/models/provider-connection";
 
 export interface ComboTestResultItem {
   model: string;
@@ -51,4 +58,5 @@ export interface ComboTestResults {
 }
 
 export type PricingByProvider = Record<string, Record<string, unknown>>;
-export type ModelAliases = Record<string, unknown>;
+/** `{ alias: "provider/model" }` — values are always the full model string. */
+export type ModelAliases = Record<string, string>;

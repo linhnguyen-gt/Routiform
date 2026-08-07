@@ -124,11 +124,6 @@ export function tryParseJSON(str) {
   }
 }
 
-// Generate request ID
-export function generateRequestId() {
-  return `agent-${crypto.randomUUID()}`;
-}
-
 // Generate session ID
 export function generateSessionId() {
   return `-${Math.floor(Math.random() * 9000000000000000000)}`;

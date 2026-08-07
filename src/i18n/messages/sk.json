@@ -1044,8 +1044,8 @@
         "tip3": "Strong alternative to round-robin under high throughput."
       }
     },
-    "templateFreeStack": "Free Stack ($0)",
-    "templateFreeStackDesc": "Round-robin across all free providers: Kiro (Claude), Qoder (5 models), Qwen (4 models), Gemini CLI. Zero cost, never stops coding.",
+    "templateFreeStack": "Free & free-tier stack",
+    "templateFreeStackDesc": "Round-robin across your free and free-tier providers. Metered keys are marked — a paid plan may still bill.",
     "fillFirst": "Fill First",
     "fillFirstDesc": "Uses models in order until quota is exhausted, then moves to the next.",
     "p2c": "P2C",
@@ -1053,7 +1053,20 @@
     "contextOpt": "Context-Opt",
     "contextOptimizedDesc": "Routes using context-size and model-fit heuristics when enabled.",
     "headroom": "Headroom",
-    "headroomDesc": "Prefers models with the most free capacity (lowest recent load)."
+    "headroomDesc": "Prefers models with the most free capacity (lowest recent load).",
+    "templatePaidPremium": "Paid Premium",
+    "templatePaidPremiumDesc": "Round-robin across your paid subscription providers. Top-tier models, distributed load.",
+    "templateUnavailable": "Not available yet",
+    "templateNeedsProviders": "Connect {providers} to use this template.",
+    "templateNeedsAnyProvider": "Connect at least one provider to use templates.",
+    "templateNeedsPricing": "No connected model has pricing data, so cost ranking is unavailable.",
+    "templateAppliedCount": "Applied {count} models from {template}.",
+    "templatePartialResult": "Only {count} of {requested} models were available.",
+    "templateLimitedFreeTierBadge": "Limited free tier",
+    "templateLimitedFreeTierHint": "This provider's free tier has limits and may bill you if your key is on a paid plan.",
+    "templateProviderNoModels": "{providers} is connected but returned no models. Check the provider's status, then try again.",
+    "templateMeteredCount": "({metered} metered)",
+    "saveModelsNotInCatalog": "{count, plural, one {# model is} other {# models are}} not in the known model list for {providers}. They may still work if the provider offers them. Saved anyway."
   },
   "costs": {
     "title": "náklady",

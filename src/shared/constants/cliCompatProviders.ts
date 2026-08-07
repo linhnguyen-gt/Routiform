@@ -8,19 +8,9 @@ import { CLI_TOOLS } from "./cliTools";
  * - keep legacy-compatible IDs that are still used by existing setups
  */
 
-export const IMPLEMENTED_CLI_FINGERPRINT_PROVIDER_IDS = [
-  "codex",
-  "github",
-  "antigravity",
-  "gemini-cli",
-] as const;
+export const IMPLEMENTED_CLI_FINGERPRINT_PROVIDER_IDS = ["codex", "github", "antigravity"] as const;
 
-export const CLI_COMPAT_DISPLAY_PROVIDER_IDS = [
-  "codex",
-  "copilot",
-  "antigravity",
-  "gemini-cli",
-] as const;
+export const CLI_COMPAT_DISPLAY_PROVIDER_IDS = ["codex", "copilot", "antigravity"] as const;
 
 const TOOL_ID_TO_PROVIDER_ID: Record<string, string> = {
   kilo: "kilocode",
@@ -39,10 +29,6 @@ export const CLI_COMPAT_PROVIDER_DISPLAY: Record<string, { name: string; descrip
   antigravity: {
     name: "Antigravity",
     description: "Google Antigravity IDE compatibility",
-  },
-  "gemini-cli": {
-    name: "Gemini CLI",
-    description: "Google Gemini CLI compatibility",
   },
 };
 

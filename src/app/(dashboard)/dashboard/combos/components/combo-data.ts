@@ -1,3 +1,4 @@
+import { splitModelString } from "@/shared/models/model-string";
 import {
   type ComboModelEntry,
   type ComboRecord,
@@ -41,13 +42,12 @@ export function normalizeComboRecord(combo: ComboRecord | null): ComboRecord | n
 
 export function getProviderDisplayName(modelValue: string, providerNodes: ProviderNode[]): string {
   if (!modelValue || typeof modelValue !== "string") return modelValue || "";
-  const parts = modelValue.split("/");
-  if (parts.length !== 2) return modelValue;
-  const [providerIdentifier, modelId] = parts;
+  const split = splitModelString(modelValue);
+  if (!split) return modelValue;
   const matchedNode = providerNodes.find(
-    (node) => node.id === providerIdentifier || node.prefix === providerIdentifier
+    (node) => node.id === split.providerRef || node.prefix === split.providerRef
   );
-  return matchedNode?.name ? `${matchedNode.name}/${modelId}` : modelValue;
+  return matchedNode?.name ? `${matchedNode.name}/${split.modelId}` : modelValue;
 }
 
 export function getTestResultsItems(results: ComboTestResults): ComboTestResults["results"] {

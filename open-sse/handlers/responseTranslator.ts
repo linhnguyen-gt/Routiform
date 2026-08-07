@@ -342,11 +342,7 @@ export function translateNonStreamingResponse(
   }
 
   // Handle Gemini/Antigravity format
-  else if (
-    targetFormat === FORMATS.GEMINI ||
-    targetFormat === FORMATS.ANTIGRAVITY ||
-    targetFormat === FORMATS.GEMINI_CLI
-  ) {
+  else if (targetFormat === FORMATS.GEMINI || targetFormat === FORMATS.ANTIGRAVITY) {
     const root = toRecord(responseBody);
     const response = toRecord(root.response ?? root);
     const candidates = Array.isArray(response.candidates) ? response.candidates : [];

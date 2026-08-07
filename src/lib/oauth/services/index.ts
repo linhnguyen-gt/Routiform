@@ -5,7 +5,6 @@
 export { OAuthService } from "./oauth";
 export { ClaudeService } from "./claude";
 export { CodexService } from "./codex";
-export { GeminiCLIService } from "./gemini";
 export { QoderService } from "./qoder";
 export { AntigravityService } from "./antigravity";
 export { OpenAIService } from "./openai";

@@ -1,7 +1,7 @@
 /**
  * Runtime projectId resolution (loadCodeAssist + onboardUser).
  *
- * Mirrors the gemini-cli executor pattern. Antigravity OAuth normally stores a
+ * Antigravity OAuth normally stores a
  * projectId during postExchange, but stale/empty values surface as a hard 422
  * from transformRequest. Resolving at runtime turns those into auto-recovery
  * instead of forcing the user to "reconnect OAuth".

@@ -8,7 +8,7 @@ import Button from "./Button";
 import Input from "./Input";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
-const GOOGLE_OAUTH_PROVIDERS = new Set(["antigravity", "gemini-cli"]);
+const GOOGLE_OAUTH_PROVIDERS = new Set(["antigravity"]);
 
 type OAuthModalProps = {
   isOpen: boolean;
@@ -110,9 +110,7 @@ export default function OAuthModal({
           setError(
             "redirect_uri_mismatch: The default Google OAuth credentials only work on localhost. " +
               "For remote use, configure your own OAuth credentials via environment variables: " +
-              (provider === "antigravity"
-                ? "ANTIGRAVITY_OAUTH_CLIENT_ID and ANTIGRAVITY_OAUTH_CLIENT_SECRET"
-                : "GEMINI_OAUTH_CLIENT_ID and GEMINI_OAUTH_CLIENT_SECRET") +
+              "ANTIGRAVITY_OAUTH_CLIENT_ID and ANTIGRAVITY_OAUTH_CLIENT_SECRET" +
               ". See the README section 'OAuth on a Remote Server'."
           );
         } else {
@@ -306,7 +304,7 @@ export default function OAuthModal({
       // Authorization code flow
       // Redirect URI strategy:
       // - Codex/OpenAI: always port 1455 (registered in OAuth app)
-      // - Google OAuth providers (antigravity, gemini-cli): always localhost, regardless of
+      // - Google OAuth providers (antigravity): always localhost, regardless of
       //   where Routiform is hosted — Google only accepts pre-registered localhost URIs with
       //   the built-in credentials. Remote users must configure their own credentials.
       // - Other providers on remote: use actual origin (supports PUBLIC_URL env var)

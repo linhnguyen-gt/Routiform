@@ -16,9 +16,8 @@ export async function validateGeminiLikeProvider({
     return { valid: false, error: "Missing base URL" };
   }
 
-  // Use the correct auth header based on provider config:
-  // - gemini (API key): x-goog-api-key
-  // - gemini-cli (OAuth): Bearer token
+  // Use the correct auth header based on provider config: an API key goes in
+  // x-goog-api-key, an OAuth token in Authorization.
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (authType === "oauth") {
     headers["Authorization"] = `Bearer ${apiKey}`;

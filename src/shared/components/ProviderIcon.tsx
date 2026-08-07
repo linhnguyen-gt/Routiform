@@ -136,11 +136,12 @@ const KNOWN_PNGS = new Set([
   "droid",
   "exa-search",
   "fireworks",
-  "gemini-cli",
   "gemini",
   "github",
   "glm",
   "groq",
+  // Legacy: the `iflow` provider was removed, but stored rows may still be
+  // labelled `iflow`. Kept so those rows keep rendering an icon.
   "iflow",
   "ironclaw",
   "kilo-gateway",

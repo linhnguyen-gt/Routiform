@@ -1,4 +1,5 @@
 import { ROUTING_STRATEGIES } from "@/shared/constants/routingStrategies";
+import type { ComboTemplate } from "./combo-template-types";
 
 export const VALID_NAME_REGEX = /^[a-zA-Z0-9_/.-]+$/;
 
@@ -213,15 +214,26 @@ export const COMBO_TEMPLATE_FALLBACK = {
   costSaverDesc: "Cost-optimized routing for budget-first workloads.",
   balancedTitle: "Balanced load",
   balancedDesc: "Least-used routing to spread demand over time.",
-  freeStackTitle: "Free Stack ($0)",
+  freeStackTitle: "Free & free-tier stack",
   freeStackDesc:
-    "Round-robin across all free providers: Kiro, iFlow, Qwen, Gemini CLI. Zero cost, never stops.",
+    "Round-robin across your free and free-tier providers. Metered keys are marked — a paid plan may still bill.",
   paidPremiumTitle: "Paid Premium",
   paidPremiumDesc:
-    "Round-robin across paid subscriptions: Cursor, Antigravity. Top-tier models, distributed load.",
+    "Round-robin across your paid subscription providers. Top-tier models, distributed load.",
 };
 
-export const COMBO_TEMPLATES = [
+/**
+ * Templates are declarative INTENT, resolved at runtime against the user's real
+ * connected providers by `combo-template-resolver.ts`. They deliberately carry no model
+ * list — the previous hardcoded arrays named a provider that does not exist (`if`), a
+ * deprecated one, and a model id absent from NVIDIA's catalog.
+ *
+ * None of them is visually promoted, on purpose: a template's content is user-dependent,
+ * so a static hero badge would be an unfounded promise about a card whose contents we
+ * cannot predict. Honest promotion would be dynamic — highlight a template only when it
+ * actually resolves for that user — and is follow-up work, not a polish pass.
+ */
+export const COMBO_TEMPLATES: ComboTemplate[] = [
   {
     id: "free-stack",
     icon: "volunteer_activism",
@@ -231,11 +243,19 @@ export const COMBO_TEMPLATES = [
     fallbackDesc: COMBO_TEMPLATE_FALLBACK.freeStackDesc,
     strategy: "round-robin",
     suggestedName: "free-stack",
-    isFeatured: true,
     config: {
       maxRetries: 3,
       retryDelayMs: 500,
       healthCheckEnabled: true,
+    },
+    selector: {
+      providerFilter: "free",
+      ranking: "free-tier",
+      // round-robin with one model trips the readiness warning; require two.
+      minModels: 2,
+      maxModels: 8,
+      maxPerProvider: 2,
+      weightMode: "zero",
     },
   },
   {
@@ -252,6 +272,14 @@ export const COMBO_TEMPLATES = [
       retryDelayMs: 1500,
       healthCheckEnabled: true,
     },
+    selector: {
+      providerFilter: "any",
+      ranking: "fitness-desc",
+      minModels: 1,
+      maxModels: 6,
+      maxPerProvider: 1,
+      weightMode: "zero",
+    },
   },
   {
     id: "cost-saver",
@@ -266,6 +294,15 @@ export const COMBO_TEMPLATES = [
       maxRetries: 1,
       retryDelayMs: 500,
       healthCheckEnabled: true,
+    },
+    selector: {
+      // "priced only" — cost-optimized with zero priced models is save-blocked.
+      providerFilter: "priced",
+      ranking: "price-asc",
+      minModels: 1,
+      maxModels: 5,
+      maxPerProvider: 2,
+      weightMode: "zero",
     },
   },
   {
@@ -282,6 +319,14 @@ export const COMBO_TEMPLATES = [
       retryDelayMs: 1000,
       healthCheckEnabled: true,
     },
+    selector: {
+      providerFilter: "any",
+      ranking: "spread",
+      minModels: 1,
+      maxModels: 6,
+      maxPerProvider: 1,
+      weightMode: "zero",
+    },
   },
   {
     id: "paid-premium",
@@ -296,6 +341,14 @@ export const COMBO_TEMPLATES = [
       maxRetries: 2,
       retryDelayMs: 1000,
       healthCheckEnabled: true,
+    },
+    selector: {
+      providerFilter: "paid-subscription",
+      ranking: "fitness-desc",
+      minModels: 2,
+      maxModels: 6,
+      maxPerProvider: 2,
+      weightMode: "zero",
     },
   },
 ];
