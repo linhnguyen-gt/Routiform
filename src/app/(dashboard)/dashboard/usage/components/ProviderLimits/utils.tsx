@@ -313,16 +313,6 @@ export function parseQuotaData(provider, data) {
         }
         break;
 
-      case "gemini-cli":
-        if (data.quotas) {
-          Object.entries(data.quotas).forEach(
-            ([modelKey, quota]: [string, Record<string, unknown>]) => {
-              normalizedQuotas.push(normalizeQuotaEntry(modelKey, quota, { modelKey }, p));
-            }
-          );
-        }
-        break;
-
       default:
         // Generic fallback for unknown providers
         if (data.quotas) {

@@ -85,7 +85,6 @@ export const ID_TO_ALIAS = ALL_PROVIDERS.reduce<Record<string, string>>((acc, pr
 
 export const USAGE_SUPPORTED_PROVIDERS = [
   "antigravity",
-  "gemini-cli",
   "kiro",
   "github",
   "codex",

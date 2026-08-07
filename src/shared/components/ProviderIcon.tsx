@@ -136,7 +136,6 @@ const KNOWN_PNGS = new Set([
   "droid",
   "exa-search",
   "fireworks",
-  "gemini-cli",
   "gemini",
   "github",
   "glm",

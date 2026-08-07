@@ -1,10 +1,10 @@
 /**
- * Regression tests for defects in the gemini-cli translator's thinking-
+ * Regression tests for defects in the Cloud Code Gemini translator's thinking-
  * budget/maxOutputTokens reconciliation (`fitGeminiThinkingBudget`).
  *
  * 1. `toolConfig: { functionCallingConfig: { mode: "VALIDATED" } }` was set
  *    only inside the `isAntigravity` branch of wrapInCloudCodeEnvelope, so
- *    plain gemini-cli tool requests never got it. toolConfig is intentionally
+ *    plain Cloud Code Gemini tool requests never got it. toolConfig is intentionally
  *    hoisted out of the isAntigravity branch to apply to every tool-bearing
  *    request. Kept as-is.
  * 2. maxOutputTokens was only ever capped (never raised) when thinking was
@@ -83,11 +83,16 @@ const { translateRequest } = await import("../../open-sse/translator/index.ts");
 const { FORMATS } = await import("../../open-sse/translator/formats.ts");
 const { fitGeminiThinkingBudget, setThinkingBudgetConfig, DEFAULT_THINKING_CONFIG, ThinkingMode } =
   await import("../../open-sse/services/thinkingBudget.ts");
-const { OAUTH_PROVIDERS } = await import("../../open-sse/config/registry-providers-oauth.ts");
-const { getModelSpec, SAFE_DEFAULT_MAX_OUTPUT_TOKENS } =
+const { getModelSpec, SAFE_DEFAULT_MAX_OUTPUT_TOKENS, MODEL_SPECS } =
   await import("../../src/shared/constants/modelSpecs.ts");
 
-const GEMINI_CLI_MODEL_IDS = OAUTH_PROVIDERS["gemini-cli"].models.map((m) => m.id);
+// Antigravity fetches its catalog live, so there is no registry list to sweep.
+// `supportsThinking: true` is the exact gate the translator branches on, which
+// makes MODEL_SPECS the sharper source: any Gemini model that can reach the
+// thinking path is covered, whether or not a registry happens to list it.
+const GEMINI_THINKING_MODEL_IDS = Object.entries(MODEL_SPECS)
+  .filter(([id, spec]) => id.includes("gemini") && spec?.supportsThinking === true)
+  .map(([id]) => id);
 
 // Mirrors thinkingBudget.ts's internal `geminiAnswerHeadroom` (kept private
 // there); duplicated here so tests can compute expected values without
@@ -114,7 +119,7 @@ const TOOLS = [
 function requestHighReasoning(model, extra = {}) {
   return translateRequest(
     FORMATS.OPENAI,
-    FORMATS.GEMINI_CLI,
+    FORMATS.ANTIGRAVITY,
     model,
     {
       model,
@@ -125,26 +130,26 @@ function requestHighReasoning(model, extra = {}) {
     },
     false,
     { accessToken: "t", projectId: "p" },
-    "gemini-cli"
+    "antigravity"
   );
 }
 
-function requestGeminiCLI(model, body) {
+function requestCloudCodeGemini(model, body) {
   return translateRequest(
     FORMATS.OPENAI,
-    FORMATS.GEMINI_CLI,
+    FORMATS.ANTIGRAVITY,
     model,
     { model, messages: [{ role: "user", content: "hi" }], stream: false, ...body },
     false,
     { accessToken: "t", projectId: "p" },
-    "gemini-cli"
+    "antigravity"
   );
 }
 
-test("gemini-cli requests with tools carry toolConfig (previously Antigravity-only)", () => {
+test("tool-bearing Cloud Code requests carry toolConfig", () => {
   const out = translateRequest(
     FORMATS.OPENAI,
-    FORMATS.GEMINI_CLI,
+    FORMATS.ANTIGRAVITY,
     "gemini-3.1-pro-high",
     {
       model: "gemini-3.1-pro-high",
@@ -154,21 +159,21 @@ test("gemini-cli requests with tools carry toolConfig (previously Antigravity-on
     },
     false,
     { accessToken: "t", projectId: "p" },
-    "gemini-cli"
+    "antigravity"
   );
 
   assert.deepEqual(out.request.toolConfig, { functionCallingConfig: { mode: "VALIDATED" } });
 });
 
-test("gemini-cli requests without tools get no toolConfig (unchanged default)", () => {
+test("Cloud Code requests without tools get no toolConfig (unchanged default)", () => {
   const out = translateRequest(
     FORMATS.OPENAI,
-    FORMATS.GEMINI_CLI,
+    FORMATS.ANTIGRAVITY,
     "gemini-3.1-pro-high",
     { model: "gemini-3.1-pro-high", messages: [{ role: "user", content: "hi" }], stream: false },
     false,
     { accessToken: "t", projectId: "p" },
-    "gemini-cli"
+    "antigravity"
   );
 
   assert.equal(out.request.toolConfig, undefined);
@@ -247,7 +252,7 @@ test("HIGH 6 (fixed): no explicit max_tokens applies the safe default output cap
 test("no thinking requested: maxOutputTokens is left at the capped default (no floor applied)", () => {
   const out = translateRequest(
     FORMATS.OPENAI,
-    FORMATS.GEMINI_CLI,
+    FORMATS.ANTIGRAVITY,
     "gemini-3.1-pro-high",
     {
       model: "gemini-3.1-pro-high",
@@ -257,7 +262,7 @@ test("no thinking requested: maxOutputTokens is left at the capped default (no f
     },
     false,
     { accessToken: "t", projectId: "p" },
-    "gemini-cli"
+    "antigravity"
   );
 
   assert.equal(out.request.generationConfig.maxOutputTokens, 128);
@@ -311,9 +316,9 @@ test("CRITICAL (still fixed): no client max_tokens on the registered gemini-2.5-
   );
 });
 
-test("REQUIRED: every gemini-cli registry model satisfies budget < maxOutputTokens with reasoning_effort high and no client max_tokens", () => {
+test("REQUIRED: every thinking-capable Gemini model satisfies budget < maxOutputTokens with reasoning_effort high and no client max_tokens", () => {
   const failures = [];
-  for (const model of GEMINI_CLI_MODEL_IDS) {
+  for (const model of GEMINI_THINKING_MODEL_IDS) {
     const out = requestHighReasoning(model);
     const { thinkingConfig, maxOutputTokens } = out.request.generationConfig;
 
@@ -362,7 +367,9 @@ test("CRITICAL (fixed): Claude-format thinking.budget_tokens: 200000 never produ
     "gemini-2.5-flash-lite",
     "gemini-3-pro-preview",
   ]) {
-    const out = requestGeminiCLI(model, { thinking: { type: "enabled", budget_tokens: 200000 } });
+    const out = requestCloudCodeGemini(model, {
+      thinking: { type: "enabled", budget_tokens: 200000 },
+    });
     const { thinkingConfig, maxOutputTokens } = out.request.generationConfig;
     assert.ok(
       maxOutputTokens <= 65536,
@@ -385,7 +392,7 @@ test("CRITICAL (fixed): Claude-format thinking.budget_tokens: 200000 never produ
 });
 
 test("CRITICAL (fixed): an unregistered model degrades safely instead of sizing maxOutputTokens off an unbounded budget", () => {
-  const out = requestGeminiCLI("some-unregistered-model-id", {
+  const out = requestCloudCodeGemini("some-unregistered-model-id", {
     reasoning_effort: "high",
     thinking: { type: "enabled", budget_tokens: 200000 },
   });
@@ -536,7 +543,7 @@ test("MEDIUM 7 (fixed): gemini-2.5-flash-lite-preview-06-17 (unregistered but fl
 });
 
 test("an unknown/unregistered model id produces a valid request (no crash, no invalid maxOutputTokens, no thinkingConfig)", () => {
-  const out = requestGeminiCLI("some-completely-unknown-model-id", {
+  const out = requestCloudCodeGemini("some-completely-unknown-model-id", {
     reasoning_effort: "high",
     max_tokens: 100000,
     thinking: { type: "enabled", budget_tokens: 200000 },
@@ -571,7 +578,7 @@ test("CRITICAL 2 (fixed): mode=custom on a short non-reasoning Gemini call (titl
     assert.doesNotThrow(() => {
       out = translateRequest(
         FORMATS.OPENAI,
-        FORMATS.GEMINI_CLI,
+        FORMATS.ANTIGRAVITY,
         "gemini-2.5-pro",
         {
           model: "gemini-2.5-pro",
@@ -581,7 +588,7 @@ test("CRITICAL 2 (fixed): mode=custom on a short non-reasoning Gemini call (titl
         },
         false,
         { accessToken: "t", projectId: "p" },
-        "gemini-cli"
+        "antigravity"
       );
     });
     const gc = out.request.generationConfig;
@@ -601,7 +608,7 @@ test("CRITICAL 2 (fixed): mode=adaptive on a short non-reasoning Gemini call nev
     assert.doesNotThrow(() => {
       translateRequest(
         FORMATS.OPENAI,
-        FORMATS.GEMINI_CLI,
+        FORMATS.ANTIGRAVITY,
         "gemini-2.5-pro",
         {
           model: "gemini-2.5-pro",
@@ -611,7 +618,7 @@ test("CRITICAL 2 (fixed): mode=adaptive on a short non-reasoning Gemini call nev
         },
         false,
         { accessToken: "t", projectId: "p" },
-        "gemini-cli"
+        "antigravity"
       );
     });
   } finally {
@@ -628,7 +635,7 @@ test("CRITICAL 2 (fixed): mode=custom with enough max_tokens still gets an injec
   try {
     const out = translateRequest(
       FORMATS.OPENAI,
-      FORMATS.GEMINI_CLI,
+      FORMATS.ANTIGRAVITY,
       "gemini-2.5-pro",
       {
         model: "gemini-2.5-pro",
@@ -638,7 +645,7 @@ test("CRITICAL 2 (fixed): mode=custom with enough max_tokens still gets an injec
       },
       false,
       { accessToken: "t", projectId: "p" },
-      "gemini-cli"
+      "antigravity"
     );
     const gc = out.request.generationConfig;
     assert.equal(gc.maxOutputTokens, 4096);
@@ -655,7 +662,7 @@ test("CRITICAL 2 (fixed): mode=custom with enough max_tokens still gets an injec
 });
 
 // ─── MANDATORY full cross-product (per spec) ───────────────────────────────
-// Every gemini-cli registry model x reasoning_effort x max_tokens (including
+// Every thinking-capable Gemini model x reasoning_effort x max_tokens (including
 // the two REAL client defaults, 4096 and 8192) x Claude-format
 // thinking.budget_tokens x thinking mode. Runs through the REAL caller chain
 // (translateRequest -> openaiToGeminiCLIRequest -> fitGeminiThinkingBudget),
@@ -690,7 +697,7 @@ test("MANDATORY cross-product: model x reasoning_effort x max_tokens x thinking.
   for (const mode of modes) {
     setThinkingBudgetConfig({ ...DEFAULT_THINKING_CONFIG, mode });
     try {
-      for (const model of GEMINI_CLI_MODEL_IDS) {
+      for (const model of GEMINI_THINKING_MODEL_IDS) {
         const spec = getModelSpec(model);
 
         for (const effort of efforts) {
@@ -710,12 +717,12 @@ test("MANDATORY cross-product: model x reasoning_effort x max_tokens x thinking.
               try {
                 out = translateRequest(
                   FORMATS.OPENAI,
-                  FORMATS.GEMINI_CLI,
+                  FORMATS.ANTIGRAVITY,
                   model,
                   body,
                   false,
                   { accessToken: "t", projectId: "p" },
-                  "gemini-cli"
+                  "antigravity"
                 );
               } catch (err) {
                 // HARD CONSTRAINT A: never throw. No exception is acceptable.

@@ -659,9 +659,10 @@ export async function refreshCopilotToken(githubAccessToken, log, proxyConfig = 
  * Get access token for a specific provider (internal, does the actual work)
  */
 async function _getAccessTokenInternal(provider, credentials, log, proxyConfig = null) {
+  // "gemini" is deliberately absent: it is API-key only, with no OAuth flow
+  // registered in src/lib/oauth/providers/index.ts, so no gemini connection can
+  // ever carry a refresh token.
   switch (provider) {
-    case "gemini":
-    case "gemini-cli":
     case "antigravity":
       return await refreshGoogleToken(
         credentials.refreshToken,
@@ -708,8 +709,6 @@ async function _getAccessTokenInternal(provider, credentials, log, proxyConfig =
  */
 export function supportsTokenRefresh(provider) {
   const explicitlySupported = new Set([
-    "gemini",
-    "gemini-cli",
     "antigravity",
     "claude",
     "codex",
@@ -811,7 +810,6 @@ export function formatProviderCredentials(provider, credentials, log) {
       };
 
     case "antigravity":
-    case "gemini-cli":
       return {
         accessToken: credentials.accessToken,
         refreshToken: credentials.refreshToken,

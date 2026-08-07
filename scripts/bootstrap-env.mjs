@@ -29,7 +29,6 @@ const require = createRequire(import.meta.url);
 const OPTIONAL_OAUTH_SECRETS = [
   { key: "ANTIGRAVITY_OAUTH_CLIENT_SECRET", label: "Antigravity OAuth" },
   { key: "QODER_OAUTH_CLIENT_SECRET", label: "Qoder OAuth" },
-  { key: "GEMINI_OAUTH_CLIENT_SECRET", label: "Gemini OAuth" },
 ];
 
 // ── Resolve DATA_DIR (mirrors dataPaths.ts logic) ───────────────────────────

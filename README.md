@@ -11,7 +11,7 @@ endpoint.** Point Cursor, Codex, Claude Code, Cline, an MCP client, or your own 
 it translates the request, picks an account, retries, falls back when a model or a provider dies,
 and logs what that cost.
 
-**61 providers ship in the registry today**, configurable without writing an adapter.[^count]
+**60 providers ship in the registry today**, configurable without writing an adapter.[^count]
 
 ## Why teams choose Routiform
 
@@ -604,4 +604,4 @@ Routiform wouldn't exist without the foundations laid by:
 - npm: <https://www.npmjs.com/package/routiform>
 - Docker: <https://hub.docker.com/r/linhnguyen0944/routiform>
 
-[^count]: Counted from the shipped registry — `open-sse/config/registry-providers-{apikey,oauth,free,local}.ts`: 42 API-key, 10 OAuth, 8 free-tier, 1 local (Ollama). `tests/unit/readme-provider-count.test.mjs` fails if this number and the registry ever disagree, so it cannot quietly drift.
+[^count]: Counted from the shipped registry — `open-sse/config/registry-providers-{apikey,oauth,free,local}.ts`: 42 API-key, 9 OAuth, 8 free-tier, 1 local (Ollama). `tests/unit/readme-provider-count.test.mjs` fails if this number and the registry ever disagree, so it cannot quietly drift.

@@ -20,30 +20,29 @@ Complete guide for configuring providers, creating combos, integrating CLI tools
 
 ## 💰 Pricing at a Glance
 
-| Tier                | Provider          | Cost        | Quota Reset      | Best For             |
-| ------------------- | ----------------- | ----------- | ---------------- | -------------------- |
-| **💳 SUBSCRIPTION** | Claude Code (Pro) | $20/mo      | 5h + weekly      | Already subscribed   |
-|                     | Codex (Plus/Pro)  | $20-200/mo  | 5h + weekly      | OpenAI users         |
-|                     | Gemini CLI        | **FREE**    | 180K/mo + 1K/day | Everyone!            |
-|                     | GitHub Copilot    | $10-19/mo   | Monthly          | GitHub users         |
-| **🔑 API KEY**      | DeepSeek          | Pay per use | None             | Cheap reasoning      |
-|                     | Groq              | Pay per use | None             | Ultra-fast inference |
-|                     | xAI (Grok)        | Pay per use | None             | Grok 4 reasoning     |
-|                     | Mistral           | Pay per use | None             | EU-hosted models     |
-|                     | Perplexity        | Pay per use | None             | Search-augmented     |
-|                     | Together AI       | Pay per use | None             | Open-source models   |
-|                     | Fireworks AI      | Pay per use | None             | Fast FLUX images     |
-|                     | Cerebras          | Pay per use | None             | Wafer-scale speed    |
-|                     | Cohere            | Pay per use | None             | Command R+ RAG       |
-|                     | NVIDIA NIM        | Pay per use | None             | Enterprise models    |
-| **💰 CHEAP**        | GLM-4.7           | $0.6/1M     | Daily 10AM       | Budget backup        |
-|                     | MiniMax M2.1      | $0.2/1M     | 5-hour rolling   | Cheapest option      |
-|                     | Kimi K2           | $9/mo flat  | 10M tokens/mo    | Predictable cost     |
-| **🆓 FREE**         | Qoder             | $0          | Unlimited        | 8 models free        |
-|                     | Qwen              | $0          | Unlimited        | 3 models free        |
-|                     | Kiro              | $0          | Unlimited        | Claude free          |
+| Tier                | Provider          | Cost        | Quota Reset    | Best For             |
+| ------------------- | ----------------- | ----------- | -------------- | -------------------- |
+| **💳 SUBSCRIPTION** | Claude Code (Pro) | $20/mo      | 5h + weekly    | Already subscribed   |
+|                     | Codex (Plus/Pro)  | $20-200/mo  | 5h + weekly    | OpenAI users         |
+|                     | GitHub Copilot    | $10-19/mo   | Monthly        | GitHub users         |
+| **🔑 API KEY**      | DeepSeek          | Pay per use | None           | Cheap reasoning      |
+|                     | Groq              | Pay per use | None           | Ultra-fast inference |
+|                     | xAI (Grok)        | Pay per use | None           | Grok 4 reasoning     |
+|                     | Mistral           | Pay per use | None           | EU-hosted models     |
+|                     | Perplexity        | Pay per use | None           | Search-augmented     |
+|                     | Together AI       | Pay per use | None           | Open-source models   |
+|                     | Fireworks AI      | Pay per use | None           | Fast FLUX images     |
+|                     | Cerebras          | Pay per use | None           | Wafer-scale speed    |
+|                     | Cohere            | Pay per use | None           | Command R+ RAG       |
+|                     | NVIDIA NIM        | Pay per use | None           | Enterprise models    |
+| **💰 CHEAP**        | GLM-4.7           | $0.6/1M     | Daily 10AM     | Budget backup        |
+|                     | MiniMax M2.1      | $0.2/1M     | 5-hour rolling | Cheapest option      |
+|                     | Kimi K2           | $9/mo flat  | 10M tokens/mo  | Predictable cost     |
+| **🆓 FREE**         | Qoder             | $0          | Unlimited      | 8 models free        |
+|                     | Qwen              | $0          | Unlimited      | 3 models free        |
+|                     | Kiro              | $0          | Unlimited      | Claude free          |
 
-**💡 Pro Tip:** Start with Gemini CLI (180K free/month) + Qoder (unlimited free) combo = $0 cost!
+**💡 Pro Tip:** Start with Qoder (unlimited free) + Kiro (Claude free) combo = $0 cost!
 
 ---
 
@@ -139,20 +138,6 @@ Models:
   cx/gpt-5.2-codex
   cx/gpt-5.1-codex-max
 ```
-
-#### Gemini CLI (FREE 180K/month!)
-
-```bash
-Dashboard → Providers → Connect Gemini CLI
-→ Google OAuth
-→ 180K completions/month + 1K/day
-
-Models:
-  gc/gemini-3-flash-preview
-  gc/gemini-2.5-pro
-```
-
-**Best Value:** Huge free tier! Use this before paid tiers.
 
 #### GitHub Copilot
 
@@ -571,8 +556,6 @@ For the full environment variable reference, see the [README](../README.md).
 **Claude Code (`cc/`)** — Pro/Max: `cc/claude-opus-4-6`, `cc/claude-sonnet-4-5-20250929`, `cc/claude-haiku-4-5-20251001`
 
 **Codex (`cx/`)** — Plus/Pro: `cx/gpt-5.2-codex`, `cx/gpt-5.1-codex-max`
-
-**Gemini CLI (`gc/`)** — FREE: `gc/gemini-3-flash-preview`, `gc/gemini-2.5-pro`
 
 **GitHub Copilot (`gh/`)**: `gh/gpt-5`, `gh/claude-4.5-sonnet`
 

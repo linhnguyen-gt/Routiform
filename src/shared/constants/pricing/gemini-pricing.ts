@@ -1,5 +1,11 @@
 import { PricingRate } from "./base";
 
+/**
+ * Legacy: the `gemini-cli` provider was removed, but stored usage_history and
+ * call_logs rows still carry the `gemini-cli` prefix, and cost is recomputed
+ * from these tables at read time (`calculateCost` -> `getPricingForModel`).
+ * Dropping this table would silently report $0 for every historical row.
+ */
 export const geminiCliPricing: Record<string, PricingRate> = {
   "gemini-3-flash-preview": {
     input: 0.5,

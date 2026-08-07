@@ -226,7 +226,7 @@ export const COMBO_TEMPLATE_FALLBACK = {
  * Templates are declarative INTENT, resolved at runtime against the user's real
  * connected providers by `combo-template-resolver.ts`. They deliberately carry no model
  * list — the previous hardcoded arrays named a provider that does not exist (`if`), a
- * deprecated one (`gemini-cli`), and a model id absent from NVIDIA's catalog.
+ * deprecated one, and a model id absent from NVIDIA's catalog.
  *
  * None of them is visually promoted, on purpose: a template's content is user-dependent,
  * so a static hero badge would be an unfounded promise about a card whose contents we

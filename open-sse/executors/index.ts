@@ -1,5 +1,4 @@
 import { AntigravityExecutor } from "./antigravity.ts";
-import { GeminiCLIExecutor } from "./gemini-cli.ts";
 import { GithubExecutor } from "./github.ts";
 import { QoderExecutor } from "./qoder.ts";
 import { KiroExecutor } from "./kiro.ts";
@@ -19,7 +18,6 @@ import { DevinExecutor } from "./devin.ts";
 
 const executors = {
   antigravity: new AntigravityExecutor(),
-  "gemini-cli": new GeminiCLIExecutor(),
   github: new GithubExecutor(),
   qoder: new QoderExecutor(),
   kiro: new KiroExecutor(),
@@ -70,7 +68,6 @@ export function getExecutorKeys() {
 
 export { BaseExecutor } from "./base.ts";
 export { AntigravityExecutor } from "./antigravity.ts";
-export { GeminiCLIExecutor } from "./gemini-cli.ts";
 export { GithubExecutor } from "./github.ts";
 export { QoderExecutor } from "./qoder.ts";
 export { KiroExecutor } from "./kiro.ts";

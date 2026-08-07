@@ -28,12 +28,14 @@ const model = (overrides = {}) => ({
 
 // ──────────────── Free-tier classification ────────────────
 
-test("tier A is FREE_PROVIDERS minus deprecated", () => {
+// No provider currently carries `deprecated: true`, so the deprecation branch of
+// isOauthFreeProvider/isDeprecatedProvider has no live fixture to assert against.
+// The mechanism is kept because it is the hook the next deprecation uses.
+test("tier A is FREE_PROVIDERS, and nothing ships deprecated today", () => {
   assert.strictEqual(isOauthFreeProvider("kiro"), true);
   assert.strictEqual(isOauthFreeProvider("qoder"), true);
-  assert.strictEqual(isOauthFreeProvider("gemini-cli"), false, "deprecated must not qualify");
-  assert.strictEqual(isDeprecatedProvider("gemini-cli"), true);
   assert.strictEqual(isOauthFreeProvider("openai"), false);
+  assert.strictEqual(isDeprecatedProvider("gemini"), false);
 });
 
 test("tier C is exactly the 12 measured hasFree providers", () => {
@@ -125,7 +127,7 @@ test("testStatus 'unknown' passes — it is the create-time default, not a failu
   assert.strictEqual(isTemplateEligibleConnection(connection({ testStatus: "success" })), true);
 });
 
-test("error status, missing credentials, inactive and deprecated are all excluded", () => {
+test("error status, missing credentials and inactive are all excluded", () => {
   assert.strictEqual(isTemplateEligibleConnection(connection({ testStatus: "error" })), false);
   assert.strictEqual(
     isTemplateEligibleConnection(connection({ credentialsConfigured: false })),
@@ -133,7 +135,6 @@ test("error status, missing credentials, inactive and deprecated are all exclude
   );
   assert.strictEqual(isTemplateEligibleConnection(connection({ isActive: 0 })), false);
   assert.strictEqual(isTemplateEligibleConnection(connection({ isActive: false })), false);
-  assert.strictEqual(isTemplateEligibleConnection(connection({ provider: "gemini-cli" })), false);
   assert.strictEqual(isTemplateEligibleConnection(connection({ provider: "" })), false);
 });
 

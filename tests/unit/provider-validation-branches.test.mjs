@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const { validateProviderApiKey } = await import("../../src/lib/providers/validation.ts");
+const { validateGeminiLikeProvider } =
+  await import("../../src/lib/providers/validation/gemini-like.ts");
 const { setSafeOutboundDnsLookupForTesting, resetSafeOutboundDnsLookupForTesting } =
   await import("../../src/lib/network/safeOutboundFetch.ts");
 
@@ -399,7 +401,11 @@ test("gemini validation rejects invalid keys via UNAUTHENTICATED status", async 
   assert.equal(result.error, "Invalid API key");
 });
 
-test("gemini-cli validation uses Bearer auth (OAuth)", async () => {
+// Called directly rather than through validateProviderApiKey: no registered
+// gemini-format provider carries authType "oauth" any more (gemini-cli was the
+// only one and it was removed), so this branch has no provider id to reach it
+// with. The branch itself stays because authType is a parameter, not a lookup.
+test("a gemini-format provider with OAuth auth uses Bearer, not x-goog-api-key", async () => {
   const calls = [];
   globalThis.fetch = async (url, init) => {
     calls.push({ url: String(url), headers: init?.headers });
@@ -411,9 +417,10 @@ test("gemini-cli validation uses Bearer auth (OAuth)", async () => {
     );
   };
 
-  const result = await validateProviderApiKey({
-    provider: "gemini-cli",
+  const result = await validateGeminiLikeProvider({
     apiKey: "oauth-access-token",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/models",
+    authType: "oauth",
   });
 
   assert.equal(result.valid, true);

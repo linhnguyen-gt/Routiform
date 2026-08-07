@@ -29,7 +29,6 @@ const FALLBACK_ALIAS_TO_PROVIDER = {
   cl: "cline",
   cu: "cursor",
   cx: "codex",
-  gc: "gemini-cli",
   gh: "github",
   kc: "kilocode",
   kmc: "kimi-coding",

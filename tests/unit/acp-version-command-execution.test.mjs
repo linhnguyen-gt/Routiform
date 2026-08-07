@@ -28,7 +28,7 @@ test("every built-in version command survives tokenization", async () => {
   );
   const commands = [...registrySource.matchAll(/versionCommand: "([^"]+)"/g)].map((m) => m[1]);
 
-  assert.ok(commands.length >= 14, `expected the built-in agent list, found ${commands.length}`);
+  assert.ok(commands.length >= 13, `expected the built-in agent list, found ${commands.length}`);
   for (const command of commands) {
     assert.ok(parseVersionCommand(command), `built-in command must stay runnable: ${command}`);
   }

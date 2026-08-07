@@ -122,22 +122,9 @@ test("free-stack tells a non-free-provider user which providers to connect", () 
   assert.ok(result.reasonParams.providers.length > 0);
 });
 
-// ──────────────── Deprecated providers ────────────────
-
-test("a deprecated provider never reaches any template's output", () => {
-  const geminiCli = group("gemini-cli", "gemini-cli", ["gemini-3-flash-preview"]);
-  for (const template of COMBO_TEMPLATES) {
-    const result = resolve(template.id, {
-      groups: [geminiCli],
-      connections: [connection("gemini-cli")],
-    });
-    assert.strictEqual(
-      result.ok,
-      false,
-      `${template.id} must not resolve from a deprecated provider`
-    );
-  }
-});
+// The deprecated-provider skip is covered by isTemplateEligibleConnection in
+// combo-template-policies.test.mjs. No provider ships `deprecated: true` today,
+// so there is no real id to form a group from here.
 
 // ──────────────── free-stack tiering ────────────────
 

@@ -27,7 +27,6 @@ const QUOTA_BAR_YELLOW_THRESHOLD = 20;
 // Provider display config
 const PROVIDER_CONFIG = {
   antigravity: { label: "Antigravity", color: "#F59E0B" },
-  "gemini-cli": { label: "Gemini CLI", color: "#4285F4" },
   github: { label: "GitHub Copilot", color: "#333" },
   kiro: { label: "Kiro AI", color: "#FF6B35" },
   codex: { label: "OpenAI Codex", color: "#10A37F" },
@@ -288,13 +287,12 @@ export default function ProviderLimits() {
   const sortedConnections = useMemo(() => {
     const priority = {
       antigravity: 1,
-      "gemini-cli": 2,
-      github: 3,
-      codex: 4,
-      claude: 5,
-      kiro: 6,
-      glm: 7,
-      "kimi-coding": 8,
+      github: 2,
+      codex: 3,
+      claude: 4,
+      kiro: 5,
+      glm: 6,
+      "kimi-coding": 7,
     };
     return [...filteredConnections].sort(
       (a, b) => (priority[a.provider] || 9) - (priority[b.provider] || 9)

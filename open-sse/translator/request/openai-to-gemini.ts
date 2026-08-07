@@ -44,7 +44,6 @@ import {
   convertOpenAIContentToParts,
   extractTextContent,
   tryParseJSON,
-  generateRequestId,
   generateSessionId,
   cleanJSONSchemaForAntigravity,
 } from "../helpers/geminiHelper.ts";
@@ -84,18 +83,15 @@ type GeminiRequest = {
 type CloudCodeEnvelope = {
   project: string;
   model: string;
-  user_prompt_id?: string;
   userAgent?: string;
   requestId?: string;
   requestType?: string;
   request: {
-    session_id?: string;
     sessionId?: string;
     contents: GeminiContent[];
     systemInstruction?: GeminiContent;
     generationConfig: GeminiGenerationConfig;
     tools?: Array<{ functionDeclarations: GeminiFunctionDeclaration[] }>;
-    safetySettings?: unknown;
     toolConfig?: {
       functionCallingConfig: { mode: string };
     };
@@ -356,12 +352,12 @@ export function openaiToGeminiRequest(model, body, stream) {
   return openaiToGeminiBase(model, body, stream);
 }
 
-// OpenAI -> Gemini CLI (Cloud Code Assist)
-export function openaiToGeminiCLIRequest(model, body, stream) {
+// OpenAI -> Gemini over Cloud Code Assist (Antigravity)
+export function openaiToCloudCodeGeminiRequest(model, body, stream) {
   const gemini = openaiToGeminiBase(model, body, stream);
   const _isClaude = model.toLowerCase().includes("claude");
 
-  // Add thinking config for CLI.
+  // Add thinking config for the Cloud Code transport.
   // Only models with an explicit `supportsThinking: true` MODEL_SPECS entry
   // get a thinkingConfig. This is a deliberate opt-in (not opt-out): a model
   // with no MODEL_SPECS entry at all (e.g. an arbitrary id surfaced by
@@ -495,16 +491,14 @@ export function openaiToGeminiCLIRequest(model, body, stream) {
   return gemini;
 }
 
-// Wrap Gemini CLI format in Cloud Code wrapper
-function wrapInCloudCodeEnvelope(model, geminiCLI, credentials = null, isAntigravity = false) {
-  // Both Antigravity and Gemini CLI need the project field for the Cloud Code API.
-  // For Gemini CLI, the stored projectId may be stale; the executor's transformRequest
-  // refreshes it via loadCodeAssist before the request is sent to the API.
+// Wrap the Gemini request in Antigravity's Cloud Code envelope
+function wrapInCloudCodeEnvelope(model, geminiRequest, credentials = null) {
+  // The Cloud Code API requires a project field.
   let projectId = credentials?.projectId;
 
   if (!projectId) {
     console.warn(
-      `[Routiform] ${isAntigravity ? "Antigravity" : "GeminiCLI"} account is missing projectId. ` +
+      `[Routiform] Antigravity account is missing projectId. ` +
         `Attempting request with empty project — reconnect OAuth to resolve.`
     );
     projectId = "";
@@ -512,55 +506,35 @@ function wrapInCloudCodeEnvelope(model, geminiCLI, credentials = null, isAntigra
 
   const cleanModel = model.includes("/") ? model.split("/").pop()! : model;
 
-  const envelope: CloudCodeEnvelope = isAntigravity
-    ? {
-        project: projectId,
-        model: cleanModel,
-        userAgent: "antigravity",
-        requestType: "agent",
-        requestId: `agent-${generateUUID()}`,
-        request: {
-          sessionId: generateSessionId(),
-          contents: geminiCLI.contents,
-          systemInstruction: geminiCLI.systemInstruction,
-          generationConfig: geminiCLI.generationConfig,
-          tools: geminiCLI.tools,
-        },
-      }
-    : {
-        model: cleanModel,
-        project: projectId,
-        user_prompt_id: generateRequestId(),
-        request: {
-          contents: geminiCLI.contents,
-          systemInstruction: geminiCLI.systemInstruction,
-          generationConfig: geminiCLI.generationConfig,
-          tools: geminiCLI.tools,
-        },
-      };
-  if (geminiCLI._toolNameMap instanceof Map && geminiCLI._toolNameMap.size > 0) {
-    envelope._toolNameMap = geminiCLI._toolNameMap;
+  const envelope: CloudCodeEnvelope = {
+    project: projectId,
+    model: cleanModel,
+    userAgent: "antigravity",
+    requestType: "agent",
+    requestId: `agent-${generateUUID()}`,
+    request: {
+      sessionId: generateSessionId(),
+      contents: geminiRequest.contents,
+      systemInstruction: geminiRequest.systemInstruction,
+      generationConfig: geminiRequest.generationConfig,
+      tools: geminiRequest.tools,
+    },
+  };
+  if (geminiRequest._toolNameMap instanceof Map && geminiRequest._toolNameMap.size > 0) {
+    envelope._toolNameMap = geminiRequest._toolNameMap;
   }
 
-  // Antigravity specific fields
-  if (isAntigravity) {
-    // Inject required default system prompt for Antigravity
-    const defaultPart: GeminiPart = { text: ANTIGRAVITY_DEFAULT_SYSTEM };
-    if (envelope.request.systemInstruction?.parts) {
-      envelope.request.systemInstruction.parts.unshift(defaultPart);
-    } else {
-      envelope.request.systemInstruction = { role: "user", parts: [defaultPart] };
-    }
+  // Inject required default system prompt for Antigravity
+  const defaultPart: GeminiPart = { text: ANTIGRAVITY_DEFAULT_SYSTEM };
+  if (envelope.request.systemInstruction?.parts) {
+    envelope.request.systemInstruction.parts.unshift(defaultPart);
   } else {
-    // Gemini CLI's native Cloud Code envelope uses snake_case identifiers.
-    envelope.request.session_id = generateSessionId();
-    envelope.request.safetySettings = geminiCLI.safetySettings;
+    envelope.request.systemInstruction = { role: "user", parts: [defaultPart] };
   }
 
-  // toolConfig applies to any tool-bearing request, not just Antigravity —
-  // previously this was set only inside the isAntigravity branch, so plain
-  // gemini-cli requests with tools never got VALIDATED function calling mode.
-  if (geminiCLI.tools?.length > 0) {
+  // toolConfig applies to any tool-bearing request, so a request with tools
+  // gets VALIDATED function calling mode.
+  if (geminiRequest.tools?.length > 0) {
     envelope.request.toolConfig = {
       functionCallingConfig: { mode: "VALIDATED" },
     };
@@ -709,17 +683,10 @@ export function openaiToAntigravityRequest(model, body, stream, credentials = nu
     return wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials);
   }
 
-  const geminiCLI = openaiToGeminiCLIRequest(model, body, stream);
-  return wrapInCloudCodeEnvelope(model, geminiCLI, credentials, true);
+  const geminiRequest = openaiToCloudCodeGeminiRequest(model, body, stream);
+  return wrapInCloudCodeEnvelope(model, geminiRequest, credentials);
 }
 
 // Register
 register(FORMATS.OPENAI, FORMATS.GEMINI, openaiToGeminiRequest, null);
-register(
-  FORMATS.OPENAI,
-  FORMATS.GEMINI_CLI,
-  (model, body, stream, credentials) =>
-    wrapInCloudCodeEnvelope(model, openaiToGeminiCLIRequest(model, body, stream), credentials),
-  null
-);
 register(FORMATS.OPENAI, FORMATS.ANTIGRAVITY, openaiToAntigravityRequest, null);

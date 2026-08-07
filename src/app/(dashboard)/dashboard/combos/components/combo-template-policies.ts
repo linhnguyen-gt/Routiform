@@ -9,7 +9,7 @@
  * router can actually serve.
  *
  * WHY THREE FREE TIERS. Five mutually-unaware "free" signals exist in this repo:
- *   1. FREE_PROVIDERS                — kiro, qoder, gemini-cli (deprecated)
+ *   1. FREE_PROVIDERS                — kiro, qoder
  *   2. FREE_APIKEY_PROVIDER_IDS      — an empty Set today; a no-op
  *   3. ProviderDefinition.hasFree    — 12 API-key providers
  *   4. FREE_TIER_CATALOG             — 18 documentary entries, self-described as static
