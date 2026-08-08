@@ -13,7 +13,6 @@ test("provider detail uses fetched antigravity catalog instead of registry or sy
       { id: "gemini-pro-agent", name: "Gemini 3.1 Pro (High)" },
     ],
     syncedModels: [{ id: "gpt-oss-120b", name: "GPT-OSS-120b" }],
-    syncedAvailableModels: [],
     opencodeLiveCatalog: {
       status: "ready",
       models: [
@@ -47,7 +46,6 @@ test("provider detail does not flash antigravity registry placeholders before ca
     isLiveCatalogProvider: false,
     registryModels: [{ id: "gemini-3-flash-agent", name: "Gemini 3.5 Flash (High)" }],
     syncedModels: [{ id: "gpt-oss-120b", name: "GPT-OSS-120b" }],
-    syncedAvailableModels: [],
     opencodeLiveCatalog: { status: "loading", models: [], errorMessage: "" },
   });
 
@@ -60,7 +58,6 @@ test("provider detail uses fetched claude catalog instead of registry or sync de
     isLiveCatalogProvider: true,
     registryModels: [{ id: "claude-opus-4-6", name: "Registry Claude Opus 4.6" }],
     syncedModels: [{ id: "claude-old", name: "Old Claude" }],
-    syncedAvailableModels: [],
     opencodeLiveCatalog: {
       status: "ready",
       models: [
@@ -83,7 +80,6 @@ test("provider detail does not show stale claude registry placeholders while api
     isLiveCatalogProvider: true,
     registryModels: [{ id: "claude-opus-4-6", name: "Registry Claude Opus 4.6" }],
     syncedModels: [{ id: "claude-old", name: "Old Claude" }],
-    syncedAvailableModels: [],
     opencodeLiveCatalog: { status: "loading", models: [], errorMessage: "" },
   });
 
@@ -96,22 +92,8 @@ test("provider detail still uses synced-only models when no static registry exis
     isLiveCatalogProvider: false,
     registryModels: [],
     syncedModels: [{ id: "custom-model", name: "Custom Model" }],
-    syncedAvailableModels: [],
     opencodeLiveCatalog: { status: "idle", models: [], errorMessage: "" },
   });
 
   assert.deepEqual(models, [{ id: "custom-model", name: "Custom Model" }]);
-});
-
-test("provider detail keeps gemini sourced from synced available models", () => {
-  const models = selectProviderDetailModels({
-    providerId: "gemini",
-    isLiveCatalogProvider: false,
-    registryModels: [{ id: "gemini-3-flash", name: "Registry Gemini 3 Flash" }],
-    syncedModels: [{ id: "ignored", name: "Ignored" }],
-    syncedAvailableModels: [{ id: "gemini-3.5-flash", name: "Gemini 3.5 Flash" }],
-    opencodeLiveCatalog: { status: "idle", models: [], errorMessage: "" },
-  });
-
-  assert.deepEqual(models, [{ id: "gemini-3.5-flash", name: "Gemini 3.5 Flash" }]);
 });

@@ -9,6 +9,10 @@ import {
   getCliRuntimeStatus,
 } from "@/shared/services/cliRuntime";
 import { createBackup } from "@/shared/services/backupService";
+import {
+  applyRoutiformClineState,
+  removeRoutiformClineState,
+} from "@/shared/services/clineGlobalState";
 import { saveCliToolLastConfigured, deleteCliToolLastConfigured } from "@/lib/db/cliToolState";
 import { cliModelConfigSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
@@ -175,18 +179,8 @@ export async function POST(request: Request) {
       /* No existing config */
     }
 
-    // Normalize baseUrl - Cline expects the base without /v1
-    const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl.slice(0, -3) : baseUrl;
-
-    // Set OpenAI-compatible provider for both act and plan modes
-    globalState.actModeApiProvider = "openai";
-    globalState.planModeApiProvider = "openai";
-    globalState.openAiBaseUrl = normalizedBaseUrl;
-    globalState.openAiModelId = model;
-    globalState.planModeOpenAiModelId = model;
-
-    // Write globalState
-    await fs.writeFile(globalStatePath, JSON.stringify(globalState, null, 2));
+    const nextState = applyRoutiformClineState(globalState, { baseUrl, model });
+    await fs.writeFile(globalStatePath, JSON.stringify(nextState, null, 2));
 
     // Write API key to secrets
     let secrets: Record<string, unknown> = {};
@@ -250,17 +244,8 @@ export async function DELETE(request: Request) {
       throw error;
     }
 
-    // Only reset if currently set to openai mode with our config
-    if (globalState.actModeApiProvider === "openai") {
-      delete globalState.openAiBaseUrl;
-      delete globalState.openAiModelId;
-      delete globalState.planModeOpenAiModelId;
-      // Reset provider to default (cline)
-      globalState.actModeApiProvider = "cline";
-      globalState.planModeApiProvider = "cline";
-    }
-
-    await fs.writeFile(globalStatePath, JSON.stringify(globalState, null, 2));
+    const nextState = removeRoutiformClineState(globalState);
+    await fs.writeFile(globalStatePath, JSON.stringify(nextState, null, 2));
 
     // Remove API key from secrets
     let secrets: Record<string, unknown> = {};

@@ -807,7 +807,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "Otsikkomalli",
+    "hermesTitleModelHint": "Valinnainen. Ohjaa automaattisesti luodut istuntojen otsikot halvempaan malliin; tyhjänä käytetään päämallia."
   },
   "combos": {
     "title": "Yhdistelmät",

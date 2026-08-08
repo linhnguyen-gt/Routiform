@@ -5,41 +5,41 @@ import fs from "fs/promises";
 import path from "path";
 import {
   ensureCliConfigWriteAllowed,
-  getCliConfigHome,
   getCliRuntimeStatus,
+  resolveKiloPaths,
 } from "@/shared/services/cliRuntime";
-import { createBackup } from "@/shared/services/backupService";
+import { createMultiBackup } from "@/shared/services/backupService";
 import { saveCliToolLastConfigured, deleteCliToolLastConfigured } from "@/lib/db/cliToolState";
+import {
+  applyRoutiformKiloAuth,
+  applyRoutiformKiloConfig,
+  hasRoutiformKiloConfig,
+  removeRoutiformKiloAuth,
+  removeRoutiformKiloConfig,
+  toKiloLimits,
+} from "@/shared/services/kiloConfig";
+import { fetchModelTokenLimits } from "@/shared/services/modelTokenLimits";
 import { cliModelConfigSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { getApiKeyById } from "@/lib/localDb";
 import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
-const getKiloDataDir = () => path.join(getCliConfigHome(), ".local", "share", "kilo");
-const getAuthPath = () => path.join(getKiloDataDir(), "auth.json");
-const getVsCodeSettingsPath = () =>
-  path.join(getCliConfigHome(), ".config", "Code", "User", "settings.json");
+const getConfigPath = () => resolveKiloPaths().config;
+const getAuthPath = () => resolveKiloPaths().auth;
 
-// Read auth.json
-const readAuth = async () => {
+const readJsonFile = async (filePath: string) => {
   try {
-    const content = await fs.readFile(getAuthPath(), "utf-8");
-    return JSON.parse(content);
+    return JSON.parse(await fs.readFile(filePath, "utf-8"));
   } catch (error) {
-    if (error.code === "ENOENT") return null;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    // A hand-edited file that no longer parses must not be silently replaced.
     throw error;
   }
 };
 
-// Check if Routiform OpenAI-compatible provider is configured
-const hasRoutiformConfig = (auth) => {
-  if (!auth) return false;
-  const routerEntry = auth["openai-compatible"] || auth["routiform"];
-  if (!routerEntry) return false;
-  const baseUrl = routerEntry.baseUrl || routerEntry.baseURL || "";
-  return (
-    baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1") || baseUrl.includes("routiform")
-  );
+const writeJsonFile = async (filePath: string, value: unknown) => {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
 };
 
 // GET - Check kilo CLI and read current settings
@@ -64,29 +64,8 @@ export async function GET(request: Request) {
       });
     }
 
-    const auth = await readAuth();
-    const authPath = getAuthPath();
-    const vscodeSettingsPath = getVsCodeSettingsPath();
-
-    // Read kilo VS Code extension settings if available
-    let extensionSettings = null;
-    try {
-      const raw = await fs.readFile(vscodeSettingsPath, "utf-8");
-      const allSettings = JSON.parse(raw);
-      // Extract kilo-related settings
-      extensionSettings = {};
-      for (const [key, value] of Object.entries(allSettings)) {
-        if (
-          key.startsWith("kilocode.") ||
-          key.startsWith("kilo-code.") ||
-          key.startsWith("kilo.")
-        ) {
-          extensionSettings[key] = value;
-        }
-      }
-    } catch {
-      /* VS Code settings not available */
-    }
+    const config = await readJsonFile(getConfigPath()).catch(() => null);
+    const auth = await readJsonFile(getAuthPath()).catch(() => null);
 
     return NextResponse.json({
       installed: runtime.installed,
@@ -97,10 +76,12 @@ export async function GET(request: Request) {
       reason: runtime.reason,
       settings: {
         auth: auth ? Object.keys(auth) : [],
-        extensionSettings,
+        model: config?.model ?? null,
+        provider: config?.provider ? Object.keys(config.provider) : [],
       },
-      hasRoutiform: hasRoutiformConfig(auth),
-      authPath,
+      hasRoutiform: hasRoutiformKiloConfig(config),
+      configPath: getConfigPath(),
+      authPath: getAuthPath(),
       message: runtime.runnable
         ? "Kilo Code CLI is installed and runnable"
         : "Kilo config detected, but the CLI is not runnable in this environment",
@@ -158,60 +139,23 @@ export async function POST(request) {
       }
     }
 
-    const kiloDataDir = getKiloDataDir();
+    const configPath = getConfigPath();
     const authPath = getAuthPath();
 
-    // Ensure directories exist
-    await fs.mkdir(kiloDataDir, { recursive: true });
+    await createMultiBackup("kilo", [configPath, authPath]);
 
-    // Backup auth before modifying
-    await createBackup("kilo", authPath);
+    // Kilo shows context usage and caps output from `limit`, so it needs the real numbers.
+    const { contextLengths, maxOutputTokens } = await fetchModelTokenLimits([model]);
 
-    // Read existing auth
-    let auth = {};
-    try {
-      const existing = await fs.readFile(authPath, "utf-8");
-      auth = JSON.parse(existing);
-    } catch {
-      /* No existing auth */
-    }
+    const config = applyRoutiformKiloConfig(await readJsonFile(configPath), {
+      baseUrl,
+      model,
+      limits: toKiloLimits(contextLengths, maxOutputTokens),
+    });
+    await writeJsonFile(configPath, config);
 
-    // Normalize baseUrl
-    const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
-
-    // Add/update Routiform as openai-compatible provider
-    auth["openai-compatible"] = {
-      type: "api-key",
-      apiKey: apiKey || "sk_routiform",
-      baseUrl: normalizedBaseUrl,
-      model: model,
-    };
-
-    await fs.writeFile(authPath, JSON.stringify(auth, null, 2));
-
-    // Also try to update VS Code extension settings if available
-    try {
-      const vscodeSettingsPath = getVsCodeSettingsPath();
-      let vscodeSettings = {};
-      try {
-        const raw = await fs.readFile(vscodeSettingsPath, "utf-8");
-        vscodeSettings = JSON.parse(raw);
-      } catch {
-        /* no existing settings */
-      }
-
-      // Set custom provider config for the extension
-      vscodeSettings["kilocode.customProvider"] = {
-        name: "Routiform",
-        baseURL: normalizedBaseUrl,
-        apiKey: apiKey || "sk_routiform",
-      };
-      vscodeSettings["kilocode.defaultModel"] = model;
-
-      await fs.writeFile(vscodeSettingsPath, JSON.stringify(vscodeSettings, null, 2));
-    } catch {
-      // VS Code settings not writable — not a problem for CLI
-    }
+    const auth = applyRoutiformKiloAuth(await readJsonFile(authPath), apiKey || "sk_routiform");
+    await writeJsonFile(authPath, auth);
 
     // Persist last-configured timestamp
     try {
@@ -223,6 +167,7 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       message: "Kilo Code settings applied successfully!",
+      configPath,
       authPath,
     });
   } catch (error) {
@@ -243,39 +188,22 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: writeGuard }, { status: 403 });
     }
 
+    const configPath = getConfigPath();
     const authPath = getAuthPath();
 
-    // Backup before reset
-    await createBackup("kilo", authPath);
-
-    // Read existing auth
-    let auth = {};
-    try {
-      const existing = await fs.readFile(authPath, "utf-8");
-      auth = JSON.parse(existing);
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        return NextResponse.json({ success: true, message: "No settings file to reset" });
-      }
-      throw error;
+    const existingConfig = await readJsonFile(configPath);
+    const existingAuth = await readJsonFile(authPath);
+    if (existingConfig === null && existingAuth === null) {
+      return NextResponse.json({ success: true, message: "No settings file to reset" });
     }
 
-    // Remove Routiform provider
-    delete auth["openai-compatible"];
-    delete auth["routiform"];
+    await createMultiBackup("kilo", [configPath, authPath]);
 
-    await fs.writeFile(authPath, JSON.stringify(auth, null, 2));
-
-    // Also clean up VS Code extension settings
-    try {
-      const vscodeSettingsPath = getVsCodeSettingsPath();
-      const raw = await fs.readFile(vscodeSettingsPath, "utf-8");
-      const vscodeSettings = JSON.parse(raw);
-      delete vscodeSettings["kilocode.customProvider"];
-      delete vscodeSettings["kilocode.defaultModel"];
-      await fs.writeFile(vscodeSettingsPath, JSON.stringify(vscodeSettings, null, 2));
-    } catch {
-      /* ignore */
+    if (existingConfig !== null) {
+      await writeJsonFile(configPath, removeRoutiformKiloConfig(existingConfig));
+    }
+    if (existingAuth !== null) {
+      await writeJsonFile(authPath, removeRoutiformKiloAuth(existingAuth));
     }
 
     // Clear last-configured timestamp

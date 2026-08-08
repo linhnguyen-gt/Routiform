@@ -36,7 +36,6 @@ graph LR
 
     subgraph Providers
         I[Anthropic Claude]
-        J[Google Gemini]
         K[OpenAI / Codex]
         L[GitHub Copilot]
         M[AWS Kiro]
@@ -51,7 +50,6 @@ graph LR
     E --> F
     F --> G
     G --> I
-    G --> J
     G --> K
     G --> L
     G --> M

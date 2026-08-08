@@ -87,13 +87,6 @@ export const FREE_TIER_CATALOG: readonly FreeTierEntry[] = [
     approxTokensPerMonth: null,
   },
   {
-    providerId: "gemini",
-    name: "Google Gemini",
-    kind: "rate-limited",
-    summary: "Google AI Studio free quota (API key).",
-    approxTokensPerMonth: null,
-  },
-  {
     providerId: "openrouter",
     name: "OpenRouter",
     kind: "signup-credit",

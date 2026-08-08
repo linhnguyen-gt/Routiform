@@ -6,7 +6,7 @@ export const CLI_TOOLS = {
     icon: "terminal",
     color: "#D97757",
     description: "Anthropic Claude Code CLI",
-    docsUrl: "https://docs.anthropic.com/en/docs/claude-code/overview",
+    docsUrl: "https://code.claude.com/docs/en/overview",
     configType: "env",
     envVars: {
       baseUrl: "ANTHROPIC_BASE_URL",
@@ -78,7 +78,7 @@ export const CLI_TOOLS = {
     image: "/providers/cursor.png",
     color: "#000000",
     description: "Cursor AI Code Editor",
-    docsUrl: "https://docs.cursor.com/settings/models",
+    docsUrl: "https://cursor.com/docs",
     configType: "guide",
     requiresCloud: true,
     defaultCommands: ["agent", "cursor"],
@@ -104,7 +104,7 @@ export const CLI_TOOLS = {
     image: "/providers/windsurf.svg",
     color: "#4A90E2",
     description: "Windsurf AI-first IDE by Codeium",
-    docsUrl: "https://windsurf.com/",
+    docsUrl: "https://devin.ai/desktop",
     configType: "guide",
     notes: [
       {
@@ -154,27 +154,39 @@ export const CLI_TOOLS = {
     image: "/providers/continue.png",
     color: "#7C3AED",
     description: "Continue AI Assistant",
-    docsUrl: "https://docs.continue.dev/",
+    docsUrl: "https://docs.continue.dev/reference",
     configType: "guide",
+    notes: [
+      {
+        type: "info",
+        text: "Config path: ~/.continue/config.yaml — config.json is deprecated and replaced by config.yaml.",
+      },
+    ],
     guideSteps: [
-      { step: 1, title: "Open Config", desc: "Open Continue configuration file" },
+      { step: 1, title: "Open Config", desc: "Open ~/.continue/config.yaml" },
       { step: 2, title: "API Key", type: "apiKeySelector" },
       { step: 3, title: "Select Model", type: "modelSelector" },
       {
         step: 4,
         title: "Add Model Config",
-        desc: "Add the following configuration to your models array:",
+        desc: "Add the following entry to your models list:",
       },
     ],
     codeBlock: {
-      language: "json",
-      code: `{
-  "apiBase": "{{baseUrl}}",
-  "title": "{{model}}",
-  "model": "{{model}}",
-  "provider": "openai",
-  "apiKey": "{{apiKey}}"
-}`,
+      language: "yaml",
+      code: `name: routiform
+version: 0.0.1
+schema: v1
+models:
+  - name: {{model}}
+    provider: openai
+    model: {{model}}
+    apiBase: {{baseUrl}}
+    apiKey: {{apiKey}}
+    roles:
+      - chat
+      - edit
+      - apply`,
     },
   },
   antigravity: {
@@ -231,7 +243,7 @@ export const CLI_TOOLS = {
     image: "/providers/copilot.png",
     color: "#1F6FEB",
     description: "GitHub Copilot Chat — VS Code Extension",
-    docsUrl: "https://code.visualstudio.com/docs/copilot/overview",
+    docsUrl: "https://code.visualstudio.com/docs/copilot/customization/language-models",
     configType: "custom",
   },
   opencode: {
@@ -273,6 +285,53 @@ export const CLI_TOOLS = {
       code: `{{opencodeConfig}}`,
     },
   },
+  qwen: {
+    id: "qwen",
+    name: "Qwen Code",
+    icon: "psychology",
+    color: "#10B981",
+    description: "Alibaba Qwen Code CLI (Terminal)",
+    docsUrl: "/docs?section=cli-tools&tool=qwen",
+    configType: "guide",
+    defaultCommand: "qwen",
+    notes: [
+      {
+        type: "warning",
+        text: "Config path: Linux/macOS ~/.qwen/settings.json • Windows %USERPROFILE%\\.qwen\\settings.json",
+      },
+      {
+        type: "info",
+        text: "The API key is written to ~/.qwen/.env as ROUTIFORM_API_KEY — Qwen never stores credentials in settings.json, it only names the variable to read.",
+      },
+    ],
+    guideSteps: [
+      { step: 1, title: "Install Qwen Code", desc: "npm install -g @qwen-code/qwen-code" },
+      { step: 2, title: "API Key", type: "apiKeySelector" },
+      { step: 3, title: "Base URL", value: "{{baseUrl}}", copyable: true },
+      { step: 4, title: "Select Model", type: "modelSelector" },
+      {
+        step: 5,
+        title: "Save Config",
+        desc: "Click Save Config below to write settings.json and .env automatically.",
+      },
+    ],
+    codeBlock: {
+      language: "json",
+      code: `# ~/.qwen/settings.json
+{
+  "modelProviders": {
+    "openai": [{
+      "id": "{{model}}",
+      "name": "{{model}}",
+      "envKey": "ROUTIFORM_API_KEY",
+      "baseUrl": "{{baseUrl}}"
+    }]
+  },
+  "model": { "name": "{{model}}" },
+  "security": { "auth": { "selectedType": "openai" } }
+}`,
+    },
+  },
   kiro: {
     id: "kiro",
     name: "Kiro AI",
@@ -295,7 +354,7 @@ export const CLI_TOOLS = {
     image: "/providers/claude.png",
     color: "#D97757",
     description: "Claude Desktop third-party inference (Cowork mode)",
-    docsUrl: "https://docs.anthropic.com/en/docs/claude-code/cowork",
+    docsUrl: "https://claude.com/product/claude-desktop",
     configType: "custom",
   },
   hermes: {

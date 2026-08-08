@@ -78,14 +78,38 @@ export function resolveFreeTier(model: AvailableModel, price: number | null): Fr
 }
 
 /**
+ * One transient upstream failure proves nothing, so a single bad request never disqualifies
+ * a connection. Two or more inside the window with not one success is not bad luck.
+ */
+const MIN_ATTEMPTS_FOR_DEAD_VERDICT = 2;
+
+/**
+ * True when recent history says every request this connection served failed.
+ *
+ * `testStatus` cannot answer this: it only moves when someone runs an explicit connection
+ * test, so it happily reads "active" from a test months ago while the connection 400s on
+ * everything. That is the state that kept a dead provider in every generated combo.
+ *
+ * A connection with even one success is deliberately kept — partial failure is what the
+ * retry and fallback machinery exists to absorb, and excluding it here would silently
+ * shrink the pool the router has to work with.
+ */
+function hasOnlyRecentFailures(connection: ProviderConnection): boolean {
+  const attempts = connection.recentAttempts;
+  if (typeof attempts !== "number" || attempts < MIN_ATTEMPTS_FOR_DEAD_VERDICT) return false;
+  return (connection.recentSuccesses ?? 0) === 0;
+}
+
+/**
  * Templates consider a connection only when it is genuinely usable.
  *
  * Intentionally stricter than the model picker. The picker shows every connection
  * on purpose (see the comment in combos/page.tsx fetchData) because hiding a provider
  * from a manual choice is worse than showing a broken one. A template is an automatic
  * action whose whole value is producing a combo that works on the first request, so a
- * connection with no credentials or a failed last test is excluded. "unknown" passes —
- * it is the create-time default and means untested, not failed. Do not unify these.
+ * connection with no credentials, a failed last test, or a recent history of nothing but
+ * failures is excluded. "unknown" passes — it is the create-time default and means
+ * untested, not failed. Do not unify these.
  */
 export function isTemplateEligibleConnection(connection: ProviderConnection): boolean {
   if (!connection || typeof connection.provider !== "string" || !connection.provider) return false;
@@ -94,6 +118,7 @@ export function isTemplateEligibleConnection(connection: ProviderConnection): bo
   if (connection.testStatus === "error") return false;
   // SQLite stores this as 0/1; only an explicit falsy value disqualifies.
   if (connection.isActive === false || connection.isActive === 0) return false;
+  if (hasOnlyRecentFailures(connection)) return false;
   return true;
 }
 

@@ -85,7 +85,9 @@ const CLI_TOOLS: Record<string, Record<string, unknown>> = {
     // on cold-start or low-resource environments (VPS, CI). Increase timeout
     // to avoid false healthcheck_failed results.
     healthcheckTimeoutMs: 15000,
+    // Resolved through resolveKiloPaths — Kilo reads XDG_CONFIG_HOME / XDG_DATA_HOME.
     paths: {
+      config: ".config/kilo/kilo.json",
       auth: ".local/share/kilo/auth.json",
     },
   },
@@ -96,7 +98,7 @@ const CLI_TOOLS: Record<string, Record<string, unknown>> = {
     // opencode and continue may take up to 15s on first run / cold start on VPS
     healthcheckTimeoutMs: 15000,
     paths: {
-      settings: ".continue/config.json",
+      settings: ".continue/config.yaml",
     },
   },
   opencode: {
@@ -107,6 +109,15 @@ const CLI_TOOLS: Record<string, Record<string, unknown>> = {
     healthcheckTimeoutMs: 15000,
     paths: {
       config: ".config/opencode/opencode.json",
+    },
+  },
+  qwen: {
+    defaultCommand: "qwen",
+    envBinKey: "CLI_QWEN_BIN",
+    requiresBinary: true,
+    healthcheckTimeoutMs: 12000,
+    paths: {
+      config: ".qwen/settings.json",
     },
   },
   qoder: {
@@ -770,6 +781,25 @@ export const resolveOpencodeConfigPath = (
 
 export const getOpenCodeConfigPath = () => resolveOpencodeConfigPath();
 
+/**
+ * Kilo resolves both of its directories through xdg-basedir, so the two overrides have to
+ * be honoured independently: the endpoint and default model live under XDG_CONFIG_HOME and
+ * the credential store under XDG_DATA_HOME.
+ */
+export const resolveKiloPaths = (
+  env: NodeJS.ProcessEnv = process.env,
+  homeDir = getCliConfigHome()
+) => {
+  const dataHome =
+    normalizeSafeAbsolutePath(String(env.XDG_DATA_HOME || "")) ||
+    path.join(homeDir, ".local", "share");
+
+  return {
+    config: path.join(getCliXdgConfigHome(env, homeDir), "kilo", "kilo.json"),
+    auth: path.join(dataHome, "kilo", "auth.json"),
+  };
+};
+
 export const getCliConfigPaths = (toolId: string) => {
   const tool = CLI_TOOLS[toolId];
   if (!tool) return null;
@@ -778,6 +808,10 @@ export const getCliConfigPaths = (toolId: string) => {
     return {
       config: getOpenCodeConfigPath(),
     };
+  }
+
+  if (toolId === "kilo") {
+    return resolveKiloPaths();
   }
 
   const home = getCliConfigHome();

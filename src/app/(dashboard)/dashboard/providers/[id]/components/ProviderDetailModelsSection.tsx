@@ -367,7 +367,7 @@ export function ProviderDetailModelsSection({
       </div>
       {renderModelsContent()}
 
-      {!isManagedAvailableModelsProvider && providerId !== "gemini" && (
+      {!isManagedAvailableModelsProvider && (
         <CustomModelsSection
           providerId={providerId}
           providerAlias={providerDisplayAlias}

@@ -39,12 +39,12 @@ function connection(provider) {
   };
 }
 
-// A generously-provisioned account: one free-OAuth, two free-tier, one paid API key, and
-// two paid OAuth subscriptions — enough for all five templates to resolve.
+// A generously-provisioned account: one free-OAuth, one free-tier, one paid API key, and
+// two paid OAuth subscriptions — enough for all five templates to resolve. Gemini models
+// come from antigravity now; the `gemini` provider itself was removed.
 const GROUPS = [
   group("kiro", "kr", ["claude-sonnet-4.5", "claude-haiku-4.5"]),
   group("groq", "groq", ["llama-3.3-70b-versatile", "qwen/qwen3-32b"]),
-  group("gemini", "gemini", ["gemini-3-pro", "gemini-3-flash"]),
   group("openai", "openai", ["gpt-4o", "gpt-4o-mini"]),
   group("claude", "claude", ["claude-sonnet-5", "claude-opus-5"]),
   group("antigravity", "antigravity", ["gemini-3-pro-high", "claude-sonnet-4-6"]),

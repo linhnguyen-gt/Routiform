@@ -3,7 +3,7 @@
 ## Project
 
 Unified AI proxy/router — route any LLM through one endpoint. Multi-provider support
-with **60+ providers** (OpenAI, Anthropic, Gemini, DeepSeek, Groq, xAI, Mistral, Fireworks,
+with **59+ providers** (OpenAI, Anthropic, DeepSeek, Groq, xAI, Mistral, Fireworks,
 Cohere, NVIDIA, Cerebras, Pollinations, Puter, Cloudflare AI, HuggingFace, and many more)
 with **MCP Server** (25 tools) and **A2A v0.3 Protocol**.
 
@@ -147,7 +147,7 @@ Zod schemas, and unit tests aligned when editing.
 - **Free** (3): Qoder AI, Qwen Code, Kiro AI
 - **OAuth** (9): Claude Code, Antigravity, Codex, GitHub Copilot, Cursor, Kimi Coding, Kilo Code, Cline,
   xAI SuperGrok (provider id `xai`, device_code + PKCE; same catalog as API key)
-- **API Key** (48+): OpenAI, Anthropic, Gemini, DeepSeek, Groq, xAI, Mistral, Perplexity,
+- **API Key** (48+): OpenAI, Anthropic, DeepSeek, Groq, xAI, Mistral, Perplexity,
   Together, Fireworks, Cerebras, Cohere, NVIDIA, Nebius, SiliconFlow, Hyperbolic,
   HuggingFace, OpenRouter, Vertex AI, Cloudflare AI, Scaleway, AI/ML API, Pollinations,
   Puter, Longcat, Alibaba, Kimi, Minimax, Blackbox, Synthetic, Kilo Gateway,

@@ -674,6 +674,8 @@
     "hermesNotInstalled": "Hermes Agent not detected locally",
     "hermesInstallPrompt": "Install: curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash",
     "hermesDefaultModel": "Default Model",
+    "hermesTitleModel": "Title Model",
+    "hermesTitleModelHint": "Optional. Routes auto-generated session titles to a cheaper model; empty reuses the main model.",
     "whenToUseLabel": "When to use",
     "openToolDocs": "Open tool docs",
     "toolUseCases": {

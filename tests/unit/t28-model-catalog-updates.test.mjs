@@ -5,12 +5,12 @@ import { getModelInfoCore } from "../../open-sse/services/model.ts";
 import { REGISTRY } from "../../open-sse/config/providerRegistry.ts";
 import { getStaticModelsForProvider } from "../../src/app/api/providers/[id]/models/route.ts";
 
-test("T28: gemini uses API sync, not a hardcoded catalog", () => {
-  // Gemini (AI Studio) has no hardcoded registry — models come from API sync
-  // via /api/providers/:id/models with pageSize=1000.
-  const geminiIds = REGISTRY.gemini.models.map((m) => m.id);
-  assert.equal(geminiIds.length, 0, "gemini models should be empty (populated by API sync)");
+test("T28: both Google API-key providers are gone from the registry", () => {
+  // `gemini-cli` went first (Google restricting third-party OAuth), then `gemini`
+  // (Google AI Studio) — every request it served returned 400/502. Antigravity is what
+  // serves Gemini models now, and it fetches its catalog live.
   assert.equal(REGISTRY["gemini-cli"], undefined, "the gemini-cli provider was removed");
+  assert.equal(REGISTRY.gemini, undefined, "the gemini provider was removed");
 });
 
 test("T28: antigravity no longer exposes a static catalog fallback", () => {

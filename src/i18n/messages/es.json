@@ -808,7 +808,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "Modelo de títulos",
+    "hermesTitleModelHint": "Opcional. Dirige los títulos de sesión generados automáticamente a un modelo más barato; vacío usa el modelo principal."
   },
   "combos": {
     "title": "combos",

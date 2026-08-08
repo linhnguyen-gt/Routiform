@@ -69,6 +69,8 @@ export const hermesSettingsSchema = z.object({
   apiKey: z.string().optional(),
   keyId: z.string().optional(),
   model: z.string().trim().min(1, "model is required"),
+  // Optional override for the auxiliary session-title task; empty clears it.
+  titleModel: z.string().trim().optional(),
 });
 
 export const codexProfileNameSchema = z.object({
@@ -82,13 +84,17 @@ export const codexProfileIdSchema = z.object({
 export const guideSettingsSaveSchema = z.object({
   baseUrl: z.string().trim().min(1).optional(),
   apiKey: z.string().optional(),
+  keyId: z.string().optional(),
   model: z.string().trim().min(1, "Model is required"),
+  /** Qwen writes one provider entry per model; Continue ignores this. */
+  models: z.array(z.string().trim().min(1)).optional(),
 });
 
 export const opencodeGuideSettingsSaveSchema = z
   .object({
     baseUrl: z.string().trim().min(1).optional(),
     apiKey: z.string().optional(),
+    keyId: z.string().optional(),
     model: z.string().trim().min(1, "Model is required").optional(),
     models: z.array(z.string().trim().min(1)).optional(),
   })

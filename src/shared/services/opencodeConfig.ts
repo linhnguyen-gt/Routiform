@@ -179,6 +179,43 @@ export const buildOpenCodeProviderConfigs = ({
   return providers;
 };
 
+/** The provider keys this app has ever written, current and legacy. */
+const MANAGED_PROVIDER_KEYS = [
+  OPENCODE_PROVIDER_KEYS.openai,
+  OPENCODE_PROVIDER_KEYS.anthropic,
+  LEGACY_OPENCODE_PROVIDER_KEY,
+];
+
+/**
+ * Unwinds what `mergeOpenCodeConfig` wrote, and nothing else.
+ *
+ * opencode.json is the user's own file — plugins, MCP servers, instructions and any provider
+ * they configured themselves live alongside our entries — so reset removes the managed
+ * provider keys rather than the file. The root `model` goes only when it still points at one
+ * of those providers; a model the user has since switched to is theirs to keep.
+ */
+export const removeRoutiformOpenCodeConfig = (existingConfig: Record<string, unknown> | null) => {
+  const config = {
+    ...(existingConfig && typeof existingConfig === "object" ? existingConfig : {}),
+  };
+
+  const providers = { ...((config.provider as Record<string, unknown>) || {}) };
+  for (const key of MANAGED_PROVIDER_KEYS) delete providers[key];
+
+  if (Object.keys(providers).length > 0) {
+    config.provider = providers;
+  } else {
+    delete config.provider;
+  }
+
+  const model = normalizeValue(config.model);
+  if (MANAGED_PROVIDER_KEYS.some((key) => model.startsWith(`${key}/`))) {
+    delete config.model;
+  }
+
+  return config;
+};
+
 export const mergeOpenCodeConfig = (
   existingConfig: Record<string, unknown> | null | undefined,
   input: OpenCodeConfigInput
@@ -204,7 +241,14 @@ export const mergeOpenCodeConfig = (
     },
   };
 
-  // Do not set a default top-level `model` — let the user pick interactively in opencode.
+  // Point opencode at the model that was just configured. Leaving this unset kept opencode on
+  // whatever default it resolves on its own — `anthropic/claude-sonnet-5` — so the provider and
+  // its `limit` were written but never used, and the context meter reported the wrong model's
+  // window. Every other tool's apply sets its default model; this one used not to.
+  const modelRef = toOpenCodeModelRef(input.model || input.models?.[0]);
+  if (modelRef) {
+    next.model = modelRef;
+  }
 
   if (next.$schema == null) {
     next.$schema = "https://opencode.ai/config.json";

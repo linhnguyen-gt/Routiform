@@ -13,6 +13,7 @@ import {
   isAnthropicCompatibleProvider,
 } from "@/shared/constants/providers";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
+import { getConnectionUsageHealth } from "@/lib/db/connectionUsageHealth";
 import { syncToCloud } from "@/lib/cloudSync";
 import {
   getAuditActorFromRequest,
@@ -128,19 +129,32 @@ export async function GET() {
       })
     );
 
+    // `testStatus` only moves when someone runs an explicit connection test, so it says
+    // nothing about whether the connection still works — it can read "active" from a test
+    // months ago while every real request returns 400. Recent request outcomes do say,
+    // and combo templates use them to skip a connection that is failing everything.
+    const usageHealth = getConnectionUsageHealth();
+
     // Hide sensitive fields (expose only whether any secret exists — for dashboard hints)
-    const safeConnections = backfilled.map((c) => ({
-      ...(c as Record<string, unknown>),
-      apiKey: undefined,
-      accessToken: undefined,
-      refreshToken: undefined,
-      idToken: undefined,
-      credentialsConfigured: Boolean(
-        (c as Record<string, unknown>).apiKey ||
-        (c as Record<string, unknown>).accessToken ||
-        (c as Record<string, unknown>).refreshToken
-      ),
-    }));
+    const safeConnections = backfilled.map((c) => {
+      const connection = c as Record<string, unknown>;
+      const health = usageHealth[String(connection.id ?? "")];
+
+      return {
+        ...connection,
+        apiKey: undefined,
+        accessToken: undefined,
+        refreshToken: undefined,
+        idToken: undefined,
+        credentialsConfigured: Boolean(
+          connection.apiKey || connection.accessToken || connection.refreshToken
+        ),
+        // Absent when the connection served no request in the window: "never used" and
+        // "used and failed" are different states and must stay distinguishable.
+        recentAttempts: health?.attempts,
+        recentSuccesses: health?.successes,
+      };
+    });
 
     return NextResponse.json({ connections: safeConnections });
   } catch (error) {

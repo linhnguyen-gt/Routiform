@@ -21,6 +21,13 @@ export interface ProviderConnection {
   authType?: string;
   credentialsConfigured?: boolean;
   /**
+   * Requests this connection served in the recent window, and how many succeeded
+   * (`src/lib/db/connectionUsageHealth.ts`). Both are absent when it served none — do not
+   * default them to 0, which would read as "used and failed" for a brand-new connection.
+   */
+  recentAttempts?: number;
+  recentSuccesses?: number;
+  /**
    * Stored as JSON; may be a string or an already-parsed object depending on
    * row age. Narrow at the point of use, never with a cast.
    */

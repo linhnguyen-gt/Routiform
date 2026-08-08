@@ -809,7 +809,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "标题生成模型",
+    "hermesTitleModelHint": "可选。将自动生成的会话标题路由到更便宜的模型；留空则使用主模型。"
   },
   "combos": {
     "title": "组合",

@@ -35,7 +35,7 @@ const FALLBACK_ALIAS_TO_PROVIDER = {
   kr: "kiro",
 };
 
-const LIVE_SYNC_MODEL_PROVIDERS = new Set(["claude", "gemini"]);
+const LIVE_SYNC_MODEL_PROVIDERS = new Set(["claude"]);
 
 /**
  * Vision fields for a model, sourced from the translator that will actually carry the request.
@@ -45,6 +45,36 @@ const LIVE_SYNC_MODEL_PROVIDERS = new Set(["claude", "gemini"]);
  * was advertised as vision-capable while the cursor translator returns text only. Vision is not a
  * property of the model id — it is a property of the model reached through a specific provider.
  */
+const positiveLimit = (value: unknown) =>
+  typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+
+/**
+ * The `context_length` / `max_output_tokens` fields for one catalog entry.
+ *
+ * Only the built-in PROVIDER_MODELS branch used to fall back to the provider's registry
+ * default, so the same provider was published half-annotated: a model that arrived as a
+ * custom import or a managed fallback carried no limits at all. CLI tools read these back
+ * to size their context meter and cap `max_tokens`, so a missing number there becomes a
+ * tool configured with no context window. The default is the same either way — every
+ * branch resolves it here.
+ */
+export function resolveTokenLimits(
+  registryKeys: Array<string | undefined>,
+  modelContextLength?: unknown,
+  modelMaxOutputTokens?: unknown
+) {
+  const entry = registryKeys.map((key) => (key ? REGISTRY[key] : undefined)).find(Boolean);
+  const contextLength =
+    positiveLimit(modelContextLength) ?? positiveLimit(entry?.defaultContextLength);
+  const maxOutputTokens =
+    positiveLimit(modelMaxOutputTokens) ?? positiveLimit(entry?.defaultMaxOutputTokens);
+
+  return {
+    ...(contextLength ? { context_length: contextLength } : {}),
+    ...(maxOutputTokens ? { max_output_tokens: maxOutputTokens } : {}),
+  };
+}
+
 export function getVisionCapabilityFields(provider: string, modelId: string) {
   if (!provider || !modelId) return null;
   if (!modelSupportsImages(provider, modelId)) return null;
@@ -220,6 +250,7 @@ export async function getUnifiedModelsResponse(
         root: combo.name,
         parent: null,
         ...(combo.context_length ? { context_length: combo.context_length } : {}),
+        ...(combo.max_output_tokens ? { max_output_tokens: combo.max_output_tokens } : {}),
       });
     }
 
@@ -237,19 +268,17 @@ export async function getUnifiedModelsResponse(
         continue;
       }
 
-      // Get default context length from registry (provider-level default)
-      const registryEntry = REGISTRY[alias] || REGISTRY[canonicalProviderId];
-      const defaultContextLength = registryEntry?.defaultContextLength;
-      const defaultMaxOutputTokens = registryEntry?.defaultMaxOutputTokens;
-
       for (const model of providerModels) {
         const aliasId = `${alias}/${model.id}`;
         if (getModelIsHidden(canonicalProviderId, model.id)) continue;
 
         const visionFields = getVisionCapabilityFields(canonicalProviderId, model.id);
-        // Model-level context length overrides provider default
-        const contextLength = model.contextLength || defaultContextLength;
-        const maxOutputTokens = model.maxOutputTokens || defaultMaxOutputTokens;
+        // Model-level limits override the provider default
+        const tokenLimits = resolveTokenLimits(
+          [alias, canonicalProviderId],
+          model.contextLength,
+          model.maxOutputTokens
+        );
 
         models.push({
           id: aliasId,
@@ -259,8 +288,7 @@ export async function getUnifiedModelsResponse(
           permission: [],
           root: model.id,
           parent: null,
-          ...(contextLength ? { context_length: contextLength } : {}),
-          ...(maxOutputTokens ? { max_output_tokens: maxOutputTokens } : {}),
+          ...tokenLimits,
           ...(visionFields || {}),
         });
 
@@ -277,8 +305,7 @@ export async function getUnifiedModelsResponse(
             permission: [],
             root: model.id,
             parent: aliasId,
-            ...(contextLength ? { context_length: contextLength } : {}),
-            ...(maxOutputTokens ? { max_output_tokens: maxOutputTokens } : {}),
+            ...tokenLimits,
             ...(providerVisionFields || {}),
           });
         }
@@ -290,10 +317,6 @@ export async function getUnifiedModelsResponse(
         const antigravityModels = await loadAntigravityModelsFromConnections(
           connections as Array<Record<string, unknown>>
         );
-        const registryEntry = REGISTRY.antigravity;
-        const defaultContextLength = registryEntry?.defaultContextLength;
-        const defaultMaxOutputTokens = registryEntry?.defaultMaxOutputTokens;
-
         for (const model of antigravityModels) {
           const modelId = `antigravity/${model.id}`;
           if (getModelIsHidden("antigravity", model.id)) continue;
@@ -307,8 +330,7 @@ export async function getUnifiedModelsResponse(
             permission: [],
             root: model.id,
             parent: null,
-            ...(defaultContextLength ? { context_length: defaultContextLength } : {}),
-            ...(defaultMaxOutputTokens ? { max_output_tokens: defaultMaxOutputTokens } : {}),
+            ...resolveTokenLimits(["antigravity"]),
             ...(visionFields || {}),
           });
         }
@@ -332,6 +354,13 @@ export async function getUnifiedModelsResponse(
           else if (endpoints.includes("images")) modelType = "image";
           else if (endpoints.includes("audio")) modelType = "audio";
 
+          // Only chat models carry a context window worth falling back on.
+          const tokenLimits = resolveTokenLimits(
+            modelType ? [] : [alias, providerId],
+            sm.inputTokenLimit,
+            sm.outputTokenLimit
+          );
+
           models.push({
             id: aliasId,
             object: "model",
@@ -342,8 +371,7 @@ export async function getUnifiedModelsResponse(
             parent: null,
             ...(modelType ? { type: modelType } : {}),
             ...(modelType === "audio" ? { subtype: "transcription" } : {}),
-            ...(sm.inputTokenLimit ? { context_length: sm.inputTokenLimit } : {}),
-            ...(sm.outputTokenLimit ? { max_output_tokens: sm.outputTokenLimit } : {}),
+            ...tokenLimits,
             ...(endpoints.length > 1 || !endpoints.includes("chat")
               ? { supported_endpoints: endpoints }
               : {}),
@@ -360,8 +388,7 @@ export async function getUnifiedModelsResponse(
               parent: null,
               type: "audio",
               subtype: "speech",
-              ...(sm.inputTokenLimit ? { context_length: sm.inputTokenLimit } : {}),
-              ...(sm.outputTokenLimit ? { max_output_tokens: sm.outputTokenLimit } : {}),
+              ...tokenLimits,
               ...(endpoints.length > 1 || !endpoints.includes("chat")
                 ? { supported_endpoints: endpoints }
                 : {}),
@@ -471,8 +498,6 @@ export async function getUnifiedModelsResponse(
     try {
       const customModelsMap = (await getAllCustomModels()) as Record<string, unknown>;
       for (const [providerId, rawProviderCustomModels] of Object.entries(customModelsMap)) {
-        // Skip Gemini — handled by syncedAvailableModels above
-        if (providerId === "gemini") continue;
         const providerCustomModels = Array.isArray(rawProviderCustomModels)
           ? rawProviderCustomModels.filter(
               (model): model is Record<string, unknown> =>
@@ -516,6 +541,12 @@ export async function getUnifiedModelsResponse(
           else if (endpoints.includes("audio")) modelType = "audio";
           const visionFields =
             modelType === "chat" ? getVisionCapabilityFields(canonicalProviderId, modelId) : null;
+          // Only chat models carry a context window worth falling back on.
+          const tokenLimits = resolveTokenLimits(
+            modelType ? [] : [alias, canonicalProviderId, providerId, parentProviderType],
+            (model as Record<string, unknown>).inputTokenLimit,
+            (model as Record<string, unknown>).outputTokenLimit
+          );
 
           models.push({
             id: aliasId,
@@ -531,12 +562,7 @@ export async function getUnifiedModelsResponse(
             ...(endpoints.length > 1 || !endpoints.includes("chat")
               ? { supported_endpoints: endpoints }
               : {}),
-            ...(typeof (model as Record<string, unknown>).inputTokenLimit === "number"
-              ? { context_length: (model as Record<string, unknown>).inputTokenLimit }
-              : {}),
-            ...(typeof (model as Record<string, unknown>).outputTokenLimit === "number"
-              ? { max_output_tokens: (model as Record<string, unknown>).outputTokenLimit }
-              : {}),
+            ...tokenLimits,
             ...(visionFields || {}),
           });
 
@@ -556,12 +582,7 @@ export async function getUnifiedModelsResponse(
               parent: aliasId,
               custom: true,
               ...(modelType ? { type: modelType } : {}),
-              ...(typeof (model as Record<string, unknown>).inputTokenLimit === "number"
-                ? { context_length: (model as Record<string, unknown>).inputTokenLimit }
-                : {}),
-              ...(typeof (model as Record<string, unknown>).outputTokenLimit === "number"
-                ? { max_output_tokens: (model as Record<string, unknown>).outputTokenLimit }
-                : {}),
+              ...tokenLimits,
               ...(providerVisionFields || {}),
             });
           }
@@ -592,10 +613,6 @@ export async function getUnifiedModelsResponse(
         if (models.some((m) => m.id === aliasId)) continue;
 
         const visionFields = getVisionCapabilityFields(providerId, modelId);
-        const contextLength =
-          typeof (model as Record<string, unknown>).contextLength === "number"
-            ? (model as Record<string, unknown>).contextLength
-            : undefined;
 
         models.push({
           id: aliasId,
@@ -605,7 +622,11 @@ export async function getUnifiedModelsResponse(
           permission: [],
           root: modelId,
           parent: null,
-          ...(contextLength ? { context_length: contextLength } : {}),
+          ...resolveTokenLimits(
+            [alias, providerId],
+            (model as Record<string, unknown>).contextLength,
+            (model as Record<string, unknown>).maxOutputTokens
+          ),
           ...(visionFields || {}),
         });
       }

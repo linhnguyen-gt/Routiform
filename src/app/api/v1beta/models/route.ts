@@ -1,6 +1,6 @@
 import { CORS_ORIGIN } from "@/shared/utils/cors";
 import { PROVIDER_MODELS } from "@/shared/constants/models";
-import { getAllCustomModels, getSyncedAvailableModels } from "@/lib/db/models";
+import { getAllCustomModels } from "@/lib/db/models";
 import { getProviderConnections } from "@/lib/localDb";
 import { loadAntigravityModelsFromConnections } from "@/lib/providers/antigravityLiveModels";
 import { REGISTRY } from "@routiform/open-sse/config/providerRegistry.ts";
@@ -79,38 +79,11 @@ export async function GET() {
       // Antigravity catalog is live-only; omit stale fallback entries on failure.
     }
 
-    // Gemini: always replace hardcoded entries with synced models (no fallback)
-    // Always remove hardcoded gemini entries — even if sync returns empty
-    for (let i = models.length - 1; i >= 0; i--) {
-      const model = models[i] as Record<string, unknown>;
-      if (typeof model.name === "string" && model.name.startsWith("models/gemini/")) {
-        models.splice(i, 1);
-      }
-    }
-    try {
-      const syncedGeminiModels = await getSyncedAvailableModels("gemini");
-      for (const m of syncedGeminiModels) {
-        models.push({
-          name: `models/gemini/${m.id}`,
-          displayName: m.name || m.id,
-          ...(typeof m.description === "string" ? { description: m.description } : {}),
-          supportedGenerationMethods: ["generateContent"],
-          inputTokenLimit: typeof m.inputTokenLimit === "number" ? m.inputTokenLimit : 128000,
-          outputTokenLimit: typeof m.outputTokenLimit === "number" ? m.outputTokenLimit : 8192,
-          ...(m.supportsThinking === true ? { thinking: true } : {}),
-        });
-      }
-    } catch (err) {
-      console.error("[v1beta/models] Error fetching synced Gemini models:", err);
-    }
-
     // Custom models (use stored metadata from provider APIs)
     try {
       const customModelsMap = (await getAllCustomModels()) as Record<string, unknown>;
       for (const [providerId, rawModels] of Object.entries(customModelsMap)) {
         if (!Array.isArray(rawModels)) continue;
-        // Skip Gemini — handled by syncedAvailableModels above
-        if (providerId === "gemini") continue;
         for (const model of rawModels) {
           if (
             !model ||

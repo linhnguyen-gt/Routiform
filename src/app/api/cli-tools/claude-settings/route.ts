@@ -205,14 +205,14 @@ export async function POST(request: Request) {
   }
 }
 
-// Fields to remove when resetting
+// Fields to remove when resetting. Only keys this route writes belong here — anything else
+// would make Reset silently discard a setting the user put in settings.json themselves.
 const RESET_ENV_KEYS = [
   "ANTHROPIC_BASE_URL",
   "ANTHROPIC_AUTH_TOKEN",
   "ANTHROPIC_DEFAULT_OPUS_MODEL",
   "ANTHROPIC_DEFAULT_SONNET_MODEL",
   "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-  "API_TIMEOUT_MS",
 ];
 
 // DELETE - Reset settings (remove env fields)

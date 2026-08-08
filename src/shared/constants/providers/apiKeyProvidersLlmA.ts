@@ -118,16 +118,4 @@ export const APIKEY_PROVIDERS_LLM_A = {
     textIcon: "AN",
     website: "https://console.anthropic.com",
   },
-  gemini: {
-    id: "gemini",
-    alias: "gemini",
-    name: "Gemini (Google AI Studio)",
-    icon: "diamond",
-    color: "#4285F4",
-    textIcon: "GE",
-    website: "https://ai.google.dev",
-    hasFree: true,
-    freeNote:
-      "Free forever: 1,500 req/day for Gemini 2.5 Flash — no credit card, get key at aistudio.google.com",
-  },
 } satisfies ProviderMap;

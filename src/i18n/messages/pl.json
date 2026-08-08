@@ -807,7 +807,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "Model tytułów",
+    "hermesTitleModelHint": "Opcjonalne. Kieruje automatycznie generowane tytuły sesji do tańszego modelu; puste użyje modelu głównego."
   },
   "combos": {
     "title": "Kombinacje",

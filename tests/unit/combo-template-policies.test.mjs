@@ -35,16 +35,15 @@ test("tier A is FREE_PROVIDERS, and nothing ships deprecated today", () => {
   assert.strictEqual(isOauthFreeProvider("kiro"), true);
   assert.strictEqual(isOauthFreeProvider("qoder"), true);
   assert.strictEqual(isOauthFreeProvider("openai"), false);
-  assert.strictEqual(isDeprecatedProvider("gemini"), false);
+  assert.strictEqual(isDeprecatedProvider("openai"), false);
 });
 
-test("tier C is exactly the 12 measured hasFree providers", () => {
+test("tier C is exactly the 11 measured hasFree providers", () => {
   const tierC = Object.keys(AI_PROVIDERS).filter(hasFreeTier).sort();
   assert.deepStrictEqual(tierC, [
     "aimlapi",
     "cerebras",
     "cloudflare-ai",
-    "gemini",
     "groq",
     "huggingface",
     "longcat",
@@ -60,10 +59,10 @@ test("the explicit hasFree:false provider is not tier C", () => {
   assert.strictEqual(hasFreeTier("alibaba"), false);
 });
 
-test("the A ∪ C composite is exactly 14 providers", () => {
+test("the A ∪ C composite is exactly 13 providers", () => {
   const tierA = Object.keys(FREE_PROVIDERS).filter(isOauthFreeProvider);
   const tierC = Object.keys(AI_PROVIDERS).filter(hasFreeTier);
-  assert.strictEqual(new Set([...tierA, ...tierC]).size, 14);
+  assert.strictEqual(new Set([...tierA, ...tierC]).size, 13);
 });
 
 test("every AI_PROVIDERS id classifies as at most one of free / paid-subscription", () => {

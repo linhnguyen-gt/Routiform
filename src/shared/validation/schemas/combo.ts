@@ -1,11 +1,38 @@
 import { z } from "zod";
 import {
+  COMBO_CONTEXT_LENGTH_BOUNDS,
+  COMBO_MAX_OUTPUT_TOKENS_BOUNDS,
+} from "@/shared/constants/combo-defaults";
+import {
   comboConfigSchema,
   comboModelEntry,
   comboRuntimeConfigSchema,
   comboStrategySchema,
   scoringWeightsSchema,
 } from "@/shared/validation/schemas/combo-internal";
+
+/**
+ * A hand-set token limit, or `null` to fall back to the measured default.
+ *
+ * `null` is meaningful and not the same as omitting the field: an update merges its body
+ * into the stored record, so a combo that wants the default back has to say so explicitly —
+ * leaving the field out would keep whatever was stored before.
+ */
+const comboContextLength = z
+  .number()
+  .int()
+  .min(COMBO_CONTEXT_LENGTH_BOUNDS.min)
+  .max(COMBO_CONTEXT_LENGTH_BOUNDS.max)
+  .nullable()
+  .optional();
+
+const comboMaxOutputTokens = z
+  .number()
+  .int()
+  .min(COMBO_MAX_OUTPUT_TOKENS_BOUNDS.min)
+  .max(COMBO_MAX_OUTPUT_TOKENS_BOUNDS.max)
+  .nullable()
+  .optional();
 
 export const createComboSchema = z.object({
   name: z
@@ -20,7 +47,8 @@ export const createComboSchema = z.object({
   system_message: z.string().max(50000).optional(),
   tool_filter_regex: z.string().max(1000).optional(),
   context_cache_protection: z.boolean().optional(),
-  context_length: z.number().int().min(1000).max(2000000).optional(),
+  context_length: comboContextLength,
+  max_output_tokens: comboMaxOutputTokens,
   requireToolCalling: z.boolean().optional(),
 });
 
@@ -54,7 +82,8 @@ export const updateComboSchema = z
     system_message: z.string().max(50000).optional(),
     tool_filter_regex: z.string().max(1000).optional(),
     context_cache_protection: z.boolean().optional(),
-    context_length: z.number().int().min(1000).max(2000000).optional(),
+    context_length: comboContextLength,
+    max_output_tokens: comboMaxOutputTokens,
     requireToolCalling: z.boolean().optional(),
   })
   .superRefine((value, ctx) => {
@@ -69,6 +98,7 @@ export const updateComboSchema = z
       value.tool_filter_regex === undefined &&
       value.context_cache_protection === undefined &&
       value.context_length === undefined &&
+      value.max_output_tokens === undefined &&
       value.requireToolCalling === undefined
     ) {
       ctx.addIssue({

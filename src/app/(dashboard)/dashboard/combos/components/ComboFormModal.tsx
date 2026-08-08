@@ -18,6 +18,12 @@ import { ComboReadinessPanel } from "./ComboReadinessPanel";
 import { ComboModelRow } from "./ComboModelRow";
 import { ComboTemplatePanel } from "./ComboTemplatePanel";
 import { distributeWeights } from "./combo-template-policies";
+import {
+  COMBO_CONTEXT_LENGTH_FIELD,
+  COMBO_MAX_OUTPUT_TOKENS_FIELD,
+  parseTokenLimitInput,
+  toTokenLimitInput,
+} from "./combo-token-limit-fields";
 import { resolveTemplate } from "./combo-template-resolver";
 import type { ComboTemplate, TemplateResolution } from "./combo-template-types";
 import { getProviderDisplayName, normalizeModelEntry } from "./combo-data";
@@ -80,6 +86,8 @@ export function ComboFormModal({
       agentToolFilter: combo?.tool_filter_regex || "",
       agentContextCache: !!combo?.context_cache_protection,
       requireToolCalling: !!combo?.requireToolCalling,
+      contextLength: toTokenLimitInput(combo?.context_length, COMBO_CONTEXT_LENGTH_FIELD),
+      maxOutputTokens: toTokenLimitInput(combo?.max_output_tokens, COMBO_MAX_OUTPUT_TOKENS_FIELD),
     }),
     [combo]
   );
@@ -109,6 +117,12 @@ export function ComboFormModal({
   );
   const [requireToolCalling, setRequireToolCalling] = useState<boolean>(
     !!combo?.requireToolCalling
+  );
+  const [contextLength, setContextLength] = useState<string>(() =>
+    toTokenLimitInput(combo?.context_length, COMBO_CONTEXT_LENGTH_FIELD)
+  );
+  const [maxOutputTokens, setMaxOutputTokens] = useState<string>(() =>
+    toTokenLimitInput(combo?.max_output_tokens, COMBO_MAX_OUTPUT_TOKENS_FIELD)
   );
   const [modelRowIds, setModelRowIds] = useState<string[]>(() =>
     (combo?.models || []).map(() => createModelRowId())
@@ -199,6 +213,14 @@ export function ComboFormModal({
     pricedModelCount < activeModels.length;
   const hasInvalidWeightedTotal =
     strategy === "weighted" && activeModels.length > 0 && weightTotal !== 100;
+  const parsedContextLength = useMemo(
+    () => parseTokenLimitInput(contextLength, COMBO_CONTEXT_LENGTH_FIELD),
+    [contextLength]
+  );
+  const parsedMaxOutputTokens = useMemo(
+    () => parseTokenLimitInput(maxOutputTokens, COMBO_MAX_OUTPUT_TOKENS_FIELD),
+    [maxOutputTokens]
+  );
   const saveBlocked =
     !name.trim() ||
     !!nameError ||
@@ -206,7 +228,9 @@ export function ComboFormModal({
     hasNoModels ||
     hasNoActiveModels ||
     hasInvalidWeightedTotal ||
-    hasCostOptimizedWithoutPricing;
+    hasCostOptimizedWithoutPricing ||
+    !parsedContextLength.ok ||
+    !parsedMaxOutputTokens.ok;
   const readinessChecks = [
     {
       id: "name",
@@ -343,6 +367,8 @@ export function ComboFormModal({
     setAgentToolFilter(initialFormState.agentToolFilter);
     setAgentContextCache(initialFormState.agentContextCache);
     setRequireToolCalling(initialFormState.requireToolCalling);
+    setContextLength(initialFormState.contextLength);
+    setMaxOutputTokens(initialFormState.maxOutputTokens);
 
     setShowModelSelect(false);
     setSaving(false);
@@ -755,6 +781,13 @@ export function ComboFormModal({
       else delete saveData.context_cache_protection;
       if (requireToolCalling) saveData.requireToolCalling = true;
       else delete saveData.requireToolCalling;
+
+      // Always sent, and null rather than omitted for an empty box: the update endpoint
+      // merges its body into the stored combo, so leaving the key out would keep the old
+      // limit and make clearing the field impossible. An unparseable box cannot reach here
+      // — saveBlocked covers it — so the null fallback is only there to keep the type honest.
+      saveData.context_length = parsedContextLength.ok ? parsedContextLength.value : null;
+      saveData.max_output_tokens = parsedMaxOutputTokens.ok ? parsedMaxOutputTokens.value : null;
 
       await onSave(saveData);
     } finally {
@@ -1236,6 +1269,48 @@ export function ComboFormModal({
               <p className="text-[10px] text-text-muted mt-0.5">
                 Only tools whose name matches this regex are forwarded to the provider. Leave empty
                 to forward all tools.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[11px] font-medium text-text-muted block mb-0.5">
+                  Context Length
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={contextLength}
+                  onChange={(e) => setContextLength(e.target.value)}
+                  placeholder={COMBO_CONTEXT_LENGTH_FIELD.fallback.toLocaleString("en-US")}
+                  className="w-full text-xs py-1.5 px-2 rounded border border-black/10 dark:border-white/10 bg-transparent focus:border-primary focus:outline-none font-mono"
+                />
+                {!parsedContextLength.ok && (
+                  <p className="text-[10px] text-red-500 mt-0.5">{parsedContextLength.error}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-[11px] font-medium text-text-muted block mb-0.5">
+                  Max Output Tokens
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={maxOutputTokens}
+                  onChange={(e) => setMaxOutputTokens(e.target.value)}
+                  placeholder={COMBO_MAX_OUTPUT_TOKENS_FIELD.fallback.toLocaleString("en-US")}
+                  className="w-full text-xs py-1.5 px-2 rounded border border-black/10 dark:border-white/10 bg-transparent focus:border-primary focus:outline-none font-mono"
+                />
+                {!parsedMaxOutputTokens.ok && (
+                  <p className="text-[10px] text-red-500 mt-0.5">{parsedMaxOutputTokens.error}</p>
+                )}
+              </div>
+
+              <p className="text-[10px] text-text-muted col-span-2 -mt-1">
+                What this combo reports to clients in /v1/models. A combo routes across several
+                models, so these describe the combo, not any one member — set them to what every
+                member can honour. Leave empty for the defaults shown.
               </p>
             </div>
 

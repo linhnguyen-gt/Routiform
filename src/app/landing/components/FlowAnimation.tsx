@@ -28,12 +28,6 @@ export default function FlowAnimation() {
       textColor: "text-white",
     },
     {
-      id: "gemini",
-      name: t("flowProviderGemini"),
-      color: "bg-blue-500",
-      textColor: "text-white",
-    },
-    {
       id: "github",
       name: t("flowProviderGithubCopilot"),
       color: "bg-gray-700",

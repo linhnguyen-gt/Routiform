@@ -7,7 +7,7 @@ import { updateModelAliasSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { modelSupportsImages } from "@/lib/chat/model-vision";
 
-const LIVE_SYNC_MODEL_PROVIDERS = new Set(["claude", "gemini"]);
+const LIVE_SYNC_MODEL_PROVIDERS = new Set(["claude"]);
 
 /**
  * One row of the catalog.

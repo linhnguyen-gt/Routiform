@@ -807,7 +807,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "Tittelmodell",
+    "hermesTitleModelHint": "Valgfritt. Sender automatisk genererte økttitler til en rimeligere modell; tomt bruker hovedmodellen."
   },
   "combos": {
     "title": "Combos",

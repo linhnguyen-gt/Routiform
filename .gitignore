@@ -109,6 +109,7 @@ open-sse/test/*
 test-results/
 playwright-report/
 blob-report/
+.playwright-mcp/
 cloud/
 
 # Security Analysis (standalone project with own git)
@@ -180,3 +181,6 @@ public/owui/
 
 # CodeGraph local index — per-developer tooling, regenerated on demand
 .codegraph/
+
+# Unit tests run against an isolated SQLite data directory, never the real one
+.test-data/

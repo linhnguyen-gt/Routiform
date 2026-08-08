@@ -807,7 +807,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "Model pre názvy",
+    "hermesTitleModelHint": "Voliteľné. Automaticky generované názvy relácií nasmeruje na lacnejší model; prázdne použije hlavný model."
   },
   "combos": {
     "title": "kombá",
