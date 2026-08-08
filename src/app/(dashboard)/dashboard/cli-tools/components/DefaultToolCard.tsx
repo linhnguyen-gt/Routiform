@@ -295,7 +295,7 @@ export default function DefaultToolCard({
   // Check if this tool supports direct config file write
   const supportsDirectSave = ["continue", "opencode", "qwen"].includes(toolId);
   // Reset unwinds a write, so it is offered only where the route can perform one.
-  const supportsReset = ["continue", "opencode"].includes(toolId);
+  const supportsReset = ["continue", "opencode", "qwen"].includes(toolId);
 
   const renderApiKeySelector = () => {
     return (

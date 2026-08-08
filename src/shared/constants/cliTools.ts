@@ -285,6 +285,53 @@ models:
       code: `{{opencodeConfig}}`,
     },
   },
+  qwen: {
+    id: "qwen",
+    name: "Qwen Code",
+    icon: "psychology",
+    color: "#10B981",
+    description: "Alibaba Qwen Code CLI (Terminal)",
+    docsUrl: "/docs?section=cli-tools&tool=qwen",
+    configType: "guide",
+    defaultCommand: "qwen",
+    notes: [
+      {
+        type: "warning",
+        text: "Config path: Linux/macOS ~/.qwen/settings.json • Windows %USERPROFILE%\\.qwen\\settings.json",
+      },
+      {
+        type: "info",
+        text: "The API key is written to ~/.qwen/.env as ROUTIFORM_API_KEY — Qwen never stores credentials in settings.json, it only names the variable to read.",
+      },
+    ],
+    guideSteps: [
+      { step: 1, title: "Install Qwen Code", desc: "npm install -g @qwen-code/qwen-code" },
+      { step: 2, title: "API Key", type: "apiKeySelector" },
+      { step: 3, title: "Base URL", value: "{{baseUrl}}", copyable: true },
+      { step: 4, title: "Select Model", type: "modelSelector" },
+      {
+        step: 5,
+        title: "Save Config",
+        desc: "Click Save Config below to write settings.json and .env automatically.",
+      },
+    ],
+    codeBlock: {
+      language: "json",
+      code: `# ~/.qwen/settings.json
+{
+  "modelProviders": {
+    "openai": [{
+      "id": "{{model}}",
+      "name": "{{model}}",
+      "envKey": "ROUTIFORM_API_KEY",
+      "baseUrl": "{{baseUrl}}"
+    }]
+  },
+  "model": { "name": "{{model}}" },
+  "security": { "auth": { "selectedType": "openai" } }
+}`,
+    },
+  },
   kiro: {
     id: "kiro",
     name: "Kiro AI",

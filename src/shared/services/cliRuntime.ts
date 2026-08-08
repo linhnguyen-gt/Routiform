@@ -111,6 +111,15 @@ const CLI_TOOLS: Record<string, Record<string, unknown>> = {
       config: ".config/opencode/opencode.json",
     },
   },
+  qwen: {
+    defaultCommand: "qwen",
+    envBinKey: "CLI_QWEN_BIN",
+    requiresBinary: true,
+    healthcheckTimeoutMs: 12000,
+    paths: {
+      config: ".qwen/settings.json",
+    },
+  },
   qoder: {
     defaultCommand: "qodercli",
     envBinKey: "CLI_QODER_BIN",

@@ -12,6 +12,11 @@ import {
   applyRoutiformContinueConfig,
   removeRoutiformContinueConfig,
 } from "@/shared/services/continueConfig";
+import {
+  QWEN_API_KEY_ENV,
+  applyRoutiformQwenConfig,
+  removeRoutiformQwenConfig,
+} from "@/shared/services/qwenConfig";
 import { fetchModelTokenLimits } from "@/shared/services/modelTokenLimits";
 import {
   guideSettingsSaveSchema,
@@ -25,7 +30,7 @@ import { getApiKeyById } from "@/lib/localDb";
  * POST /api/cli-tools/guide-settings/:toolId
  *
  * Save configuration for guide-based tools that have config files.
- * Currently supports: continue, opencode
+ * Currently supports: continue, opencode, qwen
  */
 export async function POST(request, { params }) {
   if (!(await isHostSecretAuthenticated(request))) {
@@ -66,10 +71,9 @@ export async function POST(request, { params }) {
       // Non-critical: fall back to whatever value was in apiKey
     }
   }
-  const models =
-    toolId === "opencode" && Array.isArray((validation.data as { models?: string[] }).models)
-      ? (validation.data as { models?: string[] }).models
-      : undefined;
+  const models = Array.isArray((validation.data as { models?: string[] }).models)
+    ? (validation.data as { models?: string[] }).models
+    : undefined;
 
   try {
     switch (toolId) {
@@ -79,6 +83,8 @@ export async function POST(request, { params }) {
         // OpenCode reads opencode.json (see getOpenCodeConfigPath); merge the managed
         // Routiform OpenAI/Anthropic provider entries without touching unrelated providers.
         return await saveOpenCodeConfig({ baseUrl, apiKey, model, models });
+      case "qwen":
+        return await saveQwenConfig({ baseUrl, apiKey, model, models });
       default:
         return NextResponse.json(
           { error: `Direct config save not supported for: ${toolId}` },
@@ -110,6 +116,8 @@ export async function DELETE(request: Request, { params }) {
         return await resetContinueConfig();
       case "opencode":
         return await resetOpenCodeConfig();
+      case "qwen":
+        return await resetQwenConfig();
       default:
         return NextResponse.json(
           { error: `Config reset not supported for: ${toolId}` },
@@ -122,6 +130,19 @@ export async function DELETE(request: Request, { params }) {
 }
 
 const getContinueConfigPath = () => path.join(getCliConfigHome(), ".continue", "config.yaml");
+
+/** Qwen reads its credentials from `~/.qwen/.env`; settings.json only names the variable. */
+const upsertEnvVar = (envText: string, key: string, value: string) => {
+  const line = `${key}=${value}`;
+  const re = new RegExp(`^${key}=.*$`, "m");
+  if (re.test(envText)) return envText.replace(re, line);
+  return envText.length > 0 && !envText.endsWith("\n")
+    ? `${envText}\n${line}\n`
+    : `${envText}${line}\n`;
+};
+
+const removeEnvVar = (envText: string, key: string) =>
+  envText.replace(new RegExp(`^${key}=.*\\r?\\n?`, "m"), "");
 
 /** The endpoints an entry may carry from a previous apply, whatever port was in use then. */
 const getLocalHosts = () => {
@@ -141,6 +162,39 @@ async function resetContinueConfig() {
 
   const config = removeRoutiformContinueConfig(existingConfig, { localHosts: getLocalHosts() });
   await fs.writeFile(configPath, dumpYaml(config, { indent: 2, lineWidth: -1 }), "utf-8");
+
+  return NextResponse.json({
+    success: true,
+    message: `Routiform models removed from ${configPath}`,
+    configPath,
+  });
+}
+
+const getQwenDir = () => path.join(getCliConfigHome(), ".qwen");
+const getQwenConfigPath = () => path.join(getQwenDir(), "settings.json");
+const getQwenEnvPath = () => path.join(getQwenDir(), ".env");
+
+async function resetQwenConfig() {
+  const configPath = getQwenConfigPath();
+
+  let existingConfig: unknown;
+  try {
+    existingConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
+  } catch {
+    return NextResponse.json({ success: true, message: "No Qwen Code config to reset" });
+  }
+
+  const config = removeRoutiformQwenConfig(existingConfig, { localHosts: getLocalHosts() });
+  await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf-8");
+
+  // The key lives in ~/.qwen/.env, not in settings.json, so it has to be dropped separately
+  // or the next apply would silently keep authenticating with the old one.
+  try {
+    const envText = await fs.readFile(getQwenEnvPath(), "utf-8");
+    await fs.writeFile(getQwenEnvPath(), removeEnvVar(envText, QWEN_API_KEY_ENV), "utf-8");
+  } catch {
+    // No .env to clean up.
+  }
 
   return NextResponse.json({
     success: true,
@@ -206,6 +260,54 @@ async function saveContinueConfig({ baseUrl, apiKey, model }) {
   return NextResponse.json({
     success: true,
     message: `Continue config saved to ${configPath}`,
+    configPath,
+  });
+}
+
+/**
+ * Save Qwen Code config to ~/.qwen/settings.json, with the key in ~/.qwen/.env.
+ *
+ * Qwen keys `modelProviders` by auth type and stores an array of model entries under it,
+ * so every selected model becomes its own entry. Credentials are deliberately kept out of
+ * settings.json — an entry names the variable, the runtime reads it from the environment.
+ */
+async function saveQwenConfig({ baseUrl, apiKey, model, models }) {
+  const configPath = getQwenConfigPath();
+  await fs.mkdir(getQwenDir(), { recursive: true });
+
+  let existingConfig: unknown = {};
+  try {
+    existingConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
+  } catch {
+    // File doesn't exist or is invalid JSON — start fresh.
+  }
+
+  // Qwen calculates its context meter from contextWindowSize, so it needs the real window.
+  const { contextLengths } = await fetchModelTokenLimits([model, ...(models || [])]);
+
+  const config = applyRoutiformQwenConfig(
+    existingConfig,
+    { baseUrl, model, models, contextLengths },
+    { localHosts: getLocalHosts() }
+  );
+
+  await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf-8");
+
+  let envText = "";
+  try {
+    envText = await fs.readFile(getQwenEnvPath(), "utf-8");
+  } catch {
+    // No .env yet.
+  }
+  await fs.writeFile(
+    getQwenEnvPath(),
+    upsertEnvVar(envText, QWEN_API_KEY_ENV, apiKey || "sk_routiform"),
+    "utf-8"
+  );
+
+  return NextResponse.json({
+    success: true,
+    message: `Qwen Code config saved to ${configPath}`,
     configPath,
   });
 }

@@ -86,6 +86,8 @@ export const guideSettingsSaveSchema = z.object({
   apiKey: z.string().optional(),
   keyId: z.string().optional(),
   model: z.string().trim().min(1, "Model is required"),
+  /** Qwen writes one provider entry per model; Continue ignores this. */
+  models: z.array(z.string().trim().min(1)).optional(),
 });
 
 export const opencodeGuideSettingsSaveSchema = z
