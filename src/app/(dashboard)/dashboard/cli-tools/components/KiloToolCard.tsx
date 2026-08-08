@@ -50,7 +50,9 @@ export default function KiloToolCard({
 
   useEffect(() => {
     if (apiKeys?.length > 0 && !selectedApiKey) {
-      setSelectedApiKey(apiKeys[0].key);
+      // The id, not the key: /api/keys returns masked values, so the server has to
+      // resolve the real secret before it lands in auth.json.
+      setSelectedApiKey(apiKeys[0].id);
     }
   }, [apiKeys, selectedApiKey]);
 
@@ -141,7 +143,7 @@ export default function KiloToolCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           baseUrl: normalizedBaseUrl,
-          apiKey: selectedApiKey || "sk_routiform",
+          ...(selectedApiKey ? { keyId: selectedApiKey } : { apiKey: "sk_routiform" }),
           model: selectedModel,
         }),
       });
@@ -272,6 +274,14 @@ export default function KiloToolCard({
                       </code>
                     </p>
                   )}
+                  {kiloStatus.configPath && (
+                    <p className="text-xs text-text-muted">
+                      {t("configPathShort")}:{" "}
+                      <code className="px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">
+                        {kiloStatus.configPath}
+                      </code>
+                    </p>
+                  )}
                   {kiloStatus.authPath && (
                     <p className="text-xs text-text-muted">
                       {t("auth")}:{" "}
@@ -342,7 +352,7 @@ export default function KiloToolCard({
                         className="px-3 py-2 bg-bg-secondary rounded-lg text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
                       >
                         {apiKeys.map((key) => (
-                          <option key={key.id} value={key.key}>
+                          <option key={key.id} value={key.id}>
                             {key.key}
                           </option>
                         ))}
