@@ -14,9 +14,11 @@ const {
   KILO_PROVIDER_ID,
   applyRoutiformKiloAuth,
   applyRoutiformKiloConfig,
+  buildKiloProvider,
   hasRoutiformKiloConfig,
   removeRoutiformKiloAuth,
   removeRoutiformKiloConfig,
+  toKiloLimits,
   toKiloModelRef,
 } = await import("../../src/shared/services/kiloConfig.ts");
 
@@ -106,4 +108,23 @@ test("hasRoutiformKiloConfig reads the config, not the credential store", () => 
   assert.equal(hasRoutiformKiloConfig(applyRoutiformKiloConfig(null, APPLY)), true);
   assert.equal(hasRoutiformKiloConfig({ provider: { [KILO_PROVIDER_ID]: {} } }), false);
   assert.equal(hasRoutiformKiloConfig(null), false);
+});
+
+test("catalog limits become Kilo's per-model limit block", () => {
+  // Kilo sizes its context meter and caps output from `limit`. The route used to build the
+  // provider without it, so every model was written as a bare name with no window at all.
+  const limits = toKiloLimits({ [APPLY.model]: 300000 }, { [APPLY.model]: 64000 });
+  assert.deepEqual(limits, { [APPLY.model]: { context: 300000, output: 64000 } });
+
+  const provider = buildKiloProvider({ ...APPLY, limits });
+  assert.deepEqual(provider.models[APPLY.model].limit, { context: 300000, output: 64000 });
+});
+
+test("a known window still lands when the output cap is unknown", () => {
+  assert.deepEqual(toKiloLimits({ m: 262144 }, {}), { m: { context: 262144, output: 16384 } });
+});
+
+test("a model the catalog knows nothing about gets no limit block", () => {
+  assert.deepEqual(toKiloLimits({}, { m: 64000 }), {});
+  assert.equal(buildKiloProvider({ ...APPLY, limits: {} }).models[APPLY.model].limit, undefined);
 });

@@ -17,6 +17,7 @@ import {
 } from "@/shared/services/codexConfigToml";
 import { cliModelConfigSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { fetchModelTokenLimits } from "@/shared/services/modelTokenLimits";
 import { getApiKeyById } from "@/lib/localDb";
 import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
 
@@ -155,7 +156,12 @@ export async function POST(request: Request) {
     }
 
     // Update only the Routiform-specific root keys and provider section.
-    const configContent = applyRoutiformCodexConfig(existingConfig, { model, baseUrl });
+    const { contextLengths } = await fetchModelTokenLimits([model]);
+    const configContent = applyRoutiformCodexConfig(existingConfig, {
+      model,
+      baseUrl,
+      contextWindow: contextLengths[model],
+    });
     await fs.writeFile(configPath, configContent);
 
     // Update auth.json with OPENAI_API_KEY (Codex reads this first)

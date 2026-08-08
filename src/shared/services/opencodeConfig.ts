@@ -204,7 +204,14 @@ export const mergeOpenCodeConfig = (
     },
   };
 
-  // Do not set a default top-level `model` — let the user pick interactively in opencode.
+  // Point opencode at the model that was just configured. Leaving this unset kept opencode on
+  // whatever default it resolves on its own — `anthropic/claude-sonnet-5` — so the provider and
+  // its `limit` were written but never used, and the context meter reported the wrong model's
+  // window. Every other tool's apply sets its default model; this one used not to.
+  const modelRef = toOpenCodeModelRef(input.model || input.models?.[0]);
+  if (modelRef) {
+    next.model = modelRef;
+  }
 
   if (next.$schema == null) {
     next.$schema = "https://opencode.ai/config.json";

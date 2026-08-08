@@ -127,3 +127,59 @@ test("hasUsableCodexAuth accepts local fallback keys and rejects masked values",
   assert.equal(hasUsableCodexAuth('{ "OPENAI_API_KEY": "sk-****" }'), false);
   assert.equal(hasUsableCodexAuth("not-json"), false);
 });
+
+test("a known context window is written as a bare TOML integer", () => {
+  // Codex only knows the window of its own built-in slugs. Without this key a combo routed
+  // through us falls back to Codex's unknown-model metadata and the meter reports 272k.
+  const output = applyRoutiformCodexConfig(null, {
+    model: "test-combo",
+    baseUrl: "http://localhost:20128",
+    contextWindow: 200000,
+  });
+
+  assert.match(output, /^model_context_window = 200000$/m);
+  assert.doesNotMatch(output, /model_context_window = "/, "an i64 key must not be quoted");
+});
+
+test("an unknown context window leaves no stale value from the previous model", () => {
+  const configured = applyRoutiformCodexConfig(null, {
+    model: "big-model",
+    baseUrl: "http://localhost:20128",
+    contextWindow: 400000,
+  });
+  const reconfigured = applyRoutiformCodexConfig(configured, {
+    model: "unknown-model",
+    baseUrl: "http://localhost:20128",
+  });
+
+  assert.doesNotMatch(reconfigured, /model_context_window/);
+  assert.match(reconfigured, /^model = "unknown-model"$/m);
+});
+
+test("re-applying replaces the window rather than stacking a second key", () => {
+  let config = applyRoutiformCodexConfig(null, {
+    model: "m",
+    baseUrl: "http://localhost:20128",
+    contextWindow: 128000,
+  });
+  config = applyRoutiformCodexConfig(config, {
+    model: "m",
+    baseUrl: "http://localhost:20128",
+    contextWindow: 262144,
+  });
+
+  assert.equal(config.match(/model_context_window/g).length, 1);
+  assert.match(config, /^model_context_window = 262144$/m);
+});
+
+test("reset removes the window along with the model it described", () => {
+  const configured = applyRoutiformCodexConfig(`approval_policy = "never"\n`, {
+    model: "test-combo",
+    baseUrl: "http://localhost:20128",
+    contextWindow: 300000,
+  });
+
+  const reset = removeRoutiformCodexConfig(configured);
+  assert.doesNotMatch(reset, /model_context_window/);
+  assert.match(reset, /^approval_policy = "never"$/m);
+});

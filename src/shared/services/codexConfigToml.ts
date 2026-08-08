@@ -54,6 +54,26 @@ const upsertRootKey = (lines: string[], key: string, value: string) => {
   lines.splice(insertAt, 0, nextLine);
 };
 
+/** TOML integers are bare, so `model_context_window` cannot go through upsertRootKey. */
+const upsertRootNumber = (lines: string[], key: string, value: number) => {
+  const keyIndexes = findRootKeyIndexes(lines, key);
+  const nextLine = `${key} = ${Math.trunc(value)}`;
+
+  if (keyIndexes.length > 0) {
+    lines[keyIndexes[0]] = nextLine;
+    for (let index = keyIndexes.length - 1; index >= 1; index -= 1) {
+      lines.splice(keyIndexes[index], 1);
+    }
+    return;
+  }
+
+  let insertAt = findFirstSectionIndex(lines);
+  while (insertAt > 0 && lines[insertAt - 1].trim() === "") {
+    insertAt -= 1;
+  }
+  lines.splice(insertAt, 0, nextLine);
+};
+
 const removeRootKey = (lines: string[], key: string) => {
   const keyIndexes = findRootKeyIndexes(lines, key);
   for (let index = keyIndexes.length - 1; index >= 0; index -= 1) {
@@ -179,14 +199,29 @@ export const hasUsableCodexAuth = (authContent: string | null) => {
   }
 };
 
+/**
+ * Codex only knows the context window of its own built-in slugs. Anything routed through
+ * us — a combo, or any model it has never heard of — falls back to its unknown-model
+ * metadata (272k, at 95% effective), so the context meter reports a number that has nothing
+ * to do with the model actually answering. `model_context_window` is the documented override.
+ *
+ * Codex clamps the override to the model's `max_context_window`, which for an unknown slug is
+ * that same 272k — so this can correct a window downwards but cannot raise one above it.
+ */
 export const applyRoutiformCodexConfig = (
   existingConfig: string | null,
-  { model, baseUrl }: { model: string; baseUrl: string }
+  { model, baseUrl, contextWindow }: { model: string; baseUrl: string; contextWindow?: number }
 ) => {
   const lines = splitLines(existingConfig);
 
   upsertRootKey(lines, "model", model);
   upsertRootKey(lines, "model_provider", "routiform");
+  if (contextWindow && contextWindow > 0) {
+    upsertRootNumber(lines, "model_context_window", contextWindow);
+  } else {
+    // A stale window from a previously configured model is worse than none.
+    removeRootKey(lines, "model_context_window");
+  }
   upsertSection(lines, ROUTIFORM_SECTION_NAME, [
     `[${ROUTIFORM_SECTION_NAME}]`,
     `name = ${toTomlString("Routiform")}`,
@@ -204,6 +239,7 @@ export const removeRoutiformCodexConfig = (existingConfig: string | null) => {
   if (modelProvider === "routiform") {
     removeRootKey(lines, "model");
     removeRootKey(lines, "model_provider");
+    removeRootKey(lines, "model_context_window");
   }
 
   removeSection(lines, ROUTIFORM_SECTION_NAME);

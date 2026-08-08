@@ -19,6 +19,7 @@ import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
  *
  * Save configuration for guide-based tools that have config files.
  * Currently supports: continue, opencode
+import { getApiKeyById } from "@/lib/localDb";
  */
 export async function POST(request, { params }) {
   if (!(await isHostSecretAuthenticated(request))) {
@@ -46,7 +47,19 @@ export async function POST(request, { params }) {
   if (isValidationFailure(validation)) {
     return NextResponse.json({ error: validation.error }, { status: 400 });
   }
-  const { baseUrl, apiKey, model } = validation.data;
+  const { baseUrl, model } = validation.data;
+  // /api/keys hands the browser a masked key, so the card sends the id and the real value is
+  // read here. Writing the mask produced a config the tool could not authenticate with.
+  let { apiKey } = validation.data;
+  const keyId = (validation.data as { keyId?: string }).keyId?.trim();
+  if (keyId) {
+    try {
+      const keyRecord = await getApiKeyById(keyId);
+      if (keyRecord?.key) apiKey = keyRecord.key as string;
+    } catch {
+      // Non-critical: fall back to whatever value was in apiKey
+    }
+  }
   const models =
     toolId === "opencode" && Array.isArray((validation.data as { models?: string[] }).models)
       ? (validation.data as { models?: string[] }).models

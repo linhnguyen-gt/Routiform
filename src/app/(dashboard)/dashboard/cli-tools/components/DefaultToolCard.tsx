@@ -254,6 +254,9 @@ export default function DefaultToolCard({
           baseUrl: baseUrlWithV1,
           apiKey: keyToUse,
           model: isOpenCode ? modelValues[0] || "" : modelValue,
+          // The selector holds the masked key /api/keys returns; the id is what lets the
+          // route look the real one up before writing it to the tool's config.
+          ...(selectedApiKey ? { keyId: apiKeys?.find((k) => k.key === selectedApiKey)?.id } : {}),
           ...(isOpenCode ? { models: modelValues } : {}),
         }),
       });

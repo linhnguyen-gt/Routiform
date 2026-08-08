@@ -23,9 +23,21 @@ const blockRegex = (key: string) =>
 export const MODEL_BLOCK_RE = blockRegex("model");
 const AUXILIARY_BLOCK_RE = blockRegex("auxiliary");
 
-export const buildModelBlock = (model: string, baseUrl: string) =>
+/**
+ * The `model:` block, including an explicit context window when the catalog knows one.
+ *
+ * Hermes normally auto-detects the window, but it classifies a local endpoint by probing
+ * `/api/v1/models` first and reading a 200 there as "this is LM Studio". This app answers
+ * that path, so Hermes takes its LM Studio branch, looks for `loaded_instances[].config`
+ * that a proxy does not have, and falls back to a default window — and it caches the
+ * misclassification to disk. `context_length` is the first step of Hermes' own resolution
+ * chain, ahead of both the cache and the probe, which is why the explicit value is written
+ * rather than left to detection.
+ */
+export const buildModelBlock = (model: string, baseUrl: string, contextLength?: number) =>
   `model:\n  default: "${model}"\n  provider: "custom"\n  base_url: "${baseUrl}"\n` +
-  `  api_key: "\${${HERMES_API_KEY_ENV}}"\n`;
+  `  api_key: "\${${HERMES_API_KEY_ENV}}"\n` +
+  (contextLength && contextLength > 0 ? `  context_length: ${Math.trunc(contextLength)}\n` : "");
 
 export const parseModelBlock = (yaml: string) => {
   const match = yaml.match(MODEL_BLOCK_RE);
@@ -35,11 +47,26 @@ export const parseModelBlock = (yaml: string) => {
     const m = body.match(new RegExp(`^[ \\t]+${key}:[ \\t]*["']?([^"'\\r\\n]+)["']?`, "m"));
     return m ? m[1].trim() : null;
   };
+  const contextLength = Number(get("context_length"));
+
   return {
     default: get("default"),
     provider: get("provider"),
     base_url: get("base_url"),
+    context_length: Number.isFinite(contextLength) && contextLength > 0 ? contextLength : null,
   };
+};
+
+/**
+ * Whether the model block points back at a local Routiform endpoint.
+ *
+ * Shared with the batch status endpoint so a collapsed card and an expanded one cannot
+ * disagree about whether the tool is configured.
+ */
+export const hasRoutiformHermesConfig = (yaml: string) => {
+  const model = parseModelBlock(yaml);
+  if (!model?.base_url) return false;
+  return model.provider === "custom" && /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(model.base_url);
 };
 
 const upsertBlock = (yaml: string, re: RegExp, newBlock: string) => {

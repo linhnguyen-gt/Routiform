@@ -43,7 +43,10 @@ export default function HermesToolCard({
 
   const getConfigStatus = () => {
     if (!hermesStatus?.installed) return null;
-    const cfg = hermesStatus.settings?.model;
+    // The batch endpoint reports runtime only. Until the settings GET lands there is nothing
+    // to judge, so defer to the batch verdict rather than claiming "not configured".
+    if (!hermesStatus.settings) return null;
+    const cfg = hermesStatus.settings.model;
     if (!cfg?.base_url) return "not_configured";
     const localMatch = /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(cfg.base_url);
     if (localMatch) return "configured";
@@ -65,18 +68,17 @@ export default function HermesToolCard({
   }, [batchStatus]);
 
   useEffect(() => {
-    if (isExpanded && !hermesStatus) {
-      checkStatus();
-      fetchModelAliases();
-    }
+    // Seeded from the batch status, `hermesStatus` is truthy before any settings are known —
+    // gate on the settings themselves or the card never reads ~/.hermes/config.yaml.
+    if (isExpanded && !hermesStatus?.settings) checkStatus();
     if (isExpanded) fetchModelAliases();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isExpanded]);
 
   useEffect(() => {
-    if (hermesStatus?.installed && !hasInitializedModel.current) {
+    if (hermesStatus?.settings && !hasInitializedModel.current) {
       hasInitializedModel.current = true;
-      const cfg = hermesStatus.settings?.model;
+      const cfg = hermesStatus.settings.model;
       if (cfg?.default) setSelectedModel(cfg.default);
       const title = hermesStatus.settings?.titleGeneration;
       if (title?.provider === "custom" && title.model) setTitleModel(title.model);

@@ -9,6 +9,7 @@ import {
 } from "@/shared/services/cliRuntime";
 import { getClaudeCliConfigStatus } from "@/shared/services/claudeCodeConfig";
 import { hasRoutiformCodexConfig, hasUsableCodexAuth } from "@/shared/services/codexConfigToml";
+import { hasRoutiformHermesConfig } from "@/shared/services/hermesConfigYaml";
 import { getAllCliToolLastConfigured } from "@/lib/db/cliToolState";
 import { getRuntimePorts } from "@/lib/runtime/ports";
 
@@ -38,6 +39,11 @@ async function checkToolConfigStatus(toolId: string): Promise<string> {
       }
 
       return "configured";
+    }
+
+    // Hermes stores its config as YAML, so it never reaches the JSON branch below
+    if (toolId === "hermes") {
+      return hasRoutiformHermesConfig(content) ? "configured" : "not_configured";
     }
 
     const config = JSON.parse(content);
@@ -125,7 +131,7 @@ export async function GET() {
     );
 
     // Check config status for installed+runnable tools via direct file reads
-    const settingsTools = ["claude", "codex", "droid", "openclaw", "cline", "kilo"];
+    const settingsTools = ["claude", "codex", "droid", "openclaw", "cline", "kilo", "hermes"];
 
     await Promise.all(
       settingsTools.map(async (toolId) => {

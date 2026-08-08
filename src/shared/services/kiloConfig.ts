@@ -41,6 +41,26 @@ export type KiloConfigInput = {
   limits?: Record<string, KiloModelLimit>;
 };
 
+/**
+ * Kilo shares OpenCode's provider schema, where `limit.output` is required alongside
+ * `limit.context`. A model the catalog knows the window for but not the output cap still
+ * deserves the window, so the cap falls back rather than dropping the whole entry.
+ */
+const FALLBACK_OUTPUT_TOKENS = 16384;
+
+/** Per-model `{context, output}` limits from the catalog's two lookup maps. */
+export function toKiloLimits(
+  contextLengths: Record<string, number>,
+  maxOutputTokens: Record<string, number>
+): Record<string, KiloModelLimit> {
+  const limits: Record<string, KiloModelLimit> = {};
+  for (const [id, context] of Object.entries(contextLengths)) {
+    if (!context) continue;
+    limits[id] = { context, output: maxOutputTokens[id] || FALLBACK_OUTPUT_TOKENS };
+  }
+  return limits;
+}
+
 /** The default model reference Kilo resolves, `<providerID>/<modelID>`. */
 export const toKiloModelRef = (model: string) => `${KILO_PROVIDER_ID}/${model}`;
 

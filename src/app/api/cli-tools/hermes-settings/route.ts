@@ -9,6 +9,7 @@ import os from "os";
 import {
   HERMES_API_KEY_ENV,
   buildModelBlock,
+  hasRoutiformHermesConfig,
   parseModelBlock,
   parseTitleGeneration,
   removeAuxiliaryOverrides,
@@ -16,6 +17,7 @@ import {
   upsertModelBlock,
   upsertTitleGenerationBlock,
 } from "@/shared/services/hermesConfigYaml";
+import { fetchModelTokenLimits } from "@/shared/services/modelTokenLimits";
 import { hermesSettingsSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
@@ -76,13 +78,6 @@ const readEnvFile = async () => {
   }
 };
 
-const hasRoutiformConfig = (modelCfg: Record<string, string | null> | null) => {
-  if (!modelCfg?.base_url) return false;
-  return (
-    modelCfg.provider === "custom" && /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(modelCfg.base_url)
-  );
-};
-
 export async function GET(request: Request) {
   if (!(await isHostSecretAuthenticated(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -98,11 +93,10 @@ export async function GET(request: Request) {
       });
     }
     const yaml = await readConfigYaml();
-    const model = parseModelBlock(yaml);
     return NextResponse.json({
       installed: true,
-      settings: { model, titleGeneration: parseTitleGeneration(yaml) },
-      hasRoutiform: hasRoutiformConfig(model),
+      settings: { model: parseModelBlock(yaml), titleGeneration: parseTitleGeneration(yaml) },
+      hasRoutiform: hasRoutiformHermesConfig(yaml),
       configPath: getHermesConfigPath(),
     });
   } catch (error) {
@@ -143,8 +137,15 @@ export async function POST(request: Request) {
 
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
 
+    // Hermes misreads this app as an LM Studio server, so its own context detection never
+    // reaches the catalog. The window is written into the config block instead.
+    const { contextLengths } = await fetchModelTokenLimits([model]);
+
     const existingYaml = await readConfigYaml();
-    const withModel = upsertModelBlock(existingYaml, buildModelBlock(model, normalizedBaseUrl));
+    const withModel = upsertModelBlock(
+      existingYaml,
+      buildModelBlock(model, normalizedBaseUrl, contextLengths[model])
+    );
     // Auxiliary tasks default to the main chat model. Routing session titles to a cheaper
     // model is the one override worth exposing, since a title is a one-line completion.
     const newYaml = upsertTitleGenerationBlock(

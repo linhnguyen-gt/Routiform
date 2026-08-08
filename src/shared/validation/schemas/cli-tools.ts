@@ -84,6 +84,7 @@ export const codexProfileIdSchema = z.object({
 export const guideSettingsSaveSchema = z.object({
   baseUrl: z.string().trim().min(1).optional(),
   apiKey: z.string().optional(),
+  keyId: z.string().optional(),
   model: z.string().trim().min(1, "Model is required"),
 });
 
@@ -91,6 +92,7 @@ export const opencodeGuideSettingsSaveSchema = z
   .object({
     baseUrl: z.string().trim().min(1).optional(),
     apiKey: z.string().optional(),
+    keyId: z.string().optional(),
     model: z.string().trim().min(1, "Model is required").optional(),
     models: z.array(z.string().trim().min(1)).optional(),
   })

@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 const {
   HERMES_API_KEY_ENV,
   buildModelBlock,
+  hasRoutiformHermesConfig,
   parseModelBlock,
   parseTitleGeneration,
   removeAuxiliaryOverrides,
@@ -121,6 +122,27 @@ test("an unrelated top-level block is never disturbed", () => {
   assert.equal(loadYaml(yaml).terminal.shell, "zsh");
 });
 
+test("a config Hermes is already running is recognised as configured", () => {
+  // The shape a real ~/.hermes/config.yaml has after an apply: our block on top, Hermes' own
+  // blocks below it. Reading this back is what tells a reloaded card the tool is set up.
+  const real = `${MODEL_BLOCK}
+database:
+  path: "~/.hermes/hermes.db"
+agent:
+  max_iterations: 50
+`;
+  assert.equal(hasRoutiformHermesConfig(real), true);
+});
+
+test("a config pointed somewhere else is not claimed as ours", () => {
+  assert.equal(hasRoutiformHermesConfig(""), false);
+  assert.equal(hasRoutiformHermesConfig('model:\n  provider: "openrouter"\n'), false);
+  assert.equal(
+    hasRoutiformHermesConfig(buildModelBlock("gpt-5.4", "https://api.openai.com/v1")),
+    false
+  );
+});
+
 test("parseTitleGeneration reports what the dashboard should prefill", () => {
   assert.equal(parseTitleGeneration(MODEL_BLOCK), null);
 
@@ -130,4 +152,37 @@ test("parseTitleGeneration reports what the dashboard should prefill", () => {
     provider: "custom",
     model: "aux",
   });
+});
+
+test("an explicit context window is written, because Hermes cannot detect ours", () => {
+  // Hermes classifies a local endpoint by probing /api/v1/models and reading 200 as
+  // "LM Studio". This app answers that path, so detection dead-ends on a shape a proxy
+  // does not have. `context_length` is step 0 of Hermes' resolution chain — ahead of both
+  // its cached misclassification and the probe.
+  const block = buildModelBlock("test-combo", BASE_URL, 300000);
+
+  assert.match(block, /^ {2}context_length: 300000$/m);
+  assert.equal(parseModelBlock(block).context_length, 300000);
+});
+
+test("an unknown window writes no key rather than a zero", () => {
+  assert.doesNotMatch(buildModelBlock("m", BASE_URL), /context_length/);
+  assert.doesNotMatch(buildModelBlock("m", BASE_URL, 0), /context_length/);
+  assert.equal(parseModelBlock(MODEL_BLOCK).context_length, null);
+});
+
+test("re-applying replaces the window instead of leaving the previous model's", () => {
+  const first = upsertModelBlock("", buildModelBlock("big", BASE_URL, 400000));
+  const second = upsertModelBlock(first, buildModelBlock("small", BASE_URL, 128000));
+
+  assert.equal(second.match(/context_length/g).length, 1);
+  assert.equal(parseModelBlock(second).context_length, 128000);
+});
+
+test("the window survives a title-model edit", () => {
+  const yaml = upsertTitleGenerationBlock(buildModelBlock("m", BASE_URL, 262144), {
+    model: "aux",
+    baseUrl: BASE_URL,
+  });
+  assert.equal(parseModelBlock(yaml).context_length, 262144);
 });

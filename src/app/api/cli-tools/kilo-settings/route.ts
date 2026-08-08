@@ -16,7 +16,9 @@ import {
   hasRoutiformKiloConfig,
   removeRoutiformKiloAuth,
   removeRoutiformKiloConfig,
+  toKiloLimits,
 } from "@/shared/services/kiloConfig";
+import { fetchModelTokenLimits } from "@/shared/services/modelTokenLimits";
 import { cliModelConfigSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { getApiKeyById } from "@/lib/localDb";
@@ -142,7 +144,14 @@ export async function POST(request) {
 
     await createMultiBackup("kilo", [configPath, authPath]);
 
-    const config = applyRoutiformKiloConfig(await readJsonFile(configPath), { baseUrl, model });
+    // Kilo shows context usage and caps output from `limit`, so it needs the real numbers.
+    const { contextLengths, maxOutputTokens } = await fetchModelTokenLimits([model]);
+
+    const config = applyRoutiformKiloConfig(await readJsonFile(configPath), {
+      baseUrl,
+      model,
+      limits: toKiloLimits(contextLengths, maxOutputTokens),
+    });
     await writeJsonFile(configPath, config);
 
     const auth = applyRoutiformKiloAuth(await readJsonFile(authPath), apiKey || "sk_routiform");
