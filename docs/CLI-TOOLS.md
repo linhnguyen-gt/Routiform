@@ -315,19 +315,27 @@ Or use the Routiform dashboard → **CLI Tools → KiloCode → Apply Config**.
 
 ### Continue (VS Code Extension)
 
-Edit `~/.continue/config.yaml`:
+Edit `~/.continue/config.yaml`. `config.json` is deprecated, and the v1 assistant schema
+requires `name`, `version` and `schema` at the top level — a file with only `models` is
+rejected:
 
 ```yaml
+name: routiform
+version: 0.0.1
+schema: v1
 models:
-  - name: Routiform
+  - name: auto
     provider: openai
     model: auto
     apiBase: http://localhost:20128/v1
     apiKey: sk-your-routiform-key
-    default: true
+    roles:
+      - chat
+      - edit
+      - apply
 ```
 
-Restart VS Code after editing.
+Each entry is keyed by `name`, not the deprecated `title`. Restart VS Code after editing.
 
 ---
 

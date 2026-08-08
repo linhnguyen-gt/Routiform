@@ -143,6 +143,9 @@ export GEMINI_API_KEY="sk-your-routiform-key"
 
 ### Claude Code
 
+Claude Code reads the endpoint from the `env` block of its settings file, not from a
+top-level key, and has no CLI flag for it:
+
 ```bash
 mkdir -p ~/.claude && cat > ~/.claude/settings.json << EOF
 {
@@ -155,11 +158,17 @@ mkdir -p ~/.claude && cat > ~/.claude/settings.json << EOF
 EOF
 ```
 
+`ANTHROPIC_DEFAULT_OPUS_MODEL` and `ANTHROPIC_DEFAULT_HAIKU_MODEL` map the other two
+aliases; omit them to leave those aliases on Anthropic's own models.
+
 **Test:** `claude "say hello"`
 
 ---
 
 ### OpenAI Codex
+
+Codex takes the endpoint from a named provider in `config.toml` and the key from a
+separate `auth.json`:
 
 ```bash
 mkdir -p ~/.codex && cat > ~/.codex/config.toml << EOF
@@ -178,11 +187,19 @@ cat > ~/.codex/auth.json << EOF
 EOF
 ```
 
+`model_context_window` is what stops Codex from reporting the context meter against its
+own 272k fallback for a slug it does not recognise. Codex clamps the value to the model's
+`max_context_window`, so it can correct a window downwards but not raise one above that
+fallback.
+
 **Test:** `codex "what is 2+2?"`
 
 ---
 
 ### OpenCode
+
+OpenCode reads `opencode.json` — there is no `config.toml`. A provider entry needs the npm
+package that serves it, and `limit` is what the context meter is calculated from:
 
 ```bash
 mkdir -p ~/.config/opencode && cat > ~/.config/opencode/opencode.json << 'EOF'
@@ -206,6 +223,10 @@ mkdir -p ~/.config/opencode && cat > ~/.config/opencode/opencode.json << 'EOF'
 EOF
 ```
 
+Anthropic models go under a second `routiform-anthropic` provider with
+`"npm": "@ai-sdk/anthropic"`. Without the root `model`, opencode stays on whatever default
+it resolves on its own and the provider above is never used.
+
 **Test:** `opencode`
 
 ---
@@ -213,6 +234,9 @@ EOF
 ### Cline (CLI or VS Code)
 
 **CLI mode:**
+
+Cline keeps a separate provider for its Act and Plan modes, and the key lives in its
+secrets store rather than in `globalState.json`:
 
 ```bash
 mkdir -p ~/.cline/data && cat > ~/.cline/data/globalState.json << EOF
@@ -241,6 +265,10 @@ Or use the Routiform dashboard → **CLI Tools → Cline → Apply Config**.
 
 **CLI mode:**
 
+Kilo splits its configuration across an XDG config file and an XDG data file. On
+macOS/Linux those are `~/.config/kilo/kilo.json` and `~/.local/share/kilo/auth.json`;
+`XDG_CONFIG_HOME` and `XDG_DATA_HOME` override both.
+
 ```bash
 mkdir -p ~/.config/kilo && cat > ~/.config/kilo/kilo.json << 'EOF'
 {
@@ -265,8 +293,8 @@ EOF
 
 **VS Code settings:**
 
-Kilo Code's VS Code extension is configured from its own settings UI — API Provider
-`OpenAI Compatible`, Base URL `http://localhost:20128/v1` — not from `kilo.json`.
+The extension is configured from its own settings UI — API Provider `OpenAI Compatible`,
+Base URL `http://localhost:20128/v1` — not from `kilo.json`.
 
 Or use the Routiform dashboard → **CLI Tools → KiloCode → Apply Config**.
 
@@ -274,19 +302,65 @@ Or use the Routiform dashboard → **CLI Tools → KiloCode → Apply Config**.
 
 ### Continue (VS Code Extension)
 
-Edit `~/.continue/config.yaml`:
+Edit `~/.continue/config.yaml`. `config.json` is deprecated, and the v1 assistant schema
+requires `name`, `version` and `schema` at the top level — a file with only `models` is
+rejected:
 
 ```yaml
+name: routiform
+version: 0.0.1
+schema: v1
 models:
-  - name: Routiform
+  - name: auto
     provider: openai
     model: auto
     apiBase: http://localhost:20128/v1
     apiKey: sk-your-routiform-key
-    default: true
+    roles:
+      - chat
+      - edit
+      - apply
 ```
 
-Restart VS Code after editing.
+Each entry is keyed by `name`, not the deprecated `title`. Restart VS Code after editing.
+
+---
+
+### Qwen Code
+
+Qwen keys `modelProviders` by auth type and stores an array of model entries under it. It
+never keeps credentials in `settings.json` — an entry names the environment variable, and
+`~/.qwen/.env` is loaded automatically:
+
+```bash
+mkdir -p ~/.qwen && cat > ~/.qwen/settings.json << 'EOF'
+{
+  "modelProviders": {
+    "openai": [
+      {
+        "id": "auto",
+        "name": "auto",
+        "envKey": "ROUTIFORM_API_KEY",
+        "baseUrl": "http://localhost:20128/v1",
+        "generationConfig": { "contextWindowSize": 300000 }
+      }
+    ]
+  },
+  "model": { "name": "auto" },
+  "security": { "auth": { "selectedType": "openai" } }
+}
+EOF
+
+echo 'ROUTIFORM_API_KEY=sk-your-routiform-key' > ~/.qwen/.env
+```
+
+`model.name` and `security.auth.selectedType` are both required — without them the provider
+entry is written but never used. A dedicated variable is used instead of the default
+`OPENAI_API_KEY` so this cannot overwrite a real OpenAI key.
+
+Or use the Routiform dashboard → **CLI Tools → Qwen Code → Apply Config** (saves config directly via `/api/cli-tools/guide-settings/qwen`).
+
+**Test:** `qwen "say hello"`
 
 ---
 
