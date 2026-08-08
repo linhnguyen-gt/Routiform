@@ -21,6 +21,7 @@ export const createComboSchema = z.object({
   tool_filter_regex: z.string().max(1000).optional(),
   context_cache_protection: z.boolean().optional(),
   context_length: z.number().int().min(1000).max(2000000).optional(),
+  max_output_tokens: z.number().int().min(256).max(200000).optional(),
   requireToolCalling: z.boolean().optional(),
 });
 
@@ -55,6 +56,7 @@ export const updateComboSchema = z
     tool_filter_regex: z.string().max(1000).optional(),
     context_cache_protection: z.boolean().optional(),
     context_length: z.number().int().min(1000).max(2000000).optional(),
+    max_output_tokens: z.number().int().min(256).max(200000).optional(),
     requireToolCalling: z.boolean().optional(),
   })
   .superRefine((value, ctx) => {
@@ -69,6 +71,7 @@ export const updateComboSchema = z
       value.tool_filter_regex === undefined &&
       value.context_cache_protection === undefined &&
       value.context_length === undefined &&
+      value.max_output_tokens === undefined &&
       value.requireToolCalling === undefined
     ) {
       ctx.addIssue({

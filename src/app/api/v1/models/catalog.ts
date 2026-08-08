@@ -220,6 +220,7 @@ export async function getUnifiedModelsResponse(
         root: combo.name,
         parent: null,
         ...(combo.context_length ? { context_length: combo.context_length } : {}),
+        ...(combo.max_output_tokens ? { max_output_tokens: combo.max_output_tokens } : {}),
       });
     }
 

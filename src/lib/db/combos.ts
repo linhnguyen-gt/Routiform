@@ -5,11 +5,12 @@
 import { v4 as uuidv4 } from "uuid";
 import { getDbInstance } from "./core";
 import { backupDbFile } from "./backup";
-import { CONTEXT_CONFIG } from "../../shared/constants/context";
+import {
+  DEFAULT_COMBO_CONTEXT_LENGTH,
+  DEFAULT_COMBO_MAX_OUTPUT_TOKENS,
+} from "../../shared/constants/combo-defaults";
 
 type JsonRecord = Record<string, unknown>;
-
-const DEFAULT_COMBO_CONTEXT_LENGTH = CONTEXT_CONFIG.defaultLimit;
 
 function asRecord(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
@@ -20,11 +21,26 @@ function getSerializedData(value: unknown): string | null {
   return typeof row.data === "string" ? row.data : null;
 }
 
-function normalizeComboContextLength(combo: JsonRecord): JsonRecord {
-  if (typeof combo.context_length === "number" && combo.context_length > 0) {
-    return combo;
+function isPositiveNumber(value: unknown): value is number {
+  return typeof value === "number" && value > 0;
+}
+
+/**
+ * Fill in the token limits a stored combo does not carry.
+ *
+ * Applied on read rather than written back: a combo that never chose a limit has no stored
+ * value to migrate, and persisting one would invent state. The consequence is that changing
+ * the constants moves every combo that left the field blank — which is the intent.
+ */
+function normalizeComboTokenLimits(combo: JsonRecord): JsonRecord {
+  const normalized = { ...combo };
+  if (!isPositiveNumber(normalized.context_length)) {
+    normalized.context_length = DEFAULT_COMBO_CONTEXT_LENGTH;
   }
-  return { ...combo, context_length: DEFAULT_COMBO_CONTEXT_LENGTH };
+  if (!isPositiveNumber(normalized.max_output_tokens)) {
+    normalized.max_output_tokens = DEFAULT_COMBO_MAX_OUTPUT_TOKENS;
+  }
+  return normalized;
 }
 
 export async function getCombos() {
@@ -34,7 +50,7 @@ export async function getCombos() {
     .all()
     .map((row) => getSerializedData(row))
     .filter((row): row is string => row !== null)
-    .map((row) => normalizeComboContextLength(JSON.parse(row)));
+    .map((row) => normalizeComboTokenLimits(JSON.parse(row)));
 }
 
 /**
@@ -87,14 +103,14 @@ export async function getComboById(id: string) {
   const db = getDbInstance();
   const row = db.prepare("SELECT data FROM combos WHERE id = ?").get(id);
   const payload = getSerializedData(row);
-  return payload ? normalizeComboContextLength(JSON.parse(payload)) : null;
+  return payload ? normalizeComboTokenLimits(JSON.parse(payload)) : null;
 }
 
 export async function getComboByName(name: string) {
   const db = getDbInstance();
   const row = db.prepare("SELECT data FROM combos WHERE name = ?").get(name);
   const payload = getSerializedData(row);
-  return payload ? normalizeComboContextLength(JSON.parse(payload)) : null;
+  return payload ? normalizeComboTokenLimits(JSON.parse(payload)) : null;
 }
 
 export async function createCombo(data: JsonRecord) {
@@ -110,10 +126,12 @@ export async function createCombo(data: JsonRecord) {
     isHidden: Boolean(data.isHidden),
     createdAt: now,
     updatedAt: now,
-    context_length:
-      typeof data.context_length === "number" && data.context_length > 0
-        ? data.context_length
-        : DEFAULT_COMBO_CONTEXT_LENGTH,
+    context_length: isPositiveNumber(data.context_length)
+      ? data.context_length
+      : DEFAULT_COMBO_CONTEXT_LENGTH,
+    max_output_tokens: isPositiveNumber(data.max_output_tokens)
+      ? data.max_output_tokens
+      : DEFAULT_COMBO_MAX_OUTPUT_TOKENS,
   };
 
   const optionalComboKeys = [
@@ -122,6 +140,7 @@ export async function createCombo(data: JsonRecord) {
     "tool_filter_regex",
     "context_cache_protection",
     "context_length",
+    "max_output_tokens",
     "allowedProviders",
   ];
   for (const k of optionalComboKeys) {
