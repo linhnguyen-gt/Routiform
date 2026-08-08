@@ -356,10 +356,10 @@ test("a custom node is eligible for cost-saver when the user has pricing for it"
 // ──────────────── Vendor-prefixed ids ────────────────
 
 test("NVIDIA vendor-prefixed ids emit three-segment values that round-trip", () => {
-  const nvidia = group("nvidia", "nvidia", [
-    "meta/llama-3.3-70b-instruct",
-    "nvidia/llama-3.3-70b-instruct",
-  ]);
+  // Two distinct models, both vendor-prefixed. Listing one model under two vendor
+  // prefixes instead would be collapsed by the per-provider dedupe and leave free-stack
+  // below its minimum, which is that rule's job rather than this test's.
+  const nvidia = group("nvidia", "nvidia", ["meta/llama-3.3-70b-instruct", "openai/gpt-oss-120b"]);
   const result = resolve("free-stack", {
     groups: [nvidia],
     connections: [connection("nvidia")],
@@ -371,6 +371,87 @@ test("NVIDIA vendor-prefixed ids emit three-segment values that round-trip", () 
     assert.ok(split);
     assert.strictEqual(split.providerRef, "nvidia");
   }
+});
+
+// ──────────────── Ranking quality ────────────────
+
+/**
+ * Catalog order is whatever a provider's `/models` endpoint returned, so no ranking may
+ * fall back to it while a fitness difference is still available to break the tie. These
+ * fixtures deliberately list the weakest model first, which is the shape that made every
+ * template pick a provider's first-listed model rather than its best one.
+ */
+
+test("spread ranks on fitness rather than taking each provider's first-listed model", () => {
+  const worstFirst = group("openai", "openai", ["gpt-4o-mini", "gpt-4o"]);
+  const result = resolve("balanced", {
+    groups: [worstFirst],
+    connections: [connection("openai")],
+  });
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(
+    result.models.map((m) => m.model),
+    ["openai/gpt-4o"]
+  );
+});
+
+test("free-tier breaks a same-tier tie on fitness, not on catalog order", () => {
+  const worstFirst = group("kiro", "kr", ["auto", "claude-opus-4.8"]);
+  const result = resolve("free-stack", {
+    groups: [worstFirst, group("qoder", "qd", ["qoder-a", "qoder-b"])],
+    connections: [connection("kiro"), connection("qoder")],
+  });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(
+    result.models[0].model,
+    "kr/claude-opus-4.8",
+    "the router alias must not outrank a real model purely by listing first"
+  );
+});
+
+test("spread orders providers by their best model, so maxModels keeps the strongest", () => {
+  // maxPerProvider is 1 and maxModels is 6, so with seven providers one must be dropped.
+  // The weak provider is placed first to prove the drop follows fitness, not group order.
+  const weak = group("openai", "openai", ["gpt-3.5-turbo"]);
+  const strong = ["a", "b", "c", "d", "e", "f"].map((suffix) =>
+    group(`p-${suffix}`, `p-${suffix}`, ["claude-opus-5"])
+  );
+  const result = resolve("balanced", {
+    groups: [weak, ...strong],
+    connections: [connection("openai"), ...strong.map((g) => connection(g.providerId))],
+  });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.models.length, 6);
+  assert.ok(
+    !result.models.some((m) => m.model === "openai/gpt-3.5-turbo"),
+    "the lowest-fitness provider is the one that loses its slot"
+  );
+});
+
+// ──────────────── Duplicate models ────────────────
+
+test("one model listed under two vendor prefixes uses a single slot per provider", () => {
+  const dupes = group("nvidia", "nvidia", [
+    "gpt-oss-120b",
+    "openai/gpt-oss-120b",
+    "moonshotai/kimi-k2.6",
+  ]);
+  const result = resolve("free-stack", {
+    groups: [dupes],
+    connections: [connection("nvidia")],
+  });
+  assert.strictEqual(result.ok, true);
+  const bases = result.models.map((m) => m.model.split("/").pop());
+  assert.deepStrictEqual(new Set(bases).size, bases.length, "no duplicated model survives");
+});
+
+test("the same model on different providers is kept — that is what failover means", () => {
+  const result = resolve("high-availability", {
+    groups: [group("openai", "openai", ["gpt-4o"]), group("openrouter", "or", ["openai/gpt-4o"])],
+    connections: [connection("openai"), connection("openrouter")],
+  });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.models.length, 2);
 });
 
 // ──────────────── Cross-cutting guarantees ────────────────

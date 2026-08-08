@@ -39,6 +39,8 @@ interface Candidate {
   modelIndex: number;
   price: number | null;
   tier: FreeTier | null;
+  /** Precomputed so the comparators do not rescan the fitness table on every comparison. */
+  fitness: number;
 }
 
 /** Filters that classify a provider by how it bills, so a custom node cannot qualify. */
@@ -99,7 +101,14 @@ export function resolveTemplate(input: ResolveTemplateInput): TemplateResolution
       }
       if (selector.providerFilter === "priced" && price === null) return;
 
-      candidates.push({ model, groupIndex, modelIndex, price, tier });
+      candidates.push({
+        model,
+        groupIndex,
+        modelIndex,
+        price,
+        tier,
+        fitness: scoreModelFitness(model),
+      });
     });
   });
 
@@ -108,7 +117,7 @@ export function resolveTemplate(input: ResolveTemplateInput): TemplateResolution
   }
 
   const ranked = rankCandidates(candidates, selector.ranking);
-  const capped = capPerProvider(ranked, selector.maxPerProvider);
+  const capped = capPerProvider(dedupeWithinProvider(ranked), selector.maxPerProvider);
   const ordered =
     selector.ranking === "spread"
       ? interleaveByProvider(capped)
@@ -132,9 +141,8 @@ export function resolveTemplate(input: ResolveTemplateInput): TemplateResolution
   };
 }
 
-/** Rank within each provider group. Every sort is stable, so ties keep catalog order. */
+/** Rank within each provider group; `comparatorFor` decides what "best" means per ranking. */
 function rankCandidates(candidates: Candidate[], ranking: string): Candidate[] {
-  if (ranking === "spread") return candidates;
   const byGroup = new Map<number, Candidate[]>();
   for (const candidate of candidates) {
     const list = byGroup.get(candidate.groupIndex) || [];
@@ -150,34 +158,63 @@ function orderGlobally(candidates: Candidate[], ranking: string): Candidate[] {
   return [...candidates].sort(comparatorFor(ranking));
 }
 
+/** Catalog position: the last resort, and the only key guaranteed to be total. */
+function byCatalogOrder(a: Candidate, b: Candidate): number {
+  return a.groupIndex - b.groupIndex || a.modelIndex - b.modelIndex;
+}
+
+/**
+ * Quality first, catalog position only to break a genuine tie. Every ranking bottoms out
+ * here rather than in catalog order alone: that order is whatever a provider's `/models`
+ * endpoint happened to return, so tie-breaking on it made a template pick each provider's
+ * first-listed model instead of its best one — a stale Sonnet 4 over the Opus 5 sitting
+ * two entries below it, or a router alias like `auto` over any real model.
+ */
+function byFitness(a: Candidate, b: Candidate): number {
+  return b.fitness - a.fitness || byCatalogOrder(a, b);
+}
+
 function comparatorFor(ranking: string): (a: Candidate, b: Candidate) => number {
   if (ranking === "free-tier") {
     return (a, b) => {
       const tierDelta = TIER_RANK[a.tier ?? "c"] - TIER_RANK[b.tier ?? "c"];
-      if (tierDelta !== 0) return tierDelta;
-      return a.groupIndex - b.groupIndex || a.modelIndex - b.modelIndex;
+      return tierDelta !== 0 ? tierDelta : byFitness(a, b);
     };
   }
   if (ranking === "price-asc") {
     return (a, b) => {
       const priceDelta = priceKey(a.price) - priceKey(b.price);
-      if (priceDelta !== 0) return priceDelta;
-      return a.groupIndex - b.groupIndex || a.modelIndex - b.modelIndex;
+      return priceDelta !== 0 ? priceDelta : byFitness(a, b);
     };
   }
-  if (ranking === "fitness-desc") {
-    return (a, b) => {
-      const fitnessDelta = scoreModelFitness(b.model) - scoreModelFitness(a.model);
-      if (fitnessDelta !== 0) return fitnessDelta;
-      return a.groupIndex - b.groupIndex || a.modelIndex - b.modelIndex;
-    };
-  }
-  return (a, b) => a.groupIndex - b.groupIndex || a.modelIndex - b.modelIndex;
+  // `fitness-desc` and `spread` both rank on quality alone. They differ in what happens
+  // afterwards: spread interleaves the ranked candidates across providers.
+  return byFitness;
 }
 
 /** Non-finite and unknown prices sort last, matching `sortModelsByCost`. */
 function priceKey(price: number | null): number {
   return price === null || !Number.isFinite(price) ? Number.POSITIVE_INFINITY : price;
+}
+
+/**
+ * Aggregators list one model under several vendor prefixes — `gpt-oss-120b` and
+ * `openai/gpt-oss-120b` are the same nvidia endpoint — and a combo that spends two of its
+ * slots on them has no more redundancy than one that spends a single slot. Runs after
+ * ranking, so the surviving variant is the best-ranked one.
+ *
+ * Deliberately scoped to a single provider: the same model reached through several
+ * providers is failover, which is exactly what `high-availability` exists to build.
+ */
+function dedupeWithinProvider(candidates: Candidate[]): Candidate[] {
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    const baseId = candidate.model.id.split("/").pop()?.toLowerCase() || candidate.model.id;
+    const key = `${candidate.groupIndex} ${baseId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function capPerProvider(candidates: Candidate[], maxPerProvider: number): Candidate[] {
@@ -199,7 +236,16 @@ function interleaveByProvider(candidates: Candidate[]): Candidate[] {
     byGroup.set(candidate.groupIndex, list);
   }
 
-  const queues = [...byGroup.keys()].sort((a, b) => a - b).map((key) => byGroup.get(key) ?? []);
+  // Providers enter the round-robin strongest-first. This order is what survives
+  // `maxModels`, so ordering by group index instead would hand every slot to whichever
+  // providers sort first in PROVIDER_ORDER — a fixed OAuth-then-free-then-API-key
+  // taxonomy — and connecting more providers would never change the result.
+  const queues = [...byGroup.entries()]
+    .sort(
+      ([indexA, queueA], [indexB, queueB]) =>
+        (queueB[0]?.fitness ?? 0) - (queueA[0]?.fitness ?? 0) || indexA - indexB
+    )
+    .map(([, queue]) => queue);
   const out: Candidate[] = [];
   const longest = Math.max(0, ...queues.map((queue) => queue.length));
   for (let round = 0; round < longest; round += 1) {
