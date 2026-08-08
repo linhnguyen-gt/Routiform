@@ -807,7 +807,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "Címmodell",
+    "hermesTitleModelHint": "Opcionális. Az automatikusan generált munkamenetcímeket olcsóbb modellre irányítja; üresen a fő modellt használja."
   },
   "combos": {
     "title": "Kombók",

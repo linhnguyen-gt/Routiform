@@ -5,6 +5,11 @@ import { Card, Button, ModelSelectModal, ManualConfigModal } from "@/shared/comp
 import Image from "next/image";
 import CliStatusBadge from "./CliStatusBadge";
 import EndpointPresetControl from "./EndpointPresetControl";
+import {
+  HERMES_API_KEY_ENV,
+  buildModelBlock,
+  upsertTitleGenerationBlock,
+} from "@/shared/services/hermesConfigYaml";
 import { useTranslations } from "next-intl";
 
 const ENDPOINT = "/api/cli-tools/hermes-settings";
@@ -29,6 +34,7 @@ export default function HermesToolCard({
   const [message, setMessage] = useState(null);
   const [selectedApiKey, setSelectedApiKey] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
+  const [titleModel, setTitleModel] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [modelAliases, setModelAliases] = useState<Record<string, string>>({});
   const [showManualConfigModal, setShowManualConfigModal] = useState(false);
@@ -72,6 +78,8 @@ export default function HermesToolCard({
       hasInitializedModel.current = true;
       const cfg = hermesStatus.settings?.model;
       if (cfg?.default) setSelectedModel(cfg.default);
+      const title = hermesStatus.settings?.titleGeneration;
+      if (title?.provider === "custom" && title.model) setTitleModel(title.model);
     }
   }, [hermesStatus]);
 
@@ -125,6 +133,7 @@ export default function HermesToolCard({
       const postBody: Record<string, unknown> = {
         baseUrl: getEffectiveBaseUrl(),
         model: selectedModel,
+        titleModel: titleModel.trim(),
       };
 
       if (selectedKeyId) {
@@ -161,6 +170,7 @@ export default function HermesToolCard({
       if (res.ok) {
         setMessage({ type: "success", text: data.message || t("settingsReset") });
         setSelectedModel("");
+        setTitleModel("");
         checkStatus();
       } else {
         setMessage({ type: "error", text: data.error || t("failedResetSettings") });
@@ -185,8 +195,12 @@ export default function HermesToolCard({
           ? "sk_routiform"
           : "<API_KEY_FROM_DASHBOARD>";
 
-    const yamlContent = `model:\n  default: "${selectedModel || "provider/model-id"}"\n  provider: "custom"\n  base_url: "${getEffectiveBaseUrl()}"\n`;
-    const envContent = `OPENAI_API_KEY=${keyToUse}\n`;
+    const baseUrl = getEffectiveBaseUrl();
+    const modelBlock = buildModelBlock(selectedModel || "provider/model-id", baseUrl);
+    const yamlContent = titleModel.trim()
+      ? upsertTitleGenerationBlock(modelBlock, { model: titleModel.trim(), baseUrl })
+      : modelBlock;
+    const envContent = `${HERMES_API_KEY_ENV}=${keyToUse}\n`;
 
     return [
       { filename: "~/.hermes/config.yaml", content: yamlContent },
@@ -365,6 +379,25 @@ export default function HermesToolCard({
                   >
                     {t("selectModel")}
                   </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
+                  <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">
+                    {t("hermesTitleModel")}
+                  </span>
+                  <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">
+                    arrow_forward
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <input
+                      type="text"
+                      value={titleModel}
+                      onChange={(e) => setTitleModel(e.target.value)}
+                      placeholder="provider/model-id"
+                      className="w-full min-w-0 px-2 py-2 bg-surface rounded border border-border text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 sm:py-1.5"
+                    />
+                    <p className="mt-1 text-[11px] text-text-muted">{t("hermesTitleModelHint")}</p>
+                  </div>
                 </div>
               </div>
 

@@ -807,7 +807,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "Model pentru titluri",
+    "hermesTitleModelHint": "Opțional. Direcționează titlurile de sesiune generate automat către un model mai ieftin; gol folosește modelul principal."
   },
   "combos": {
     "title": "Combo-uri",

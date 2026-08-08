@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import { getRuntimePorts } from "@/lib/runtime/ports";
+import { load as loadYaml, dump as dumpYaml } from "js-yaml";
 import { getCliConfigHome, getOpenCodeConfigPath } from "@/shared/services/cliRuntime";
 import { mergeOpenCodeConfig } from "@/shared/services/opencodeConfig";
+import { applyRoutiformContinueConfig } from "@/shared/services/continueConfig";
+import { fetchModelTokenLimits } from "@/shared/services/modelTokenLimits";
 import {
   guideSettingsSaveSchema,
   opencodeGuideSettingsSaveSchema,
@@ -69,78 +72,38 @@ export async function POST(request, { params }) {
 }
 
 /**
- * Save Continue config to ~/.continue/config.json
- * Merges with existing config if present.
+ * Save Continue config to ~/.continue/config.yaml, merging with what is already there.
+ *
+ * config.json is deprecated in favour of config.yaml, so a legacy JSON file is read for
+ * its models but is never written back to — the YAML file becomes the one Continue loads.
  */
 async function saveContinueConfig({ baseUrl, apiKey, model }) {
   const { apiPort } = getRuntimePorts();
-  const configPath = path.join(getCliConfigHome(), ".continue", "config.json");
-  const configDir = path.dirname(configPath);
+  const continueDir = path.join(getCliConfigHome(), ".continue");
+  const configPath = path.join(continueDir, "config.yaml");
+  const legacyConfigPath = path.join(continueDir, "config.json");
 
-  // Ensure dir exists
-  await fs.mkdir(configDir, { recursive: true });
+  await fs.mkdir(continueDir, { recursive: true });
 
-  // Read existing config if any
-  let existingConfig: Record<string, unknown> = {};
+  let existingConfig: unknown = {};
   try {
-    const raw = await fs.readFile(configPath, "utf-8");
-    existingConfig = JSON.parse(raw);
+    existingConfig = loadYaml(await fs.readFile(configPath, "utf-8")) ?? {};
   } catch {
-    // No existing config or invalid JSON — start fresh
+    // No YAML yet — carry over a legacy config.json so the migration keeps the user's models.
+    try {
+      existingConfig = JSON.parse(await fs.readFile(legacyConfigPath, "utf-8"));
+    } catch {
+      existingConfig = {};
+    }
   }
 
-  // Build the Routiform model entry
-  const normalizedBaseUrl = String(baseUrl || "")
-    .trim()
-    .replace(/\/+$/, "");
-  const routerModel = {
-    apiBase: normalizedBaseUrl,
-    title: model,
-    model: model,
-    provider: "openai",
-    apiKey: apiKey || "sk_routiform",
-    routiformManaged: true,
-  };
-
-  // Merge into existing models array
-  const models = existingConfig.models || [];
-
-  function normalizeApiBase(value: unknown): string {
-    return String(value || "")
-      .trim()
-      .replace(/\/+$/, "")
-      .toLowerCase();
-  }
-
-  // Check if Routiform entry already exists and update it, or add new
-  const existingIdx = (models as unknown[]).findIndex(
-    (m) =>
-      m &&
-      typeof m === "object" &&
-      m !== null &&
-      ((m as Record<string, unknown>).routiformManaged === true ||
-        (m as Record<string, unknown>).routiformManaged === true ||
-        normalizeApiBase((m as Record<string, unknown>).apiBase) ===
-          normalizedBaseUrl.toLowerCase() ||
-        normalizeApiBase((m as Record<string, unknown>).apiBase).includes("routiform") ||
-        normalizeApiBase((m as Record<string, unknown>).apiBase).includes("routiform") ||
-        normalizeApiBase((m as Record<string, unknown>).apiBase).includes(`localhost:${apiPort}`) ||
-        normalizeApiBase((m as Record<string, unknown>).apiBase).includes(`127.0.0.1:${apiPort}`) ||
-        String((m as Record<string, unknown>).apiKey || "")
-          .toLowerCase()
-          .includes("sk_routiform"))
+  const config = applyRoutiformContinueConfig(
+    existingConfig,
+    { baseUrl, apiKey, model },
+    { localHosts: [`localhost:${apiPort}`, `127.0.0.1:${apiPort}`] }
   );
 
-  if (existingIdx >= 0) {
-    models[existingIdx] = routerModel;
-  } else {
-    (models as unknown[]).push(routerModel);
-  }
-
-  existingConfig.models = models;
-
-  // Write back
-  await fs.writeFile(configPath, JSON.stringify(existingConfig, null, 2), "utf-8");
+  await fs.writeFile(configPath, dumpYaml(config, { indent: 2, lineWidth: -1 }), "utf-8");
 
   return NextResponse.json({
     success: true,
@@ -175,44 +138,19 @@ async function saveOpenCodeConfig({ baseUrl, apiKey, model, models }) {
     // File doesn't exist or invalid JSON — start fresh
   }
 
-  // Lookup context_length and max_output_tokens for each model from /v1/models
-  // so opencode can show % used and know output limits
-  const modelContextLengths: Record<string, number> = {};
-  const modelMaxOutputTokens: Record<string, number> = {};
-  try {
-    const allModelIds = [...new Set([model, ...(models || [])].filter(Boolean))] as string[];
-    if (allModelIds.length > 0) {
-      const res = await fetch(`http://localhost:${process.env.PORT || 20128}/v1/models`);
-      if (res.ok) {
-        const data = await res.json();
-        const modelList: Array<Record<string, unknown>> = data?.data || [];
-        for (const modelId of allModelIds) {
-          // /v1/models returns ids like "cx/gpt-5.4" — match against the bare model id
-          const entry = modelList.find(
-            (m) => m.id === modelId || String(m.id).endsWith(`/${modelId}`)
-          );
-          const contextLength = entry?.context_length;
-          if (typeof contextLength === "number" && contextLength > 0) {
-            modelContextLengths[modelId] = contextLength;
-          }
-          const maxOutput = entry?.max_output_tokens;
-          if (typeof maxOutput === "number" && maxOutput > 0) {
-            modelMaxOutputTokens[modelId] = maxOutput;
-          }
-        }
-      }
-    }
-  } catch {
-    // Non-fatal — proceed without context lengths
-  }
+  // opencode shows % of context used and caps output, so it needs the real limits.
+  const { contextLengths, maxOutputTokens } = await fetchModelTokenLimits([
+    model,
+    ...(models || []),
+  ]);
 
   const nextConfig = mergeOpenCodeConfig(existingConfig, {
     baseUrl: normalizedBaseUrl,
     apiKey,
     model,
     models,
-    modelContextLengths,
-    modelMaxOutputTokens,
+    modelContextLengths: contextLengths,
+    modelMaxOutputTokens: maxOutputTokens,
   });
 
   await fs.writeFile(configPath, JSON.stringify(nextConfig, null, 2), "utf-8");

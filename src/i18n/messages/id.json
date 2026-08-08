@@ -807,7 +807,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "Model Judul",
+    "hermesTitleModelHint": "Opsional. Mengarahkan judul sesi yang dibuat otomatis ke model yang lebih murah; kosong memakai model utama."
   },
   "combos": {
     "title": "kombo",

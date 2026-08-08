@@ -58,6 +58,9 @@ export default function CopilotToolCard({
     }
     return apiKeys?.length > 0 ? apiKeys[0].key : "";
   });
+  const [apiType, setApiType] = useState<"chat-completions" | "responses" | "messages">(
+    "chat-completions"
+  );
   const [maxInputTokens, setMaxInputTokens] = useState(128000);
   const [maxOutputTokens, setMaxOutputTokens] = useState(16000);
   const [toolCalling, setToolCalling] = useState(true);
@@ -124,29 +127,43 @@ export default function CopilotToolCard({
     setSelectedModels(new Set());
   };
 
-  const getBaseUrlForConfig = () => {
-    const url = baseUrl;
-    return `${url}/v1/chat/completions`;
-  };
+  const API_TYPE_PATHS = {
+    "chat-completions": "/v1/chat/completions",
+    responses: "/v1/responses",
+    messages: "/v1/messages",
+  } as const;
 
-  // Generate the Copilot chatLanguageModels.json config
+  const getModelUrl = () => `${baseUrl}${API_TYPE_PATHS[apiType]}`;
+
+  /**
+   * Generates the `chatLanguageModels.json` entry for VS Code's Custom Endpoint provider.
+   *
+   * The file is an array of provider objects, and `vendor: "customendpoint"` with an
+   * explicit `apiType` is the documented way to point Copilot Chat at an OpenAI-compatible
+   * gateway. Earlier versions of this card emitted a single object using `vendor: "azure"`
+   * and a `#models.ai.azure.com` URL fragment, which was a workaround from before the
+   * custom-endpoint provider existed.
+   */
   const generateConfig = () => {
     const models = [...selectedModels].map((modelId) => ({
       id: modelId,
       name: modelId,
-      url: `${getBaseUrlForConfig()}#models.ai.azure.com`,
+      url: getModelUrl(),
       toolCalling,
       vision,
       maxInputTokens,
       maxOutputTokens,
     }));
 
-    const config = {
-      name: "Routiform",
-      vendor: "azure",
-      apiKey: `\${input:chat.lm.secret.routiform}`,
-      models,
-    };
+    const config = [
+      {
+        name: "Routiform",
+        vendor: "customendpoint",
+        apiKey: `\${input:chat.lm.secret.routiform}`,
+        apiType,
+        models,
+      },
+    ];
 
     return JSON.stringify(config, null, 2);
   };
@@ -212,20 +229,41 @@ export default function CopilotToolCard({
                   <code className="px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">
                     chatLanguageModels.json
                   </code>{" "}
-                  block for VS Code GitHub Copilot using the Azure vendor pattern. Select the models
-                  you want, then copy the JSON into your config file.
+                  block for VS Code GitHub Copilot using the Custom Endpoint provider. Select the
+                  models you want, then copy the JSON into your config file.
                 </p>
               </div>
             </div>
 
-            {/* Version compatibility warning */}
+            {/* Wire protocol */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="font-medium text-sm">API Type</span>
+              </div>
+              <select
+                value={apiType}
+                onChange={(e) =>
+                  setApiType(e.target.value as "chat-completions" | "responses" | "messages")
+                }
+                className="w-full px-3 py-2 bg-bg-secondary rounded-lg text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
+              >
+                <option value="chat-completions">chat-completions</option>
+                <option value="responses">responses</option>
+                <option value="messages">messages (Anthropic)</option>
+              </select>
+              <p className="mt-1 text-xs text-text-muted">
+                Sets both <code>apiType</code> and the model <code>url</code> path.
+              </p>
+            </div>
+
+            {/* Version compatibility note */}
             <div className="flex items-start gap-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
               <span className="material-symbols-outlined text-yellow-500 text-lg">warning</span>
               <p className="text-xs text-yellow-600 dark:text-yellow-400">
-                This configuration uses the Azure vendor workaround for custom model lists. Tested
-                with <strong>VS Code ≥ 1.109</strong> and{" "}
-                <strong>GitHub Copilot Chat ≥ v0.37</strong>. Future extension updates may change
-                this behavior.
+                Add it through{" "}
+                <strong>Manage Language Models → Add Models → Custom Endpoint</strong>, or paste it
+                into <code>chatLanguageModels.json</code> directly. The file holds an array, so
+                merge this entry rather than replacing the file.
               </p>
             </div>
 

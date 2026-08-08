@@ -69,6 +69,8 @@ export const hermesSettingsSchema = z.object({
   apiKey: z.string().optional(),
   keyId: z.string().optional(),
   model: z.string().trim().min(1, "model is required"),
+  // Optional override for the auxiliary session-title task; empty clears it.
+  titleModel: z.string().trim().optional(),
 });
 
 export const codexProfileNameSchema = z.object({

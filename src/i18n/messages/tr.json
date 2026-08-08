@@ -807,7 +807,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "Başlık Modeli",
+    "hermesTitleModelHint": "İsteğe bağlı. Otomatik oluşturulan oturum başlıklarını daha ucuz bir modele yönlendirir; boş bırakılırsa ana model kullanılır."
   },
   "combos": {
     "title": "Kombolar",

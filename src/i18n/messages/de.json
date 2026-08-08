@@ -808,7 +808,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "Titelmodell",
+    "hermesTitleModelHint": "Optional. Leitet automatisch erzeugte Sitzungstitel an ein günstigeres Modell weiter; leer verwendet das Hauptmodell."
   },
   "combos": {
     "title": "Kombinationen",

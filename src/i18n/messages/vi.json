@@ -809,7 +809,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "Model đặt tiêu đề",
+    "hermesTitleModelHint": "Tuỳ chọn. Chuyển việc tự động đặt tiêu đề phiên sang model rẻ hơn; để trống sẽ dùng model chính."
   },
   "combos": {
     "title": "Combo",

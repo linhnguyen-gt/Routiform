@@ -6,6 +6,16 @@ import { exec } from "child_process";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import {
+  HERMES_API_KEY_ENV,
+  buildModelBlock,
+  parseModelBlock,
+  parseTitleGeneration,
+  removeAuxiliaryOverrides,
+  removeModelBlock,
+  upsertModelBlock,
+  upsertTitleGenerationBlock,
+} from "@/shared/services/hermesConfigYaml";
 import { hermesSettingsSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
@@ -15,33 +25,6 @@ const execAsync = promisify(exec);
 const getHermesDir = () => path.join(os.homedir(), ".hermes");
 const getHermesConfigPath = () => path.join(getHermesDir(), "config.yaml");
 const getHermesEnvPath = () => path.join(getHermesDir(), ".env");
-
-const MODEL_BLOCK_RE = /^model:[ \t]*\r?\n((?:[ \t]+.*\r?\n?|[ \t]*\r?\n)*)/m;
-
-const buildModelBlock = (model: string, baseUrl: string) =>
-  `model:\n  default: "${model}"\n  provider: "custom"\n  base_url: "${baseUrl}"\n`;
-
-const parseModelBlock = (yaml: string) => {
-  const match = yaml.match(MODEL_BLOCK_RE);
-  if (!match) return null;
-  const body = match[1] || "";
-  const get = (key: string) => {
-    const m = body.match(new RegExp(`^[ \\t]+${key}:[ \\t]*["']?([^"'\\r\\n]+)["']?`, "m"));
-    return m ? m[1].trim() : null;
-  };
-  return {
-    default: get("default"),
-    provider: get("provider"),
-    base_url: get("base_url"),
-  };
-};
-
-const upsertModelBlock = (yaml: string, newBlock: string) => {
-  if (MODEL_BLOCK_RE.test(yaml)) return yaml.replace(MODEL_BLOCK_RE, newBlock);
-  return yaml.length > 0 ? `${newBlock}\n${yaml}` : newBlock;
-};
-
-const removeModelBlock = (yaml: string) => yaml.replace(MODEL_BLOCK_RE, "").replace(/^\n+/, "");
 
 const upsertEnvVar = (envText: string, key: string, value: string) => {
   const re = new RegExp(`^${key}=.*$`, "m");
@@ -118,7 +101,7 @@ export async function GET(request: Request) {
     const model = parseModelBlock(yaml);
     return NextResponse.json({
       installed: true,
-      settings: { model },
+      settings: { model, titleGeneration: parseTitleGeneration(yaml) },
       hasRoutiform: hasRoutiformConfig(model),
       configPath: getHermesConfigPath(),
     });
@@ -153,7 +136,7 @@ export async function POST(request: Request) {
     if (isValidationFailure(validation)) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-    const { baseUrl, apiKey, model } = validation.data;
+    const { baseUrl, apiKey, model, titleModel } = validation.data;
 
     const dir = getHermesDir();
     await fs.mkdir(dir, { recursive: true });
@@ -161,12 +144,18 @@ export async function POST(request: Request) {
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
 
     const existingYaml = await readConfigYaml();
-    const newYaml = upsertModelBlock(existingYaml, buildModelBlock(model, normalizedBaseUrl));
+    const withModel = upsertModelBlock(existingYaml, buildModelBlock(model, normalizedBaseUrl));
+    // Auxiliary tasks default to the main chat model. Routing session titles to a cheaper
+    // model is the one override worth exposing, since a title is a one-line completion.
+    const newYaml = upsertTitleGenerationBlock(
+      withModel,
+      titleModel ? { model: titleModel, baseUrl: normalizedBaseUrl } : null
+    );
     await fs.writeFile(getHermesConfigPath(), newYaml);
 
     if (apiKey) {
       const existingEnv = await readEnvFile();
-      const newEnv = upsertEnvVar(existingEnv, "OPENAI_API_KEY", apiKey);
+      const newEnv = upsertEnvVar(existingEnv, HERMES_API_KEY_ENV, apiKey);
       await fs.writeFile(getHermesEnvPath(), newEnv);
     }
 
@@ -198,7 +187,7 @@ export async function DELETE(request: Request) {
       }
       throw error;
     }
-    const newYaml = removeModelBlock(yaml);
+    const newYaml = removeAuxiliaryOverrides(removeModelBlock(yaml));
     await fs.writeFile(configPath, newYaml);
     return NextResponse.json({ success: true, message: "Routiform model block removed" });
   } catch (error) {

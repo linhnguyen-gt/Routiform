@@ -154,27 +154,39 @@ export const CLI_TOOLS = {
     image: "/providers/continue.png",
     color: "#7C3AED",
     description: "Continue AI Assistant",
-    docsUrl: "https://docs.continue.dev/",
+    docsUrl: "https://docs.continue.dev/reference",
     configType: "guide",
+    notes: [
+      {
+        type: "info",
+        text: "Config path: ~/.continue/config.yaml — config.json is deprecated and replaced by config.yaml.",
+      },
+    ],
     guideSteps: [
-      { step: 1, title: "Open Config", desc: "Open Continue configuration file" },
+      { step: 1, title: "Open Config", desc: "Open ~/.continue/config.yaml" },
       { step: 2, title: "API Key", type: "apiKeySelector" },
       { step: 3, title: "Select Model", type: "modelSelector" },
       {
         step: 4,
         title: "Add Model Config",
-        desc: "Add the following configuration to your models array:",
+        desc: "Add the following entry to your models list:",
       },
     ],
     codeBlock: {
-      language: "json",
-      code: `{
-  "apiBase": "{{baseUrl}}",
-  "title": "{{model}}",
-  "model": "{{model}}",
-  "provider": "openai",
-  "apiKey": "{{apiKey}}"
-}`,
+      language: "yaml",
+      code: `name: routiform
+version: 0.0.1
+schema: v1
+models:
+  - name: {{model}}
+    provider: openai
+    model: {{model}}
+    apiBase: {{baseUrl}}
+    apiKey: {{apiKey}}
+    roles:
+      - chat
+      - edit
+      - apply`,
     },
   },
   antigravity: {

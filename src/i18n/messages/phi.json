@@ -807,7 +807,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "Modelo ng Pamagat",
+    "hermesTitleModelHint": "Opsyonal. Ipinapadala ang awtomatikong nabuong mga pamagat ng sesyon sa mas murang modelo; kapag walang laman, ginagamit ang pangunahing modelo."
   },
   "combos": {
     "title": "Mga combo",

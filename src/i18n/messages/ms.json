@@ -807,7 +807,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "Model Tajuk",
+    "hermesTitleModelHint": "Pilihan. Mengarahkan tajuk sesi yang dijana automatik ke model yang lebih murah; kosong menggunakan model utama."
   },
   "combos": {
     "title": "Kombo",

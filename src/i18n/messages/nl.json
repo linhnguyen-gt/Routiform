@@ -807,7 +807,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "Titelmodel",
+    "hermesTitleModelHint": "Optioneel. Stuurt automatisch gegenereerde sessietitels naar een goedkoper model; leeg gebruikt het hoofdmodel."
   },
   "combos": {
     "title": "Combo's",

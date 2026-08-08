@@ -98,7 +98,7 @@ const CLI_TOOLS: Record<string, Record<string, unknown>> = {
     // opencode and continue may take up to 15s on first run / cold start on VPS
     healthcheckTimeoutMs: 15000,
     paths: {
-      settings: ".continue/config.json",
+      settings: ".continue/config.yaml",
     },
   },
   opencode: {

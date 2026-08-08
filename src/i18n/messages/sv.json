@@ -807,7 +807,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "Titelmodell",
+    "hermesTitleModelHint": "Valfritt. Skickar automatiskt genererade sessionstitlar till en billigare modell; tomt använder huvudmodellen."
   },
   "combos": {
     "title": "Combos",

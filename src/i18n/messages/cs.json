@@ -807,7 +807,9 @@
           }
         }
       }
-    }
+    },
+    "hermesTitleModel": "Model pro názvy",
+    "hermesTitleModelHint": "Volitelné. Automaticky generované názvy relací nasměruje na levnější model; prázdné použije hlavní model."
   },
   "combos": {
     "title": "Komba",
