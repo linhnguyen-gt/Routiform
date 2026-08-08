@@ -54,6 +54,28 @@ function isManagedEntry(entry: unknown, normalizedBaseUrl: string, localHosts: s
   return localHosts.some((host) => apiBase.includes(host));
 }
 
+/**
+ * Unwinds what `applyRoutiformContinueConfig` wrote, and nothing else.
+ *
+ * The assistant file is the user's, so only the managed entries are dropped — models they
+ * added themselves, and the assistant's own `name`/`version`/`schema`, stay. `models` is left
+ * as an empty array rather than deleted, because the v1 schema still expects the key.
+ */
+export function removeRoutiformContinueConfig(
+  existingConfig: unknown,
+  { baseUrl = "", localHosts = [] as string[] } = {}
+): JsonRecord {
+  const config = { ...asRecord(existingConfig) };
+  if (!Array.isArray(config.models)) return config;
+
+  const normalizedBaseUrl = stripTrailingSlash(baseUrl);
+  config.models = config.models.filter(
+    (item) => !isManagedEntry(item, normalizedBaseUrl, localHosts)
+  );
+
+  return config;
+}
+
 export function applyRoutiformContinueConfig(
   existingConfig: unknown,
   input: ContinueModelInput,

@@ -179,6 +179,43 @@ export const buildOpenCodeProviderConfigs = ({
   return providers;
 };
 
+/** The provider keys this app has ever written, current and legacy. */
+const MANAGED_PROVIDER_KEYS = [
+  OPENCODE_PROVIDER_KEYS.openai,
+  OPENCODE_PROVIDER_KEYS.anthropic,
+  LEGACY_OPENCODE_PROVIDER_KEY,
+];
+
+/**
+ * Unwinds what `mergeOpenCodeConfig` wrote, and nothing else.
+ *
+ * opencode.json is the user's own file — plugins, MCP servers, instructions and any provider
+ * they configured themselves live alongside our entries — so reset removes the managed
+ * provider keys rather than the file. The root `model` goes only when it still points at one
+ * of those providers; a model the user has since switched to is theirs to keep.
+ */
+export const removeRoutiformOpenCodeConfig = (existingConfig: Record<string, unknown> | null) => {
+  const config = {
+    ...(existingConfig && typeof existingConfig === "object" ? existingConfig : {}),
+  };
+
+  const providers = { ...((config.provider as Record<string, unknown>) || {}) };
+  for (const key of MANAGED_PROVIDER_KEYS) delete providers[key];
+
+  if (Object.keys(providers).length > 0) {
+    config.provider = providers;
+  } else {
+    delete config.provider;
+  }
+
+  const model = normalizeValue(config.model);
+  if (MANAGED_PROVIDER_KEYS.some((key) => model.startsWith(`${key}/`))) {
+    delete config.model;
+  }
+
+  return config;
+};
+
 export const mergeOpenCodeConfig = (
   existingConfig: Record<string, unknown> | null | undefined,
   input: OpenCodeConfigInput

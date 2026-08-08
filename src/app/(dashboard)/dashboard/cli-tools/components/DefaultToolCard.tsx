@@ -59,6 +59,7 @@ export default function DefaultToolCard({
   const [runtimeStatus, setRuntimeStatus] = useState(null);
   const [message, setMessage] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const runtimeFetchStartedRef = useRef(false);
 
   // Initialize state directly with computed value
@@ -253,10 +254,10 @@ export default function DefaultToolCard({
         body: JSON.stringify({
           baseUrl: baseUrlWithV1,
           apiKey: keyToUse,
-          model: isOpenCode ? modelValues[0] || "" : modelValue,
           // The selector holds the masked key /api/keys returns; the id is what lets the
           // route look the real one up before writing it to the tool's config.
           ...(selectedApiKey ? { keyId: apiKeys?.find((k) => k.key === selectedApiKey)?.id } : {}),
+          model: isOpenCode ? modelValues[0] || "" : modelValue,
           ...(isOpenCode ? { models: modelValues } : {}),
         }),
       });
@@ -273,8 +274,28 @@ export default function DefaultToolCard({
     }
   };
 
+  const handleResetConfig = async () => {
+    setResetting(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/cli-tools/guide-settings/${toolId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage({ type: "success", text: data.message || t("resetDone") });
+      } else {
+        setMessage({ type: "error", text: data.error || t("failedResetSettings") });
+      }
+    } catch (error) {
+      setMessage({ type: "error", text: error.message });
+    } finally {
+      setResetting(false);
+    }
+  };
+
   // Check if this tool supports direct config file write
   const supportsDirectSave = ["continue", "opencode", "qwen"].includes(toolId);
+  // Reset unwinds a write, so it is offered only where the route can perform one.
+  const supportsReset = ["continue", "opencode"].includes(toolId);
 
   const renderApiKeySelector = () => {
     return (
@@ -630,6 +651,12 @@ export default function DefaultToolCard({
                 >
                   <span className="material-symbols-outlined text-[14px] mr-1">save</span>
                   {t("saveConfig")}
+                </Button>
+              )}
+              {supportsReset && (
+                <Button variant="outline" size="sm" onClick={handleResetConfig} loading={resetting}>
+                  <span className="material-symbols-outlined text-[14px] mr-1">restart_alt</span>
+                  {t("reset")}
                 </Button>
               )}
               {tool.codeBlock && (

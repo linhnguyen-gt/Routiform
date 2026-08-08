@@ -4,8 +4,14 @@ import path from "path";
 import { getRuntimePorts } from "@/lib/runtime/ports";
 import { load as loadYaml, dump as dumpYaml } from "js-yaml";
 import { getCliConfigHome, getOpenCodeConfigPath } from "@/shared/services/cliRuntime";
-import { mergeOpenCodeConfig } from "@/shared/services/opencodeConfig";
-import { applyRoutiformContinueConfig } from "@/shared/services/continueConfig";
+import {
+  mergeOpenCodeConfig,
+  removeRoutiformOpenCodeConfig,
+} from "@/shared/services/opencodeConfig";
+import {
+  applyRoutiformContinueConfig,
+  removeRoutiformContinueConfig,
+} from "@/shared/services/continueConfig";
 import { fetchModelTokenLimits } from "@/shared/services/modelTokenLimits";
 import {
   guideSettingsSaveSchema,
@@ -13,13 +19,13 @@ import {
 } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
+import { getApiKeyById } from "@/lib/localDb";
 
 /**
  * POST /api/cli-tools/guide-settings/:toolId
  *
  * Save configuration for guide-based tools that have config files.
  * Currently supports: continue, opencode
-import { getApiKeyById } from "@/lib/localDb";
  */
 export async function POST(request, { params }) {
   if (!(await isHostSecretAuthenticated(request))) {
@@ -82,6 +88,85 @@ export async function POST(request, { params }) {
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
+}
+
+/**
+ * DELETE /api/cli-tools/guide-settings/:toolId
+ *
+ * Undoes what POST wrote. Both files belong to the user — Continue's other assistants,
+ * opencode's plugins and MCP servers — so the managed entries are removed in place and the
+ * file is rewritten, never deleted.
+ */
+export async function DELETE(request: Request, { params }) {
+  if (!(await isHostSecretAuthenticated(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { toolId } = await params;
+
+  try {
+    switch (toolId) {
+      case "continue":
+        return await resetContinueConfig();
+      case "opencode":
+        return await resetOpenCodeConfig();
+      default:
+        return NextResponse.json(
+          { error: `Config reset not supported for: ${toolId}` },
+          { status: 400 }
+        );
+    }
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+  }
+}
+
+const getContinueConfigPath = () => path.join(getCliConfigHome(), ".continue", "config.yaml");
+
+/** The endpoints an entry may carry from a previous apply, whatever port was in use then. */
+const getLocalHosts = () => {
+  const { apiPort } = getRuntimePorts();
+  return [`localhost:${apiPort}`, `127.0.0.1:${apiPort}`];
+};
+
+async function resetContinueConfig() {
+  const configPath = getContinueConfigPath();
+
+  let existingConfig: unknown;
+  try {
+    existingConfig = loadYaml(await fs.readFile(configPath, "utf-8")) ?? {};
+  } catch {
+    return NextResponse.json({ success: true, message: "No Continue config to reset" });
+  }
+
+  const config = removeRoutiformContinueConfig(existingConfig, { localHosts: getLocalHosts() });
+  await fs.writeFile(configPath, dumpYaml(config, { indent: 2, lineWidth: -1 }), "utf-8");
+
+  return NextResponse.json({
+    success: true,
+    message: `Routiform models removed from ${configPath}`,
+    configPath,
+  });
+}
+
+async function resetOpenCodeConfig() {
+  const configPath = getOpenCodeConfigPath();
+
+  let existingConfig: Record<string, unknown>;
+  try {
+    existingConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
+  } catch {
+    return NextResponse.json({ success: true, message: "No OpenCode config to reset" });
+  }
+
+  const config = removeRoutiformOpenCodeConfig(existingConfig);
+  await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf-8");
+
+  return NextResponse.json({
+    success: true,
+    message: `Routiform providers removed from ${configPath}`,
+    configPath,
+  });
 }
 
 /**
