@@ -54,6 +54,45 @@ function hasRenderableAssistantContent(content: unknown): boolean {
   return false;
 }
 
+/**
+ * Whether a Responses-API `output` array amounts to the provider having said nothing.
+ *
+ * Deliberately mirrors the reasoning-model carve-out the `choices` branch below applies:
+ * output tokens mean the model did work, and a model that reasons and then declines to
+ * speak is a legitimate answer rather than a failed request. Only a response that produced
+ * no items and no tokens is treated as empty, so this can never retry a reasoning-only
+ * reply that the rest of this function would have let through.
+ */
+function isEmptyResponsesOutput(output: unknown[], usage: unknown): boolean {
+  for (const item of output) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    const type = typeof record.type === "string" ? record.type : "";
+
+    if (type === "function_call" || type === "custom_tool_call") return false;
+    if (type === "reasoning") {
+      const summary = Array.isArray(record.summary) ? record.summary : [];
+      if (summary.length > 0) return false;
+      continue;
+    }
+    if (type !== "message") continue;
+
+    const parts = Array.isArray(record.content) ? record.content : [];
+    for (const part of parts) {
+      if (!part || typeof part !== "object") continue;
+      const partRecord = part as Record<string, unknown>;
+      if (typeof partRecord.text === "string" && hasRenderableAssistantText(partRecord.text)) {
+        return false;
+      }
+    }
+  }
+
+  const usageRecord = usage && typeof usage === "object" ? (usage as Record<string, unknown>) : {};
+  const outputTokens =
+    typeof usageRecord.output_tokens === "number" ? usageRecord.output_tokens : 0;
+  return outputTokens === 0;
+}
+
 export function isEmptyContentResponse(responseBody: unknown): boolean {
   if (!responseBody || typeof responseBody !== "object") return false;
 
@@ -99,6 +138,14 @@ export function isEmptyContentResponse(responseBody: unknown): boolean {
     }
 
     return !hasContent && !hasToolCalls && !hasReasoning;
+  }
+
+  // Responses-API shape (`{ object: "response", output: [...] }`), which the codex and
+  // openai-responses targets produce. Without this the whole shape fell through to the
+  // `return false` below, so a provider that answered with nothing at all was reported to
+  // the client as a successful empty completion instead of triggering the retry path.
+  if (body.object === "response" && Array.isArray(body.output)) {
+    return isEmptyResponsesOutput(body.output, body.usage);
   }
 
   if (Array.isArray(body.content)) {
