@@ -693,7 +693,8 @@
       "copilot": "Use when you want Copilot chat style UX while enforcing Routiform keys and routing rules.",
       "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through Routiform.",
       "cowork": "Use when integrating Claude Desktop's third-party inference Cowork mode with Routiform as the gateway provider.",
-      "hermes": "Use when running Hermes terminal agent locally and routing API calls through Routiform."
+      "hermes": "Use when running Hermes terminal agent locally and routing API calls through Routiform.",
+      "qwen": "Use when running Qwen Code in the terminal and routing its OpenAI-compatible requests through Routiform."
     },
     "toolDescriptions": {
       "antigravity": "Google Antigravity IDE with MITM",
@@ -710,7 +711,8 @@
       "windsurf": "Windsurf AI Code Editor",
       "copilot": "GitHub Copilot AI Assistant",
       "cowork": "Claude Desktop third-party inference (Cowork mode)",
-      "hermes": "Nous Research Hermes terminal AI agent"
+      "hermes": "Nous Research Hermes terminal AI agent",
+      "qwen": "Alibaba Qwen Code CLI (Terminal)"
     },
     "guides": {
       "cursor": {

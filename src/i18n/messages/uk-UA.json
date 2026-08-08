@@ -668,7 +668,8 @@
       "kiro": "Використовуйте під час інтеграції Kiro та централізованого керування маршрутизацією моделі з Routiform.",
       "antigravity": "Використовуйте, коли трафік Antigravity/Kiro потрібно перехопити через MITM і направити на Routiform.",
       "copilot": "Використовуйте, коли вам потрібен UX у стилі чату Copilot із застосуванням ключів Routiform і правил маршрутизації.",
-      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through Routiform."
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through Routiform.",
+      "qwen": "Використовуйте, коли запускаєте Qwen Code у терміналі та спрямовуєте його OpenAI-сумісні запити через Routiform."
     },
     "toolDescriptions": {
       "antigravity": "Google Antigravity IDE з MITM",
@@ -683,7 +684,8 @@
       "opencode": "OpenCode AI coding agent (Terminal)",
       "kiro": "Amazon Kiro — AI-powered IDE",
       "windsurf": "Windsurf AI Code Editor",
-      "copilot": "GitHub Copilot AI Assistant"
+      "copilot": "GitHub Copilot AI Assistant",
+      "qwen": "Alibaba Qwen Code CLI (Terminal)"
     },
     "guides": {
       "cursor": {

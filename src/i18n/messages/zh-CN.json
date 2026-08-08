@@ -669,7 +669,8 @@
       "kiro": "在集成 Kiro 并从 Routiform 集中控制模型路由时使用。",
       "antigravity": "当必须通过 MITM 拦截 Antigravity/Kiro 流量并将其路由到 Routiform 时使用。",
       "copilot": "当您想要 Copilot 聊天风格的 UX 同时强制执行 Routiform 键和路由规则时使用。",
-      "windsurf": "在 Windsurf 中编码且需要通过 Routiform 路由 OpenAI 兼容模型时使用。"
+      "windsurf": "在 Windsurf 中编码且需要通过 Routiform 路由 OpenAI 兼容模型时使用。",
+      "qwen": "当您在终端中运行 Qwen Code 并通过 Routiform 路由其 OpenAI 兼容请求时使用。"
     },
     "toolDescriptions": {
       "antigravity": "带 MITM 的 Google Antigravity IDE",
@@ -684,7 +685,8 @@
       "opencode": "OpenCode AI 编码智能体（终端）",
       "kiro": "Amazon Kiro - AI 驱动 IDE",
       "windsurf": "Windsurf AI Code Editor",
-      "copilot": "GitHub Copilot AI Assistant"
+      "copilot": "GitHub Copilot AI Assistant",
+      "qwen": "Alibaba Qwen Code CLI（终端）"
     },
     "guides": {
       "cursor": {

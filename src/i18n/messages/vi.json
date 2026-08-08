@@ -669,7 +669,8 @@
       "kiro": "Sử dụng khi tích hợp Kiro và điều khiển định tuyến mô hình tập trung từ Routiform.",
       "antigravity": "Sử dụng khi lưu lượng truy cập AntiGravity/Kiro phải bị chặn thông qua MITM và được định tuyến đến Routiform.",
       "copilot": "Sử dụng khi bạn muốn UX kiểu trò chuyện Copilot trong khi thực thi các khóa Routiform và quy tắc định tuyến.",
-      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through Routiform."
+      "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through Routiform.",
+      "qwen": "Sử dụng khi bạn chạy Qwen Code trong thiết bị đầu cuối và định tuyến các yêu cầu tương thích OpenAI của nó qua Routiform."
     },
     "toolDescriptions": {
       "antigravity": "IDE chống trọng lực của Google với MITM",
@@ -684,7 +685,8 @@
       "opencode": "OpenCode AI coding agent (Terminal)",
       "kiro": "Amazon Kiro — AI-powered IDE",
       "windsurf": "Windsurf AI Code Editor",
-      "copilot": "GitHub Copilot AI Assistant"
+      "copilot": "GitHub Copilot AI Assistant",
+      "qwen": "Alibaba Qwen Code CLI (Terminal)"
     },
     "guides": {
       "cursor": {
