@@ -2,6 +2,48 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [6.0.0](https://github.com/linhnguyen-gt/Routiform/compare/v5.0.0...v6.0.0) (2026-08-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* **providers:** the `gemini` provider and its stored connections are removed,
+along with Veo video generation. Use `antigravity` for Gemini models.
+* **providers:** the `gemini-cli` provider is removed. Migration 028 deletes
+stored provider_connections and quota_snapshots rows for it; they cannot be
+recovered without a database backup, though the migration runner takes a
+pre-migration snapshot first. Usage history is left intact. Combos and model
+aliases referencing `gemini-cli/...` no longer resolve, and the `gc/` model
+alias no longer maps in /api/v1/models. The env vars GEMINI_OAUTH_CLIENT_ID,
+GEMINI_OAUTH_CLIENT_SECRET, GEMINI_CLI_OAUTH_CLIENT_ID,
+GEMINI_CLI_OAUTH_CLIENT_SECRET and GEMINI_CLI_USER_AGENT are no longer read.
+Use the `gemini` provider with a Google AI Studio API key instead.
+
+### Features
+
+* **cli-tools:** add a Reset button to Continue and OpenCode ([f36d9b5](https://github.com/linhnguyen-gt/Routiform/commit/f36d9b53999a79641d91ad1b7cdac8f36749acab))
+* **cli-tools:** bring back the Qwen Code card, in the shape Qwen reads ([67dcb17](https://github.com/linhnguyen-gt/Routiform/commit/67dcb171e9e0fa7ab3f83ac8f3a5522aafa76d2e))
+* **cli-tools:** follow the current Copilot, Continue and Hermes config formats ([8c4b197](https://github.com/linhnguyen-gt/Routiform/commit/8c4b197600048e383ea9694f589a084890d5819d))
+* **combos:** default new combos to measured token limits ([516ae5c](https://github.com/linhnguyen-gt/Routiform/commit/516ae5c1b6f0d63ef5600408225a9e8a55598b58))
+* **combos:** let a combo carry its own token limits ([d8fec93](https://github.com/linhnguyen-gt/Routiform/commit/d8fec938a2c6af3a836b950e453e12da5274c85c))
+* **combos:** resolve quick templates against connected providers ([f6712c7](https://github.com/linhnguyen-gt/Routiform/commit/f6712c77d73c367057a066a0667b19ba152c3658))
+* **providers:** remove the Gemini CLI provider ([fae9d0a](https://github.com/linhnguyen-gt/Routiform/commit/fae9d0aaab888e1b179653ab74a965ab2adebfff))
+* **providers:** remove the Gemini provider ([4d0a1e3](https://github.com/linhnguyen-gt/Routiform/commit/4d0a1e3dcb3b267133b35c5a6f9db4434e7b8dac))
+
+
+### Bug Fixes
+
+* **auto-combo:** score models by the longest matching pattern ([7578a01](https://github.com/linhnguyen-gt/Routiform/commit/7578a0116e6a96f48a9fffabff2c5b8e66059780))
+* **cli-tools:** give every tool the model's real context window ([996852f](https://github.com/linhnguyen-gt/Routiform/commit/996852f4a31611ea57555f87f00dfe05c18e6f1a))
+* **cli-tools:** stop clobbering a Claude setting and repoint stale docs links ([e86aade](https://github.com/linhnguyen-gt/Routiform/commit/e86aadea9c6ced18fd61030cd4a79d7f822f7e4f))
+* **cli-tools:** write Kilo and Cline config in the shapes those CLIs read ([865e636](https://github.com/linhnguyen-gt/Routiform/commit/865e636791b9bedc2611d650f3d4488e20b8ac66))
+* **combos:** drop dead connections from quick-template resolution ([4d7a4cc](https://github.com/linhnguyen-gt/Routiform/commit/4d7a4cc9665308e9565a47ce571ebc23fd5a5b9c))
+* **deps:** note the undici pin in the 5.0.0 release ([73c0958](https://github.com/linhnguyen-gt/Routiform/commit/73c0958a568499a762c462f1bd79eae267d6377b))
+* **deps:** pin undici to v7 so Node 22's fetch accepts our dispatcher ([0997f84](https://github.com/linhnguyen-gt/Routiform/commit/0997f8401a07ea22d6c9fd458375bf8a207c6e7e))
+* **docker:** base images on trixie so the arm64 native addon loads ([d010596](https://github.com/linhnguyen-gt/Routiform/commit/d0105962009c699f308172caf506ba12f7742624))
+* **sse:** keep the Responses reply that arrives only as deltas ([87ba8c4](https://github.com/linhnguyen-gt/Routiform/commit/87ba8c4f0d80f21e08017b3f327d959175b85608))
+* **tests:** isolate the unit suite from the real data directory ([d5eb2ea](https://github.com/linhnguyen-gt/Routiform/commit/d5eb2ea8b74639d72434bbb1f6c16f2dad524bef))
+
 ## [5.0.0](https://github.com/linhnguyen-gt/Routiform/compare/v4.0.0...v5.0.0) (2026-08-05)
 
 ### ⚠ BREAKING CHANGES
