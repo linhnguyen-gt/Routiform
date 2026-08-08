@@ -180,3 +180,6 @@ public/owui/
 
 # CodeGraph local index — per-developer tooling, regenerated on demand
 .codegraph/
+
+# Unit tests run against an isolated SQLite data directory, never the real one
+.test-data/
