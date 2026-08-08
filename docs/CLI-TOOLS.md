@@ -46,8 +46,8 @@ directly runnable inside the Linux container.
 
 ## Supported Tools (Dashboard Source of Truth)
 
-The dashboard cards in `/dashboard/cli-tools` are generated from `src/shared/constants/cliTools.ts`.
-Current list (v3.0.0-rc.16):
+The dashboard cards in `/dashboard/cli-tools` are generated from `src/shared/constants/cliTools.ts`,
+which is the source of truth for this table:
 
 | Tool               | ID            | Command    | Setup Mode | Install Method |
 | ------------------ | ------------- | ---------- | ---------- | -------------- |
@@ -56,14 +56,17 @@ Current list (v3.0.0-rc.16):
 | **Factory Droid**  | `droid`       | `droid`    | custom     | bundled/CLI    |
 | **OpenClaw**       | `openclaw`    | `openclaw` | custom     | bundled/CLI    |
 | **Cursor**         | `cursor`      | app        | guide      | desktop app    |
+| **Windsurf**       | `windsurf`    | app        | guide      | desktop app    |
 | **Cline**          | `cline`       | `cline`    | custom     | npm            |
 | **Kilo Code**      | `kilo`        | `kilocode` | custom     | npm            |
 | **Continue**       | `continue`    | extension  | guide      | VS Code        |
 | **Antigravity**    | `antigravity` | internal   | mitm       | Routiform      |
 | **GitHub Copilot** | `copilot`     | extension  | custom     | VS Code        |
-| **Qwen Code**      | `qwen`        | `qwen`     | custom     | npm            |
 | **OpenCode**       | `opencode`    | `opencode` | guide      | npm            |
+| **Qwen Code**      | `qwen`        | `qwen`     | guide      | npm            |
 | **Kiro AI**        | `kiro`        | app/cli    | mitm       | desktop/CLI    |
+| **Cowork**         | `cowork`      | app        | custom     | desktop app    |
+| **Hermes**         | `hermes`      | `hermes`   | custom     | CLI            |
 
 ### CLI fingerprint sync (Agents + Settings)
 
@@ -153,18 +156,23 @@ export GEMINI_API_KEY="sk-your-routiform-key"
 
 ### Claude Code
 
-```bash
-# Via CLI:
-claude config set --global api-base-url http://localhost:20128/v1
+Claude Code reads the endpoint from the `env` block of its settings file, not from a
+top-level key, and has no CLI flag for it:
 
-# Or create ~/.claude/settings.json:
+```bash
 mkdir -p ~/.claude && cat > ~/.claude/settings.json << EOF
 {
-  "apiBaseUrl": "http://localhost:20128/v1",
-  "apiKey": "sk-your-routiform-key"
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:20128/v1",
+    "ANTHROPIC_AUTH_TOKEN": "sk-your-routiform-key",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "auto"
+  }
 }
 EOF
 ```
+
+`ANTHROPIC_DEFAULT_OPUS_MODEL` and `ANTHROPIC_DEFAULT_HAIKU_MODEL` map the other two
+aliases; omit them to leave those aliases on Anthropic's own models.
 
 **Test:** `claude "say hello"`
 
@@ -172,13 +180,30 @@ EOF
 
 ### OpenAI Codex
 
+Codex takes the endpoint from a named provider in `config.toml` and the key from a
+separate `auth.json`:
+
 ```bash
-mkdir -p ~/.codex && cat > ~/.codex/config.yaml << EOF
-model: auto
-apiKey: sk-your-routiform-key
-apiBaseUrl: http://localhost:20128/v1
+mkdir -p ~/.codex && cat > ~/.codex/config.toml << EOF
+model = "auto"
+model_provider = "routiform"
+model_context_window = 300000
+
+[model_providers.routiform]
+name = "Routiform"
+base_url = "http://localhost:20128/v1"
+wire_api = "responses"
+EOF
+
+cat > ~/.codex/auth.json << EOF
+{ "OPENAI_API_KEY": "sk-your-routiform-key" }
 EOF
 ```
+
+`model_context_window` is what stops Codex from reporting the context meter against its
+own 272k fallback for a slug it does not recognise. Codex clamps the value to the model's
+`max_context_window`, so it can correct a window downwards but not raise one above that
+fallback.
 
 **Test:** `codex "what is 2+2?"`
 
@@ -186,13 +211,34 @@ EOF
 
 ### OpenCode
 
+OpenCode reads `opencode.json` — there is no `config.toml`. A provider entry needs the npm
+package that serves it, and `limit` is what the context meter is calculated from:
+
 ```bash
-mkdir -p ~/.config/opencode && cat > ~/.config/opencode/config.toml << EOF
-[provider.openai]
-base_url = "http://localhost:20128/v1"
-api_key = "sk-your-routiform-key"
+mkdir -p ~/.config/opencode && cat > ~/.config/opencode/opencode.json << 'EOF'
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "routiform-openai": {
+      "npm": "@ai-sdk/openai",
+      "name": "Routiform OpenAI",
+      "options": {
+        "baseURL": "http://localhost:20128/v1",
+        "apiKey": "sk-your-routiform-key"
+      },
+      "models": {
+        "auto": { "name": "auto", "limit": { "context": 300000, "output": 64000 } }
+      }
+    }
+  },
+  "model": "routiform-openai/auto"
+}
 EOF
 ```
+
+Anthropic models go under a second `routiform-anthropic` provider with
+`"npm": "@ai-sdk/anthropic"`. Without the root `model`, opencode stays on whatever default
+it resolves on its own and the provider above is never used.
 
 **Test:** `opencode`
 
@@ -202,13 +248,22 @@ EOF
 
 **CLI mode:**
 
+Cline keeps a separate provider for its Act and Plan modes, and the key lives in its
+secrets store rather than in `globalState.json`:
+
 ```bash
 mkdir -p ~/.cline/data && cat > ~/.cline/data/globalState.json << EOF
 {
-  "apiProvider": "openai",
+  "actModeApiProvider": "openai",
+  "planModeApiProvider": "openai",
   "openAiBaseUrl": "http://localhost:20128/v1",
-  "openAiApiKey": "sk-your-routiform-key"
+  "openAiModelId": "auto",
+  "planModeOpenAiModelId": "auto"
 }
+EOF
+
+cat > ~/.cline/data/secrets.json << EOF
+{ "openAiApiKey": "sk-your-routiform-key" }
 EOF
 ```
 
@@ -223,18 +278,36 @@ Or use the Routiform dashboard → **CLI Tools → Cline → Apply Config**.
 
 **CLI mode:**
 
+Kilo splits its configuration across an XDG config file and an XDG data file. On
+macOS/Linux those are `~/.config/kilo/kilo.json` and `~/.local/share/kilo/auth.json`;
+`XDG_CONFIG_HOME` and `XDG_DATA_HOME` override both.
+
 ```bash
-kilocode --api-base http://localhost:20128/v1 --api-key sk-your-routiform-key
+mkdir -p ~/.config/kilo && cat > ~/.config/kilo/kilo.json << 'EOF'
+{
+  "provider": {
+    "routiform": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Routiform",
+      "options": { "baseURL": "http://localhost:20128/v1" },
+      "models": {
+        "auto": { "name": "auto", "limit": { "context": 300000, "output": 64000 } }
+      }
+    }
+  },
+  "model": "routiform/auto"
+}
+EOF
+
+mkdir -p ~/.local/share/kilo && cat > ~/.local/share/kilo/auth.json << 'EOF'
+{ "routiform": { "type": "api", "key": "sk-your-routiform-key" } }
+EOF
 ```
 
 **VS Code settings:**
 
-```json
-{
-  "kilo-code.openAiBaseUrl": "http://localhost:20128/v1",
-  "kilo-code.apiKey": "sk-your-routiform-key"
-}
-```
+The extension is configured from its own settings UI — API Provider `OpenAI Compatible`,
+Base URL `http://localhost:20128/v1` — not from `kilo.json`.
 
 Or use the Routiform dashboard → **CLI Tools → KiloCode → Apply Config**.
 
@@ -260,15 +333,35 @@ Restart VS Code after editing.
 
 ### Qwen Code
 
+Qwen keys `modelProviders` by auth type and stores an array of model entries under it. It
+never keeps credentials in `settings.json` — an entry names the environment variable, and
+`~/.qwen/.env` is loaded automatically:
+
 ```bash
-mkdir -p ~/.qwen && cat > ~/.qwen/settings.json << EOF
+mkdir -p ~/.qwen && cat > ~/.qwen/settings.json << 'EOF'
 {
-  "apiBaseUrl": "http://localhost:20128/v1",
-  "apiKey": "sk-your-routiform-key",
-  "defaultModel": "auto"
+  "modelProviders": {
+    "openai": [
+      {
+        "id": "auto",
+        "name": "auto",
+        "envKey": "ROUTIFORM_API_KEY",
+        "baseUrl": "http://localhost:20128/v1",
+        "generationConfig": { "contextWindowSize": 300000 }
+      }
+    ]
+  },
+  "model": { "name": "auto" },
+  "security": { "auth": { "selectedType": "openai" } }
 }
 EOF
+
+echo 'ROUTIFORM_API_KEY=sk-your-routiform-key' > ~/.qwen/.env
 ```
+
+`model.name` and `security.auth.selectedType` are both required — without them the provider
+entry is written but never used. A dedicated variable is used instead of the default
+`OPENAI_API_KEY` so this cannot overwrite a real OpenAI key.
 
 Or use the Routiform dashboard → **CLI Tools → Qwen Code → Apply Config** (saves config directly via `/api/cli-tools/guide-settings/qwen`).
 
@@ -361,17 +454,32 @@ ROUTIFORM_KEY="sk-your-routiform-key"
 npm install -g @anthropic-ai/claude-code @openai/codex opencode-ai cline kilocode
 
 # Qwen Code (via npm)
-npm install -g qwen-code
+npm install -g @qwen-code/qwen-code
 
 # Kiro CLI
 apt-get install -y unzip 2>/dev/null; curl -fsSL https://cli.kiro.dev/install | bash
 
-# Write configs
+# Write configs. Each tool reads a different file in a different shape — see Step 4 above
+# for the full form of each; only the two simplest are inlined here.
 mkdir -p ~/.claude ~/.codex ~/.config/opencode ~/.continue ~/.qwen
 
-cat > ~/.claude/settings.json   <<< "{\"apiBaseUrl\":\"$ROUTIFORM_URL\",\"apiKey\":\"$ROUTIFORM_KEY\"}"
-cat > ~/.codex/config.yaml      <<< "model: auto\napiKey: $ROUTIFORM_KEY\napiBaseUrl: $ROUTIFORM_URL"
-cat > ~/.qwen/settings.json    <<< "{\"apiBaseUrl\":\"$ROUTIFORM_URL\",\"apiKey\":\"$ROUTIFORM_KEY\",\"defaultModel\":\"auto\"}"
+cat > ~/.claude/settings.json <<EOF
+{ "env": { "ANTHROPIC_BASE_URL": "$ROUTIFORM_URL", "ANTHROPIC_AUTH_TOKEN": "$ROUTIFORM_KEY" } }
+EOF
+
+cat > ~/.codex/config.toml <<EOF
+model = "auto"
+model_provider = "routiform"
+
+[model_providers.routiform]
+name = "Routiform"
+base_url = "$ROUTIFORM_URL"
+wire_api = "responses"
+EOF
+cat > ~/.codex/auth.json <<< "{\"OPENAI_API_KEY\":\"$ROUTIFORM_KEY\"}"
+
+echo "ROUTIFORM_API_KEY=$ROUTIFORM_KEY" > ~/.qwen/.env
+
 cat >> ~/.bashrc << EOF
 export OPENAI_BASE_URL="$ROUTIFORM_URL"
 export OPENAI_API_KEY="$ROUTIFORM_KEY"

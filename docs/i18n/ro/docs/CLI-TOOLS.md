@@ -43,13 +43,17 @@ Current list (v3.0.0-rc.16):
 | **Factory Droid**  | `droid`       | `droid`    | custom     | bundled/CLI    |
 | **OpenClaw**       | `openclaw`    | `openclaw` | custom     | bundled/CLI    |
 | **Cursor**         | `cursor`      | app        | guide      | desktop app    |
+| **Windsurf**       | `windsurf`    | app        | guide      | desktop app    |
 | **Cline**          | `cline`       | `cline`    | custom     | npm            |
 | **Kilo Code**      | `kilo`        | `kilocode` | custom     | npm            |
 | **Continue**       | `continue`    | extension  | guide      | VS Code        |
 | **Antigravity**    | `antigravity` | internal   | mitm       | Routiform      |
 | **GitHub Copilot** | `copilot`     | extension  | custom     | VS Code        |
 | **OpenCode**       | `opencode`    | `opencode` | guide      | npm            |
+| **Qwen Code**      | `qwen`        | `qwen`     | guide      | npm            |
 | **Kiro AI**        | `kiro`        | app/cli    | mitm       | desktop/CLI    |
+| **Cowork**         | `cowork`      | app        | custom     | desktop app    |
+| **Hermes**         | `hermes`      | `hermes`   | custom     | CLI            |
 
 ### CLI fingerprint sync (Agents + Settings)
 
@@ -140,14 +144,13 @@ export GEMINI_API_KEY="sk-your-routiform-key"
 ### Claude Code
 
 ```bash
-# Via CLI:
-claude config set --global api-base-url http://localhost:20128/v1
-
-# Or create ~/.claude/settings.json:
 mkdir -p ~/.claude && cat > ~/.claude/settings.json << EOF
 {
-  "apiBaseUrl": "http://localhost:20128/v1",
-  "apiKey": "sk-your-routiform-key"
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:20128/v1",
+    "ANTHROPIC_AUTH_TOKEN": "sk-your-routiform-key",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "auto"
+  }
 }
 EOF
 ```
@@ -159,10 +162,19 @@ EOF
 ### OpenAI Codex
 
 ```bash
-mkdir -p ~/.codex && cat > ~/.codex/config.yaml << EOF
-model: auto
-apiKey: sk-your-routiform-key
-apiBaseUrl: http://localhost:20128/v1
+mkdir -p ~/.codex && cat > ~/.codex/config.toml << EOF
+model = "auto"
+model_provider = "routiform"
+model_context_window = 300000
+
+[model_providers.routiform]
+name = "Routiform"
+base_url = "http://localhost:20128/v1"
+wire_api = "responses"
+EOF
+
+cat > ~/.codex/auth.json << EOF
+{ "OPENAI_API_KEY": "sk-your-routiform-key" }
 EOF
 ```
 
@@ -173,10 +185,24 @@ EOF
 ### OpenCode
 
 ```bash
-mkdir -p ~/.config/opencode && cat > ~/.config/opencode/config.toml << EOF
-[provider.openai]
-base_url = "http://localhost:20128/v1"
-api_key = "sk-your-routiform-key"
+mkdir -p ~/.config/opencode && cat > ~/.config/opencode/opencode.json << 'EOF'
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "routiform-openai": {
+      "npm": "@ai-sdk/openai",
+      "name": "Routiform OpenAI",
+      "options": {
+        "baseURL": "http://localhost:20128/v1",
+        "apiKey": "sk-your-routiform-key"
+      },
+      "models": {
+        "auto": { "name": "auto", "limit": { "context": 300000, "output": 64000 } }
+      }
+    }
+  },
+  "model": "routiform-openai/auto"
+}
 EOF
 ```
 
@@ -191,10 +217,16 @@ EOF
 ```bash
 mkdir -p ~/.cline/data && cat > ~/.cline/data/globalState.json << EOF
 {
-  "apiProvider": "openai",
+  "actModeApiProvider": "openai",
+  "planModeApiProvider": "openai",
   "openAiBaseUrl": "http://localhost:20128/v1",
-  "openAiApiKey": "sk-your-routiform-key"
+  "openAiModelId": "auto",
+  "planModeOpenAiModelId": "auto"
 }
+EOF
+
+cat > ~/.cline/data/secrets.json << EOF
+{ "openAiApiKey": "sk-your-routiform-key" }
 EOF
 ```
 
@@ -210,17 +242,31 @@ Or use the Routiform dashboard → **CLI Tools → Cline → Apply Config**.
 **CLI mode:**
 
 ```bash
-kilocode --api-base http://localhost:20128/v1 --api-key sk-your-routiform-key
+mkdir -p ~/.config/kilo && cat > ~/.config/kilo/kilo.json << 'EOF'
+{
+  "provider": {
+    "routiform": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Routiform",
+      "options": { "baseURL": "http://localhost:20128/v1" },
+      "models": {
+        "auto": { "name": "auto", "limit": { "context": 300000, "output": 64000 } }
+      }
+    }
+  },
+  "model": "routiform/auto"
+}
+EOF
+
+mkdir -p ~/.local/share/kilo && cat > ~/.local/share/kilo/auth.json << 'EOF'
+{ "routiform": { "type": "api", "key": "sk-your-routiform-key" } }
+EOF
 ```
 
 **VS Code settings:**
 
-```json
-{
-  "kilo-code.openAiBaseUrl": "http://localhost:20128/v1",
-  "kilo-code.apiKey": "sk-your-routiform-key"
-}
-```
+Kilo Code's VS Code extension is configured from its own settings UI — API Provider
+`OpenAI Compatible`, Base URL `http://localhost:20128/v1` — not from `kilo.json`.
 
 Or use the Routiform dashboard → **CLI Tools → KiloCode → Apply Config**.
 
@@ -334,8 +380,20 @@ apt-get install -y unzip 2>/dev/null; curl -fsSL https://cli.kiro.dev/install | 
 # Write configs
 mkdir -p ~/.claude ~/.codex ~/.config/opencode ~/.continue
 
-cat > ~/.claude/settings.json   <<< "{\"apiBaseUrl\":\"$ROUTIFORM_URL\",\"apiKey\":\"$ROUTIFORM_KEY\"}"
-cat > ~/.codex/config.yaml      <<< "model: auto\napiKey: $ROUTIFORM_KEY\napiBaseUrl: $ROUTIFORM_URL"
+cat > ~/.claude/settings.json <<EOF
+{ "env": { "ANTHROPIC_BASE_URL": "$ROUTIFORM_URL", "ANTHROPIC_AUTH_TOKEN": "$ROUTIFORM_KEY" } }
+EOF
+
+cat > ~/.codex/config.toml <<EOF
+model = "auto"
+model_provider = "routiform"
+
+[model_providers.routiform]
+name = "Routiform"
+base_url = "$ROUTIFORM_URL"
+wire_api = "responses"
+EOF
+cat > ~/.codex/auth.json <<< "{\"OPENAI_API_KEY\":\"$ROUTIFORM_KEY\"}"
 cat >> ~/.bashrc << EOF
 export OPENAI_BASE_URL="$ROUTIFORM_URL"
 export OPENAI_API_KEY="$ROUTIFORM_KEY"
