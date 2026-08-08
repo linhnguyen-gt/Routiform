@@ -32,14 +32,13 @@ export default function CLIToolsPageClient({ machineId: _machineId }) {
   const [toolStatuses, setToolStatuses] = useState({});
   const [statusesLoaded, setStatusesLoaded] = useState(false);
   const [dynamicModels, setDynamicModels] = useState([]);
+  // Per-tool copy is only translated for some tools, and a locale file carries only its own
+  // messages — there is no fallback to `en`. A missing key has to be asked about rather than
+  // caught: next-intl reports it through onError and returns a placeholder instead of
+  // throwing, so the try/catch this used to be never ran and adding a tool to the catalog
+  // without its message keys took the whole page down.
   const translateOrFallback = useCallback(
-    (key, fallback, values = undefined) => {
-      try {
-        return t(key, values);
-      } catch {
-        return fallback;
-      }
-    },
+    (key, fallback, values = undefined) => (t.has(key) ? t(key, values) : fallback),
     [t]
   );
 
