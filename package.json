@@ -103,7 +103,7 @@
     "json5": "^2.2.3",
     "lowdb": "^7.0.1",
     "monaco-editor": "^0.56.0",
-    "next": "16.2.12",
+    "next": "16.3.0",
     "next-intl": "^4.8.3",
     "node-forge": "^1.4.0",
     "node-machine-id": "^1.1.12",
