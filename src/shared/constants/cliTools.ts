@@ -6,7 +6,7 @@ export const CLI_TOOLS = {
     icon: "terminal",
     color: "#D97757",
     description: "Anthropic Claude Code CLI",
-    docsUrl: "https://docs.anthropic.com/en/docs/claude-code/overview",
+    docsUrl: "https://code.claude.com/docs/en/overview",
     configType: "env",
     envVars: {
       baseUrl: "ANTHROPIC_BASE_URL",
@@ -78,7 +78,7 @@ export const CLI_TOOLS = {
     image: "/providers/cursor.png",
     color: "#000000",
     description: "Cursor AI Code Editor",
-    docsUrl: "https://docs.cursor.com/settings/models",
+    docsUrl: "https://cursor.com/docs",
     configType: "guide",
     requiresCloud: true,
     defaultCommands: ["agent", "cursor"],
@@ -104,7 +104,7 @@ export const CLI_TOOLS = {
     image: "/providers/windsurf.svg",
     color: "#4A90E2",
     description: "Windsurf AI-first IDE by Codeium",
-    docsUrl: "https://windsurf.com/",
+    docsUrl: "https://devin.ai/desktop",
     configType: "guide",
     notes: [
       {
@@ -243,7 +243,7 @@ models:
     image: "/providers/copilot.png",
     color: "#1F6FEB",
     description: "GitHub Copilot Chat — VS Code Extension",
-    docsUrl: "https://code.visualstudio.com/docs/copilot/overview",
+    docsUrl: "https://code.visualstudio.com/docs/copilot/customization/language-models",
     configType: "custom",
   },
   opencode: {
@@ -307,7 +307,7 @@ models:
     image: "/providers/claude.png",
     color: "#D97757",
     description: "Claude Desktop third-party inference (Cowork mode)",
-    docsUrl: "https://docs.anthropic.com/en/docs/claude-code/cowork",
+    docsUrl: "https://claude.com/product/claude-desktop",
     configType: "custom",
   },
   hermes: {

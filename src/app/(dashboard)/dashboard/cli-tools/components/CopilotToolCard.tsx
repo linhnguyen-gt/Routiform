@@ -9,7 +9,7 @@ import { useTranslations } from "next-intl";
  * GitHub Copilot Configuration Generator
  *
  * Generates the chatLanguageModels.json block for VS Code GitHub Copilot
- * using the Azure vendor pattern as required by Copilot's architecture.
+ * using the Custom Endpoint provider.
  *
  * Feature request: https://github.com/linhnguyen-gt/Routiform/issues/142
  */

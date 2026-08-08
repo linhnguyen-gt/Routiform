@@ -9,7 +9,9 @@ import {
   getCliRuntimeStatus,
 } from "@/shared/services/cliRuntime";
 import { createBackup } from "@/shared/services/backupService";
+import { fetchModelTokenLimits } from "@/shared/services/modelTokenLimits";
 import { saveCliToolLastConfigured, deleteCliToolLastConfigured } from "@/lib/db/cliToolState";
+import { DEFAULT_COMBO_MAX_OUTPUT_TOKENS } from "@/shared/constants/combo-defaults";
 import { cliModelConfigSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { getApiKeyById } from "@/lib/localDb";
@@ -171,7 +173,11 @@ export async function POST(request: Request) {
     // Normalize baseUrl to ensure /v1 suffix
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
 
-    // Add new Routiform config
+    // Droid sends maxOutputTokens straight through as the request's output cap, so a value
+    // above what the model actually allows comes back as a 400. Prefer the catalog's number
+    // and fall back to the shared default rather than a hardcoded ceiling.
+    const { maxOutputTokens } = await fetchModelTokenLimits([model]);
+
     const customModel = {
       model: model,
       id: DROID_ROUTIFORM_CUSTOM_ID,
@@ -179,7 +185,7 @@ export async function POST(request: Request) {
       baseUrl: normalizedBaseUrl,
       apiKey: apiKey || "your_api_key",
       displayName: model,
-      maxOutputTokens: 131072,
+      maxOutputTokens: maxOutputTokens[model] ?? DEFAULT_COMBO_MAX_OUTPUT_TOKENS,
       noImageSupport: false,
       provider: "openai",
     };
