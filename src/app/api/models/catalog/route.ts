@@ -6,7 +6,7 @@ import { getAllEmbeddingModels } from "@routiform/open-sse/config/embeddingRegis
 import { getAllImageModels } from "@routiform/open-sse/config/imageRegistry.ts";
 import { AI_PROVIDERS, ALIAS_TO_ID } from "@/shared/constants/providers";
 
-const LIVE_SYNC_MODEL_PROVIDERS = new Set(["claude", "gemini"]);
+const LIVE_SYNC_MODEL_PROVIDERS = new Set(["claude"]);
 
 /**
  * GET /api/models/catalog

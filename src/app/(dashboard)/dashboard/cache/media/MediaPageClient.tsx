@@ -50,7 +50,7 @@ const MODALITY_CONFIG: Record<
     label: "Video Generation",
     placeholder: "A timelapse of a flower blooming...",
     color: "from-blue-500 to-cyan-500",
-    needsCredentials: ["gemini"],
+    needsCredentials: [],
   },
   music: {
     icon: "music_note",
@@ -156,18 +156,6 @@ const PROVIDER_MODELS: Record<
     },
   ],
   video: [
-    {
-      id: "gemini",
-      name: "Gemini (Google AI Studio)",
-      models: [
-        { id: "gemini/veo-2.0-generate-001", name: "Veo 2.0" },
-        { id: "gemini/veo-3.0-generate-001", name: "Veo 3.0" },
-        { id: "gemini/veo-3.0-fast-generate-001", name: "Veo 3.0 Fast" },
-        { id: "gemini/veo-3.1-generate-preview", name: "Veo 3.1 (preview)" },
-        { id: "gemini/veo-3.1-fast-generate-preview", name: "Veo 3.1 Fast (preview)" },
-        { id: "gemini/veo-3.1-lite-generate-preview", name: "Veo 3.1 Lite (preview)" },
-      ],
-    },
     {
       id: "comfyui",
       name: "ComfyUI",

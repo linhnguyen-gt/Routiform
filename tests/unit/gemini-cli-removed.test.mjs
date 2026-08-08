@@ -35,12 +35,13 @@ test("gemini-cli pricing is retained for historical cost lookup", () => {
   assert.ok(DEFAULT_PRICING["gemini-cli"]["gemini-2.5-pro"]);
 });
 
-test("the gemini API-key provider is untouched", () => {
-  assert.ok(AI_PROVIDERS.gemini, "gemini (Google AI Studio) must still exist");
-  assert.ok(REGISTRY.gemini, "the gemini registry entry must still exist");
-  assert.equal(REGISTRY.gemini.authType, "apikey");
-  assert.equal(REGISTRY.gemini.format, "gemini");
-  assert.ok(DEFAULT_PRICING.gemini, "gemini pricing must still exist");
+// The neighbouring `gemini` provider was removed later and for an unrelated reason; that
+// removal is pinned by tests/unit/gemini-provider-removed.test.mjs. What survives BOTH
+// removals is the format, because antigravity runs on it.
+test("the gemini API-key provider was removed too, but the format survives", () => {
+  assert.equal(AI_PROVIDERS.gemini, undefined);
+  assert.equal(REGISTRY.gemini, undefined);
+  assert.ok(DEFAULT_PRICING.gemini, "pricing stays: historical cost is recomputed from it");
 });
 
 test("the gemini-cli format and its OAuth flow are gone", () => {

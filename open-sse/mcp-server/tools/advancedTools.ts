@@ -204,11 +204,14 @@ const RESILIENCE_PROFILES = {
 
 const TASK_FITNESS: Record<string, { preferred: string[]; traits: string[] }> = {
   coding: { preferred: ["claude", "deepseek", "codex"], traits: ["fast", "code-optimized"] },
-  review: { preferred: ["claude", "gemini", "openai"], traits: ["analytical", "thorough"] },
-  planning: { preferred: ["gemini", "claude", "openai"], traits: ["reasoning", "structured"] },
-  analysis: { preferred: ["gemini", "claude"], traits: ["deep-reasoning", "large-context"] },
+  review: { preferred: ["claude", "antigravity", "openai"], traits: ["analytical", "thorough"] },
+  planning: { preferred: ["antigravity", "claude", "openai"], traits: ["reasoning", "structured"] },
+  analysis: { preferred: ["antigravity", "claude"], traits: ["deep-reasoning", "large-context"] },
   debugging: { preferred: ["claude", "deepseek", "codex"], traits: ["code-aware", "fast"] },
-  documentation: { preferred: ["gemini", "claude", "openai"], traits: ["clear", "structured"] },
+  documentation: {
+    preferred: ["antigravity", "claude", "openai"],
+    traits: ["clear", "structured"],
+  },
 };
 
 // ============ Tool Handlers ============

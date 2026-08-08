@@ -17,7 +17,7 @@ import {
 } from "@/shared/services/modelSyncScheduler";
 import { getModelsByProviderId } from "@/shared/constants/models";
 
-const UNION_SYNCED_MODEL_PROVIDERS = new Set(["gemini", "claude"]);
+const UNION_SYNCED_MODEL_PROVIDERS = new Set(["claude"]);
 
 type JsonRecord = Record<string, unknown>;
 

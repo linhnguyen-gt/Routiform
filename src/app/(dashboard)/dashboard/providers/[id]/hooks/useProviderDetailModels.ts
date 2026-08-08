@@ -15,7 +15,6 @@ export interface UseProviderDetailModelsReturn {
     customModels: CompatModelRow[];
     modelCompatOverrides: Array<CompatModelRow & { id: string }>;
   };
-  syncedAvailableModels: unknown[];
   opencodeLiveCatalog: {
     status: "idle" | "loading" | "ready" | "no_connection" | "error";
     models: Array<{ id: string; name: string; contextLength?: number }>;
@@ -59,18 +58,14 @@ export function selectProviderDetailModels({
   isLiveCatalogProvider,
   registryModels,
   syncedModels,
-  syncedAvailableModels,
   opencodeLiveCatalog,
 }: {
   providerId: string;
   isLiveCatalogProvider: boolean;
   registryModels: ProviderDetailModel[];
   syncedModels: ProviderDetailModel[];
-  syncedAvailableModels: ProviderDetailModel[];
   opencodeLiveCatalog: LiveCatalogState;
 }): ProviderDetailModel[] {
-  if (providerId === "gemini") return dedupeModelsById(syncedAvailableModels);
-
   if (usesFetchedProviderCatalog(providerId, isLiveCatalogProvider)) {
     if (opencodeLiveCatalog.status === "ready" && opencodeLiveCatalog.models.length > 0) {
       return dedupeModelsById(opencodeLiveCatalog.models);
@@ -107,9 +102,6 @@ export function useProviderDetailModels({
     customModels: CompatModelRow[];
     modelCompatOverrides: Array<CompatModelRow & { id: string }>;
   }>({ customModels: [], modelCompatOverrides: [] });
-  const [syncedAvailableModels, setSyncedAvailableModels] = useState<
-    Array<{ id: string; name: string }>
-  >([]);
   const [opencodeLiveCatalog, setOpencodeLiveCatalog] = useState<LiveCatalogState>({
     status: "idle",
     models: [],
@@ -134,17 +126,9 @@ export function useProviderDetailModels({
       isLiveCatalogProvider,
       registryModels,
       syncedModels,
-      syncedAvailableModels,
       opencodeLiveCatalog,
     });
-  }, [
-    providerId,
-    syncedAvailableModels,
-    registryModels,
-    opencodeLiveCatalog,
-    isLiveCatalogProvider,
-    syncedModels,
-  ]);
+  }, [providerId, registryModels, opencodeLiveCatalog, isLiveCatalogProvider, syncedModels]);
 
   const fetchProviderModelMeta = useCallback(async () => {
     if (isSearchProvider) return;
@@ -158,20 +142,6 @@ export function useProviderDetailModels({
         customModels: data.models || [],
         modelCompatOverrides: data.modelCompatOverrides || [],
       });
-      // Fetch synced available models for Gemini
-      if (providerId === "gemini") {
-        try {
-          const syncRes = await fetch("/api/synced-available-models?provider=gemini", {
-            cache: "no-store",
-          });
-          if (syncRes.ok) {
-            const syncData = await syncRes.json();
-            setSyncedAvailableModels(syncData.models || []);
-          }
-        } catch {
-          // Non-critical
-        }
-      }
     } catch (e) {
       console.error("fetchProviderModelMeta", e);
     }
@@ -264,7 +234,6 @@ export function useProviderDetailModels({
 
   return {
     modelMeta,
-    syncedAvailableModels,
     opencodeLiveCatalog,
     models,
     registryModels,

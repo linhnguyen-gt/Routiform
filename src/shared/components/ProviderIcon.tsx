@@ -136,6 +136,8 @@ const KNOWN_PNGS = new Set([
   "droid",
   "exa-search",
   "fireworks",
+  // Legacy: the `gemini` provider was removed, but stored usage and call-log rows are
+  // still labelled `gemini`. Kept so those rows keep rendering an icon.
   "gemini",
   "github",
   "glm",

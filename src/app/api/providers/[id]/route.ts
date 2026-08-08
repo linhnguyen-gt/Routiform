@@ -206,16 +206,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       ipAddress: getAuditIpFromRequest(request),
     });
 
-    // Clean up synced available models for this connection
-    if (connection.provider === "gemini") {
-      try {
-        const { deleteSyncedAvailableModelsForConnection } = await import("@/lib/db/models");
-        await deleteSyncedAvailableModelsForConnection("gemini", id);
-      } catch (e) {
-        console.error("Failed to clean up synced models for deleted gemini connection:", e);
-      }
-    }
-
     // Auto sync to Cloud if enabled
     await syncToCloudIfEnabled();
 

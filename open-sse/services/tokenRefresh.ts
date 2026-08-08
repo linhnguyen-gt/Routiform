@@ -659,9 +659,8 @@ export async function refreshCopilotToken(githubAccessToken, log, proxyConfig = 
  * Get access token for a specific provider (internal, does the actual work)
  */
 async function _getAccessTokenInternal(provider, credentials, log, proxyConfig = null) {
-  // "gemini" is deliberately absent: it is API-key only, with no OAuth flow
-  // registered in src/lib/oauth/providers/index.ts, so no gemini connection can
-  // ever carry a refresh token.
+  // Antigravity is the only Google-OAuth provider; the API-key `gemini` provider that
+  // used to sit beside it was removed, and it never carried a refresh token anyway.
   switch (provider) {
     case "antigravity":
       return await refreshGoogleToken(

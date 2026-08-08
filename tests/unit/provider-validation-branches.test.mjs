@@ -228,16 +228,23 @@ test("registry openai-like providers report unsupported validation endpoints on 
   ]);
 });
 
-test("gemini validation rejects invalid API keys (401)", async () => {
+// The `gemini` provider is gone (removed with migration 029), and `vertex` — the only
+// remaining registry entry carrying `format: "gemini"` — is handled by a specialty
+// validator for Service Account JSON, so it never reaches the gemini-like branch either.
+// These tests therefore drive `validateGeminiLikeProvider` directly. The format is very
+// much alive (antigravity runs on it), so its response-parsing branches still need pinning.
+const GEMINI_MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+
+test("gemini-like validation rejects invalid API keys (401)", async () => {
   const calls = [];
   globalThis.fetch = async (url, init) => {
     calls.push({ url: String(url), headers: init?.headers });
     return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 });
   };
 
-  const result = await validateProviderApiKey({
-    provider: "gemini",
+  const result = await validateGeminiLikeProvider({
     apiKey: "bad-key",
+    baseUrl: GEMINI_MODELS_URL,
   });
 
   assert.equal(result.valid, false);
@@ -247,7 +254,7 @@ test("gemini validation rejects invalid API keys (401)", async () => {
   assert.equal(calls[0].headers["x-goog-api-key"], "bad-key");
 });
 
-test("gemini validation rejects invalid API keys (400 with API_KEY_INVALID)", async () => {
+test("gemini-like validation rejects invalid API keys (400 with API_KEY_INVALID)", async () => {
   globalThis.fetch = async () => {
     return new Response(
       JSON.stringify({
@@ -262,16 +269,16 @@ test("gemini validation rejects invalid API keys (400 with API_KEY_INVALID)", as
     );
   };
 
-  const result = await validateProviderApiKey({
-    provider: "gemini",
+  const result = await validateGeminiLikeProvider({
     apiKey: "bad-key",
+    baseUrl: GEMINI_MODELS_URL,
   });
 
   assert.equal(result.valid, false);
   assert.equal(result.error, "Invalid API key");
 });
 
-test("gemini validation rejects expired API keys (400 with API_KEY_EXPIRED)", async () => {
+test("gemini-like validation rejects expired API keys (400 with API_KEY_EXPIRED)", async () => {
   globalThis.fetch = async () => {
     return new Response(
       JSON.stringify({
@@ -286,16 +293,16 @@ test("gemini validation rejects expired API keys (400 with API_KEY_EXPIRED)", as
     );
   };
 
-  const result = await validateProviderApiKey({
-    provider: "gemini",
+  const result = await validateGeminiLikeProvider({
     apiKey: "expired-key",
+    baseUrl: GEMINI_MODELS_URL,
   });
 
   assert.equal(result.valid, false);
   assert.equal(result.error, "Invalid API key");
 });
 
-test("gemini validation rejects invalid keys via PERMISSION_DENIED status", async () => {
+test("gemini-like validation rejects invalid keys via PERMISSION_DENIED status", async () => {
   globalThis.fetch = async () => {
     return new Response(
       JSON.stringify({
@@ -310,16 +317,16 @@ test("gemini validation rejects invalid keys via PERMISSION_DENIED status", asyn
     );
   };
 
-  const result = await validateProviderApiKey({
-    provider: "gemini",
+  const result = await validateGeminiLikeProvider({
     apiKey: "bad-key",
+    baseUrl: GEMINI_MODELS_URL,
   });
 
   assert.equal(result.valid, false);
   assert.equal(result.error, "Invalid API key");
 });
 
-test("gemini validation accepts valid API key (200)", async () => {
+test("gemini-like validation accepts valid API key (200)", async () => {
   globalThis.fetch = async () => {
     return new Response(
       JSON.stringify({
@@ -331,30 +338,30 @@ test("gemini validation accepts valid API key (200)", async () => {
     );
   };
 
-  const result = await validateProviderApiKey({
-    provider: "gemini",
+  const result = await validateGeminiLikeProvider({
     apiKey: "valid-key",
+    baseUrl: GEMINI_MODELS_URL,
   });
 
   assert.equal(result.valid, true);
   assert.equal(result.error, null);
 });
 
-test("gemini validation treats 400 with unknown body as invalid key", async () => {
+test("gemini-like validation treats 400 with unknown body as invalid key", async () => {
   globalThis.fetch = async () => {
     return new Response("not json", { status: 400 });
   };
 
-  const result = await validateProviderApiKey({
-    provider: "gemini",
+  const result = await validateGeminiLikeProvider({
     apiKey: "bad-key",
+    baseUrl: GEMINI_MODELS_URL,
   });
 
   assert.equal(result.valid, false);
   assert.equal(result.error, "Invalid API key");
 });
 
-test("gemini validation treats 429 rate limit as valid key", async () => {
+test("gemini-like validation treats 429 rate limit as valid key", async () => {
   globalThis.fetch = async () => {
     return new Response(
       JSON.stringify({
@@ -368,16 +375,16 @@ test("gemini validation treats 429 rate limit as valid key", async () => {
     );
   };
 
-  const result = await validateProviderApiKey({
-    provider: "gemini",
+  const result = await validateGeminiLikeProvider({
     apiKey: "valid-but-rate-limited-key",
+    baseUrl: GEMINI_MODELS_URL,
   });
 
   assert.equal(result.valid, true);
   assert.equal(result.error, null);
 });
 
-test("gemini validation rejects invalid keys via UNAUTHENTICATED status", async () => {
+test("gemini-like validation rejects invalid keys via UNAUTHENTICATED status", async () => {
   globalThis.fetch = async () => {
     return new Response(
       JSON.stringify({
@@ -392,19 +399,18 @@ test("gemini validation rejects invalid keys via UNAUTHENTICATED status", async 
     );
   };
 
-  const result = await validateProviderApiKey({
-    provider: "gemini",
+  const result = await validateGeminiLikeProvider({
     apiKey: "bad-key",
+    baseUrl: GEMINI_MODELS_URL,
   });
 
   assert.equal(result.valid, false);
   assert.equal(result.error, "Invalid API key");
 });
 
-// Called directly rather than through validateProviderApiKey: no registered
-// gemini-format provider carries authType "oauth" any more (gemini-cli was the
-// only one and it was removed), so this branch has no provider id to reach it
-// with. The branch itself stays because authType is a parameter, not a lookup.
+// Same direct call, for the OAuth header branch: no registered gemini-format provider
+// carries authType "oauth" any more (gemini-cli was the only one). The branch stays
+// because authType is a parameter, not a registry lookup.
 test("a gemini-format provider with OAuth auth uses Bearer, not x-goog-api-key", async () => {
   const calls = [];
   globalThis.fetch = async (url, init) => {

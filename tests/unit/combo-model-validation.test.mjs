@@ -90,9 +90,10 @@ test("object-form entries behave identically to string form", () => {
 // ──────────────── BLK-3a: never warn on the app's own picker output ────────────────
 
 // Every row measured against the real wrapper. Four of these WARNED before the fix.
+// (A "gemini/gemini-3-pro" row used to sit here for the catalog-absent rule; the provider
+// was removed, and "claude/claude-sonnet-5" covers that rule with a live provider.)
 const PICKER_OUTPUT_ROWS = [
   ["antigravity/gemini-3-pro-high", "PASSTHROUGH_UNION (REGISTRY-only member)"],
-  ["gemini/gemini-3-pro", "catalog absent → unknown"],
   ["claude/claude-sonnet-5", "catalog absent → unknown"],
   ["cliproxyapi/x", "catalog absent → unknown"],
   ["openrouter/anything/at-all", "WILDCARD_MODEL_PROVIDERS"],

@@ -2,13 +2,11 @@ import { useCallback } from "react";
 import type { ProviderDetailActionProps } from "../types/actions";
 
 export function useProviderDetailConnectionActions({
-  providerId,
   connections,
   sortedConnectionIds,
   setConnections,
   setSelectedConnectionIds,
   fetchConnections,
-  fetchProviderModelMeta,
   notify,
   t,
   setBulkDeletingConnections,
@@ -17,13 +15,11 @@ export function useProviderDetailConnectionActions({
   retestingId,
 }: Pick<
   ProviderDetailActionProps,
-  | "providerId"
   | "connections"
   | "sortedConnectionIds"
   | "setConnections"
   | "setSelectedConnectionIds"
   | "fetchConnections"
-  | "fetchProviderModelMeta"
   | "notify"
   | "t"
 > & {
@@ -40,15 +36,12 @@ export function useProviderDetailConnectionActions({
         if (res.ok) {
           setConnections(connections.filter((c) => c.id !== id));
           setSelectedConnectionIds((prev) => prev.filter((x) => x !== id));
-          if (providerId === "gemini") {
-            await fetchProviderModelMeta();
-          }
         }
       } catch (error) {
         console.log("Error deleting connection:", error);
       }
     },
-    [connections, providerId, fetchProviderModelMeta, setConnections, setSelectedConnectionIds, t]
+    [connections, setConnections, setSelectedConnectionIds, t]
   );
 
   const handleBulkDeleteConnections = useCallback(
@@ -69,13 +62,6 @@ export function useProviderDetailConnectionActions({
         }
         setConnections((prev) => prev.filter((c: { id?: string }) => !deleted.includes(c.id!)));
         setSelectedConnectionIds((prev) => prev.filter((id) => !deleted.includes(id)));
-        if (providerId === "gemini" && deleted.length > 0) {
-          try {
-            await fetchProviderModelMeta();
-          } catch {
-            /* non-critical */
-          }
-        }
         if (deleted.length === ids.length) {
           notify.success(t("bulkDeleteConnectionsSuccess", { count: deleted.length }));
         } else if (deleted.length > 0) {
@@ -91,8 +77,6 @@ export function useProviderDetailConnectionActions({
     },
     [
       sortedConnectionIds,
-      providerId,
-      fetchProviderModelMeta,
       setConnections,
       setSelectedConnectionIds,
       setBulkDeletingConnections,

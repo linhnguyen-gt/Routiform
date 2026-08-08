@@ -96,7 +96,6 @@ export function useProviderDetailOrchestrator() {
   // Models hook
   const {
     modelMeta,
-    syncedAvailableModels,
     opencodeLiveCatalog,
     setOpencodeLiveCatalog,
     models,
@@ -484,7 +483,6 @@ export function useProviderDetailOrchestrator() {
 
     const hasSyncedModels =
       syncedModels.length > 0 ||
-      (providerId === "gemini" && syncedAvailableModels.length > 0) ||
       (isLiveCatalogProvider &&
         opencodeLiveCatalog.status === "ready" &&
         opencodeLiveCatalog.models.length > 0);
@@ -510,7 +508,6 @@ export function useProviderDetailOrchestrator() {
     connections,
     syncedModels,
     providerId,
-    syncedAvailableModels,
     isLiveCatalogProvider,
     opencodeLiveCatalog,
     fetchProviderModelMeta,
@@ -547,7 +544,6 @@ export function useProviderDetailOrchestrator() {
     loading,
     sortedConnectionIds,
     modelMeta,
-    syncedAvailableModels,
     opencodeLiveCatalog,
     models,
     registryModels,

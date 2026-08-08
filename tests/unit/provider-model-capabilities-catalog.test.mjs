@@ -28,10 +28,12 @@ test.after(() => {
 });
 
 test("v1 models exposes max_output_tokens from synced and custom model metadata", async () => {
-  const geminiConnection = await providersDb.createProviderConnection({
-    provider: "gemini",
+  // `claude` is the one provider left whose catalog comes from synced available models
+  // (the gemini provider carried this path before it was removed).
+  const claudeConnection = await providersDb.createProviderConnection({
+    provider: "claude",
     authType: "apikey",
-    name: "gemini-main",
+    name: "claude-main",
     apiKey: "test-key",
     isActive: true,
   });
@@ -44,10 +46,10 @@ test("v1 models exposes max_output_tokens from synced and custom model metadata"
     isActive: true,
   });
 
-  await modelsDb.replaceSyncedAvailableModelsForConnection("gemini", geminiConnection.id, [
+  await modelsDb.replaceSyncedAvailableModelsForConnection("claude", claudeConnection.id, [
     {
-      id: "gemini-2.5-pro",
-      name: "Gemini 2.5 Pro",
+      id: "claude-sonnet-5",
+      name: "Claude Sonnet 5",
       source: "api-sync",
       inputTokenLimit: 2097152,
       outputTokenLimit: 65536,
@@ -71,10 +73,11 @@ test("v1 models exposes max_output_tokens from synced and custom model metadata"
   assert.equal(response.status, 200);
   const body = await response.json();
 
-  const geminiModel = body.data.find((model) => model.id === "gemini/gemini-2.5-pro");
-  assert.ok(geminiModel);
-  assert.equal(geminiModel.context_length, 2097152);
-  assert.equal(geminiModel.max_output_tokens, 65536);
+  // `cc` is claude's registered alias, so that is the id the catalog publishes.
+  const claudeModel = body.data.find((model) => model.id === "cc/claude-sonnet-5");
+  assert.ok(claudeModel);
+  assert.equal(claudeModel.context_length, 2097152);
+  assert.equal(claudeModel.max_output_tokens, 65536);
 
   const openrouterModel = body.data.find(
     (model) => model.id === "openrouter/custom-openrouter-model"

@@ -38,7 +38,7 @@ export const refreshGoogleToken = async (
   refreshToken: string,
   clientId: string,
   clientSecret: string,
-  provider: string = "gemini"
+  provider: string = "antigravity"
 ) => {
   const proxy = await resolveProxyForProvider(provider);
   return _refreshGoogleToken(refreshToken, clientId, clientSecret, log, proxy);

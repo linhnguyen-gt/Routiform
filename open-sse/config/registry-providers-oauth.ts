@@ -57,24 +57,6 @@ export const OAUTH_PROVIDERS: Record<string, RegistryEntry> = {
     models: [],
   },
 
-  gemini: {
-    id: "gemini",
-    alias: "gemini",
-    format: "gemini",
-    executor: "default",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta/models",
-    urlBuilder: (base, model, stream) => {
-      const action = stream ? "streamGenerateContent?alt=sse" : "generateContent";
-      return `${base}/${model}:${action}`;
-    },
-    authType: "apikey",
-    authHeader: "x-goog-api-key",
-    defaultContextLength: 1000000,
-    models: [],
-    // Models are populated from Google's API via sync-models (per API key).
-    // No hardcoded fallback — show nothing until a key is added.
-  },
-
   codex: {
     id: "codex",
     alias: "cx",

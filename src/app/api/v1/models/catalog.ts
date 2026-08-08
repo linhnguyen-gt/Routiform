@@ -35,7 +35,7 @@ const FALLBACK_ALIAS_TO_PROVIDER = {
   kr: "kiro",
 };
 
-const LIVE_SYNC_MODEL_PROVIDERS = new Set(["claude", "gemini"]);
+const LIVE_SYNC_MODEL_PROVIDERS = new Set(["claude"]);
 
 /**
  * Vision fields for a model, sourced from the translator that will actually carry the request.
@@ -471,8 +471,6 @@ export async function getUnifiedModelsResponse(
     try {
       const customModelsMap = (await getAllCustomModels()) as Record<string, unknown>;
       for (const [providerId, rawProviderCustomModels] of Object.entries(customModelsMap)) {
-        // Skip Gemini — handled by syncedAvailableModels above
-        if (providerId === "gemini") continue;
         const providerCustomModels = Array.isArray(rawProviderCustomModels)
           ? rawProviderCustomModels.filter(
               (model): model is Record<string, unknown> =>
