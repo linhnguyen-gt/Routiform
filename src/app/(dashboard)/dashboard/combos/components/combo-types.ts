@@ -15,6 +15,13 @@ export interface ComboRecord {
   tool_filter_regex?: string;
   context_cache_protection?: boolean;
   requireToolCalling?: boolean;
+  /**
+   * Token limits published in `/v1/models`. The API normalizes a missing value to the
+   * measured default before responding, so these are effective values, not stored ones —
+   * see `toTokenLimitInput` for what that costs the form.
+   */
+  context_length?: number;
+  max_output_tokens?: number;
 }
 
 export interface ComboMetrics {

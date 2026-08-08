@@ -74,6 +74,36 @@ test("a combo missing only one limit keeps the one it has", async () => {
   assert.equal(readBack.max_output_tokens, DEFAULT_COMBO_MAX_OUTPUT_TOKENS);
 });
 
+test("writing null drops a combo back to the default", async () => {
+  // How the dashboard clears a limit. It cannot omit the field instead: updateCombo merges
+  // its argument into the stored record, so an absent key keeps the old value.
+  const created = await combosDb.createCombo({
+    name: "cleared-combo",
+    models: [],
+    context_length: 200_000,
+    max_output_tokens: 32_000,
+  });
+
+  await combosDb.updateCombo(created.id, { context_length: null, max_output_tokens: null });
+
+  const readBack = await combosDb.getComboByName("cleared-combo");
+  assert.equal(readBack.context_length, DEFAULT_COMBO_CONTEXT_LENGTH);
+  assert.equal(readBack.max_output_tokens, DEFAULT_COMBO_MAX_OUTPUT_TOKENS);
+});
+
+test("an update that omits the limits leaves them alone", async () => {
+  const created = await combosDb.createCombo({
+    name: "renamed-combo",
+    models: [],
+    context_length: 204_800,
+  });
+
+  await combosDb.updateCombo(created.id, { name: "renamed-combo-2" });
+
+  const readBack = await combosDb.getComboByName("renamed-combo-2");
+  assert.equal(readBack.context_length, 204_800, "a rename must not reset the limit");
+});
+
 test("/v1/models publishes both limits for a combo", async () => {
   const response = await v1ModelsCatalog.getUnifiedModelsResponse(
     new Request("http://localhost/api/v1/models", { method: "GET" })

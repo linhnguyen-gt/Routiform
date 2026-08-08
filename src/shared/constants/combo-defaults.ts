@@ -36,3 +36,14 @@ export const DEFAULT_COMBO_CONTEXT_LENGTH = 300_000;
  * 32,000 floor that only prior-generation models still impose.
  */
 export const DEFAULT_COMBO_MAX_OUTPUT_TOKENS = 64_000;
+
+/**
+ * Accepted range for a hand-set limit.
+ *
+ * The API schema and the dashboard form both read these. Duplicating the numbers is how the
+ * form ends up accepting a value the API then rejects, so there is one source for both.
+ * The ceilings sit above every model measured above, deliberately: a limit the user typed
+ * on purpose is their call, and the range exists to catch typos, not to second-guess them.
+ */
+export const COMBO_CONTEXT_LENGTH_BOUNDS = { min: 1_000, max: 2_000_000 } as const;
+export const COMBO_MAX_OUTPUT_TOKENS_BOUNDS = { min: 256, max: 200_000 } as const;
