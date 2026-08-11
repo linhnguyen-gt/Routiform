@@ -114,3 +114,34 @@ test("T38: GPT-5 family uses the 400k / 128k OpenAI limits", () => {
   assert.equal(gpt5Mini.maxOutputTokens, 128000);
   assert.equal(getModelSpec("gpt-5").contextWindow, 400000);
 });
+
+// ─── Provider-qualified model ids ───────────────────────────────────────────
+// The routing layer stamps `provider/model` onto the request body, and the
+// callers that read the id off the body hand that string straight to the spec
+// lookup. No canonical key or alias contains "/", so every ceiling those
+// callers apply used to resolve to "no limit".
+
+test("a provider-qualified id resolves to the same spec as its bare form", () => {
+  const bare = getModelSpec("claude-opus-4-5");
+  assert.ok(bare, "precondition: the bare id has a spec");
+
+  assert.deepEqual(getModelSpec("anthropic/claude-opus-4-5"), bare);
+  assert.deepEqual(getModelSpec("openrouter/anthropic/claude-opus-4-5"), bare);
+  assert.deepEqual(getModelSpec("anthropic/gemini-3.1-pro-preview"), getModelSpec("gemini-3.1-pro-high"));
+});
+
+test("the thinking caps apply to a provider-qualified id", () => {
+  assert.equal(capThinkingBudget("claude-opus-4-5", 60000), 32000);
+  assert.equal(capThinkingBudget("anthropic/claude-opus-4-5", 60000), 32000);
+  assert.equal(getDefaultThinkingBudget("anthropic/claude-opus-4-5"), 10000);
+  assert.equal(capMaxOutputTokens("anthropic/claude-opus-4-5", 131072), 32768);
+});
+
+test("the segment retry only fires when the whole id matched nothing", () => {
+  // An id that already resolves is never reinterpreted, so nothing that worked
+  // before can change meaning.
+  assert.equal(getModelSpec("provider/some-unregistered-model"), undefined);
+  assert.equal(getModelSpec("no-slash-unregistered"), undefined);
+  assert.equal(getModelSpec("trailing/"), undefined);
+  assert.equal(capThinkingBudget("provider/some-unregistered-model", 60000), 60000);
+});
