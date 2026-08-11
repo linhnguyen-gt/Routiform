@@ -773,15 +773,15 @@ export const APIKEY_PROVIDERS: Record<string, RegistryEntry> = {
     authType: "apikey",
     authHeader: "bearer",
     defaultContextLength: CONTEXT_CONFIG.defaultLimit,
+    // Only ids NVIDIA still lists at /v1/models belong here. This list is hand-maintained
+    // while the upstream catalog moves under it, and every id that outlives its model is a
+    // model the picker offers and the provider answers 410 Gone for. Model sync reports the
+    // drift on every run (see the sync route's retiredRegistryModels) — when it names an id
+    // below, delete it; sync will pick the model back up on its own if NVIDIA restores it.
     models: [
-      { id: "gpt-oss-120b", name: "GPT OSS 120B", toolCalling: false },
       { id: "openai/gpt-oss-120b", name: "GPT OSS 120B (OpenAI Prefix)", toolCalling: false },
       { id: "meta/llama-3.3-70b-instruct", name: "Llama 3.3 70B" },
-      { id: "nvidia/llama-3.3-70b-instruct", name: "Llama 3.3 70B (NVIDIA Prefix)" },
-      { id: "meta/llama-4-maverick-17b-128e-instruct", name: "Llama 4 Maverick" },
-      { id: "moonshotai/kimi-k2.5", name: "Kimi K2.5", forceParams: { temperature: 1 } },
       { id: "moonshotai/kimi-k2.6", name: "Kimi K2.6", forceParams: { temperature: 1 } },
-      { id: "z-ai/glm4.7", name: "GLM 4.7" },
       {
         id: "z-ai/glm-5.2",
         name: "GLM 5.2",
@@ -791,22 +791,14 @@ export const APIKEY_PROVIDERS: Record<string, RegistryEntry> = {
         contextLength: 200000,
         maxOutputTokens: 128000,
       },
-      { id: "deepseek-ai/deepseek-v3.2", name: "DeepSeek V3.2" },
       {
-        id: "deepseek-ai/deepseek-v4-pro",
-        name: "DeepSeek V4 Pro",
-        unsupportedParams: ["thinking"],
-        contextLength: 1000000,
-        maxOutputTokens: 65536,
-      },
-      {
-        id: "deepseek-ai/deepseek-v4-flash",
+        // NVIDIA versions this id upstream; the unsuffixed form is not served.
+        id: "deepseek-ai/deepseek-v4-flash-0731",
         name: "DeepSeek V4 Flash",
         unsupportedParams: ["thinking"],
         contextLength: 1000000,
         maxOutputTokens: 65536,
       },
-      { id: "deepseek/deepseek-r1", name: "DeepSeek R1" },
       {
         id: "minimaxai/minimax-m3",
         name: "MiniMax M3",
@@ -815,9 +807,6 @@ export const APIKEY_PROVIDERS: Record<string, RegistryEntry> = {
         contextLength: 512000,
         maxOutputTokens: 131072,
       },
-      { id: "nvidia/nemotron-3-ultra-550b", name: "Nemotron 3 Ultra 550B" },
-      { id: "nvidia/llama-3.1-70b-instruct", name: "Llama 3.1 70B" },
-      { id: "nvidia/llama-3.1-405b-instruct", name: "Llama 3.1 405B" },
     ],
   },
 

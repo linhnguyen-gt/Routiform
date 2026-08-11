@@ -100,10 +100,15 @@ test("every NVIDIA catalog id round-trips through splitModelString into isValidM
 // Known over-strip, documented rather than hardened: the only consumer that
 // trusts the stripped value blindly (open-sse/executors/opencode.ts:14) does
 // not serve NVIDIA, and hardening would change behavior for every provider.
-test("stripProviderPrefixFromModelId over-strips a self-prefixed NVIDIA id, but isValidModel still accepts it", () => {
+//
+// This once also asserted isValidModel accepted the id. NVIDIA has since withdrawn every
+// self-prefixed model it served, so no provider in the registry ships an id prefixed with
+// its own alias any more and the catalog cannot supply a live example. The stripping is what
+// this test is for, and it is unchanged; the catalog half is covered by the sweep above,
+// which runs isValidModel over whatever NVIDIA actually offers.
+test("stripProviderPrefixFromModelId over-strips a self-prefixed id", () => {
   assert.strictEqual(
     stripProviderPrefixFromModelId("nvidia", "nvidia/llama-3.3-70b-instruct"),
     "llama-3.3-70b-instruct"
   );
-  assert.strictEqual(isValidModel("nvidia", "nvidia/llama-3.3-70b-instruct"), true);
 });

@@ -68,6 +68,7 @@ export function useProviderDetailSyncActions({
     async (autoSyncConnection: { id: string }) => {
       if (!autoSyncConnection || refreshingModels || !supportsAutoSync) return;
       setRefreshingModels(true);
+      let retiredRegistryModels: string[] = [];
       try {
         if (isLiveCatalogProvider) {
           const res = await fetch(
@@ -103,9 +104,26 @@ export function useProviderDetailSyncActions({
           if (!res.ok) {
             throw new Error(typeof data?.error === "string" ? data.error : `HTTP ${res.status}`);
           }
+          retiredRegistryModels = Array.isArray(data?.retiredRegistryModels)
+            ? data.retiredRegistryModels.filter(
+                (id: unknown): id is string => typeof id === "string"
+              )
+            : [];
         }
         await fetchProviderModelMeta();
-        notify.success("Models refreshed");
+        // Built-in models the provider has stopped listing keep being offered until someone
+        // edits the registry, so the sync's only chance to surface them is right here.
+        // Several providers list per account rather than per catalogue, so this says what
+        // was observed — not listed for this key — rather than declaring a model retired.
+        if (retiredRegistryModels.length > 0) {
+          const shown = retiredRegistryModels.slice(0, 5).join(", ");
+          const rest = retiredRegistryModels.length - 5;
+          notify.warning(
+            `Models refreshed — ${retiredRegistryModels.length} built-in model(s) not listed for this account: ${shown}${rest > 0 ? ` and ${rest} more` : ""}`
+          );
+        } else {
+          notify.success("Models refreshed");
+        }
       } catch (error) {
         console.log("Error refreshing models:", error);
         notify.error(error instanceof Error ? error.message : t("failedFetchModels"));
