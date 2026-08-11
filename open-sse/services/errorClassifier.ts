@@ -171,6 +171,7 @@ export const PROVIDER_ERROR_TYPES = {
   UNAUTHORIZED: "unauthorized",
   ACCOUNT_DEACTIVATED: "account_deactivated",
   FORBIDDEN: "forbidden",
+  MODEL_FORBIDDEN: "model_forbidden",
   SERVER_ERROR: "server_error",
   QUOTA_EXHAUSTED: "quota_exhausted",
   PROJECT_ROUTE_ERROR: "project_route_error",
@@ -210,6 +211,19 @@ function responseBodyToString(responseBody: unknown): string {
   }
   return "";
 }
+
+/**
+ * 403s that refuse one model rather than the whole account.
+ *
+ * Aggregators gate individual models behind a per-model condition — OpenRouter answers
+ * "This model requires you to complete the following before use: 18+ age confirmation"
+ * for exactly one model on an otherwise healthy key. Reading that as an account ban
+ * disables every model on the connection over a single gated one.
+ */
+const MODEL_SCOPED_FORBIDDEN_SIGNALS = [
+  "requires you to complete the following before use",
+  "no endpoints found matching your data policy",
+];
 
 export function classifyProviderError(statusCode: number, responseBody: unknown): string | null {
   const bodyStr = responseBodyToString(responseBody);
@@ -255,6 +269,9 @@ export function classifyProviderError(statusCode: number, responseBody: unknown)
     }
     if (bodyStr.includes("has not been used in project")) {
       return PROVIDER_ERROR_TYPES.PROJECT_ROUTE_ERROR;
+    }
+    if (MODEL_SCOPED_FORBIDDEN_SIGNALS.some((signal) => lowerBody.includes(signal))) {
+      return PROVIDER_ERROR_TYPES.MODEL_FORBIDDEN;
     }
     return PROVIDER_ERROR_TYPES.FORBIDDEN;
   }

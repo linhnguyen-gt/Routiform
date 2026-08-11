@@ -150,6 +150,17 @@ export async function persistProviderAccountErrorState({
       console.warn(
         `[provider] Node ${connectionId} OAuth token invalid (${statusCode}) — token refresh available`
       );
+    } else if (errorType === PROVIDER_ERROR_TYPES.MODEL_FORBIDDEN) {
+      // One model is gated, the rest of the connection is fine. Record what happened
+      // so it shows on the account, but leave eligibility alone.
+      await updateProviderConnection(connectionId, {
+        lastErrorType: errorType,
+        lastError: message,
+        errorCode: statusCode,
+      });
+      console.warn(
+        `[provider] Node ${connectionId.slice(0, 8)} model ${model} forbidden (${statusCode}) — model-scoped, not banning`
+      );
     } else if (errorType === PROVIDER_ERROR_TYPES.PROJECT_ROUTE_ERROR) {
       await updateProviderConnection(connectionId, {
         lastErrorType: errorType,
