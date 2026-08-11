@@ -288,8 +288,9 @@ models:
   qwen: {
     id: "qwen",
     name: "Qwen Code",
-    icon: "psychology",
-    color: "#10B981",
+    image: "/providers/qwen.png",
+    // Sampled from the mark itself, the way every other tool's colour tracks its brand.
+    color: "#6248E9",
     description: "Alibaba Qwen Code CLI (Terminal)",
     docsUrl: "/docs?section=cli-tools&tool=qwen",
     configType: "guide",
