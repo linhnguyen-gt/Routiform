@@ -1,6 +1,6 @@
 {
   "name": "routiform",
-  "version": "6.0.0",
+  "version": "6.0.1",
   "description": "Routiform — Smart AI Router with auto fallback — route to FREE & cheap models, zero downtime. Works with Cursor, Cline, Claude Desktop, Codex, and any OpenAI-compatible tool.",
   "type": "module",
   "bin": {

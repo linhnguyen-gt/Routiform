@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [6.0.1](https://github.com/linhnguyen-gt/Routiform/compare/v6.0.0...v6.0.1) (2026-08-11)
+
+
+### Bug Fixes
+
+* **cli-tools:** stop a new tool taking the page down over a missing message ([fab06e5](https://github.com/linhnguyen-gt/Routiform/commit/fab06e55884e1cb2874accc1631a8d02265c419b))
+* **combos:** rank quick-template models by fitness, not catalog order ([5ab907c](https://github.com/linhnguyen-gt/Routiform/commit/5ab907c32c0b85e7608ee10ddf4bba8bd3d9826e))
+
 ## [6.0.0](https://github.com/linhnguyen-gt/Routiform/compare/v5.0.0...v6.0.0) (2026-08-08)
 
 
