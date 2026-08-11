@@ -7,6 +7,21 @@ import type { PersistProviderAccountErrorStateOptions } from "../types/chat-core
 
 const log = createLogger("provider-account-error-state");
 
+/**
+ * The operator's "auto-disable banned accounts" setting, defaulting to off. Read lazily so
+ * the happy path never touches settings, and treated as off if the read fails — leaving an
+ * account enabled is the recoverable outcome.
+ */
+async function autoDisableBannedAccountsEnabled(): Promise<boolean> {
+  try {
+    const { getCachedSettings } = await import("@/lib/localDb");
+    const settings = (await getCachedSettings()) as { autoDisableBannedAccounts?: boolean };
+    return settings?.autoDisableBannedAccounts === true;
+  } catch {
+    return false;
+  }
+}
+
 function formatLocalTime(value: string) {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return value;
@@ -62,15 +77,19 @@ export async function persistProviderAccountErrorState({
           );
         }
       } else {
+        // Taking the account out of service is the operator's call, the same way it is on
+        // the auth-side ban path. Without that gate this branch disabled accounts for
+        // users who had explicitly left auto-disable off.
+        const autoDisable = await autoDisableBannedAccountsEnabled();
         await updateProviderConnection(connectionId, {
-          isActive: false,
+          ...(autoDisable ? { isActive: false } : {}),
           testStatus: "banned",
           lastErrorType: errorType,
           lastError: message,
           errorCode: statusCode,
         });
         console.warn(
-          `[provider] Node ${connectionId} banned (${statusCode}) — disabling permanently`
+          `[provider] Node ${connectionId} banned (${statusCode})${autoDisable ? " — disabling permanently" : ""}`
         );
       }
     } else if (errorType === PROVIDER_ERROR_TYPES.ACCOUNT_DEACTIVATED) {
@@ -102,7 +121,10 @@ export async function persistProviderAccountErrorState({
         const rateLimitedUntil = new Date(Date.now() + retryMs).toISOString();
         await updateProviderConnection(connectionId, {
           rateLimitedUntil: rateLimitedUntil,
-          testStatus: "credits_exhausted",
+          // A rate limit lifts by itself, so the status has to be one the connection can
+          // come back from. `credits_exhausted` is terminal and would keep the account out
+          // of routing long after the window it describes had passed.
+          testStatus: "unavailable",
           lastErrorType: errorType,
           lastError: message,
           errorCode: statusCode,

@@ -213,16 +213,23 @@ function responseBodyToString(responseBody: unknown): string {
 }
 
 /**
- * 403s that refuse one model rather than the whole account.
+ * Bodies that name the account as the thing being refused.
  *
- * Aggregators gate individual models behind a per-model condition — OpenRouter answers
- * "This model requires you to complete the following before use: 18+ age confirmation"
- * for exactly one model on an otherwise healthy key. Reading that as an account ban
- * disables every model on the connection over a single gated one.
+ * A 403 says "no" without saying to what. Most of them refuse one request or one model —
+ * an aggregator gating a model behind an age or data-policy confirmation, an upstream
+ * rejecting a single payload — and only a few refuse the account itself. Since only the
+ * second kind may take a connection out of service, the account has to be named: banning
+ * by default turned a single gated model, and even a 403 carrying an ordinary empty
+ * completion body, into a permanently disabled account.
  */
-const MODEL_SCOPED_FORBIDDEN_SIGNALS = [
-  "requires you to complete the following before use",
-  "no endpoints found matching your data policy",
+const ACCOUNT_BAN_SIGNALS = [
+  "banned",
+  "suspended",
+  "terms of service",
+  "verify your account",
+  "violation",
+  "account has been disabled",
+  "access has been revoked",
 ];
 
 export function classifyProviderError(statusCode: number, responseBody: unknown): string | null {
@@ -270,10 +277,10 @@ export function classifyProviderError(statusCode: number, responseBody: unknown)
     if (bodyStr.includes("has not been used in project")) {
       return PROVIDER_ERROR_TYPES.PROJECT_ROUTE_ERROR;
     }
-    if (MODEL_SCOPED_FORBIDDEN_SIGNALS.some((signal) => lowerBody.includes(signal))) {
-      return PROVIDER_ERROR_TYPES.MODEL_FORBIDDEN;
+    if (ACCOUNT_BAN_SIGNALS.some((signal) => lowerBody.includes(signal))) {
+      return PROVIDER_ERROR_TYPES.FORBIDDEN;
     }
-    return PROVIDER_ERROR_TYPES.FORBIDDEN;
+    return PROVIDER_ERROR_TYPES.MODEL_FORBIDDEN;
   }
   if (statusCode >= 500) return PROVIDER_ERROR_TYPES.SERVER_ERROR;
 
