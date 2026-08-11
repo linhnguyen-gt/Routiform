@@ -11,6 +11,7 @@ import {
 import { createBackup } from "@/shared/services/backupService";
 import { saveCliToolLastConfigured, deleteCliToolLastConfigured } from "@/lib/db/cliToolState";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { fetchModelTokenLimits } from "@/shared/services/modelTokenLimits";
 import { getApiKeyById } from "@/lib/localDb";
 import { z } from "zod";
 import { isHostSecretAuthenticated } from "@/shared/utils/apiAuth";
@@ -200,6 +201,12 @@ export async function POST(request: Request) {
     const modelConfig = settingsDefaults.model as Record<string, unknown>;
     modelConfig.primary = `routiform/${model}`;
 
+    // OpenClaw draws its context meter from each model entry's own `contextWindow`, and
+    // falls back to a flat 200k when the field is absent — so a combo published with a
+    // 300k window still reported usage against 200k. Every other CLI tool here writes the
+    // real numbers back from /v1/models; this one did not.
+    const { contextLengths, maxOutputTokens } = await fetchModelTokenLimits(normalizedModels);
+
     // Update models.providers.routiform
     const settingsProviders = settingsModels.providers as Record<string, unknown>;
     delete settingsProviders["routiform"];
@@ -210,6 +217,10 @@ export async function POST(request: Request) {
       models: normalizedModels.map((modelId) => ({
         id: modelId,
         name: modelId.split("/").pop() || modelId,
+        // Omitted rather than guessed when unknown: OpenClaw's own default is a better
+        // answer than a number this app made up.
+        ...(contextLengths[modelId] ? { contextWindow: contextLengths[modelId] } : {}),
+        ...(maxOutputTokens[modelId] ? { maxTokens: maxOutputTokens[modelId] } : {}),
       })),
     };
 
