@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isModelEffort, type ModelEffort } from "@/shared/constants/reasoning-effort";
 import {
   rekeyProviderModelMap,
@@ -30,21 +30,33 @@ export function useModelEffortDefaults({ enabled }: { enabled: boolean }) {
   const [custom, setCustom] = useState<Record<string, string>>({});
   const [pending, setPending] = useState<Record<string, ModelEffort>>({});
 
-  // Refetched on every open, and unsaved edits are dropped there rather than on close, so
-  // a reopened form starts from what the server actually holds.
+  /**
+   * Efforts written straight through since the open fetch started. The response is a
+   * snapshot taken before those writes, so it must not be allowed to reinstate the values
+   * they replaced — on a large catalog the fetch lands seconds after the list is already
+   * on screen and being edited.
+   */
+  const writesSinceFetch = useRef<Record<string, ModelEffort>>({});
+
+  // Refetched on every open. Unsaved edits are dropped when the form opens, not when the
+  // response lands, so a reopened form starts from what the server holds without eating
+  // whatever was edited while the request was still in flight.
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
+    setPending({});
+    writesSinceFetch.current = {};
     fetch("/api/settings/model-defaults")
       .then((res) => (res.ok ? (res.json() as Promise<DefaultsResponse>) : { custom: {} }))
       .then((data) => {
         if (cancelled) return;
-        setCustom(rekeyProviderModelMap(data.custom || {}, toPickerProviderModelKey));
-        setPending({});
+        setCustom({
+          ...rekeyProviderModelMap(data.custom || {}, toPickerProviderModelKey),
+          ...writesSinceFetch.current,
+        });
       })
       .catch(() => {
-        // Leave the map empty; every model then reads as "inherit".
-        if (!cancelled) setPending({});
+        // Leave the map as it is; anything unwritten then reads as "inherit".
       });
     return () => {
       cancelled = true;
@@ -72,6 +84,7 @@ export function useModelEffortDefaults({ enabled }: { enabled: boolean }) {
       });
       if (!res.ok) return false;
       const data = (await res.json()) as DefaultsResponse;
+      Object.assign(writesSinceFetch.current, pending);
       setCustom(rekeyProviderModelMap(data.custom || {}, toPickerProviderModelKey));
       setPending({});
       return true;
@@ -91,6 +104,7 @@ export function useModelEffortDefaults({ enabled }: { enabled: boolean }) {
 
       const previous = custom[modelValue];
       setCustom((prev) => ({ ...prev, [modelValue]: effort }));
+      writesSinceFetch.current[modelValue] = effort;
       try {
         const res = await fetch("/api/settings/model-defaults", {
           method: "POST",
@@ -104,6 +118,7 @@ export function useModelEffortDefaults({ enabled }: { enabled: boolean }) {
         if (!res.ok) throw new Error("save failed");
         return true;
       } catch {
+        delete writesSinceFetch.current[modelValue];
         setCustom((prev) => {
           const next = { ...prev };
           if (previous === undefined) delete next[modelValue];

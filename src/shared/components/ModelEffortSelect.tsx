@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import {
   isModelEffort,
   MODEL_EFFORT_OPTIONS,
@@ -21,6 +22,13 @@ export interface ModelEffortSelectProps {
   /** The last write failed: the value has already reverted, so say why. */
   error?: boolean;
   disabled?: boolean;
+  /**
+   * Mount focused, with the dropdown already open where the browser allows it. For hosts
+   * that mount this on demand, so the click that summoned it still opens the list.
+   */
+  autoOpen?: boolean;
+  /** A value was chosen or focus left — the host may unmount the control again. */
+  onDismiss?: () => void;
 }
 
 /**
@@ -38,19 +46,39 @@ export default function ModelEffortSelect({
   colorClass = "bg-surface text-text-muted border-border hover:border-primary/50 hover:text-primary",
   error = false,
   disabled = false,
+  autoOpen = false,
+  onDismiss,
 }: ModelEffortSelectProps) {
   const selected = isModelEffort(value) ? value : UNSET;
   const label = error
     ? `Failed to save reasoning effort for ${modelValue}`
     : `Reasoning effort for ${modelValue}`;
 
+  const ref = useRef<HTMLSelectElement>(null);
+  useEffect(() => {
+    if (!autoOpen) return;
+    const element = ref.current;
+    if (!element || element.disabled) return;
+    element.focus();
+    try {
+      // Chrome/Edge only. Elsewhere the control is merely focused and opens on the
+      // next click, which is the same interaction an always-mounted select would need.
+      element.showPicker?.();
+    } catch {
+      // Transient user activation expired; focus is enough.
+    }
+  }, [autoOpen]);
+
   return (
     <select
+      ref={ref}
       value={selected}
       disabled={disabled}
       onChange={(e) => {
         if (isModelEffort(e.target.value)) onChange(e.target.value);
+        onDismiss?.();
       }}
+      onBlur={() => onDismiss?.()}
       onClick={(e) => e.stopPropagation()}
       aria-label={label}
       aria-invalid={error || undefined}

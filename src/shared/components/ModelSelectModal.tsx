@@ -8,7 +8,7 @@ import type { AvailableModel, AvailableModelGroup } from "@/shared/models/availa
 import type { ProviderConnection } from "@/shared/models/provider-connection";
 import { useAvailableModels, type ComboSummary } from "@/shared/models/use-available-models";
 import { useModelEffortDefaults } from "@/shared/models/use-model-effort-defaults";
-import type { ModelEffort } from "@/shared/constants/reasoning-effort";
+import { isModelEffort, type ModelEffort } from "@/shared/constants/reasoning-effort";
 import ModelEffortSelect from "./ModelEffortSelect";
 
 /**
@@ -118,6 +118,16 @@ export default function ModelSelectModal({
   );
   const handleEffortChange = onEffortChange ?? (isSelfManaged ? saveOwnEffort : undefined);
 
+  /**
+   * Which chip currently owns a mounted `<select>` — at most one.
+   *
+   * A native select is an expensive element: one per chip, each carrying the full option
+   * list, put ~13k extra nodes in this modal on a catalog of ~1.6k models and locked the
+   * renderer for tens of seconds when it unmounted. Every other chip shows its effort as a
+   * plain button and swaps in the real control only while it is being edited.
+   */
+  const [editingEffort, setEditingEffort] = useState<string | null>(null);
+
   const [testingModels, setTestingModels] = useState<Record<string, boolean>>({});
   const [modelTestStatus, setModelTestStatus] = useState<Record<string, "ok" | "error">>({});
   const modelTestControllersRef = useRef<Record<string, AbortController>>({});
@@ -131,6 +141,7 @@ export default function ModelSelectModal({
       setTestingModels({});
       setModelTestStatus({});
       setEffortErrors({});
+      setEditingEffort(null);
     }
   }, [isOpen]);
 
@@ -343,6 +354,12 @@ export default function ModelSelectModal({
                 // Only the first and last segment get rounded outer corners.
                 const showEffort = !!handleEffortChange;
                 const isGrouped = enableModelTest || showEffort;
+                const currentEffort = isModelEffort(efforts[modelValue])
+                  ? efforts[modelValue]
+                  : null;
+                const effortLabel = effortErrors[modelValue]
+                  ? `Failed to save reasoning effort for ${modelValue}`
+                  : `Reasoning effort for ${modelValue}`;
 
                 const nameButton = (
                   <button
@@ -410,15 +427,36 @@ export default function ModelSelectModal({
                         </span>
                       </button>
                     )}
-                    {showEffort && (
-                      <ModelEffortSelect
-                        modelValue={modelValue}
-                        value={efforts[modelValue]}
-                        error={!!effortErrors[modelValue]}
-                        onChange={(effort) => handleEffortChange(modelValue, effort)}
-                        className="rounded-r-xl"
-                      />
-                    )}
+                    {showEffort &&
+                      (editingEffort === modelValue ? (
+                        <ModelEffortSelect
+                          modelValue={modelValue}
+                          value={efforts[modelValue]}
+                          error={!!effortErrors[modelValue]}
+                          onChange={(effort) => handleEffortChange(modelValue, effort)}
+                          onDismiss={() => setEditingEffort(null)}
+                          autoOpen
+                          className="rounded-r-xl"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditingEffort(modelValue)}
+                          aria-label={effortLabel}
+                          title={effortLabel}
+                          className={`
+                            px-1.5 py-1 text-[10px] font-medium border rounded-r-xl transition-all
+                            hover:cursor-pointer
+                            ${
+                              effortErrors[modelValue]
+                                ? "border-red-500/60 text-red-500 bg-red-500/10"
+                                : "bg-surface text-text-muted border-border hover:border-primary/50 hover:text-primary"
+                            }
+                          `}
+                        >
+                          {currentEffort ?? "inherit"}
+                        </button>
+                      ))}
                   </div>
                 );
               })}
