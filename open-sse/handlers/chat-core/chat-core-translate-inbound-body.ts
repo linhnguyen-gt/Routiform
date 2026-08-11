@@ -123,6 +123,18 @@ export async function translateInboundRequestBody({
       log?.debug?.("FORMAT", "claude-code-compatible bridge enabled");
     } else if (isClaudePassthrough) {
       translatedBody = { ...body };
+      // `{ ...body }` is shallow, so `thinking` is still the CALLER's object —
+      // and the combo fallback loop and the credential retry loop both reuse
+      // one client body across every attempt (`src/sse/handlers/chat.ts:836`
+      // re-spreads only the top level). `sanitizeAnthropicThinkingPayload`
+      // writes into that object: it rewrites `type: "adaptive"` to `"enabled"`
+      // and stamps a model-specific `budget_tokens`. Without this copy the
+      // second model in a combo receives the first model's clamped budget as
+      // its input, and the client's original `adaptive` intent is gone after
+      // attempt one.
+      if (translatedBody.thinking && typeof translatedBody.thinking === "object") {
+        translatedBody.thinking = { ...(translatedBody.thinking as Record<string, unknown>) };
+      }
       translatedBody._disableToolPrefix = true;
       sanitizeAnthropicThinkingPayload(translatedBody);
       log?.debug?.("FORMAT", `claude passthrough (preserveCache=${preserveCacheControl})`);

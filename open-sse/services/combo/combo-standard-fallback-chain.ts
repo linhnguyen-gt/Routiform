@@ -43,6 +43,11 @@ export async function runStandardComboFallbackChain(options: {
   let lastStatus: number | null = null;
   const startTime = Date.now();
   let fallbackCount = 0;
+  // A fallback is an attempt on a model after some other model was *attempted*.
+  // Models skipped by the breaker or by availability were never sent upstream,
+  // so they are not fallbacks — and the very first attempt is not one either,
+  // whatever its index in the ordered list.
+  let attemptedAny = false;
   let lastTriedModelIndex: number | null = null;
   let lastTriedModelStr: string | null = null;
 
@@ -51,6 +56,9 @@ export async function runStandardComboFallbackChain(options: {
     const parsed = parseModel(modelStr);
     const provider = parsed.provider || parsed.providerAlias || "unknown";
     const profile = getProviderProfile(provider);
+    // Deliberately global per model, not per combo: an upstream model that is
+    // failing is failing for every combo that references it, and one shared
+    // breaker is what stops each combo having to rediscover that on its own.
     const breakerKey = `combo:${modelStr}`;
     const breaker = getCircuitBreaker(breakerKey, {
       failureThreshold: profile.circuitBreakerThreshold,
@@ -59,7 +67,6 @@ export async function runStandardComboFallbackChain(options: {
 
     if (!breaker.canExecute()) {
       log.info("COMBO", `Skipping ${modelStr}: circuit breaker OPEN for ${provider}`);
-      if (i > 0) fallbackCount++;
       continue;
     }
 
@@ -67,10 +74,12 @@ export async function runStandardComboFallbackChain(options: {
       const available = await isModelAvailable(modelStr);
       if (!available) {
         log.info("COMBO", `Skipping ${modelStr} (all accounts in cooldown)`);
-        if (i > 0) fallbackCount++;
         continue;
       }
     }
+
+    if (attemptedAny) fallbackCount++;
+    attemptedAny = true;
 
     let nextRetryDelayMs = retryDelayMs;
     for (let retry = 0; retry <= maxRetries; retry++) {
@@ -109,16 +118,16 @@ export async function runStandardComboFallbackChain(options: {
         if (ok.kind === "bad_quality") {
           lastStatus = 200;
           lastError = `Combo response quality check failed: ${ok.reason || "unknown"}`;
-          if (i > 0) fallbackCount++;
           break;
         }
         return ok.response;
       }
 
-      const { errorText, retryAfter } = await readUpstreamErrorFromResponse(result);
+      const { errorText, clientMessage, retryAfter } = await readUpstreamErrorFromResponse(result);
       const non = await resolveStandardNonOkAttempt({
         result,
         errStr: errorText,
+        clientMessage,
         retryAfter,
         earliestRetryAfter,
         provider,
@@ -146,8 +155,10 @@ export async function runStandardComboFallbackChain(options: {
 
       earliestRetryAfter = non.earliestRetryAfter;
       lastError = non.lastError;
-      if (!lastStatus) lastStatus = non.lastStatus;
-      if (i > 0) fallbackCount++;
+      // Last-wins, matching `lastError`. Pairing the FIRST attempt's status with
+      // the LAST attempt's message produced responses like "HTTP 400: rate limit
+      // exceeded" that described no single upstream failure.
+      lastStatus = non.lastStatus;
       break;
     }
   }
