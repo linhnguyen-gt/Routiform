@@ -9,7 +9,29 @@ import {
   getBuiltInModelReasoningEffortDefaults,
   setCustomModelReasoningEffortDefaults,
 } from "@routiform/open-sse/config/registry-params.ts";
+import { canonicalizeProviderModelKey } from "@/shared/models/model-string";
 import { NextResponse } from "next/server";
+
+/**
+ * Collapse a stored map onto canonical provider ids.
+ *
+ * Keys were previously written in whatever spelling the calling surface used — model
+ * pickers emit provider aliases (`ds/...`), the settings form emits ids (`deepseek/...`) —
+ * so the same model could hold two entries that never overrode one another.
+ *
+ * When both spellings collide the LAST one wins. Callers rely on that ordering: the
+ * stored map is spread first and the client's edits after it, so an edit to a model that
+ * already has a stored default has to be able to overwrite it. Preferring the canonical
+ * spelling instead would drop exactly those edits, because the stored copy is the
+ * canonical one and the client sends picker spelling.
+ */
+function canonicalizeDefaults(defaults: Record<string, string>): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [key, effort] of Object.entries(defaults)) {
+    result[canonicalizeProviderModelKey(key)] = effort;
+  }
+  return result;
+}
 
 async function readDbCustomDefaults(): Promise<Record<string, string>> {
   const settings = await getSettings();
@@ -18,7 +40,7 @@ async function readDbCustomDefaults(): Promise<Record<string, string>> {
   try {
     const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
     return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? (parsed as Record<string, string>)
+      ? canonicalizeDefaults(parsed as Record<string, string>)
       : {};
   } catch {
     return {};
@@ -71,7 +93,7 @@ export async function PUT(request: Request) {
 
   try {
     const dbDefaults = await readDbCustomDefaults();
-    const merged = { ...dbDefaults, ...validation.data.defaults };
+    const merged = canonicalizeDefaults({ ...dbDefaults, ...validation.data.defaults });
     await writeDbCustomDefaults(merged);
     setCustomModelReasoningEffortDefaults(merged);
     return NextResponse.json({ success: true, ...(await snapshot()) });
@@ -105,7 +127,7 @@ export async function POST(request: Request) {
   try {
     const { provider, model, effort } = validation.data;
     const dbDefaults = await readDbCustomDefaults();
-    const key = `${provider}/${model}`;
+    const key = canonicalizeProviderModelKey(`${provider}/${model}`);
     dbDefaults[key] = effort;
     await writeDbCustomDefaults(dbDefaults);
     setCustomModelReasoningEffortDefaults(dbDefaults);
@@ -140,7 +162,7 @@ export async function DELETE(request: Request) {
   try {
     const { provider, model } = validation.data;
     const dbDefaults = await readDbCustomDefaults();
-    const key = `${provider}/${model}`;
+    const key = canonicalizeProviderModelKey(`${provider}/${model}`);
     delete dbDefaults[key];
     await writeDbCustomDefaults(dbDefaults);
     setCustomModelReasoningEffortDefaults(dbDefaults);

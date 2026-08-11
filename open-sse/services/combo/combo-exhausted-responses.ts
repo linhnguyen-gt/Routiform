@@ -61,6 +61,8 @@ export async function respondComboModelsExhausted(options: {
   });
 
   const allBreakersOpen = orderedModels.every((m) => {
+    // Deliberately global per model, not per combo — see the note in
+    // `combo-standard-fallback-chain.ts`.
     return !getCircuitBreaker(`combo:${m}`).canExecute();
   });
 

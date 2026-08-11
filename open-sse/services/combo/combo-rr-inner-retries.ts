@@ -62,6 +62,8 @@ export async function runRoundRobinInnerRetries(options: {
   const parsed = parseModel(modelStr);
   const provider = parsed.provider || parsed.providerAlias || "unknown";
   const profile = getProviderProfile(provider);
+  // Deliberately global per model, not per combo — see the note in
+  // `combo-standard-fallback-chain.ts`.
   const breakerKey = `combo:${modelStr}`;
   const breaker = getCircuitBreaker(breakerKey, {
     failureThreshold: profile.circuitBreakerThreshold,
@@ -98,14 +100,11 @@ export async function runRoundRobinInnerRetries(options: {
         modelIndex,
         state,
       });
-      if (!okRes) {
-        if (offset > 0) state.fallbackCount++;
-        return null;
-      }
+      if (!okRes) return null;
       return okRes;
     }
 
-    const { errorText, retryAfter } = await readUpstreamErrorFromResponse(result);
+    const { errorText, clientMessage, retryAfter } = await readUpstreamErrorFromResponse(result);
     const errStr = errorText;
 
     if (
@@ -178,10 +177,15 @@ export async function runRoundRobinInnerRetries(options: {
       continue;
     }
 
-    state.lastError = errStr || String(result.status);
-    if (!state.lastStatus) state.lastStatus = result.status;
-    if (offset > 0) state.fallbackCount++;
-    log.warn("COMBO-RR", `${modelStr} failed, trying next model`, { status: result.status });
+    // Both last-wins, so the exhausted response describes one attempt rather
+    // than pairing the first attempt's status with the last one's message.
+    // `clientMessage` is the redacted text; the raw body stays in the log line.
+    state.lastError = clientMessage || String(result.status);
+    state.lastStatus = result.status;
+    log.warn("COMBO-RR", `${modelStr} failed, trying next model`, {
+      status: result.status,
+      upstreamError: errStr,
+    });
 
     if ([502, 503, 504].includes(result.status) && cooldownMs > 0 && cooldownMs <= 5000) {
       log.info("COMBO-RR", `Waiting ${cooldownMs}ms before fallback to next model`);

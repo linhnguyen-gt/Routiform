@@ -131,6 +131,10 @@ export async function buildAutoCandidates(
           ? Math.max(10, historicalStdDev)
           : Math.max(10, p95LatencyMs * 0.1);
 
+      // Deliberately global per model, not per combo — see the note in
+      // `combo-standard-fallback-chain.ts`. The `auto` strategy scores from the
+      // same breaker the switching loop writes; a per-combo key here would score
+      // every model as healthy.
       const breakerStateRaw = getCircuitBreaker(`combo:${modelStr}`)?.getStatus?.()?.state;
       const circuitBreakerState: "CLOSED" | "HALF_OPEN" | "OPEN" =
         breakerStateRaw === "OPEN" || breakerStateRaw === "HALF_OPEN" ? breakerStateRaw : "CLOSED";

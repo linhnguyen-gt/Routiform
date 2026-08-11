@@ -18,10 +18,6 @@ export function resolveInitialOrderedModels(
   const activeModels = models.filter((m) => !normalizeModelEntry(m).disabled);
 
   if (allCombos) {
-    const flatModels = resolveNestedComboModels(
-      combo as { name: string; models?: unknown[] },
-      allCombos
-    );
     if (strategy === "weighted") {
       const selected = selectWeightedModel(activeModels);
       orderedModels = orderModelsForWeightedFallback(activeModels, selected);
@@ -30,8 +26,7 @@ export function resolveInitialOrderedModels(
           ? allCombos
           : (allCombos as { combos?: unknown[] })?.combos || [];
         const nested = combos.find((c: { name?: string }) => c.name === m) as
-          | { name: string; models?: unknown[] }
-          | undefined;
+          { name: string; models?: unknown[] } | undefined;
         if (nested) return resolveNestedComboModels(nested, allCombos);
         return [m];
       });
@@ -40,7 +35,13 @@ export function resolveInitialOrderedModels(
         `Weighted selection with nested resolution: ${orderedModels.length} total models`
       );
     } else {
-      orderedModels = flatModels;
+      // Only the non-weighted branch consumes the flattened list; the weighted
+      // branch re-resolves per selected entry above, so computing this eagerly
+      // walked every nested combo on every weighted request for nothing.
+      orderedModels = resolveNestedComboModels(
+        combo as { name: string; models?: unknown[] },
+        allCombos
+      );
       log.info("COMBO", `${strategy} with nested resolution: ${orderedModels.length} total models`);
     }
   } else if (strategy === "weighted") {

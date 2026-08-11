@@ -171,6 +171,7 @@ export const PROVIDER_ERROR_TYPES = {
   UNAUTHORIZED: "unauthorized",
   ACCOUNT_DEACTIVATED: "account_deactivated",
   FORBIDDEN: "forbidden",
+  MODEL_FORBIDDEN: "model_forbidden",
   SERVER_ERROR: "server_error",
   QUOTA_EXHAUSTED: "quota_exhausted",
   PROJECT_ROUTE_ERROR: "project_route_error",
@@ -210,6 +211,26 @@ function responseBodyToString(responseBody: unknown): string {
   }
   return "";
 }
+
+/**
+ * Bodies that name the account as the thing being refused.
+ *
+ * A 403 says "no" without saying to what. Most of them refuse one request or one model —
+ * an aggregator gating a model behind an age or data-policy confirmation, an upstream
+ * rejecting a single payload — and only a few refuse the account itself. Since only the
+ * second kind may take a connection out of service, the account has to be named: banning
+ * by default turned a single gated model, and even a 403 carrying an ordinary empty
+ * completion body, into a permanently disabled account.
+ */
+const ACCOUNT_BAN_SIGNALS = [
+  "banned",
+  "suspended",
+  "terms of service",
+  "verify your account",
+  "violation",
+  "account has been disabled",
+  "access has been revoked",
+];
 
 export function classifyProviderError(statusCode: number, responseBody: unknown): string | null {
   const bodyStr = responseBodyToString(responseBody);
@@ -256,7 +277,10 @@ export function classifyProviderError(statusCode: number, responseBody: unknown)
     if (bodyStr.includes("has not been used in project")) {
       return PROVIDER_ERROR_TYPES.PROJECT_ROUTE_ERROR;
     }
-    return PROVIDER_ERROR_TYPES.FORBIDDEN;
+    if (ACCOUNT_BAN_SIGNALS.some((signal) => lowerBody.includes(signal))) {
+      return PROVIDER_ERROR_TYPES.FORBIDDEN;
+    }
+    return PROVIDER_ERROR_TYPES.MODEL_FORBIDDEN;
   }
   if (statusCode >= 500) return PROVIDER_ERROR_TYPES.SERVER_ERROR;
 

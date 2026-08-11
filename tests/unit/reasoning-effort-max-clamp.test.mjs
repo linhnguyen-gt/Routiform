@@ -53,3 +53,19 @@ test("reasoning_effort is stripped entirely for providers with no reasoning_effo
   tune(translatedBody, "mistral");
   assert.equal("reasoning_effort" in translatedBody, false);
 });
+
+test('a client-supplied "max" survives on deepseek, whose enum has a real max level', () => {
+  const translatedBody = { reasoning_effort: "max" };
+  tune(translatedBody, "deepseek");
+  assert.equal(translatedBody.reasoning_effort, "max");
+});
+
+test("client-supplied levels outside deepseek's enum are mapped onto it", () => {
+  const medium = { reasoning_effort: "medium" };
+  tune(medium, "deepseek");
+  assert.equal(medium.reasoning_effort, "high");
+
+  const xhigh = { reasoning_effort: "xhigh" };
+  tune(xhigh, "deepseek");
+  assert.equal(xhigh.reasoning_effort, "high");
+});

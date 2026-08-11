@@ -1,6 +1,8 @@
 "use client";
 
+import ModelEffortSelect from "@/shared/components/ModelEffortSelect";
 import Tooltip from "@/shared/components/Tooltip";
+import type { ModelEffort } from "@/shared/constants/reasoning-effort";
 import { useTranslations } from "next-intl";
 import type { ComboModelEntry } from "./combo-types";
 import { getI18nOrFallback } from "./combo-utils";
@@ -17,6 +19,12 @@ interface ComboModelRowProps {
   /** True when a template placed this row and classified it as a tier-C free-tier model. */
   limitedFreeTier: boolean;
   hasPricing: boolean;
+  /**
+   * Model-level reasoning-effort default, or undefined for "inherit". Global, not scoped
+   * to this combo — see `useModelEffortDefaults`.
+   */
+  effort?: string;
+  onEffortChange: (modelValue: string, effort: ModelEffort) => void;
   isDragging: boolean;
   isDropTarget: boolean;
   onDragStart: (event: React.DragEvent, index: number) => void;
@@ -45,6 +53,8 @@ export function ComboModelRow({
   testStatus,
   limitedFreeTier,
   hasPricing,
+  effort,
+  onEffortChange,
   isDragging,
   isDropTarget,
   onDragStart,
@@ -136,6 +146,19 @@ export function ComboModelRow({
           {hasPricing
             ? getI18nOrFallback(t, "pricingAvailableShort", "priced")
             : getI18nOrFallback(t, "pricingMissingShort", "no-price")}
+        </span>
+      )}
+
+      {/* Aliases and nested combo names have no `provider/model` key to store an effort under. */}
+      {entry.model.includes("/") && (
+        <span draggable={false} onDragStart={(e) => e.stopPropagation()} className="shrink-0">
+          <ModelEffortSelect
+            modelValue={entry.model}
+            value={effort}
+            onChange={(next) => onEffortChange(entry.model, next)}
+            className="rounded border-black/10 dark:border-white/10"
+            colorClass="bg-transparent text-text-muted hover:text-primary"
+          />
         </span>
       )}
 

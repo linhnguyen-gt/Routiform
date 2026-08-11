@@ -232,7 +232,7 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
   },
 };
 
-export function getModelSpec(modelId: string): ModelSpec | undefined {
+function lookupSpec(modelId: string): ModelSpec | undefined {
   if (MODEL_SPECS[modelId]) return MODEL_SPECS[modelId];
 
   // Buscas por alias
@@ -260,6 +260,34 @@ export function getModelSpec(modelId: string): ModelSpec | undefined {
   }
 
   return bestSpec;
+}
+
+/**
+ * Resolve a model id to its spec.
+ *
+ * Ids arrive here in two shapes. Callers that take the model as an argument
+ * pass it bare (`claude-opus-4-5`). Callers that read it off the request body
+ * get whatever the routing layer stamped there, which is provider-qualified —
+ * `anthropic/claude-opus-4-5` on the ordinary path, and OpenRouter-style
+ * multi-segment ids elsewhere. No canonical key or alias contains "/", so a
+ * qualified id could not match exactly, by alias, or by prefix: the lookup
+ * returned undefined and every ceiling it feeds silently became "no limit" —
+ * `thinkingBudgetCap` stopped clamping, `defaultThinkingBudget` stopped
+ * applying, `maxOutputTokens` fell through to the generic default.
+ *
+ * Retrying on the last path segment is a strict widening: an id that already
+ * resolves is untouched, so only lookups that previously found nothing can
+ * change. That confines the effect to exactly the ids the caps were meant to
+ * cover and never reinterprets one that already matched.
+ */
+export function getModelSpec(modelId: string): ModelSpec | undefined {
+  const direct = lookupSpec(modelId);
+  if (direct) return direct;
+
+  const lastSlash = modelId.lastIndexOf("/");
+  if (lastSlash === -1) return undefined;
+
+  return lookupSpec(modelId.slice(lastSlash + 1));
 }
 
 // Safe default output ceiling applied ONLY when the client omits max_tokens

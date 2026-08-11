@@ -157,7 +157,10 @@ const MODEL_UNAVAILABLE_FRAGMENTS = [
  * itself is not available, not a transient server error.
  */
 export function isModelUnavailableError(status: number, errorMessage: string): boolean {
-  if (status === 404) return true;
+  // 410 Gone is 404's permanent twin: the model existed and was retired. NVIDIA answers it
+  // for withdrawn model ids. Without this it fell through to the catch-all cooldown and one
+  // retired model suspended the whole connection.
+  if (status === 404 || status === 410) return true;
   if (status !== 400 && status !== 403) return false;
 
   const msg = errorMessage.toLowerCase();

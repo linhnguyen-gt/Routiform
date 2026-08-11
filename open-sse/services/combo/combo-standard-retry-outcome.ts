@@ -83,7 +83,10 @@ export async function resolveStandardOkAttempt(options: {
 /** Non-OK upstream: terminal return, same-model retry, or advance to next model. */
 export async function resolveStandardNonOkAttempt(options: {
   result: Response;
+  /** Raw upstream text — classification and logs only, never the client. */
   errStr: string;
+  /** Redacted message safe to return to the caller. */
+  clientMessage: string;
   retryAfter: unknown;
   earliestRetryAfter: string | null;
   provider: string;
@@ -108,6 +111,7 @@ export async function resolveStandardNonOkAttempt(options: {
   const {
     result,
     errStr,
+    clientMessage,
     retryAfter,
     earliestRetryAfter: prevEarliest,
     provider,
@@ -194,9 +198,14 @@ export async function resolveStandardNonOkAttempt(options: {
     };
   }
 
-  const lastError = errStr || String(result.status);
+  // `lastError` becomes the client-facing message once the chain is exhausted,
+  // so it carries the redacted text; the raw body stays in this log line.
+  const lastError = clientMessage || String(result.status);
   const lastStatus = result.status;
-  log.warn("COMBO", `Model ${modelStr} failed, trying next`, { status: result.status });
+  log.warn("COMBO", `Model ${modelStr} failed, trying next`, {
+    status: result.status,
+    upstreamError: errStr,
+  });
 
   if ([502, 503, 504].includes(result.status) && cooldownMs > 0 && cooldownMs <= 5000) {
     log.info("COMBO", `Waiting ${cooldownMs}ms before fallback to next model`);

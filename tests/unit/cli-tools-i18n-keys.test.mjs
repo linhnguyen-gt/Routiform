@@ -33,3 +33,21 @@ test("every tool carries its own description, so the fallback has something to s
 
   assert.deepEqual(missing, [], `CLI_TOOLS.description is empty for: ${missing.join(", ")}`);
 });
+
+test("every guide step and note carries its own text, so the fallback has something to show", () => {
+  // The card looks up guides.<tool>.steps.<step>.{title,desc} and guides.<tool>.notes.<index>
+  // per rendered row. Only 5 of the 16 tools have those messages, so most rows reach the
+  // catalog text instead — an empty title or note there renders as a blank line.
+  const empty = [];
+
+  for (const id of toolIds) {
+    for (const step of CLI_TOOLS[id].guideSteps || []) {
+      if (!String(step.title || "").trim()) empty.push(`${id}.guideSteps[${step.step}].title`);
+    }
+    (CLI_TOOLS[id].notes || []).forEach((note, index) => {
+      if (!String(note.text || "").trim()) empty.push(`${id}.notes[${index}].text`);
+    });
+  }
+
+  assert.deepEqual(empty, [], `CLI_TOOLS guide text is empty for: ${empty.join(", ")}`);
+});

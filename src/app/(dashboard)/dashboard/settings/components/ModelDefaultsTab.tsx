@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card } from "@/shared/components";
 import ModelSelectModal from "@/shared/components/ModelSelectModal";
+import { DEFAULT_MODEL_EFFORT, type ModelEffort } from "@/shared/constants/reasoning-effort";
+import { rekeyProviderModelMap, toPickerProviderModelKey } from "@/shared/models/model-string";
 import type { ProviderConnection } from "@/shared/models/provider-connection";
-
-const EFFORT_OPTIONS = ["none", "low", "medium", "high", "xhigh"] as const;
-
-type Effort = (typeof EFFORT_OPTIONS)[number];
 
 type DefaultsResponse = {
   builtIn?: Record<string, string>;
@@ -20,7 +18,7 @@ function sortEntries(map: Record<string, string>): Array<[string, string]> {
 }
 
 function effortChipClass(effort: string): string {
-  if (effort === "xhigh" || effort === "high") {
+  if (effort === "max" || effort === "xhigh" || effort === "high") {
     return "bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30";
   }
   if (effort === "medium") {
@@ -40,9 +38,10 @@ export default function ModelDefaultsTab() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
 
-  const [pendingModels, setPendingModels] = useState<string[]>([]);
-  const [newEffort, setNewEffort] = useState<Effort>("high");
   const [activeProviders, setActiveProviders] = useState<ProviderConnection[]>([]);
+  // Same store the CLI tool cards and the combo form feed the picker, so all of them list
+  // the same models — alias-only entries included.
+  const [modelAliases, setModelAliases] = useState<Record<string, string>>({});
   const [showModelSelect, setShowModelSelect] = useState(false);
 
   useEffect(() => {
@@ -52,12 +51,17 @@ export default function ModelDefaultsTab() {
         .then((res) => (res.ok ? res.json() : { connections: [] }))
         .then((data) => (Array.isArray(data?.connections) ? data.connections : []))
         .catch(() => [] as Array<Record<string, unknown>>),
+      fetch("/api/models/alias")
+        .then((res) => (res.ok ? res.json() : { aliases: {} }))
+        .then((data) => (data?.aliases as Record<string, string>) || {})
+        .catch(() => ({}) as Record<string, string>),
     ])
-      .then(([data, providers]) => {
+      .then(([data, providers, aliases]) => {
         setBuiltIn(data.builtIn || {});
         setCustom(data.custom || {});
         setEffective(data.effective || {});
         setActiveProviders(providers);
+        setModelAliases(aliases);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -78,34 +82,48 @@ export default function ModelDefaultsTab() {
     setTimeout(() => setStatus(""), 2500);
   };
 
-  const addDefault = async () => {
-    if (pendingModels.length === 0) return;
+  /**
+   * `custom` arrives keyed by canonical provider id; the picker keys everything by the
+   * alias it puts in its model values. Anything compared against a picker value has to go
+   * through this map or it silently misses.
+   */
+  const customByPickerKey = useMemo(
+    () => rekeyProviderModelMap(custom, toPickerProviderModelKey),
+    [custom]
+  );
 
-    const nextCustom = { ...custom };
-    for (const providerModel of pendingModels) {
-      if (providerModel.includes("/")) {
-        nextCustom[providerModel] = newEffort;
-      }
+  /**
+   * Writes one model's effort straight away, the same as every other picker in the app.
+   * There is no separate confirm step: a control that shows the new value but only queues
+   * it reads as saved, and the queue was lost whenever the surface closed.
+   */
+  const saveDefault = useCallback(async (providerModel: string, effort: ModelEffort) => {
+    const slash = providerModel.indexOf("/");
+    if (slash <= 0 || slash >= providerModel.length - 1) {
+      showError();
+      return;
     }
 
     setSaving(true);
     try {
       const res = await fetch("/api/settings/model-defaults", {
-        method: "PUT",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ defaults: nextCustom }),
+        body: JSON.stringify({
+          provider: providerModel.slice(0, slash),
+          model: providerModel.slice(slash + 1),
+          effort,
+        }),
       });
-      if (!res.ok) throw new Error("Failed to update defaults");
-      const data = (await res.json()) as DefaultsResponse;
-      applySnapshot(data);
-      setPendingModels([]);
+      if (!res.ok) throw new Error("Failed to update default");
+      applySnapshot((await res.json()) as DefaultsResponse);
       showSaved();
     } catch {
       showError();
     } finally {
       setSaving(false);
     }
-  };
+  }, []);
 
   const removeDefault = async (providerModel: string) => {
     const slash = providerModel.indexOf("/");
@@ -131,6 +149,7 @@ export default function ModelDefaultsTab() {
     }
   };
 
+  const addedModelValues = useMemo(() => Object.keys(customByPickerKey), [customByPickerKey]);
   const customEntries = useMemo(() => sortEntries(custom), [custom]);
   const builtInEntries = useMemo(() => sortEntries(builtIn), [builtIn]);
   const effectiveEntries = useMemo(() => sortEntries(effective), [effective]);
@@ -171,53 +190,17 @@ export default function ModelDefaultsTab() {
 
       <div className="p-4 rounded-lg bg-surface/30 border border-border/30 mb-4">
         <p className="text-sm font-medium mb-3">Add or update custom default</p>
-        <div className="space-y-2">
-          <div className="min-h-[40px] px-2 py-1.5 rounded-lg bg-surface border border-border/50 text-left hover:border-indigo-500/50 focus-within:border-indigo-500/50">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {pendingModels.map((model) => (
-                <button
-                  key={model}
-                  type="button"
-                  onClick={() => setPendingModels((prev) => prev.filter((item) => item !== model))}
-                  className="inline-flex items-center gap-1 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[11px] text-indigo-300 hover:bg-indigo-500/20"
-                >
-                  <span className="max-w-[180px] truncate">{model}</span>
-                  <span className="material-symbols-outlined text-[12px]">close</span>
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setShowModelSelect(true)}
-                className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-surface px-2 py-0.5 text-[11px] text-text-muted hover:text-indigo-300 hover:border-indigo-500/40"
-              >
-                <span className="material-symbols-outlined text-[12px]">add</span>
-                {pendingModels.length > 0 ? "Add more" : "Select model(s)"}
-              </button>
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
-            <select
-              value={newEffort}
-              onChange={(e) => setNewEffort(e.target.value as Effort)}
-              className="w-full sm:w-[140px] px-3 py-2 rounded-lg text-sm bg-surface border border-border/50 focus:border-indigo-500/50 focus:outline-none"
-            >
-              {EFFORT_OPTIONS.map((effort) => (
-                <option key={effort} value={effort}>
-                  {effort}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={addDefault}
-              disabled={saving || pendingModels.length === 0}
-              className="w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-medium bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50 transition-all"
-            >
-              Apply
-            </button>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowModelSelect(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-surface px-3 py-2 text-sm text-text-muted hover:text-indigo-300 hover:border-indigo-500/50 transition-all"
+        >
+          <span className="material-symbols-outlined text-[16px]">add</span>
+          Select model(s)
+        </button>
         <p className="mt-2 text-xs text-text-muted">
-          Tip: open picker and select multiple models, then Apply once.
+          Tip: set each model&apos;s effort on its chip in the picker. Every change saves as you
+          make it; picking a model with no default yet gives it {DEFAULT_MODEL_EFFORT}.
         </p>
       </div>
 
@@ -301,23 +284,26 @@ export default function ModelDefaultsTab() {
       <ModelSelectModal
         isOpen={showModelSelect}
         onClose={() => setShowModelSelect(false)}
-        onSelect={(model: Record<string, unknown>) => {
+        // Clicking the name toggles the default itself: on for a model that has none,
+        // off for one that does. That mirrors the chip list below, where a click removes.
+        onSelect={(model) => {
           const value = String(model?.value ?? model?.id ?? "").trim();
           if (!value.includes("/")) {
             showError();
             return;
           }
-          setPendingModels((prev) =>
-            prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]
-          );
+          if (customByPickerKey[value]) removeDefault(value);
+          else saveDefault(value, DEFAULT_MODEL_EFFORT);
         }}
         activeProviders={activeProviders}
-        modelAliases={{}}
+        modelAliases={modelAliases}
         title="Select Model(s)"
         selectedModel=""
-        addedModelValues={pendingModels}
+        addedModelValues={addedModelValues}
+        // Same key space as the picker's model values; anything else shows as "inherit".
+        modelEfforts={customByPickerKey}
+        onEffortChange={saveDefault}
         multiSelect
-        enableModelTest
       />
     </Card>
   );

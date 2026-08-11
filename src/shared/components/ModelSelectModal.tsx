@@ -7,6 +7,9 @@ import Button from "./Button";
 import type { AvailableModel, AvailableModelGroup } from "@/shared/models/available-models";
 import type { ProviderConnection } from "@/shared/models/provider-connection";
 import { useAvailableModels, type ComboSummary } from "@/shared/models/use-available-models";
+import { useModelEffortDefaults } from "@/shared/models/use-model-effort-defaults";
+import { isModelEffort, type ModelEffort } from "@/shared/constants/reasoning-effort";
+import ModelEffortSelect from "./ModelEffortSelect";
 
 /**
  * What `onSelect` receives: either an `AvailableModel` from a provider group or a
@@ -20,6 +23,13 @@ export interface ModelItem {
   isCustom?: boolean;
 }
 
+/**
+ * Stable empty defaults. A fresh `{}` per render feeds `useAvailableModels`' memo deps and
+ * re-derives the whole catalog on every keystroke for any caller that omits the prop.
+ */
+const NO_ALIASES: Record<string, string> = {};
+const EMPTY_EFFORTS: Record<string, string> = {};
+
 export interface ModelSelectModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -30,6 +40,10 @@ export interface ModelSelectModalProps {
   modelAliases?: Record<string, string>;
   addedModelValues?: string[];
   multiSelect?: boolean;
+  /**
+   * Per-model test button. Defaults to ON: every picker offers the same controls unless a
+   * call site deliberately opts out, which is what kept the CLI tool cards a feature behind.
+   */
   enableModelTest?: boolean;
   /**
    * When supplied, the data hook is NOT called. A parent that already derives the
@@ -39,6 +53,20 @@ export interface ModelSelectModalProps {
   groups?: AvailableModelGroup[];
   models?: AvailableModel[];
   combos?: ComboSummary[];
+  /**
+   * Controlled per-model reasoning effort, for a host that batches the write into its own
+   * save step. Keyed by model value (`provider/model`), in the same key space the picker emits.
+   * A missing key renders as "inherit". Combos are excluded — the model-defaults store
+   * only accepts `provider/model` keys.
+   */
+  modelEfforts?: Record<string, string>;
+  onEffortChange?: (modelValue: string, effort: ModelEffort) => void;
+  /**
+   * Self-managed effort, the default: the picker reads the model-defaults store itself and
+   * writes each change immediately, so a surface with no save step of its own still gets the
+   * control. Ignored when `onEffortChange` is supplied; pass false to drop effort entirely.
+   */
+  manageEffortDefaults?: boolean;
 }
 
 export default function ModelSelectModal({
@@ -48,12 +76,15 @@ export default function ModelSelectModal({
   selectedModel,
   activeProviders = [],
   title = "Select Model",
-  modelAliases = {},
+  modelAliases = NO_ALIASES,
   addedModelValues = [],
   multiSelect = false,
-  enableModelTest = false,
+  enableModelTest = true,
   groups: groupsProp,
   combos: combosProp,
+  modelEfforts,
+  onEffortChange,
+  manageEffortDefaults = true,
 }: ModelSelectModalProps) {
   const tCommon = useTranslations("common");
   const [searchQuery, setSearchQuery] = useState("");
@@ -68,6 +99,35 @@ export default function ModelSelectModal({
   const groupedModels = hasSuppliedData ? groupsProp : fetched.groups;
   const combos = combosProp ?? fetched.combos;
 
+  // Self-managed effort mode. The hook is always called (rules of hooks) but stays inert
+  // until the modal is open in that mode. Either controlled prop opts out of it — reading
+  // from a parent map while writing to the global store would make every change revert.
+  const isSelfManaged = !onEffortChange && !modelEfforts && manageEffortDefaults;
+  const ownEfforts = useModelEffortDefaults({ enabled: isOpen && isSelfManaged });
+  const efforts = modelEfforts ?? (isSelfManaged ? ownEfforts.efforts : EMPTY_EFFORTS);
+
+  // Self-managed writes have no save button behind them, so a failed one has to show up on
+  // the control itself — otherwise the value just snaps back with no explanation.
+  const [effortErrors, setEffortErrors] = useState<Record<string, boolean>>({});
+  const saveOwnEffort = useCallback(
+    async (modelValue: string, effort: ModelEffort) => {
+      const ok = await ownEfforts.saveEffort(modelValue, effort);
+      setEffortErrors((prev) => (prev[modelValue] === !ok ? prev : { ...prev, [modelValue]: !ok }));
+    },
+    [ownEfforts]
+  );
+  const handleEffortChange = onEffortChange ?? (isSelfManaged ? saveOwnEffort : undefined);
+
+  /**
+   * Which chip currently owns a mounted `<select>` — at most one.
+   *
+   * A native select is an expensive element: one per chip, each carrying the full option
+   * list, put ~13k extra nodes in this modal on a catalog of ~1.6k models and locked the
+   * renderer for tens of seconds when it unmounted. Every other chip shows its effort as a
+   * plain button and swaps in the real control only while it is being edited.
+   */
+  const [editingEffort, setEditingEffort] = useState<string | null>(null);
+
   const [testingModels, setTestingModels] = useState<Record<string, boolean>>({});
   const [modelTestStatus, setModelTestStatus] = useState<Record<string, "ok" | "error">>({});
   const modelTestControllersRef = useRef<Record<string, AbortController>>({});
@@ -80,6 +140,8 @@ export default function ModelSelectModal({
       modelTestControllersRef.current = {};
       setTestingModels({});
       setModelTestStatus({});
+      setEffortErrors({});
+      setEditingEffort(null);
     }
   }, [isOpen]);
 
@@ -288,31 +350,50 @@ export default function ModelSelectModal({
                       ? "Model test failed"
                       : "Test model";
 
-                if (enableModelTest) {
-                  return (
-                    <div
-                      key={`${providerId}-${String(model.id)}-${modelIndex}`}
-                      className="inline-flex"
-                    >
-                      <button
-                        onClick={() => handleSelect(model)}
-                        className={`
-                          px-2 py-1 rounded-l-xl text-xs font-medium transition-all border border-r-0 hover:cursor-pointer
-                          ${
-                            isHighlighted
-                              ? "bg-primary text-white border-primary"
-                              : isAdded
-                                ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
-                                : "bg-surface border-border text-text-main hover:border-primary/50 hover:bg-primary/5"
-                          }
-                        `}
-                      >
-                        {isAdded && (
-                          <span className="mr-0.5 opacity-70 text-[10px] uppercase">added</span>
-                        )}
-                        {String(model.name ?? model.id ?? "")}
-                        {model.isCustom ? " ★" : ""}
-                      </button>
+                // The chip is a group of up to three segments: name, test, effort.
+                // Only the first and last segment get rounded outer corners.
+                const showEffort = !!handleEffortChange;
+                const isGrouped = enableModelTest || showEffort;
+                const currentEffort = isModelEffort(efforts[modelValue])
+                  ? efforts[modelValue]
+                  : null;
+                const effortLabel = effortErrors[modelValue]
+                  ? `Failed to save reasoning effort for ${modelValue}`
+                  : `Reasoning effort for ${modelValue}`;
+
+                const nameButton = (
+                  <button
+                    key={`${providerId}-${String(model.id)}-${modelIndex}`}
+                    onClick={() => handleSelect(model)}
+                    className={`
+                      px-2 py-1 text-xs font-medium transition-all border hover:cursor-pointer
+                      ${isGrouped ? "rounded-l-xl border-r-0" : "rounded-xl"}
+                      ${
+                        isHighlighted
+                          ? "bg-primary text-white border-primary"
+                          : isAdded
+                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
+                            : "bg-surface border-border text-text-main hover:border-primary/50 hover:bg-primary/5"
+                      }
+                    `}
+                  >
+                    {isAdded && (
+                      <span className="mr-0.5 opacity-70 text-[10px] uppercase">added</span>
+                    )}
+                    {String(model.name ?? model.id ?? "")}
+                    {model.isCustom ? " ★" : ""}
+                  </button>
+                );
+
+                if (!isGrouped) return nameButton;
+
+                return (
+                  <div
+                    key={`${providerId}-${String(model.id)}-${modelIndex}`}
+                    className="inline-flex"
+                  >
+                    {nameButton}
+                    {enableModelTest && (
                       <button
                         type="button"
                         onClick={() => handleTestModel(modelValue, testKey)}
@@ -320,7 +401,8 @@ export default function ModelSelectModal({
                         aria-label={testLabel}
                         title={testLabel}
                         className={`
-                          px-1.5 py-1 rounded-r-xl text-xs border transition-all
+                          px-1.5 py-1 text-xs border transition-all
+                          ${showEffort ? "border-r-0" : "rounded-r-xl"}
                           ${
                             testStatus === "ok"
                               ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
@@ -344,31 +426,38 @@ export default function ModelSelectModal({
                                 : "play_arrow"}
                         </span>
                       </button>
-                    </div>
-                  );
-                }
-
-                return (
-                  <button
-                    key={`${providerId}-${String(model.id)}-${modelIndex}`}
-                    onClick={() => handleSelect(model)}
-                    className={`
-                      px-2 py-1 rounded-xl text-xs font-medium transition-all border hover:cursor-pointer
-                      ${
-                        isHighlighted
-                          ? "bg-primary text-white border-primary"
-                          : isAdded
-                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
-                            : "bg-surface border-border text-text-main hover:border-primary/50 hover:bg-primary/5"
-                      }
-                    `}
-                  >
-                    {isAdded && (
-                      <span className="mr-0.5 opacity-70 text-[10px] uppercase">added</span>
                     )}
-                    {String(model.name ?? model.id ?? "")}
-                    {model.isCustom ? " ★" : ""}
-                  </button>
+                    {showEffort &&
+                      (editingEffort === modelValue ? (
+                        <ModelEffortSelect
+                          modelValue={modelValue}
+                          value={efforts[modelValue]}
+                          error={!!effortErrors[modelValue]}
+                          onChange={(effort) => handleEffortChange(modelValue, effort)}
+                          onDismiss={() => setEditingEffort(null)}
+                          autoOpen
+                          className="rounded-r-xl"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditingEffort(modelValue)}
+                          aria-label={effortLabel}
+                          title={effortLabel}
+                          className={`
+                            px-1.5 py-1 text-[10px] font-medium border rounded-r-xl transition-all
+                            hover:cursor-pointer
+                            ${
+                              effortErrors[modelValue]
+                                ? "border-red-500/60 text-red-500 bg-red-500/10"
+                                : "bg-surface text-text-muted border-border hover:border-primary/50 hover:text-primary"
+                            }
+                          `}
+                        >
+                          {currentEffort ?? "inherit"}
+                        </button>
+                      ))}
+                  </div>
                 );
               })}
             </div>

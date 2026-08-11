@@ -57,6 +57,7 @@
     "lint": "eslint .",
     "test": "cross-env DATA_DIR=.test-data DISABLE_SQLITE_AUTO_BACKUP=true node --import tsx/esm --test tests/unit/*.test.mjs",
     "test:unit": "cross-env DATA_DIR=.test-data DISABLE_SQLITE_AUTO_BACKUP=true node --import tsx/esm --test tests/unit/*.test.mjs",
+    "test:combo": "cross-env DATA_DIR=.test-data DISABLE_SQLITE_AUTO_BACKUP=true node --import tsx/esm --test tests/unit/combo-*.test.mjs",
     "test:plan3": "cross-env DATA_DIR=.test-data DISABLE_SQLITE_AUTO_BACKUP=true node --import tsx/esm --test tests/unit/plan3-p0.test.mjs",
     "test:fixes": "cross-env DATA_DIR=.test-data DISABLE_SQLITE_AUTO_BACKUP=true node --import tsx/esm --test tests/unit/fixes-p1.test.mjs",
     "test:security": "cross-env DATA_DIR=.test-data DISABLE_SQLITE_AUTO_BACKUP=true node --import tsx/esm --test tests/unit/security-fase01.test.mjs",

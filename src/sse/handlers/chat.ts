@@ -1,7 +1,6 @@
 import {
   getProviderCredentials,
   hasActiveProviderConnection,
-  markAccountUnavailable,
   clearAccountError,
   extractApiKey,
   isValidApiKey,
@@ -12,6 +11,8 @@ import {
   getTargetFormat,
 } from "@routiform/open-sse/services/provider.ts";
 import { handleChatCore } from "@routiform/open-sse/handlers/chatCore.ts";
+import { isHealthCheckProbe } from "@routiform/open-sse/handlers/chat-core/chat-core-health-check-probe.ts";
+import { resolveAccountFallbackDecision } from "./chat-account-fallback-decision";
 import { errorResponse, unavailableResponse } from "@routiform/open-sse/utils/error.ts";
 import { handleComboChat } from "@routiform/open-sse/services/combo.ts";
 import { HTTP_STATUS } from "@routiform/open-sse/config/constants.ts";
@@ -622,20 +623,27 @@ async function handleSingleModelChat(
       }
     }
 
-    // 6. Mark account as quota-exhausted on 429 response
-    if (result.status === 429) {
+    const isProbe = isHealthCheckProbe(
+      clientRawRequest as { headers?: Record<string, unknown> } | null
+    );
+
+    // 6. Mark account as quota-exhausted on 429 response. A probe's 429 says nothing about
+    // the account's quota that the account itself has not already reported, and letting it
+    // write here would deprioritise the connection for real traffic on the strength of a test.
+    if (result.status === 429 && !isProbe) {
       markAccountExhaustedFrom429(credentials.connectionId, provider);
     }
 
     // 7. Fallback to next account (with optional cooldown-aware same-account retry)
-    const fallbackDecision = await markAccountUnavailable(
-      credentials.connectionId,
-      Number(result.status),
-      String(result.error),
+    const fallbackDecision = await resolveAccountFallbackDecision({
+      isProbe,
+      connectionId: credentials.connectionId,
+      status: Number(result.status),
+      errorText: String(result.error),
       provider,
       model,
-      (result.response as Response | undefined)?.headers || null
-    );
+      headers: (result.response as Response | undefined)?.headers || null,
+    });
 
     const currentAttempt = sameAccountRetryCount;
     if (

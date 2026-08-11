@@ -16,6 +16,10 @@ import {
   isModelSyncInternalRequest,
 } from "@/shared/services/modelSyncScheduler";
 import { getModelsByProviderId } from "@/shared/constants/models";
+import {
+  PARTIAL_MODEL_LISTING_PROVIDERS,
+  findRetiredRegistryModels,
+} from "./retired-registry-models";
 
 const UNION_SYNCED_MODEL_PROVIDERS = new Set(["claude"]);
 
@@ -238,6 +242,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ? new Set<string>()
       : new Set(getModelsByProviderId(logProvider).map((m) => m.id));
 
+    // A handler that fell back to a local catalog after upstream failed still answers 200,
+    // and its list describes what this app remembers rather than what the provider serves.
+    const servedFromLocalFallback =
+      modelsData.source === "local_catalog" || typeof modelsData.warning === "string";
+
+    const retiredRegistryModels = findRetiredRegistryModels({
+      registryIds,
+      listedModels: fetchedModels,
+      skip:
+        skipRegistryFilter ||
+        servedFromLocalFallback ||
+        PARTIAL_MODEL_LISTING_PROVIDERS.has(logProvider),
+    });
+
     // Replace the full model list
     const models = dedupeModelsById(
       fetchedModels
@@ -307,6 +325,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       syncedAliases = aliasSync.assignedAliases.length;
     }
 
+    if (retiredRegistryModels.length > 0) {
+      console.warn(
+        `[models] ${logProvider}: ${retiredRegistryModels.length} built-in model(s) not listed for this account — ${retiredRegistryModels.join(", ")}`
+      );
+    }
+
+    // Drift is a standing condition, not an event: it persists across every sync until
+    // someone edits the registry. Logging it would append a row on each of the scheduler's
+    // runs forever, so the call log still records only what actually changed.
     if (modelChanges.total > 0) {
       await saveCallLog({
         method: "GET",
@@ -324,6 +351,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           provider: logProvider,
           channel: channelLabel,
           modelChanges,
+          ...(retiredRegistryModels.length > 0 ? { retiredRegistryModels } : {}),
         },
       });
     }
@@ -334,6 +362,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       syncedModels: replaced.length,
       syncedAliases,
       modelChanges,
+      retiredRegistryModels,
       logged: modelChanges.total > 0,
       models: replaced,
     });

@@ -9,6 +9,7 @@ import { normalizeModelEntry } from "./combo-model-entry.ts";
 import { filterOrderedModelsForToolCalling } from "./combo-tool-calling-filter.ts";
 import { resolveRetrySettings } from "./combo-retry-settings.ts";
 import { respondComboModelsExhausted } from "./combo-exhausted-responses.ts";
+import { releaseOnResponseComplete } from "./combo-release-on-complete.ts";
 import { rrCounters } from "./combo-rr-counter.ts";
 import { runRoundRobinInnerRetries } from "./combo-rr-inner-retries.ts";
 
@@ -84,6 +85,10 @@ export async function handleRoundRobinCombo(options: {
   };
   let lastTriedModelIndex: number | null = null;
   let lastTriedModelStr: string | null = null;
+  // See the note in `combo-standard-fallback-chain.ts`: only a model that is
+  // actually attempted after another attempt counts as a fallback. Skips —
+  // breaker, availability, semaphore — never reach an upstream.
+  let attemptedAny = false;
 
   for (let offset = 0; offset < modelCount; offset++) {
     const modelIndex = (startIndex + offset) % modelCount;
@@ -91,6 +96,8 @@ export async function handleRoundRobinCombo(options: {
     const parsed = parseModel(modelStr);
     const provider = parsed.provider || parsed.providerAlias || "unknown";
     const profile = getProviderProfile(provider);
+    // Deliberately global per model, not per combo — see the note in
+    // `combo-standard-fallback-chain.ts`.
     const breakerKey = `combo:${modelStr}`;
     const breaker = getCircuitBreaker(breakerKey, {
       failureThreshold: profile.circuitBreakerThreshold,
@@ -99,7 +106,6 @@ export async function handleRoundRobinCombo(options: {
 
     if (!breaker.canExecute()) {
       log.info("COMBO-RR", `Skipping ${modelStr}: circuit breaker OPEN for ${provider}`);
-      if (offset > 0) state.fallbackCount++;
       continue;
     }
 
@@ -107,7 +113,6 @@ export async function handleRoundRobinCombo(options: {
       const available = await isModelAvailable(modelStr);
       if (!available) {
         log.info("COMBO-RR", `Skipping ${modelStr} (all accounts in cooldown)`);
-        if (offset > 0) state.fallbackCount++;
         continue;
       }
     }
@@ -127,12 +132,15 @@ export async function handleRoundRobinCombo(options: {
           "COMBO-RR",
           `Semaphore ${(err as { code?: string }).code === "SEMAPHORE_QUEUE_FULL" ? "queue full" : "timeout"} for ${modelStr}, trying next model`
         );
-        if (offset > 0) state.fallbackCount++;
         continue;
       }
       throw err;
     }
 
+    if (attemptedAny) state.fallbackCount++;
+    attemptedAny = true;
+
+    let handedOff = false;
     try {
       lastTriedModelIndex = modelIndex;
       lastTriedModelStr = modelStr;
@@ -152,9 +160,19 @@ export async function handleRoundRobinCombo(options: {
         startTime,
         state,
       });
-      if (direct) return direct;
+      if (direct) {
+        // The request is not done when the headers are: hand the slot to the
+        // response so it lives until the body drains, is cancelled, or errors.
+        // Flag only once the handoff actually happened — a throw inside must
+        // still fall through to the `finally` release.
+        const withSlot = releaseOnResponseComplete(direct, release);
+        handedOff = true;
+        return withSlot;
+      }
     } finally {
-      release();
+      // Every path that does not return a response — advancing to the next
+      // model, or throwing — releases here.
+      if (!handedOff) release();
     }
   }
 

@@ -2,6 +2,15 @@ import { parseModel } from "../model.ts";
 import { getComboMetrics } from "../comboMetrics.ts";
 import { getModelContextLimit } from "../../../src/lib/modelsDevSync";
 
+/**
+ * Sentinel for "no pricing known". Not `Infinity`: two unpriced models would
+ * then compare as `Infinity - Infinity`, i.e. `NaN`, and a comparator returning
+ * NaN leaves the sort order undefined per spec. `MAX_VALUE - MAX_VALUE` is `0`,
+ * so unpriced models compare equal and the sort's stability keeps them in
+ * configured order.
+ */
+const UNPRICED = Number.MAX_VALUE;
+
 export async function sortModelsByCost(models: string[]): Promise<string[]> {
   try {
     const { getPricingForModel } = await import("../../../src/lib/localDb");
@@ -14,13 +23,13 @@ export async function sortModelsByCost(models: string[]): Promise<string[]> {
           const pricing = await getPricingForModel(provider, model);
           const raw = pricing?.input;
           const cost = typeof raw === "number" ? raw : Number(raw);
-          return { modelStr, cost: Number.isFinite(cost) ? cost : Infinity };
+          return { modelStr, cost: Number.isFinite(cost) ? cost : UNPRICED };
         } catch {
-          return { modelStr, cost: Infinity };
+          return { modelStr, cost: UNPRICED };
         }
       })
     );
-    withCost.sort((a, b) => a.cost - b.cost);
+    withCost.sort((a, b) => a.cost - b.cost || 0);
     return withCost.map((e) => e.modelStr);
   } catch {
     return models;

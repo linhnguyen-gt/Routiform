@@ -12,6 +12,15 @@ const ALIAS_TO_PROVIDER_ID: Record<string, string> = Object.fromEntries(
   Object.entries(PROVIDER_ID_TO_ALIAS).map(([providerId, alias]) => [alias, providerId])
 );
 
+/**
+ * Resolve a provider reference (id or alias) to its canonical provider id.
+ * Unknown references — custom provider nodes, for instance — are returned unchanged.
+ */
+export function resolveProviderIdFromRef(providerRef: string): string {
+  if (typeof providerRef !== "string" || !providerRef) return providerRef;
+  return ALIAS_TO_PROVIDER_ID[providerRef] || providerRef;
+}
+
 /** Client uses `alias/modelId`; registry rows use bare `modelId` only. */
 export function stripProviderPrefixFromModelId(aliasOrId: string, modelId: string): string {
   if (typeof modelId !== "string" || modelId.length === 0) return modelId;

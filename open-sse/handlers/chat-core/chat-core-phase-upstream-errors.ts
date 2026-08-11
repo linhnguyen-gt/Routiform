@@ -4,6 +4,7 @@ import { updateFromHeaders } from "../../services/rateLimitManager.ts";
 import { formatProviderError, parseUpstreamError } from "../../utils/error.ts";
 import { COLORS } from "../../utils/stream.ts";
 import { persistProviderAccountErrorState } from "../services/provider-account-error-state.ts";
+import { isHealthCheckProbe } from "./chat-core-health-check-probe.ts";
 import {
   runUpstreamNotOkFallbackChain,
   type NotOkMutable,
@@ -63,14 +64,24 @@ export async function chatCorePhaseUpstreamErrors(p: ChatCorePipeline): Promise<
     translatedBody.model || currentModel || effectiveModel || p.model
   );
 
-  await persistProviderAccountErrorState({
-    connectionId: p.connectionId,
-    provider: p.provider,
-    model: failedUpstreamModel,
-    statusCode,
-    message,
-    retryAfterMs,
-  });
+  // A probe reports its own failure to whoever asked for it; recording that failure
+  // against the account would let testing one unusable model take the whole connection
+  // out of service, and every later probe on it then fails with "no credentials".
+  if (isHealthCheckProbe(p.clientRawRequest as { headers?: Headers } | null | undefined)) {
+    log?.debug?.(
+      "TEST",
+      `Health-check probe failed (${statusCode}) for ${failedUpstreamModel} — account state left untouched`
+    );
+  } else {
+    await persistProviderAccountErrorState({
+      connectionId: p.connectionId,
+      provider: p.provider,
+      model: failedUpstreamModel,
+      statusCode,
+      message,
+      retryAfterMs,
+    });
+  }
 
   appendRequestLog({
     model: p.model,

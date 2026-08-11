@@ -44,11 +44,15 @@ test("classifyProviderError: 403 with 'has not been used in project' => PROJECT_
   assert.equal(result, PROVIDER_ERROR_TYPES.PROJECT_ROUTE_ERROR);
 });
 
-test("classifyProviderError: 403 plain => FORBIDDEN (terminal)", () => {
+test("classifyProviderError: 403 plain => MODEL_FORBIDDEN (records, does not ban)", () => {
+  // This used to expect FORBIDDEN. A 403 that only says permission was refused makes no
+  // claim about the account — it is as easily one model, one scope or one payload — and
+  // banning on it took whole connections out of service. FORBIDDEN now needs the body to
+  // name the account; see model-scoped-forbidden-not-account-ban.test.mjs.
   const result = classifyProviderError(403, {
     error: { message: "The caller does not have permission" },
   });
-  assert.equal(result, PROVIDER_ERROR_TYPES.FORBIDDEN);
+  assert.equal(result, PROVIDER_ERROR_TYPES.MODEL_FORBIDDEN);
 });
 
 test("classifyProviderError: 403 with project string as plain string body => PROJECT_ROUTE_ERROR", () => {

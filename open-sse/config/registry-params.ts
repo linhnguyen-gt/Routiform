@@ -23,7 +23,10 @@ const _customDefaultParamsMap: Map<string, Record<string, unknown>> = (
   globalThis as GlobalWithCustomParams
 )[_globalKey];
 
-const MODEL_REASONING_EFFORT_VALUES = new Set(["none", "low", "medium", "high", "xhigh"]);
+// Union across providers — mirrors the model-defaults API enum. `none` is
+// OpenAI/Codex-only and `max` is Anthropic-only; downstream tuning downgrades
+// a level the target provider does not support.
+const MODEL_REASONING_EFFORT_VALUES = new Set(["none", "low", "medium", "high", "xhigh", "max"]);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);

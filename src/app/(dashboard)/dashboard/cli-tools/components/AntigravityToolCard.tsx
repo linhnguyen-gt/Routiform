@@ -23,6 +23,10 @@ export default function AntigravityToolCard({
   const [selectedApiKey, setSelectedApiKey] = useState("");
   const [message, setMessage] = useState(null);
   const [modelMappings, setModelMappings] = useState({});
+  // The global model-alias store, distinct from `modelMappings` (this tool's own
+  // alias→model config). The picker needs it to list alias-only models, same as the
+  // other tool cards.
+  const [modelAliases, setModelAliases] = useState({});
   const [modalOpen, setModalOpen] = useState(false);
   const [currentEditingAlias, setCurrentEditingAlias] = useState(null);
 
@@ -48,12 +52,23 @@ export default function AntigravityToolCard({
     }
   }, [tool.id]);
 
+  const fetchModelAliases = useCallback(async () => {
+    try {
+      const res = await fetch("/api/models/alias");
+      const data = await res.json();
+      if (res.ok) setModelAliases(data.aliases || {});
+    } catch (error) {
+      console.log("Error fetching model aliases:", error);
+    }
+  }, []);
+
   useEffect(() => {
     if (isExpanded && !status) {
       fetchStatus();
       loadSavedMappings();
+      fetchModelAliases();
     }
-  }, [isExpanded, status, loadSavedMappings]);
+  }, [isExpanded, status, loadSavedMappings, fetchModelAliases]);
 
   const fetchStatus = async () => {
     try {
@@ -454,6 +469,7 @@ export default function AntigravityToolCard({
         onSelect={handleModelSelect}
         selectedModel={currentEditingAlias ? modelMappings[currentEditingAlias] : null}
         activeProviders={activeProviders}
+        modelAliases={modelAliases}
         title={t("selectModelForAlias", { alias: currentEditingAlias || "" })}
       />
     </Card>
