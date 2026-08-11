@@ -44,7 +44,10 @@ export const removeModelAliasSchema = z.object({
   from: z.string().trim().min(1),
 });
 
-const MODEL_REASONING_EFFORT_ENUM = z.enum(["none", "low", "medium", "high", "xhigh"]);
+// Union across providers — mirrors MODEL_EFFORT_OPTIONS in
+// `src/shared/constants/reasoning-effort.ts`. `none` is OpenAI/Codex-only and
+// `max` is Anthropic-only; the request path downgrades levels a provider lacks.
+const MODEL_REASONING_EFFORT_ENUM = z.enum(["none", "low", "medium", "high", "xhigh", "max"]);
 
 export const updateModelReasoningDefaultsSchema = z.object({
   defaults: z.record(z.string().trim().min(3), MODEL_REASONING_EFFORT_ENUM),

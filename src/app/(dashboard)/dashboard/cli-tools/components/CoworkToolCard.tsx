@@ -491,13 +491,18 @@ export default function CoworkToolCard({
       <ModelSelectModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
+        // Multi-select, like the other cards that keep a model list: picking toggles the
+        // entry and the modal stays open until dismissed.
         onSelect={(model: { value: string }) => {
-          if (!selectedModels.includes(model.value)) {
-            setSelectedModels([...selectedModels, model.value]);
-          }
-          setModalOpen(false);
+          setSelectedModels((current) =>
+            current.includes(model.value)
+              ? current.filter((item) => item !== model.value)
+              : [...current, model.value]
+          );
         }}
-        selectedModel={null}
+        selectedModel={selectedModels[0] || ""}
+        addedModelValues={selectedModels}
+        multiSelect
         activeProviders={activeProviders}
         modelAliases={modelAliases}
         title={t("addModelForCowork")}

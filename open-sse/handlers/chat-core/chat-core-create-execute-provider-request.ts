@@ -13,6 +13,7 @@ import { readComboDedupeOverride } from "../../services/comboConfig.ts";
 import { providerSupportsCaching } from "../../utils/cacheControlPolicy.ts";
 import { createStreamController } from "../../utils/streamHandler.ts";
 import { resolveExecutorWithProxy } from "../services/upstream-proxy-resolver.ts";
+import { applyModelDefaultParams } from "./chat-core-apply-default-params.ts";
 import type {
   HandlerLogger,
   JsonRecord,
@@ -153,34 +154,19 @@ export async function createExecuteProviderRequestBundle({
       const forceParamModelId = String(bodyToSend.model || modelToCall || "");
       const defaultParams = getDefaultParams(provider, forceParamModelId);
       if (defaultParams) {
-        console.log(
-          `[DefaultParams] Applying defaults for ${provider}:${forceParamModelId}:`,
-          defaultParams
-        );
-        for (const [key, value] of Object.entries(defaultParams)) {
-          if (bodyToSend[key] === undefined) {
-            bodyToSend[key] = value;
-            console.log(`[DefaultParams] Set ${key} =`, value);
-          } else if (
-            key === "reasoning" &&
-            value &&
-            typeof value === "object" &&
-            !Array.isArray(value) &&
-            bodyToSend[key] &&
-            typeof bodyToSend[key] === "object" &&
-            !Array.isArray(bodyToSend[key])
-          ) {
-            // Merge reasoning object: only set effort if not already present
-            const existingReasoning = bodyToSend[key] as Record<string, unknown>;
-            const defaultReasoning = value as Record<string, unknown>;
-            if (existingReasoning.effort === undefined && defaultReasoning.effort !== undefined) {
-              existingReasoning.effort = defaultReasoning.effort;
-              console.log(`[DefaultParams] Merged reasoning.effort =`, defaultReasoning.effort);
-            }
-          }
-        }
-      } else {
-        console.log(`[DefaultParams] No defaults found for ${provider}:${forceParamModelId}`);
+        // Copy first: bodyToSend is `translatedBody` itself whenever the model matches,
+        // and the fallback chains re-enter this closure after swapping
+        // `translatedBody.model`. Mutating in place would carry one model's injected
+        // defaults onto the next one — where they read as an effort the client asked for
+        // and suppress that model's own default.
+        bodyToSend = { ...bodyToSend };
+        applyModelDefaultParams({
+          body: bodyToSend,
+          defaultParams,
+          targetFormat,
+          provider,
+          log,
+        });
       }
 
       const forceParams = getForceParams(provider, forceParamModelId);

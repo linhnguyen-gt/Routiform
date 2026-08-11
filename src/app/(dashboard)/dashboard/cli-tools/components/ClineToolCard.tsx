@@ -29,7 +29,7 @@ export default function ClineToolCard({
   const [selectedApiKey, setSelectedApiKey] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
-  const [_modelAliases, setModelAliases] = useState({});
+  const [modelAliases, setModelAliases] = useState({});
   const [showManualConfigModal, setShowManualConfigModal] = useState(false);
   const [customBaseUrl, setCustomBaseUrl] = useState("");
   const hasInitializedModel = useRef(false);
@@ -460,6 +460,7 @@ export default function ClineToolCard({
         onSelect={handleSelectModel}
         selectedModel={selectedModel}
         activeProviders={activeProviders}
+        modelAliases={modelAliases}
         title={t("selectModelForTool", { tool: "Cline" })}
       />
       {showManualConfigModal && (

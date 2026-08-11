@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/shared/components";
+import ModelEffortSelect from "@/shared/components/ModelEffortSelect";
 import ModelSelectModal from "@/shared/components/ModelSelectModal";
+import {
+  DEFAULT_MODEL_EFFORT,
+  isModelEffort,
+  type ModelEffort,
+} from "@/shared/constants/reasoning-effort";
+import { rekeyProviderModelMap, toPickerProviderModelKey } from "@/shared/models/model-string";
 import type { ProviderConnection } from "@/shared/models/provider-connection";
-
-const EFFORT_OPTIONS = ["none", "low", "medium", "high", "xhigh"] as const;
-
-type Effort = (typeof EFFORT_OPTIONS)[number];
 
 type DefaultsResponse = {
   builtIn?: Record<string, string>;
@@ -20,7 +23,7 @@ function sortEntries(map: Record<string, string>): Array<[string, string]> {
 }
 
 function effortChipClass(effort: string): string {
-  if (effort === "xhigh" || effort === "high") {
+  if (effort === "max" || effort === "xhigh" || effort === "high") {
     return "bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30";
   }
   if (effort === "medium") {
@@ -41,8 +44,12 @@ export default function ModelDefaultsTab() {
   const [status, setStatus] = useState("");
 
   const [pendingModels, setPendingModels] = useState<string[]>([]);
-  const [newEffort, setNewEffort] = useState<Effort>("high");
+  // Effort per pending model, editable both in the picker and on the chip below it.
+  const [pendingEfforts, setPendingEfforts] = useState<Record<string, ModelEffort>>({});
   const [activeProviders, setActiveProviders] = useState<ProviderConnection[]>([]);
+  // Same store the CLI tool cards and the combo form feed the picker, so all of them list
+  // the same models — alias-only entries included.
+  const [modelAliases, setModelAliases] = useState<Record<string, string>>({});
   const [showModelSelect, setShowModelSelect] = useState(false);
 
   useEffect(() => {
@@ -52,12 +59,17 @@ export default function ModelDefaultsTab() {
         .then((res) => (res.ok ? res.json() : { connections: [] }))
         .then((data) => (Array.isArray(data?.connections) ? data.connections : []))
         .catch(() => [] as Array<Record<string, unknown>>),
+      fetch("/api/models/alias")
+        .then((res) => (res.ok ? res.json() : { aliases: {} }))
+        .then((data) => (data?.aliases as Record<string, string>) || {})
+        .catch(() => ({}) as Record<string, string>),
     ])
-      .then(([data, providers]) => {
+      .then(([data, providers, aliases]) => {
         setBuiltIn(data.builtIn || {});
         setCustom(data.custom || {});
         setEffective(data.effective || {});
         setActiveProviders(providers);
+        setModelAliases(aliases);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -78,13 +90,57 @@ export default function ModelDefaultsTab() {
     setTimeout(() => setStatus(""), 2500);
   };
 
+  /**
+   * `custom` arrives keyed by canonical provider id; the picker keys everything by the
+   * alias it puts in its model values. Anything compared against a picker value has to go
+   * through this map or it silently misses.
+   */
+  const customByPickerKey = useMemo(
+    () => rekeyProviderModelMap(custom, toPickerProviderModelKey),
+    [custom]
+  );
+
+  /**
+   * Effort a newly picked model starts at: its own custom default when it has one, else
+   * the fallback. Only `custom` is consulted — a lookup against `builtIn`/`effective`
+   * would show a model as configured when nothing has been set, and then overwrite the
+   * built-in default on Apply.
+   */
+  const initialEffortFor = (providerModel: string): ModelEffort => {
+    const current = customByPickerKey[providerModel];
+    return isModelEffort(current) ? current : DEFAULT_MODEL_EFFORT;
+  };
+
+  const togglePendingModel = (providerModel: string) => {
+    const isRemoving = pendingModels.includes(providerModel);
+    setPendingModels((prev) =>
+      isRemoving ? prev.filter((item) => item !== providerModel) : [...prev, providerModel]
+    );
+    setPendingEfforts((prev) => {
+      if (isRemoving) {
+        const next = { ...prev };
+        delete next[providerModel];
+        return next;
+      }
+      return prev[providerModel]
+        ? prev
+        : { ...prev, [providerModel]: initialEffortFor(providerModel) };
+    });
+  };
+
+  const setPendingEffort = (providerModel: string, effort: ModelEffort) => {
+    setPendingEfforts((prev) => ({ ...prev, [providerModel]: effort }));
+  };
+
   const addDefault = async () => {
     if (pendingModels.length === 0) return;
 
-    const nextCustom = { ...custom };
+    // Only the models just picked. Sending the stored map back alongside them would
+    // revert any default changed elsewhere since this tab loaded.
+    const added: Record<string, string> = {};
     for (const providerModel of pendingModels) {
       if (providerModel.includes("/")) {
-        nextCustom[providerModel] = newEffort;
+        added[providerModel] = pendingEfforts[providerModel] ?? DEFAULT_MODEL_EFFORT;
       }
     }
 
@@ -93,12 +149,13 @@ export default function ModelDefaultsTab() {
       const res = await fetch("/api/settings/model-defaults", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ defaults: nextCustom }),
+        body: JSON.stringify({ defaults: added }),
       });
       if (!res.ok) throw new Error("Failed to update defaults");
       const data = (await res.json()) as DefaultsResponse;
       applySnapshot(data);
       setPendingModels([]);
+      setPendingEfforts({});
       showSaved();
     } catch {
       showError();
@@ -175,15 +232,27 @@ export default function ModelDefaultsTab() {
           <div className="min-h-[40px] px-2 py-1.5 rounded-lg bg-surface border border-border/50 text-left hover:border-indigo-500/50 focus-within:border-indigo-500/50">
             <div className="flex flex-wrap items-center gap-1.5">
               {pendingModels.map((model) => (
-                <button
+                <span
                   key={model}
-                  type="button"
-                  onClick={() => setPendingModels((prev) => prev.filter((item) => item !== model))}
-                  className="inline-flex items-center gap-1 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[11px] text-indigo-300 hover:bg-indigo-500/20"
+                  className="inline-flex items-center rounded-full border border-indigo-500/30 bg-indigo-500/10 text-[11px] text-indigo-300"
                 >
-                  <span className="max-w-[180px] truncate">{model}</span>
-                  <span className="material-symbols-outlined text-[12px]">close</span>
-                </button>
+                  <span className="max-w-[180px] truncate pl-2 pr-1">{model}</span>
+                  <ModelEffortSelect
+                    modelValue={model}
+                    value={pendingEfforts[model] ?? DEFAULT_MODEL_EFFORT}
+                    onChange={(effort) => setPendingEffort(model, effort)}
+                    className="rounded-full"
+                    colorClass="border-indigo-500/30 bg-transparent text-indigo-300 hover:text-indigo-200"
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Remove ${model}`}
+                    onClick={() => togglePendingModel(model)}
+                    className="px-1.5 py-0.5 hover:text-red-400"
+                  >
+                    <span className="material-symbols-outlined text-[12px]">close</span>
+                  </button>
+                </span>
               ))}
               <button
                 type="button"
@@ -196,17 +265,6 @@ export default function ModelDefaultsTab() {
             </div>
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
-            <select
-              value={newEffort}
-              onChange={(e) => setNewEffort(e.target.value as Effort)}
-              className="w-full sm:w-[140px] px-3 py-2 rounded-lg text-sm bg-surface border border-border/50 focus:border-indigo-500/50 focus:outline-none"
-            >
-              {EFFORT_OPTIONS.map((effort) => (
-                <option key={effort} value={effort}>
-                  {effort}
-                </option>
-              ))}
-            </select>
             <button
               onClick={addDefault}
               disabled={saving || pendingModels.length === 0}
@@ -217,7 +275,8 @@ export default function ModelDefaultsTab() {
           </div>
         </div>
         <p className="mt-2 text-xs text-text-muted">
-          Tip: open picker and select multiple models, then Apply once.
+          Tip: pick several models and set each one&apos;s effort in the picker or on its chip, then
+          Apply once.
         </p>
       </div>
 
@@ -301,23 +360,26 @@ export default function ModelDefaultsTab() {
       <ModelSelectModal
         isOpen={showModelSelect}
         onClose={() => setShowModelSelect(false)}
-        onSelect={(model: Record<string, unknown>) => {
+        onSelect={(model) => {
           const value = String(model?.value ?? model?.id ?? "").trim();
           if (!value.includes("/")) {
             showError();
             return;
           }
-          setPendingModels((prev) =>
-            prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]
-          );
+          togglePendingModel(value);
         }}
         activeProviders={activeProviders}
-        modelAliases={{}}
+        modelAliases={modelAliases}
         title="Select Model(s)"
         selectedModel=""
         addedModelValues={pendingModels}
+        // Same key space as the picker's model values; anything else shows as "inherit".
+        modelEfforts={{ ...customByPickerKey, ...pendingEfforts }}
+        onEffortChange={(modelValue, effort) => {
+          setPendingEffort(modelValue, effort);
+          if (!pendingModels.includes(modelValue)) togglePendingModel(modelValue);
+        }}
         multiSelect
-        enableModelTest
       />
     </Card>
   );

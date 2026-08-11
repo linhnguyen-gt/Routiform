@@ -4,6 +4,7 @@ import { Button, Input, Modal, ModelSelectModal } from "@/shared/components";
 import Tooltip from "@/shared/components/Tooltip";
 import { splitModelString } from "@/shared/models/model-string";
 import { useAvailableModels } from "@/shared/models/use-available-models";
+import { useModelEffortDefaults } from "@/shared/models/use-model-effort-defaults";
 import { useNotificationStore } from "@/store/notificationStore";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -98,6 +99,9 @@ export function ComboFormModal({
     return (combo?.models || []).map((m: string | ComboModelEntry) => normalizeModelEntry(m));
   });
   const [strategy, setStrategy] = useState(combo?.strategy || "priority");
+  // Reasoning-effort defaults are model-level and global; the combo record never carries
+  // them. Edits here are written only after the combo itself saves.
+  const modelEfforts = useModelEffortDefaults({ enabled: isOpen });
   const [showModelSelect, setShowModelSelect] = useState(false);
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState("");
@@ -790,6 +794,15 @@ export function ComboFormModal({
       saveData.max_output_tokens = parsedMaxOutputTokens.ok ? parsedMaxOutputTokens.value : null;
 
       await onSave(saveData);
+
+      // After the combo, so a rejected save does not leave effort changes behind. A failure
+      // here is not fatal to the combo — surface it and keep the edits pending.
+      const effortsSaved = await modelEfforts.save();
+      if (!effortsSaved) {
+        notify.error(
+          getI18nOrFallback(t, "modelEffortSaveFailed", "Failed to save model reasoning effort")
+        );
+      }
     } finally {
       setSaving(false);
     }
@@ -925,6 +938,8 @@ export function ComboFormModal({
                       testStatus={modelTestStatus[modelTestKey]}
                       limitedFreeTier={!!limitedFreeTierRows[modelTestKey]}
                       hasPricing={hasPricingForModel(entry.model)}
+                      effort={modelEfforts.efforts[entry.model]}
+                      onEffortChange={modelEfforts.setEffort}
                       isDragging={dragIndex === index}
                       isDropTarget={dragOverIndex === index && dragIndex !== index}
                       onDragStart={handleDragStart}
@@ -1359,8 +1374,9 @@ export function ComboFormModal({
         title={t("addModelToCombo")}
         selectedModel={null}
         addedModelValues={models.map((m) => m.model)}
+        modelEfforts={modelEfforts.efforts}
+        onEffortChange={modelEfforts.setEffort}
         multiSelect
-        enableModelTest
         // Both components are MOUNTED at once. Passing the derived data down keeps the
         // picker's own hook short-circuited, so the fetch set runs once per session
         // instead of twice — and the template resolver and the picker cannot disagree.

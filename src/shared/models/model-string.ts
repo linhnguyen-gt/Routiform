@@ -22,6 +22,11 @@
  * Keep this in step with `parseModel`'s first-slash behaviour.
  */
 
+import {
+  PROVIDER_ID_TO_ALIAS,
+  resolveProviderIdFromRef,
+} from "@routiform/open-sse/config/providerModels.ts";
+
 export interface SplitModelString {
   /** Text before the first slash — a provider id, provider alias, or node prefix. */
   providerRef: string;
@@ -51,4 +56,45 @@ export function splitModelString(value: string): SplitModelString | null {
   if (!providerRef || !modelId) return null;
 
   return { providerRef, modelId };
+}
+
+/**
+ * Rewrite a `provider/model` key so the provider segment is the canonical provider id.
+ *
+ * Model pickers emit `alias/model` while the registry and every server-side default map
+ * are keyed by id, so the same model reaches storage under two different names depending
+ * on which surface wrote it. Settings that are keyed by model — reasoning-effort defaults
+ * above all — must agree on one spelling or an override written from one surface looks
+ * unset from another.
+ *
+ * Values with no usable provider reference are returned unchanged, as are references to
+ * providers outside the registry (custom nodes).
+ */
+export function canonicalizeProviderModelKey(value: string): string {
+  const split = splitModelString(value);
+  if (!split) return value;
+  const providerId = resolveProviderIdFromRef(split.providerRef);
+  return providerId === split.providerRef ? value : `${providerId}/${split.modelId}`;
+}
+
+/**
+ * Inverse of {@link canonicalizeProviderModelKey}: rewrite the provider segment to the
+ * alias model pickers use, so a key that came back from the server can be looked up
+ * against the values a picker emits.
+ */
+export function toPickerProviderModelKey(value: string): string {
+  const split = splitModelString(value);
+  if (!split) return value;
+  const alias = PROVIDER_ID_TO_ALIAS[split.providerRef];
+  return !alias || alias === split.providerRef ? value : `${alias}/${split.modelId}`;
+}
+
+/** Re-key a `provider/model` map with one of the two helpers above. */
+export function rekeyProviderModelMap<T>(
+  map: Record<string, T>,
+  rekey: (key: string) => string
+): Record<string, T> {
+  const result: Record<string, T> = {};
+  for (const [key, value] of Object.entries(map)) result[rekey(key)] = value;
+  return result;
 }
