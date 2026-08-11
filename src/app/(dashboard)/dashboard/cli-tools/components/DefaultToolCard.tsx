@@ -39,13 +39,13 @@ export default function DefaultToolCard({
   batchStatus,
 }) {
   const t = useTranslations("cliTools");
+  // next-intl does not throw on a missing message — it reports through onError and renders
+  // the key path — so the catch below never ran and a tool whose guide has no translations
+  // showed `cliTools.guides.qwen.steps.1.title` on the card. Ask before translating instead.
   const translateOrFallback = useCallback(
     (key, fallback, values?: Record<string, string>) => {
-      try {
-        return values !== undefined ? t(key, values) : t(key);
-      } catch {
-        return fallback;
-      }
+      if (!t.has(key)) return fallback;
+      return values !== undefined ? t(key, values) : t(key);
     },
     [t]
   );
