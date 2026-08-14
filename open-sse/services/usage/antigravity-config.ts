@@ -12,7 +12,11 @@ export const ANTIGRAVITY_CONFIG = {
   get clientSecret() {
     return PROVIDERS.antigravity.clientSecret;
   },
-  userAgent: "antigravity/1.11.3 Darwin/arm64",
+  // Fallback only — PROVIDERS.antigravity.headers normally supplies this from
+  // antigravityHeaders.ts. Kept byte-identical to that module's captured CLI
+  // string so a fallback never silently downgrades the model catalogue.
+  userAgent:
+    "antigravity/cli/1.1.13 (aidev_client; os_type=darwin; arch=arm64; cl=964361259; auth_method=consumer)",
 };
 
 /** Models excluded from Antigravity quota display (internal / non-chat). Keep in sync with executor routing. */
