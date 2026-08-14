@@ -48,7 +48,6 @@ export type ChatCorePipeline = HandleChatCoreArgs & {
   extendedContext: boolean | undefined;
   body: Record<string, unknown>;
   persistFailureUsage: (statusCode: number, errorCode?: string | null) => void;
-  idempotencyKey?: string;
   endpointPath?: string;
   sourceFormat?: string;
   isResponsesEndpoint?: boolean;

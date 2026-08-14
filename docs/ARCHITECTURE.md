@@ -240,8 +240,9 @@ Main flow modules:
 
 - Entry: `src/sse/handlers/chat.ts`
 - Core orchestration: `open-sse/handlers/chatCore.ts` (2,094 lines, modularized)
-- Request phases: `open-sse/handlers/phases/*` (6 modules)
-  - `idempotency-check.ts` — duplicate request detection
+- Idempotency: `src/sse/handlers/chat-idempotency.ts` — resolved once per client request at
+  the ingress, never per upstream attempt (a combo request fans out into many attempts)
+- Request phases: `open-sse/handlers/phases/*` (5 modules)
   - `input-sanitizer.ts` — request normalization and memory injection
   - `semantic-cache-handler.ts` — semantic cache lookup
   - `background-task-redirector.ts` — async task routing

@@ -13,6 +13,11 @@ import {
 import { handleChatCore } from "@routiform/open-sse/handlers/chatCore.ts";
 import { isHealthCheckProbe } from "@routiform/open-sse/handlers/chat-core/chat-core-health-check-probe.ts";
 import { resolveAccountFallbackDecision } from "./chat-account-fallback-decision";
+import {
+  captureIdempotentResponse,
+  readIdempotencyKey,
+  serveIdempotentResponse,
+} from "./chat-idempotency";
 import { errorResponse, unavailableResponse } from "@routiform/open-sse/utils/error.ts";
 import { handleComboChat } from "@routiform/open-sse/services/combo.ts";
 import { HTTP_STATUS } from "@routiform/open-sse/config/constants.ts";
@@ -187,6 +192,16 @@ export async function handleChat(
     touchSession(sessionId);
   }
 
+  // Idempotency is scoped to this one client request, so it is resolved at the
+  // ingress and never inside the per-attempt pipeline — see ./chat-idempotency.
+  const idempotencyKey = readIdempotencyKey(clientRawRequest.headers as Record<string, unknown>);
+
+  /** Single exit point: cache what the client actually receives, then stamp headers. */
+  const finish = async (response: Response): Promise<Response> => {
+    await captureIdempotentResponse(idempotencyKey, response, body.stream === true);
+    return withRoutiformHeaders(response, sessionId, reqId);
+  };
+
   // Pipeline: API key policy enforcement (model restrictions + budget limits)
   telemetry.startPhase("policy");
   const policy = await enforceApiKeyPolicy(request, modelStr);
@@ -219,6 +234,14 @@ export async function handleChat(
       }
       registerKeySession(apiKeyId, sessionId);
     }
+  }
+
+  // Replay only after the key policy and session limits have been enforced: a
+  // cached body is still this key's traffic, and must not become a way around them.
+  const idempotentReplay = serveIdempotentResponse(idempotencyKey, body.stream === true, log);
+  if (idempotentReplay) {
+    recordTelemetry(telemetry);
+    return await finish(idempotentReplay);
   }
 
   // T05 — Task-Aware Smart Routing
@@ -358,7 +381,7 @@ export async function handleChat(
         if (fallbackResponse.ok) {
           log.info("GLOBAL_FALLBACK", `Global fallback ${fallbackModel} succeeded`);
           recordTelemetry(telemetry);
-          return withRoutiformHeaders(fallbackResponse, sessionId, reqId);
+          return await finish(fallbackResponse);
         }
         log.warn(
           "GLOBAL_FALLBACK",
@@ -373,7 +396,7 @@ export async function handleChat(
 
     // Record telemetry
     recordTelemetry(telemetry);
-    return withRoutiformHeaders(response, sessionId, reqId);
+    return await finish(response);
   }
   telemetry.endPhase();
 
@@ -391,7 +414,7 @@ export async function handleChat(
     false
   );
   recordTelemetry(telemetry);
-  return withRoutiformHeaders(response, sessionId, reqId);
+  return await finish(response);
 }
 
 export function buildClientRawRequest(request: Request, body: unknown) {

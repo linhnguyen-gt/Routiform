@@ -1,5 +1,4 @@
 import { isDetailedLoggingEnabled } from "@/lib/db/detailedLogs";
-import { getIdempotencyKey } from "@/lib/idempotencyLayer";
 import { saveCallLog } from "@/lib/usageDb";
 import { generateRequestId } from "@/shared/utils/requestId";
 import { PROVIDER_ID_TO_ALIAS, getModelTargetFormat } from "../../config/providerModels.ts";
@@ -8,7 +7,6 @@ import { detectFormatFromEndpoint, getTargetFormat } from "../../services/provid
 import { initializeRateLimits } from "../../services/rateLimitManager.ts";
 import { handleBypassRequest } from "../../utils/bypassHandler.ts";
 import { handleBackgroundTaskRedirection } from "../phases/background-task-redirector.ts";
-import { handleIdempotencyCheck } from "../phases/idempotency-check.ts";
 import type { HandlerLogger } from "../types/chat-core.ts";
 import { attachLogMeta } from "../utils/cache-log-helpers.ts";
 import { shouldUseNativeCodexPassthrough } from "./chat-core-flags.ts";
@@ -19,20 +17,9 @@ type PhaseOutcome = { done: true; result: unknown } | { done: false };
 export async function chatCorePhaseSetupAndLogs(p: ChatCorePipeline): Promise<PhaseOutcome> {
   const log = p.log as HandlerLogger | null | undefined;
   const clientRawRequest = p.clientRawRequest as
-    | { headers?: Record<string, string>; endpoint?: string }
-    | undefined;
+    { headers?: Record<string, string>; endpoint?: string } | undefined;
   const credentials = p.credentials as { connectionId?: string } & Record<string, unknown>;
   const apiKeyInfo = p.apiKeyInfo as { noLog?: boolean; id?: string; name?: string } | null;
-
-  const idempotencyKey = getIdempotencyKey(clientRawRequest?.headers as unknown);
-  p.idempotencyKey = idempotencyKey;
-  const idempotentResponse = handleIdempotencyCheck(
-    clientRawRequest as { headers?: Record<string, string> } | null | undefined,
-    log
-  );
-  if (idempotentResponse) {
-    return { done: true, result: { success: true, response: idempotentResponse } };
-  }
 
   await initializeRateLimits();
 
@@ -123,8 +110,7 @@ export async function chatCorePhaseSetupAndLogs(p: ChatCorePipeline): Promise<Ph
   }) => {
     const callLogId = generateRequestId();
     const reqLogger = p.reqLogger as
-      | { getPipelinePayloads?: () => Record<string, unknown> }
-      | undefined;
+      { getPipelinePayloads?: () => Record<string, unknown> } | undefined;
     const pipelinePayloads = detailedLoggingEnabled ? reqLogger?.getPipelinePayloads?.() : null;
 
     if (pipelinePayloads) {
