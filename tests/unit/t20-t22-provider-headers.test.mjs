@@ -9,7 +9,14 @@ test("T20: antigravity config has updated User-Agent and sandbox fallback URL", 
   assert.ok(
     antigravity.baseUrls.some((u) => u === "https://daily-cloudcode-pa.sandbox.googleapis.com")
   );
-  assert.equal(antigravity.headers["User-Agent"], "antigravity/1.107.0 darwin/arm64");
+  // The CLI's own User-Agent, captured from the real client. cloudcode-pa gates
+  // the model catalogue on it: the previous "antigravity/1.107.0 darwin/arm64"
+  // (the IDE's VSCode-OSS version) returned 24 models with no Gemini 3.7 Flash,
+  // this one returns 27 including it, for the same token.
+  assert.equal(
+    antigravity.headers["User-Agent"],
+    "antigravity/cli/1.1.13 (aidev_client; os_type=darwin; arch=arm64; cl=964361259; auth_method=consumer)"
+  );
 });
 
 test("T22: github headers include updated editor/plugin versions and required fields", () => {
