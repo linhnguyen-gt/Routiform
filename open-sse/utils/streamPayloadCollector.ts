@@ -1,6 +1,10 @@
 import { cloneLogPayload } from "@/lib/logPayloads";
 import { FORMATS } from "../translator/formats.ts";
 import { generateToolUseId } from "../translator/helpers/toolCallHelper.ts";
+import {
+  assistantMessageOutputItem,
+  mergeStreamedTextIntoOutput,
+} from "./responses-output-text.ts";
 
 type StructuredSSEEvent = {
   index: number;
@@ -249,33 +253,6 @@ function buildOpenAISummary(events: StructuredSSEEvent[], fallbackModel?: string
   return result;
 }
 
-/** The Responses-API output item a plain assistant reply arrives as. */
-function assistantMessageOutputItem(text: string): JsonRecord {
-  return {
-    type: "message",
-    role: "assistant",
-    content: [{ type: "output_text", text }],
-  };
-}
-
-/**
- * True when `output` already carries the assistant's reply.
- *
- * Reasoning and tool-call items do not count: a response can be full of them and still owe
- * the caller its text.
- */
-function outputCarriesAssistantText(output: unknown[]): boolean {
-  return output.some((item) => {
-    const record = asRecord(item);
-    if (toString(record.type) !== "message") return false;
-    const parts = Array.isArray(record.content) ? record.content : [];
-    return parts.some((part) => {
-      const partRecord = asRecord(part);
-      return toString(partRecord.type) === "output_text" && toString(partRecord.text).length > 0;
-    });
-  });
-}
-
 function buildResponsesSummary(
   events: StructuredSSEEvent[],
   fallbackModel?: string | null
@@ -321,19 +298,7 @@ function buildResponsesSummary(
   const streamedText = textParts.join("");
   const picked = completed || latestResponse;
   if (picked && Object.keys(picked).length > 0) {
-    // Codex's `response.completed` carries an empty `output` and delivers the reply through
-    // `response.output_text.delta` alone. Taking `picked.output` verbatim therefore threw the
-    // text away on every non-streaming request — the client got a well-formed completion with
-    // empty content, which reads as "the model said nothing" rather than as a failure.
-    //
-    // The deltas are only used to fill a gap: an output that already carries the reply wins,
-    // so a provider that does populate `output` is unaffected, and reasoning or tool-call
-    // items already in `output` are preserved either way.
-    const pickedOutput = Array.isArray(picked.output) ? picked.output : [];
-    const output =
-      streamedText.length > 0 && !outputCarriesAssistantText(pickedOutput)
-        ? [...pickedOutput, assistantMessageOutputItem(streamedText)]
-        : pickedOutput;
+    const output = mergeStreamedTextIntoOutput(picked.output, streamedText);
 
     return {
       id: toString(picked.id, `resp_${Date.now()}`),

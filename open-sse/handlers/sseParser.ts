@@ -1,5 +1,9 @@
 import { generateToolUseId } from "@routiform/open-sse/translator/helpers/toolCallHelper.ts";
 import { normalizePlaceholderOnlyAssistantText } from "../utils/assistantContent.ts";
+import {
+  collectResponsesStreamedText,
+  mergeStreamedTextIntoOutput,
+} from "../utils/responses-output-text.ts";
 
 /**
  * Convert OpenAI-style SSE chunks into a single non-streaming JSON response.
@@ -723,6 +727,10 @@ export function parseSSEToResponsesOutput(rawSSE, fallbackModel) {
   const picked = completed || latestResponse;
   if (!picked || typeof picked !== "object") return null;
 
+  // Codex reports `output: []` on `response.completed` and streams the reply as
+  // `response.output_text.delta` instead — see ../utils/responses-output-text.ts.
+  const streamedText = collectResponsesStreamedText(events);
+
   // Build the native response object preserving all known fields.
   // Prefer additive preservation over destructive normalization — keep
   // whatever the upstream sends so that Responses-oriented clients receive
@@ -731,7 +739,7 @@ export function parseSSEToResponsesOutput(rawSSE, fallbackModel) {
     id: picked.id || `resp_${Date.now()}`,
     object: "response",
     model: picked.model || fallbackModel || "unknown",
-    output: Array.isArray(picked.output) ? picked.output : [],
+    output: mergeStreamedTextIntoOutput(picked.output, streamedText),
     status: picked.status || (completed ? "completed" : "in_progress"),
     created_at: picked.created_at || Math.floor(Date.now() / 1000),
   };
