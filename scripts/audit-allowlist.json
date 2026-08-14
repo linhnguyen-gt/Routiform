@@ -29,16 +29,8 @@
       "reason": "Transitive through the schema validation stack; no direct import."
     },
     {
-      "package": "js-yaml",
-      "reason": "Transitive tooling dependency; no untrusted YAML is parsed at runtime."
-    },
-    {
       "package": "js-cookie",
       "reason": "Transitive through the vendored Open WebUI SPA bundle, which is a prebuilt third-party artifact."
-    },
-    {
-      "package": "http-proxy-middleware",
-      "reason": "Direct dependency used for the local socket.io passthrough on 127.0.0.1 only; the advisories concern untrusted upstream targets."
     }
   ]
 }
