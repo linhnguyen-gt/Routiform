@@ -1,6 +1,30 @@
 import { PricingRate } from "./base";
 
+// Introductory rates published on https://ai.google.dev/gemini-api/docs/pricing:
+// $0.75 in / $3.75 out / $0.075 cached per 1M through 2026-12-31, doubling to
+// $1.50 / $7.50 / $0.15 on 2027-01-01. Revisit this block on that date.
+const GEMINI_3_FLASH_PRICING: PricingRate = {
+  input: 0.75,
+  output: 3.75,
+  cached: 0.075,
+  reasoning: 5.625,
+  cache_creation: 0.75,
+};
+
+// Antigravity advertises a Flash generation under one id per performance tier
+// (see tests/unit/antigravity-model-id-passthrough.test.mjs for the live set),
+// and the tier suffix reaches the executor unchanged. `getPricingForModel` is an
+// exact-match lookup — it does not strip the suffix — so a bare-id entry alone
+// would price every tier at $0. Rates are per generation, not per tier.
+const ANTIGRAVITY_FLASH_TIERS = ["", "-extra-low", "-low", "-medium", "-high", "-tiered"];
+
+function flashTierRates(baseId: string, rate: PricingRate): Record<string, PricingRate> {
+  return Object.fromEntries(ANTIGRAVITY_FLASH_TIERS.map((tier) => [`${baseId}${tier}`, rate]));
+}
+
 export const agPricing: Record<string, PricingRate> = {
+  ...flashTierRates("gemini-3.7-flash", GEMINI_3_FLASH_PRICING),
+  ...flashTierRates("gemini-3.6-flash", GEMINI_3_FLASH_PRICING),
   "gemini-3.1-pro-low": {
     input: 2.0,
     output: 12.0,

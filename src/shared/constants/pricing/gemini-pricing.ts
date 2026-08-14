@@ -58,7 +58,21 @@ export const geminiCliPricing: Record<string, PricingRate> = {
   },
 };
 
+// Gemini 3.x Flash rates below are the introductory tier published on
+// https://ai.google.dev/gemini-api/docs/pricing — $0.75 in / $3.75 out /
+// $0.075 cached per 1M tokens, held through 2026-12-31 and doubling to
+// $1.50 / $7.50 / $0.15 on 2027-01-01. Revisit this block on that date.
+const GEMINI_3_FLASH_PRICING: PricingRate = {
+  input: 0.75,
+  output: 3.75,
+  cached: 0.075,
+  reasoning: 5.625,
+  cache_creation: 0.75,
+};
+
 export const geminiPricing: Record<string, PricingRate> = {
+  "gemini-3.7-flash": GEMINI_3_FLASH_PRICING,
+  "gemini-3.6-flash": GEMINI_3_FLASH_PRICING,
   "gemini-3.1-pro": {
     input: 2.0,
     output: 12.0,
