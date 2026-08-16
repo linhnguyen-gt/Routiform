@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [6.1.0](https://github.com/linhnguyen-gt/Routiform/compare/v6.0.1...v6.1.0) (2026-08-14)
+
+
+### Features
+
+* **cli-tools:** give Qwen Code its own logo on the card ([e39d33a](https://github.com/linhnguyen-gt/Routiform/commit/e39d33a5a618d22d2ff3205ec3baedf1368f92ca))
+* **combos:** sanitize error messages and improve rate-limit fairness ([ea7b43b](https://github.com/linhnguyen-gt/Routiform/commit/ea7b43b05a1c55f8a0e3c3598ed0f17b64ac69af))
+* **models:** save model defaults as they are edited instead of behind Apply ([e29f7a0](https://github.com/linhnguyen-gt/Routiform/commit/e29f7a0253dd1d544f24a789e15fa256afe38aba))
+* **models:** set reasoning effort per model from every model picker ([a186391](https://github.com/linhnguyen-gt/Routiform/commit/a1863910a93f7a2648f72ea17fb44eaf699fc127))
+
+
+### Bug Fixes
+
+* **antigravity:** send the CLI User-Agent so Gemini 3.7 Flash appears ([#89](https://github.com/linhnguyen-gt/Routiform/issues/89)) ([ea5aab9](https://github.com/linhnguyen-gt/Routiform/commit/ea5aab91aedf76aa59984a747d7c08de90a82ec2))
+* **audit:** drop js-yaml and http-proxy-middleware from the allowlist ([#90](https://github.com/linhnguyen-gt/Routiform/issues/90)) ([fe008ef](https://github.com/linhnguyen-gt/Routiform/commit/fe008ef5bd100c4e166f240c3e4a79eca33636ae))
+* **cli-tools:** make the guide's missing-translation fallback actually run ([0d96171](https://github.com/linhnguyen-gt/Routiform/commit/0d961713676a0737517b5cb5885df575db7e6352))
+* **cli-tools:** write real context windows into the OpenClaw config ([4bc6cf3](https://github.com/linhnguyen-gt/Routiform/commit/4bc6cf36579e96e5e3134c1dcea8b6526a0c9d5c))
+* **model-specs:** resolve provider-qualified model ids to their spec ([7abc3ca](https://github.com/linhnguyen-gt/Routiform/commit/7abc3ca9535d5fe1c9563dc828aacd98ac7c1f61))
+* **models:** keep the effort picker responsive and stop late loads reverting edits ([a352177](https://github.com/linhnguyen-gt/Routiform/commit/a352177d7ac3c09f2326c1eaba314538e9f3dce2))
+* **providers:** drop NVIDIA models NVIDIA no longer serves, and report the drift ([0bb5661](https://github.com/linhnguyen-gt/Routiform/commit/0bb5661b83cdc7f56f4938b8dd13a510e7ea7e1f))
+* **providers:** stop one failing model test from killing the rest ([d37a12f](https://github.com/linhnguyen-gt/Routiform/commit/d37a12fffaeac6bd18b2041843b76b9988510394))
+* **providers:** stop one gated model from disabling the whole account ([1c5fab9](https://github.com/linhnguyen-gt/Routiform/commit/1c5fab9d40c250c9cba2c521a9bc0169de952d7d))
+* **providers:** stop request-level failures from retiring an account ([b93b8b6](https://github.com/linhnguyen-gt/Routiform/commit/b93b8b65668e9ac9c838aa2702b164389a835d6c))
+
 ### [6.0.1](https://github.com/linhnguyen-gt/Routiform/compare/v6.0.0...v6.0.1) (2026-08-11)
 
 
