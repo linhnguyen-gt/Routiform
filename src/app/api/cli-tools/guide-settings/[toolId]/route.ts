@@ -3,7 +3,19 @@ import fs from "fs/promises";
 import path from "path";
 import { getRuntimePorts } from "@/lib/runtime/ports";
 import { load as loadYaml, dump as dumpYaml } from "js-yaml";
-import { getCliConfigHome, getOpenCodeConfigPath } from "@/shared/services/cliRuntime";
+import {
+  getCliConfigHome,
+  getOpenCodeConfigPath,
+  resolveOmpWritePaths,
+} from "@/shared/services/cliRuntime";
+import {
+  applyRoutiformOmpModels,
+  applyRoutiformOmpSettings,
+  removeRoutiformOmpModels,
+  removeRoutiformOmpSettings,
+  toOmpModelSelector,
+} from "@/shared/services/ompConfig";
+import { createBackup } from "@/shared/services/backupService";
 import {
   mergeOpenCodeConfig,
   removeRoutiformOpenCodeConfig,
@@ -30,7 +42,7 @@ import { getApiKeyById } from "@/lib/localDb";
  * POST /api/cli-tools/guide-settings/:toolId
  *
  * Save configuration for guide-based tools that have config files.
- * Currently supports: continue, opencode, qwen
+ * Currently supports: continue, opencode, qwen, omp
  */
 export async function POST(request, { params }) {
   if (!(await isHostSecretAuthenticated(request))) {
@@ -85,6 +97,8 @@ export async function POST(request, { params }) {
         return await saveOpenCodeConfig({ baseUrl, apiKey, model, models });
       case "qwen":
         return await saveQwenConfig({ baseUrl, apiKey, model, models });
+      case "omp":
+        return await saveOmpConfig({ baseUrl, apiKey, model, models });
       default:
         return NextResponse.json(
           { error: `Direct config save not supported for: ${toolId}` },
@@ -118,6 +132,8 @@ export async function DELETE(request: Request, { params }) {
         return await resetOpenCodeConfig();
       case "qwen":
         return await resetQwenConfig();
+      case "omp":
+        return await resetOmpConfig();
       default:
         return NextResponse.json(
           { error: `Config reset not supported for: ${toolId}` },
@@ -202,6 +218,78 @@ async function resetQwenConfig() {
     configPath,
   });
 }
+
+/**
+ * Read a YAML config that belongs to the user.
+ *
+ * A missing or empty file legitimately means "start fresh" — this js-yaml throws on empty
+ * input rather than returning undefined, so that case is matched on the content, not the
+ * error. A *parse* error is different: treating a file with one bad indent as empty would
+ * replace every provider or setting in it on the next write, with no way back. That throws.
+ */
+async function readOmpYaml(filePath: string): Promise<Record<string, unknown>> {
+  let raw: string;
+  try {
+    raw = await fs.readFile(filePath, "utf-8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    throw error;
+  }
+
+  if (!raw.trim()) return {};
+
+  try {
+    return (loadYaml(raw) as Record<string, unknown>) ?? {};
+  } catch {
+    throw new Error(
+      `${filePath} is not valid YAML. Fix or move it before saving, so your other providers are not overwritten.`
+    );
+  }
+}
+
+/**
+ * omp's YAML files are the user's — unrelated providers and roles are rewritten in place.
+ * A file left with no keys is deleted rather than written as `{}`: an empty `models.yml`
+ * still counts as present, so it would keep shadowing a `models.yaml` and keep omp's
+ * first-run migration from ever firing.
+ */
+async function resetOmpConfig() {
+  const { models: modelsPath, config: configPath } = await resolveOmpWritePaths();
+
+  const rewrite = async (filePath: string, transform: (parsed: unknown) => unknown) => {
+    if (!(await pathExists(filePath))) return false;
+
+    const next = transform(await readOmpYaml(filePath)) as Record<string, unknown>;
+    if (Object.keys(next).length === 0) {
+      await fs.unlink(filePath);
+      return true;
+    }
+    await fs.writeFile(filePath, dumpYaml(next, { indent: 2, lineWidth: -1 }), "utf-8");
+    return true;
+  };
+
+  const touchedModels = await rewrite(modelsPath, removeRoutiformOmpModels);
+  await rewrite(configPath, removeRoutiformOmpSettings);
+
+  if (!touchedModels) {
+    return NextResponse.json({ success: true, message: "No Oh My Pi config to reset" });
+  }
+
+  return NextResponse.json({
+    success: true,
+    message: `Routiform provider removed from ${modelsPath}`,
+    configPath: modelsPath,
+  });
+}
+
+const pathExists = async (filePath: string) => {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 async function resetOpenCodeConfig() {
   const configPath = getOpenCodeConfigPath();
@@ -309,6 +397,64 @@ async function saveQwenConfig({ baseUrl, apiKey, model, models }) {
     success: true,
     message: `Qwen Code config saved to ${configPath}`,
     configPath,
+  });
+}
+
+/**
+ * Save Oh My Pi config: the provider block into ~/.omp/agent/models.yml and the default
+ * model role into ~/.omp/agent/config.yml. Both files are merged, never replaced — other
+ * providers, roles, and settings the user set stay as they are.
+ */
+async function saveOmpConfig({ baseUrl, apiKey, model, models }) {
+  const {
+    dir,
+    models: modelsPath,
+    config: configPath,
+    legacyModels,
+    blocksSettingsMigration,
+  } = await resolveOmpWritePaths();
+  await fs.mkdir(dir, { recursive: true });
+
+  // omp shows context usage and caps output per model, so it needs the real limits.
+  const { contextLengths, maxOutputTokens } = await fetchModelTokenLimits([
+    model,
+    ...(models || []),
+  ]);
+
+  // A `models.json` here is one omp would have migrated into `models.yml` itself. Carrying
+  // it forward reproduces that migration instead of stranding the providers in it.
+  const existingModels = await readOmpYaml(legacyModels || modelsPath);
+
+  await createBackup("omp", modelsPath);
+  const nextModels = applyRoutiformOmpModels(existingModels, {
+    baseUrl,
+    apiKey,
+    model,
+    models,
+    contextLengths,
+    maxOutputTokens,
+  });
+  await fs.writeFile(modelsPath, dumpYaml(nextModels, { indent: 2, lineWidth: -1 }), "utf-8");
+
+  // Creating config.yml when neither spelling exists would cancel omp's one-time migration
+  // of settings.json and the legacy agent.db, so the default model is left for omp's own
+  // `/model` picker in that case rather than silently costing the user their settings.
+  if (blocksSettingsMigration) {
+    return NextResponse.json({
+      success: true,
+      message: `Provider saved to ${modelsPath}. Oh My Pi has not migrated its settings yet, so the default model was not set — run omp once, then pick ${toOmpModelSelector(model)} with /model.`,
+      configPath: modelsPath,
+    });
+  }
+
+  await createBackup("omp", configPath);
+  const nextSettings = applyRoutiformOmpSettings(await readOmpYaml(configPath), model);
+  await fs.writeFile(configPath, dumpYaml(nextSettings, { indent: 2, lineWidth: -1 }), "utf-8");
+
+  return NextResponse.json({
+    success: true,
+    message: `Oh My Pi config saved to ${modelsPath}`,
+    configPath: modelsPath,
   });
 }
 

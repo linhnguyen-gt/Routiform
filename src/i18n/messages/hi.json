@@ -669,7 +669,8 @@
       "antigravity": "इसका उपयोग तब करें जब एंटीग्रेविटी/किरो ट्रैफिक को एमआईटीएम के माध्यम से रोका जाना चाहिए और Routiform पर भेजा जाना चाहिए।",
       "copilot": "जब आप Routiform कुंजी और रूटिंग नियमों को लागू करते समय कोपायलट चैट शैली यूएक्स चाहते हैं तो इसका उपयोग करें।",
       "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through Routiform.",
-      "qwen": "जब आप टर्मिनल में Qwen Code चलाते हैं और उसके OpenAI-संगत अनुरोधों को Routiform के माध्यम से रूट करते हैं तो इसका उपयोग करें।"
+      "qwen": "जब आप टर्मिनल में Qwen Code चलाते हैं और उसके OpenAI-संगत अनुरोधों को Routiform के माध्यम से रूट करते हैं तो इसका उपयोग करें।",
+      "omp": "जब आप टर्मिनल में omp कोडिंग एजेंट को LSP, सबएजेंट और प्लान मोड के साथ चलाते हैं और उसके मॉडल Routiform के माध्यम से रूट करते हैं तो इसका उपयोग करें।"
     },
     "toolDescriptions": {
       "antigravity": "एमआईटीएम के साथ गूगल एंटीग्रेविटी आईडीई",
@@ -685,7 +686,8 @@
       "kiro": "Amazon Kiro — AI-powered IDE",
       "windsurf": "Windsurf AI Code Editor",
       "copilot": "GitHub Copilot AI Assistant",
-      "qwen": "Alibaba Qwen Code CLI (Terminal)"
+      "qwen": "Alibaba Qwen Code CLI (Terminal)",
+      "omp": "Oh My Pi (omp) टर्मिनल कोडिंग एजेंट"
     },
     "guides": {
       "cursor": {

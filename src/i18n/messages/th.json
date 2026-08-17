@@ -669,7 +669,8 @@
       "antigravity": "ใช้เมื่อต้องสกัดกั้นการรับส่งข้อมูล Antigravity/Kiro ผ่าน MITM และกำหนดเส้นทางไปยัง Routiform",
       "copilot": "ใช้เมื่อคุณต้องการ UX รูปแบบการแชทของ Copilot ในขณะที่บังคับใช้คีย์ Routiform และกฎการกำหนดเส้นทาง",
       "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through Routiform.",
-      "qwen": "ใช้เมื่อคุณเรียกใช้ Qwen Code ในเทอร์มินัลและกำหนดเส้นทางคำขอที่รองรับ OpenAI ผ่าน Routiform"
+      "qwen": "ใช้เมื่อคุณเรียกใช้ Qwen Code ในเทอร์มินัลและกำหนดเส้นทางคำขอที่รองรับ OpenAI ผ่าน Routiform",
+      "omp": "ใช้เมื่อคุณเรียกใช้เอเจนต์เขียนโค้ด omp ในเทอร์มินัลพร้อม LSP, ซับเอเจนต์ และโหมดวางแผน และกำหนดเส้นทางโมเดลผ่าน Routiform"
     },
     "toolDescriptions": {
       "antigravity": "Google ต้านแรงโน้มถ่วง IDE พร้อม MITM",
@@ -685,7 +686,8 @@
       "kiro": "Amazon Kiro — AI-powered IDE",
       "windsurf": "Windsurf AI Code Editor",
       "copilot": "GitHub Copilot AI Assistant",
-      "qwen": "Alibaba Qwen Code CLI (Terminal)"
+      "qwen": "Alibaba Qwen Code CLI (Terminal)",
+      "omp": "เอเจนต์เขียนโค้ดบนเทอร์มินัล Oh My Pi (omp)"
     },
     "guides": {
       "cursor": {

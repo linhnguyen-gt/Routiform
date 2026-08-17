@@ -669,7 +669,8 @@
       "antigravity": "Bruges, når Antigravity/Kiro-trafik skal opsnappes gennem MITM og dirigeres til Routiform.",
       "copilot": "Brug, når du ønsker Copilot-chatstil UX, mens du håndhæver Routiform-nøgler og routingregler.",
       "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through Routiform.",
-      "qwen": "Brug, når du kører Qwen Code i terminalen og dirigerer dens OpenAI-kompatible forespørgsler gennem Routiform."
+      "qwen": "Brug, når du kører Qwen Code i terminalen og dirigerer dens OpenAI-kompatible forespørgsler gennem Routiform.",
+      "omp": "Brug dette, når du kører omp-kodningsagenten i terminalen med LSP, underagenter og plantilstand og router dens modeller gennem Routiform."
     },
     "toolDescriptions": {
       "antigravity": "Google Antigravity IDE med MITM",
@@ -685,7 +686,8 @@
       "kiro": "Amazon Kiro — AI-powered IDE",
       "windsurf": "Windsurf AI Code Editor",
       "copilot": "GitHub Copilot AI Assistant",
-      "qwen": "Alibaba Qwen Code CLI (Terminal)"
+      "qwen": "Alibaba Qwen Code CLI (Terminal)",
+      "omp": "Oh My Pi (omp) terminal-kodningsagent"
     },
     "guides": {
       "cursor": {

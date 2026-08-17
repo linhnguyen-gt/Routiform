@@ -120,6 +120,17 @@ const CLI_TOOLS: Record<string, Record<string, unknown>> = {
       config: ".qwen/settings.json",
     },
   },
+  omp: {
+    defaultCommand: "omp",
+    envBinKey: "CLI_OMP_BIN",
+    requiresBinary: true,
+    healthcheckTimeoutMs: 12000,
+    // Resolved through resolveOmpPaths — omp reads PI_CODING_AGENT_DIR for the agent dir.
+    paths: {
+      models: ".omp/agent/models.yml",
+      config: ".omp/agent/config.yml",
+    },
+  },
   qoder: {
     defaultCommand: "qodercli",
     envBinKey: "CLI_QODER_BIN",
@@ -434,6 +445,11 @@ const getKnownToolPaths = (toolId: string): string[] => {
     kilo: [["kilocode.cmd", "kilocode"]],
     opencode: [["opencode.cmd", "opencode"]],
     qoder: [["qodercli.exe", "qodercli"]],
+    // omp ships a native binary on Windows and a Bun shim when installed from npm.
+    omp: [
+      ["omp.exe", "omp"],
+      ["omp.cmd", "omp"],
+    ],
   };
 
   const bins = toolBins[toolId] || [];
@@ -800,9 +816,97 @@ export const resolveKiloPaths = (
   };
 };
 
+/**
+ * omp keeps both config files in one agent directory, which `PI_CODING_AGENT_DIR` relocates
+ * wholesale for the default profile. Honouring it here keeps the status check and the
+ * config writer pointed at the same files the CLI actually reads.
+ */
+export const resolveOmpAgentDir = (
+  env: NodeJS.ProcessEnv = process.env,
+  homeDir = getCliConfigHome()
+) =>
+  normalizeSafeAbsolutePath(String(env.PI_CODING_AGENT_DIR || "")) ||
+  path.join(homeDir, ".omp", "agent");
+
+/**
+ * Both of omp's config files come in a `.yml` and a `.yaml` spelling, and omp loads the
+ * FIRST one present — so writing the `.yml` name blindly would shadow a user who keeps
+ * their providers or settings in the `.yaml` one, leaving that file loaded by nothing.
+ * The names are listed in omp's own precedence order.
+ */
+const OMP_MODELS_FILENAMES = ["models.yml", "models.yaml"];
+const OMP_CONFIG_FILENAMES = ["config.yml", "config.yaml"];
+
+/** The legacy files omp migrates on first run — see `resolveOmpWritePaths`. */
+const OMP_LEGACY_MODELS = "models.json";
+const OMP_LEGACY_SETTINGS = "settings.json";
+
+const firstExistingPath = async (dir: string, filenames: string[]) => {
+  for (const filename of filenames) {
+    const candidate = path.join(dir, filename);
+    try {
+      await fs.access(candidate, fs.constants.F_OK);
+      return candidate;
+    } catch {
+      // Not this one — try the next spelling.
+    }
+  }
+  return null;
+};
+
+const fileExists = async (filePath: string) => {
+  try {
+    await fs.access(filePath, fs.constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Where a config write must land so omp actually reads it back.
+ *
+ * `models` / `config` name the file to write. `legacyModels` carries a `models.json` that
+ * omp would have migrated into `models.yml` itself, so its contents are merged forward
+ * rather than stranded. `blocksSettingsMigration` is the case we must NOT write: omp
+ * migrates `settings.json` (plus its legacy `agent.db` settings) into `config.yml` only
+ * while neither YAML spelling exists, so creating one first would cancel that migration
+ * permanently and silently.
+ */
+export const resolveOmpWritePaths = async (
+  env: NodeJS.ProcessEnv = process.env,
+  homeDir = getCliConfigHome()
+) => {
+  const dir = resolveOmpAgentDir(env, homeDir);
+
+  const existingModels = await firstExistingPath(dir, OMP_MODELS_FILENAMES);
+  const existingConfig = await firstExistingPath(dir, OMP_CONFIG_FILENAMES);
+  const legacyModels = path.join(dir, OMP_LEGACY_MODELS);
+
+  return {
+    dir,
+    models: existingModels || path.join(dir, OMP_MODELS_FILENAMES[0]),
+    config: existingConfig || path.join(dir, OMP_CONFIG_FILENAMES[0]),
+    legacyModels: !existingModels && (await fileExists(legacyModels)) ? legacyModels : null,
+    blocksSettingsMigration:
+      !existingConfig && (await fileExists(path.join(dir, OMP_LEGACY_SETTINGS))),
+  };
+};
+
 export const getCliConfigPaths = (toolId: string) => {
   const tool = CLI_TOOLS[toolId];
   if (!tool) return null;
+
+  if (toolId === "omp") {
+    // Every spelling is listed so the config-footprint check sees a `.yaml` user too.
+    const dir = resolveOmpAgentDir();
+    return {
+      models: path.join(dir, OMP_MODELS_FILENAMES[0]),
+      modelsAlt: path.join(dir, OMP_MODELS_FILENAMES[1]),
+      config: path.join(dir, OMP_CONFIG_FILENAMES[0]),
+      configAlt: path.join(dir, OMP_CONFIG_FILENAMES[1]),
+    };
+  }
 
   if (toolId === "opencode") {
     return {

@@ -333,6 +333,44 @@ models:
 }`,
     },
   },
+  omp: {
+    id: "omp",
+    name: "Oh My Pi",
+    image: "/providers/omp.png",
+    color: "#F472B6",
+    description: "Oh My Pi (omp) terminal coding agent",
+    docsUrl: "https://omp.sh/docs/providers",
+    configType: "guide",
+    defaultCommand: "omp",
+    notes: [
+      {
+        type: "warning",
+        text: "Config paths: ~/.omp/agent/models.yml (provider) and ~/.omp/agent/config.yml (default model). PI_CODING_AGENT_DIR relocates both.",
+      },
+      {
+        type: "info",
+        text: "The provider is written as routiform, so models are selected as routiform/<model> — run `omp models routiform` to verify discovery.",
+      },
+    ],
+    guideSteps: [
+      { step: 1, title: "Install omp", desc: "curl -fsSL https://omp.sh/install | sh" },
+      { step: 2, title: "API Key", type: "apiKeySelector" },
+      { step: 3, title: "Base URL", value: "{{baseUrl}}", copyable: true },
+      { step: 4, title: "Select Model", type: "modelSelector" },
+      {
+        step: 5,
+        title: "Save Config",
+        desc: "Click Save Config below to write models.yml and config.yml automatically.",
+      },
+    ],
+    codeBlock: {
+      language: "yaml",
+      code: `# ~/.omp/agent/models.yml
+{{ompModels}}
+# ~/.omp/agent/config.yml
+{{ompSettings}}`,
+    },
+  },
   kiro: {
     id: "kiro",
     name: "Kiro AI",
