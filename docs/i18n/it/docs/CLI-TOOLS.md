@@ -52,6 +52,7 @@ Current list (v3.0.0-rc.16):
 | **OpenCode**       | `opencode`    | `opencode` | guide      | npm                 |
 | **Qwen Code**      | `qwen`        | `qwen`     | guide      | npm                 |
 | **Oh My Pi**       | `omp`         | `omp`      | guide      | curl \| brew \| bun |
+| **Kimi Code**      | `kimi`        | `kimi`     | guide      | curl \| npm         |
 | **Kiro AI**        | `kiro`        | app/cli    | mitm       | desktop/CLI         |
 | **Cowork**         | `cowork`      | app        | custom     | desktop app         |
 | **Hermes**         | `hermes`      | `hermes`   | custom     | CLI                 |
@@ -400,6 +401,46 @@ Or use the Routiform dashboard → **CLI Tools → Oh My Pi → Save Config** (s
 
 ---
 
+### Kimi Code (kimi)
+
+Kimi Code keeps everything in one TOML file, `~/.kimi-code/config.toml`, which `KIMI_CODE_HOME`
+relocates wholesale — the file name inside it is always `config.toml`. A provider declares the
+protocol, a model alias declares the window, and root `default_model` picks the alias to start on.
+
+```bash
+mkdir -p ~/.kimi-code && cat > ~/.kimi-code/config.toml << 'EOF'
+default_model = "routiform/cc/opus"
+
+[providers.routiform]
+type = "openai"
+base_url = "http://localhost:20128/v1"
+api_key = "sk-your-routiform-key"
+
+[models."routiform/cc/opus"]
+provider = "routiform"
+model = "cc/opus"
+max_context_size = 200000
+display_name = "cc/opus"
+EOF
+```
+
+That snippet writes a fresh file. On a config that already exists — `/login` provisions
+`[providers."managed:kimi-code"]` there — merge the three blocks in by hand instead, or let
+Save Config below do it: a root key such as `default_model` appended after a section header
+would be parsed as a key of that section, not of the document.
+
+Kimi Code reads credentials only from this file — `export KIMI_API_KEY` in the shell gives no
+provider its key, so `api_key` has to be written here. `max_context_size` is required on every
+model entry and must be at least 1; 262144 is the default Kimi applies to a model it defines
+itself. An alias containing `/` or `.` must be quoted, hence `[models."routiform/cc/opus"]`.
+`max_output_size` is honoured only by the `anthropic` provider type, so it is not written here.
+
+Or use the Routiform dashboard → **CLI Tools → Kimi Code → Save Config** (saves config directly via `/api/cli-tools/guide-settings/kimi`).
+
+**Test:** `kimi -p "say hello"`
+
+---
+
 ### Kiro CLI (Amazon)
 
 ```bash
@@ -490,11 +531,14 @@ npm install -g @qwen-code/qwen-code
 # Oh My Pi (omp)
 curl -fsSL https://omp.sh/install | sh
 
+# Kimi Code
+curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash
+
 # Kiro CLI
 apt-get install -y unzip 2>/dev/null; curl -fsSL https://cli.kiro.dev/install | bash
 
 # Write configs
-mkdir -p ~/.claude ~/.codex ~/.config/opencode ~/.continue ~/.qwen ~/.omp/agent
+mkdir -p ~/.claude ~/.codex ~/.config/opencode ~/.continue ~/.qwen ~/.omp/agent ~/.kimi-code
 
 cat > ~/.claude/settings.json <<EOF
 { "env": { "ANTHROPIC_BASE_URL": "$ROUTIFORM_URL", "ANTHROPIC_AUTH_TOKEN": "$ROUTIFORM_KEY" } }
