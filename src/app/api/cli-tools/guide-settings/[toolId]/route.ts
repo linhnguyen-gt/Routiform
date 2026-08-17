@@ -187,6 +187,7 @@ async function resetContinueConfig() {
   }
 
   const config = removeRoutiformContinueConfig(existingConfig, { localHosts: getLocalHosts() });
+  await createBackup("continue", configPath);
   await fs.writeFile(configPath, dumpYaml(config, { indent: 2, lineWidth: -1 }), "utf-8");
 
   return NextResponse.json({
@@ -211,12 +212,14 @@ async function resetQwenConfig() {
   }
 
   const config = removeRoutiformQwenConfig(existingConfig, { localHosts: getLocalHosts() });
+  await createBackup("qwen", configPath);
   await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf-8");
 
   // The key lives in ~/.qwen/.env, not in settings.json, so it has to be dropped separately
   // or the next apply would silently keep authenticating with the old one.
   try {
     const envText = await fs.readFile(getQwenEnvPath(), "utf-8");
+    await createBackup("qwen", getQwenEnvPath());
     await fs.writeFile(getQwenEnvPath(), removeEnvVar(envText, QWEN_API_KEY_ENV), "utf-8");
   } catch {
     // No .env to clean up.
@@ -270,6 +273,7 @@ async function resetOmpConfig() {
     if (!(await pathExists(filePath))) return false;
 
     const next = transform(await readOmpYaml(filePath)) as Record<string, unknown>;
+    await createBackup("omp", filePath);
     if (Object.keys(next).length === 0) {
       await fs.unlink(filePath);
       return true;
@@ -312,6 +316,7 @@ async function resetOpenCodeConfig() {
   }
 
   const config = removeRoutiformOpenCodeConfig(existingConfig);
+  await createBackup("opencode", configPath);
   await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf-8");
 
   return NextResponse.json({
@@ -353,6 +358,7 @@ async function saveContinueConfig({ baseUrl, apiKey, model }) {
     { localHosts: [`localhost:${apiPort}`, `127.0.0.1:${apiPort}`] }
   );
 
+  await createBackup("continue", configPath);
   await fs.writeFile(configPath, dumpYaml(config, { indent: 2, lineWidth: -1 }), "utf-8");
 
   return NextResponse.json({
@@ -389,6 +395,7 @@ async function saveQwenConfig({ baseUrl, apiKey, model, models }) {
     { localHosts: getLocalHosts() }
   );
 
+  await createBackup("qwen", configPath);
   await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf-8");
 
   let envText = "";
@@ -397,6 +404,7 @@ async function saveQwenConfig({ baseUrl, apiKey, model, models }) {
   } catch {
     // No .env yet.
   }
+  await createBackup("qwen", getQwenEnvPath());
   await fs.writeFile(
     getQwenEnvPath(),
     upsertEnvVar(envText, QWEN_API_KEY_ENV, apiKey || "sk_routiform"),
@@ -570,6 +578,7 @@ async function saveOpenCodeConfig({ baseUrl, apiKey, model, models }) {
     modelMaxOutputTokens: maxOutputTokens,
   });
 
+  await createBackup("opencode", configPath);
   await fs.writeFile(configPath, JSON.stringify(nextConfig, null, 2), "utf-8");
 
   return NextResponse.json({
