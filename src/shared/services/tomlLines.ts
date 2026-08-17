@@ -24,7 +24,19 @@ export const splitTomlLines = (content: string | null | undefined) => {
   return lines;
 };
 
-const escapeTomlString = (value: string) => value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+/**
+ * A TOML basic string cannot span lines, so a raw newline — an API key pasted
+ * with a trailing one is enough — would make the whole file unparseable and take
+ * the user's own providers and hooks down with it. Control characters get their
+ * TOML escape instead.
+ */
+const escapeTomlString = (value: string) =>
+  value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t");
 
 export const toTomlString = (value: string) => `"${escapeTomlString(value)}"`;
 
@@ -38,7 +50,10 @@ export const toTomlKey = (value: string) =>
  * name, but both end the section before them and both end the document's root block.
  */
 const parseTomlHeader = (line: string): { name: string; isArray: boolean } | null => {
-  const match = line.match(/^\s*(\[\[?)([^[\]]+)(\]\]?)\s*$/);
+  // The trailing comment is part of the header line. Missing it made the scan for
+  // "where does this section end" walk straight past `[their.table] # note` and
+  // splice out the user's table along with the managed one.
+  const match = line.match(/^\s*(\[\[?)([^[\]]+)(\]\]?)\s*(#.*)?$/);
   if (!match) return null;
 
   const [, open, name, close] = match;

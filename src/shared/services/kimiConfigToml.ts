@@ -43,7 +43,9 @@ const normalizeBaseUrl = (baseUrl: string) => {
   const trimmed = String(baseUrl || "")
     .trim()
     .replace(/\/+$/, "");
-  if (!/^https?:\/\/.+/i.test(trimmed)) {
+  // Anchored at both ends: an unanchored test accepts a URL with a newline and
+  // whatever the caller appended after it.
+  if (!/^https?:\/\/\S+$/i.test(trimmed)) {
     throw new Error(`Base URL must be an http(s) URL: ${baseUrl || "(empty)"}`);
   }
   return trimmed.endsWith("/v1") ? trimmed : `${trimmed}/v1`;

@@ -138,3 +138,57 @@ event = "not a table"
   // removing the table must not touch the array entry.
   assert.match(removeRoutiformKimiConfig(withArray), /\[\[providers\.routiform]]/);
 });
+
+/**
+ * A trailing comment does not stop a line being a header.
+ *
+ * The section scan looks for the next header to decide where a managed section
+ * ends. While `[their.table] # note` was invisible to it, that scan ran past the
+ * user's table and spliced it out together with ours — silent data loss in a file
+ * Routiform does not own.
+ */
+const COMMENTED_HEADERS = `[providers.routiform]
+type = "openai"
+
+[mcp_servers.mine] # my own server
+command = "node"
+args = ["server.js"]
+
+[[hooks]]  # runs on start
+event = "SessionStart"
+
+[permissions]
+allow = ["read"]
+`;
+
+test("a user table whose header carries a comment survives a save", () => {
+  const config = applyRoutiformKimiConfig(COMMENTED_HEADERS, INPUT);
+
+  assert.match(config, /\[mcp_servers\.mine]/);
+  assert.match(config, /args = \["server\.js"]/);
+  assert.match(config, /allow = \["read"]/);
+});
+
+test("a user table whose header carries a comment survives a reset", () => {
+  const reset = removeRoutiformKimiConfig(COMMENTED_HEADERS);
+
+  assert.doesNotMatch(reset, /providers\.routiform/);
+  assert.match(reset, /command = "node"/);
+  assert.match(reset, /event = "SessionStart"/);
+  assert.match(reset, /allow = \["read"]/);
+});
+
+test("a newline in the api key cannot break the file open", () => {
+  const config = applyRoutiformKimiConfig("", { ...INPUT, apiKey: "sk_live\nrogue = 1" });
+
+  // Escaped into the string, not spilled onto a line of its own.
+  assert.match(config, /api_key = "sk_live\\nrogue = 1"/);
+  assert.doesNotMatch(config, /^rogue = 1$/m);
+});
+
+test("a base url with a line break is refused outright", () => {
+  assert.throws(
+    () => applyRoutiformKimiConfig("", { ...INPUT, baseUrl: "http://localhost:20128\nx" }),
+    /Base URL/
+  );
+});
