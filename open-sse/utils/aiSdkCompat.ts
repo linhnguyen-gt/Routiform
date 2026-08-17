@@ -11,19 +11,32 @@ export function clientWantsJsonResponse(acceptHeader: unknown): boolean {
   return normalized.includes("application/json") && !normalized.includes("text/event-stream");
 }
 
+/** True only when the caller named SSE in Accept, rather than merely not ruling it out. */
+export function clientWantsEventStream(acceptHeader: unknown): boolean {
+  return (
+    typeof acceptHeader === "string" && acceptHeader.toLowerCase().includes("text/event-stream")
+  );
+}
+
 /**
  * Resolves stream behavior from request body + Accept header.
  * Priority: explicit `stream: true/false` in body wins.
  * Accept header only acts as fallback when stream is not explicitly set.
  * Fixes #656: clients sending both `stream: true` and `Accept: application/json`
  * should still get streaming responses — body intent takes precedence.
+ *
+ * With no `stream` in the body the OpenAI default is false, so the fallback asks
+ * whether the caller named `text/event-stream` rather than whether it failed to
+ * rule SSE out. The looser test sent an event stream to anyone who omitted both
+ * the field and a specific Accept header — curl's wildcard default among them —
+ * and an OpenAI-compatible client waiting on a JSON body never got one.
  */
 export function resolveStreamFlag(bodyStream: unknown, acceptHeader: unknown): boolean {
   // Explicit body value always wins
   if (bodyStream === true) return true;
   if (bodyStream === false) return false;
-  // No explicit stream param — fall back to Accept header heuristic
-  return !clientWantsJsonResponse(acceptHeader);
+  // No explicit stream param — stream only for a caller that asked for SSE
+  return clientWantsEventStream(acceptHeader);
 }
 
 /**
