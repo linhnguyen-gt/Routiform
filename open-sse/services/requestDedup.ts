@@ -138,44 +138,97 @@ interface InflightEntry<T = unknown> {
 const inflight = new Map<string, InflightEntry>();
 
 /**
+ * Fields that never change what the model produces, so two requests differing
+ * only in these are still duplicates. Dropped at the top level ONLY: the same
+ * names carry real meaning further down — `user` is a legitimate tool-schema
+ * property and `metadata` appears inside a tool result.
+ */
+const COSMETIC_ROOT_KEYS = ["user", "metadata", "stream_options", "request_id", "requestId"];
+
+/**
+ * Per-request nonces the format translators mint on the way out: the Gemini
+ * envelope gets `request.sessionId` from `Math.random()`, CommandCode gets a
+ * `threadId` UUID. They are already gone from the response, so they cannot mean
+ * anything to the model — but left in the fingerprint they make every request
+ * unique, which silently turns dedupe off for exactly those providers.
+ */
+const NONCE_KEYS = ["sessionId", "session_id", "threadId", "thread_id"];
+
+function withoutKeys(source: Record<string, unknown>, keys: string[]): Record<string, unknown> {
+  const copy = { ...source };
+  for (const key of keys) delete copy[key];
+  return copy;
+}
+
+/**
+ * Serialise with sorted keys so two bodies that carry the same data in a
+ * different property order fingerprint identically.
+ *
+ * Anything that is not a plain object or array falls through to `JSON.stringify`,
+ * so a `Map` or a class instance serialises as `{}`. The only such value in a
+ * translated body is a tool-name lookup whose contents are also in `request.tools`,
+ * so nothing that shapes the answer is lost.
+ */
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`);
+    return `{${entries.join(",")}}`;
+  }
+  return JSON.stringify(value ?? null);
+}
+
+/** Gemini keeps sampling temperature in the envelope, not at the body root. */
+export function readTemperature(body: Record<string, unknown>): number {
+  if (typeof body.temperature === "number") return body.temperature;
+  const generationConfig = (body.request as Record<string, unknown> | undefined)
+    ?.generationConfig as Record<string, unknown> | undefined;
+  if (typeof generationConfig?.temperature === "number") return generationConfig.temperature;
+  return 1.0;
+}
+
+/**
  * Compute a deterministic hash for a request body.
- * Includes every field that shapes the LLM output. Excludes purely cosmetic
- * fields (request id, metadata, stream_options) and identity hints (`user`).
+ *
+ * The body reaching this point is already in the **upstream provider's** format,
+ * which is not always OpenAI's. An earlier version listed OpenAI field names
+ * explicitly and so read nothing at all out of a Gemini/Cloud Code envelope
+ * (`request.contents`, `request.systemInstruction`) or a Claude `system` block:
+ * every antigravity request on a given model produced the same fingerprint, and
+ * two concurrent ones shared a single upstream call — the second caller received
+ * the first one's answer.
+ *
+ * Hashing the whole body instead is format-agnostic. Apart from the two small
+ * lists above, an unrecognised field can now only make two requests look
+ * *different*, which costs a missed dedupe; it can never make two different
+ * requests look the same.
  */
 export function computeRequestHash(requestBody: unknown): string {
   const body = (requestBody ?? {}) as Record<string, unknown>;
-  const canonical = {
-    model: body.model ?? null,
-    messages: body.messages ?? null,
-    // Responses API
-    input: body.input ?? null,
-    instructions: body.instructions ?? null,
+  const canonical = withoutKeys(body, [...COSMETIC_ROOT_KEYS, ...NONCE_KEYS]);
 
-    temperature: typeof body.temperature === "number" ? body.temperature : 1.0,
-    top_p: body.top_p ?? null,
-    seed: body.seed ?? null,
+  const envelope = canonical.request;
+  if (envelope && typeof envelope === "object" && !Array.isArray(envelope)) {
+    canonical.request = withoutKeys(envelope as Record<string, unknown>, NONCE_KEYS);
+  }
 
-    tools: body.tools ?? null,
-    functions: body.functions ?? null,
-    tool_choice: body.tool_choice ?? null,
-    function_call: body.function_call ?? null,
-    parallel_tool_calls: body.parallel_tool_calls ?? null,
+  // Normalised because the provider default and an explicit value mean the same
+  // request, and because `stream` must stay inside the fingerprint: the stream
+  // and non-stream variants of one request have different response shapes.
+  canonical.temperature = readTemperature(body);
+  canonical.stream = body.stream ?? false;
 
-    max_tokens: body.max_tokens ?? null,
-    max_completion_tokens: body.max_completion_tokens ?? null,
-    max_output_tokens: body.max_output_tokens ?? null,
+  return createHash("sha256").update(stableStringify(canonical)).digest("hex").slice(0, 16);
+}
 
-    response_format: body.response_format ?? null,
-    logprobs: body.logprobs ?? null,
-    top_logprobs: body.top_logprobs ?? null,
-    frequency_penalty: body.frequency_penalty ?? null,
-    presence_penalty: body.presence_penalty ?? null,
-
-    // Keep stream INSIDE the fingerprint so non-stream and stream variants of
-    // the same request are not collapsed (different response shape).
-    stream: body.stream ?? false,
-  };
-  return createHash("sha256").update(JSON.stringify(canonical)).digest("hex").slice(0, 16);
+/** A Gemini tool result is a `functionResponse` part rather than a `tool` role. */
+function hasGeminiToolResult(contents: unknown): boolean {
+  if (!Array.isArray(contents) || contents.length === 0) return false;
+  const last = contents[contents.length - 1] as { parts?: Array<Record<string, unknown>> };
+  return (last?.parts ?? []).some((part) => part && "functionResponse" in part);
 }
 
 /**
@@ -190,7 +243,8 @@ export function detectSideEffect(body: unknown): boolean {
     const last = messages[messages.length - 1];
     if (last?.role === "tool") return true;
   }
-  return false;
+  const request = b.request as Record<string, unknown> | undefined;
+  return hasGeminiToolResult(b.contents ?? request?.contents);
 }
 
 export interface DedupHeaderControls {
@@ -250,8 +304,9 @@ export function shouldDeduplicate(
 ): boolean {
   if (!config.enabled || config.mode === "off") return false;
   const body = (requestBody ?? {}) as Record<string, unknown>;
-  const temperature = typeof body.temperature === "number" ? body.temperature : 1.0;
-  if (temperature > config.maxTemperatureForDedup) return false;
+  // Read through the provider envelope too, or a high-temperature Gemini request
+  // looks like an unset default and two concurrent ones would share one sample.
+  if (readTemperature(body) > config.maxTemperatureForDedup) return false;
   return true;
 }
 

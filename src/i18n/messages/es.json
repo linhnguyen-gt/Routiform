@@ -670,7 +670,8 @@
       "copilot": "Úselo cuando desee una experiencia de usuario estilo chat Copilot mientras aplica las claves de Routiform y las reglas de enrutamiento.",
       "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through Routiform.",
       "qwen": "Úselo cuando ejecute Qwen Code en la terminal y enrute sus solicitudes compatibles con OpenAI a través de Routiform.",
-      "omp": "Úselo cuando ejecute el agente omp en la terminal con LSP, subagentes y modo de planificación, y enrute sus modelos a través de Routiform."
+      "omp": "Úselo cuando ejecute el agente omp en la terminal con LSP, subagentes y modo de planificación, y enrute sus modelos a través de Routiform.",
+      "kimi": "Úselo cuando ejecute Kimi Code en la terminal y enrute sus solicitudes compatibles con OpenAI a través de Routiform."
     },
     "toolDescriptions": {
       "antigravity": "IDE antigravedad de Google con MITM",
@@ -687,7 +688,8 @@
       "windsurf": "Windsurf AI Code Editor",
       "copilot": "GitHub Copilot AI Assistant",
       "qwen": "Alibaba Qwen Code CLI (Terminal)",
-      "omp": "Agente de programación en terminal Oh My Pi (omp)"
+      "omp": "Agente de programación en terminal Oh My Pi (omp)",
+      "kimi": "Moonshot Kimi Code CLI (Terminal)"
     },
     "guides": {
       "cursor": {

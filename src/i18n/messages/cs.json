@@ -670,7 +670,8 @@
       "copilot": "Použijte, pokud chcete uživatelské rozhraní ve stylu Copilot chat a zároveň vynutit klíče a pravidla směrování Routiform.",
       "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through Routiform.",
       "qwen": "Použijte, když spouštíte Qwen Code v terminálu a směrujete jeho požadavky kompatibilní s OpenAI přes Routiform.",
-      "omp": "Použijte, když spouštíte agenta omp v terminálu s LSP, subagenty a režimem plánování a směrujete jeho modely přes Routiform."
+      "omp": "Použijte, když spouštíte agenta omp v terminálu s LSP, subagenty a režimem plánování a směrujete jeho modely přes Routiform.",
+      "kimi": "Použijte, když spouštíte Kimi Code v terminálu a směrujete jeho požadavky kompatibilní s OpenAI přes Routiform."
     },
     "toolDescriptions": {
       "antigravity": "Google Antigravity IDE s MITM",
@@ -687,7 +688,8 @@
       "windsurf": "Windsurf AI Code Editor",
       "copilot": "GitHub Copilot AI Assistant",
       "qwen": "Alibaba Qwen Code CLI (Terminál)",
-      "omp": "Oh My Pi (omp) — terminálový kódovací agent"
+      "omp": "Oh My Pi (omp) — terminálový kódovací agent",
+      "kimi": "Moonshot Kimi Code CLI (Terminál)"
     },
     "guides": {
       "cursor": {

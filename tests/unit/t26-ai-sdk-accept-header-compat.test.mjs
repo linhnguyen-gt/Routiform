@@ -38,9 +38,19 @@ test("T26: non-fenced content is returned unchanged", () => {
 test("T26: undefined stream falls back to Accept header heuristic (#656)", () => {
   // No explicit stream param — Accept: application/json means no streaming
   assert.equal(resolveStreamFlag(undefined, "application/json"), false);
-  // No explicit stream param + no JSON accept = stream by default
+  // No explicit stream param — SSE only for a caller that named it
   assert.equal(resolveStreamFlag(undefined, "text/event-stream"), true);
-  assert.equal(resolveStreamFlag(undefined, undefined), true);
+});
+
+/**
+ * `stream` defaults to false in the OpenAI schema. Answering an omitted flag with
+ * an event stream broke any compatible client that sent no specific Accept header
+ * — curl's wildcard default included — and left it waiting for a JSON body.
+ */
+test("T26: an omitted stream flag defaults to JSON, not SSE", () => {
+  assert.equal(resolveStreamFlag(undefined, undefined), false);
+  assert.equal(resolveStreamFlag(undefined, "*/*"), false);
+  assert.equal(resolveStreamFlag(undefined, ""), false);
 });
 
 test("T26: explicit stream:false always prevents streaming", () => {

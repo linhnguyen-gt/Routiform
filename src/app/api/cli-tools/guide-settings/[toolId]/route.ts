@@ -6,8 +6,14 @@ import { load as loadYaml, dump as dumpYaml } from "js-yaml";
 import {
   getCliConfigHome,
   getOpenCodeConfigPath,
+  resolveKimiConfigPath,
   resolveOmpWritePaths,
 } from "@/shared/services/cliRuntime";
+import {
+  applyRoutiformKimiConfig,
+  removeRoutiformKimiConfig,
+  toKimiModelAlias,
+} from "@/shared/services/kimiConfigToml";
 import {
   applyRoutiformOmpModels,
   applyRoutiformOmpSettings,
@@ -99,6 +105,8 @@ export async function POST(request, { params }) {
         return await saveQwenConfig({ baseUrl, apiKey, model, models });
       case "omp":
         return await saveOmpConfig({ baseUrl, apiKey, model, models });
+      case "kimi":
+        return await saveKimiConfig({ baseUrl, apiKey, model, models });
       default:
         return NextResponse.json(
           { error: `Direct config save not supported for: ${toolId}` },
@@ -134,6 +142,8 @@ export async function DELETE(request: Request, { params }) {
         return await resetQwenConfig();
       case "omp":
         return await resetOmpConfig();
+      case "kimi":
+        return await resetKimiConfig();
       default:
         return NextResponse.json(
           { error: `Config reset not supported for: ${toolId}` },
@@ -177,6 +187,7 @@ async function resetContinueConfig() {
   }
 
   const config = removeRoutiformContinueConfig(existingConfig, { localHosts: getLocalHosts() });
+  await createBackup("continue", configPath);
   await fs.writeFile(configPath, dumpYaml(config, { indent: 2, lineWidth: -1 }), "utf-8");
 
   return NextResponse.json({
@@ -201,12 +212,14 @@ async function resetQwenConfig() {
   }
 
   const config = removeRoutiformQwenConfig(existingConfig, { localHosts: getLocalHosts() });
+  await createBackup("qwen", configPath);
   await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf-8");
 
   // The key lives in ~/.qwen/.env, not in settings.json, so it has to be dropped separately
   // or the next apply would silently keep authenticating with the old one.
   try {
     const envText = await fs.readFile(getQwenEnvPath(), "utf-8");
+    await createBackup("qwen", getQwenEnvPath());
     await fs.writeFile(getQwenEnvPath(), removeEnvVar(envText, QWEN_API_KEY_ENV), "utf-8");
   } catch {
     // No .env to clean up.
@@ -260,6 +273,7 @@ async function resetOmpConfig() {
     if (!(await pathExists(filePath))) return false;
 
     const next = transform(await readOmpYaml(filePath)) as Record<string, unknown>;
+    await createBackup("omp", filePath);
     if (Object.keys(next).length === 0) {
       await fs.unlink(filePath);
       return true;
@@ -302,6 +316,7 @@ async function resetOpenCodeConfig() {
   }
 
   const config = removeRoutiformOpenCodeConfig(existingConfig);
+  await createBackup("opencode", configPath);
   await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf-8");
 
   return NextResponse.json({
@@ -343,6 +358,7 @@ async function saveContinueConfig({ baseUrl, apiKey, model }) {
     { localHosts: [`localhost:${apiPort}`, `127.0.0.1:${apiPort}`] }
   );
 
+  await createBackup("continue", configPath);
   await fs.writeFile(configPath, dumpYaml(config, { indent: 2, lineWidth: -1 }), "utf-8");
 
   return NextResponse.json({
@@ -379,6 +395,7 @@ async function saveQwenConfig({ baseUrl, apiKey, model, models }) {
     { localHosts: getLocalHosts() }
   );
 
+  await createBackup("qwen", configPath);
   await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf-8");
 
   let envText = "";
@@ -387,6 +404,7 @@ async function saveQwenConfig({ baseUrl, apiKey, model, models }) {
   } catch {
     // No .env yet.
   }
+  await createBackup("qwen", getQwenEnvPath());
   await fs.writeFile(
     getQwenEnvPath(),
     upsertEnvVar(envText, QWEN_API_KEY_ENV, apiKey || "sk_routiform"),
@@ -458,6 +476,67 @@ async function saveOmpConfig({ baseUrl, apiKey, model, models }) {
   });
 }
 
+const readKimiToml = async (filePath: string) => {
+  try {
+    return await fs.readFile(filePath, "utf-8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
+    throw error;
+  }
+};
+
+/**
+ * Save Kimi Code config to ~/.kimi-code/config.toml.
+ *
+ * The file is edited as lines rather than parsed and rewritten, so the OAuth-provisioned
+ * `[providers."managed:kimi-code"]` block, permission rules, hooks and the user's own
+ * comments all come through untouched — only the Routiform provider, its model entries and
+ * `default_model` are rewritten.
+ */
+async function saveKimiConfig({ baseUrl, apiKey, model, models }) {
+  const configPath = resolveKimiConfigPath();
+  await fs.mkdir(path.dirname(configPath), { recursive: true });
+
+  // max_context_size is required on every Kimi model entry, and it drives the context meter.
+  const { contextLengths } = await fetchModelTokenLimits([model, ...(models || [])]);
+
+  const existingConfig = await readKimiToml(configPath);
+  await createBackup("kimi", configPath);
+
+  const nextConfig = applyRoutiformKimiConfig(existingConfig, {
+    baseUrl,
+    apiKey,
+    model,
+    models,
+    contextLengths,
+  });
+  await fs.writeFile(configPath, nextConfig, "utf-8");
+
+  return NextResponse.json({
+    success: true,
+    message: `Kimi Code config saved to ${configPath} — run kimi and pick ${toKimiModelAlias(model)}`,
+    configPath,
+  });
+}
+
+async function resetKimiConfig() {
+  const configPath = resolveKimiConfigPath();
+
+  const existingConfig = await readKimiToml(configPath);
+  if (!existingConfig) {
+    return NextResponse.json({ success: true, message: "No Kimi Code config to reset" });
+  }
+
+  await createBackup("kimi", configPath);
+  await fs.writeFile(configPath, removeRoutiformKimiConfig(existingConfig), "utf-8");
+
+  return NextResponse.json({
+    success: true,
+    message: `Routiform provider removed from ${configPath}`,
+    configPath,
+  });
+}
+
 /**
  * - Linux/macOS: ~/.config/opencode/opencode.json (XDG_CONFIG_HOME aware)
  * - Windows: %APPDATA%/opencode/opencode.json
@@ -499,6 +578,7 @@ async function saveOpenCodeConfig({ baseUrl, apiKey, model, models }) {
     modelMaxOutputTokens: maxOutputTokens,
   });
 
+  await createBackup("opencode", configPath);
   await fs.writeFile(configPath, JSON.stringify(nextConfig, null, 2), "utf-8");
 
   return NextResponse.json({

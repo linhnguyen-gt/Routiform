@@ -371,6 +371,42 @@ models:
 {{ompSettings}}`,
     },
   },
+  kimi: {
+    id: "kimi",
+    name: "Kimi Code",
+    image: "/providers/kimi.png",
+    color: "#1E3A8A",
+    description: "Moonshot Kimi Code CLI (Terminal)",
+    docsUrl: "https://www.kimi.com/code/docs/en/configuration/providers",
+    configType: "guide",
+    defaultCommand: "kimi",
+    notes: [
+      {
+        type: "warning",
+        text: "Config path: ~/.kimi-code/config.toml on every platform. KIMI_CODE_HOME relocates the whole directory.",
+      },
+      {
+        type: "info",
+        text: "Kimi Code never reads API keys from the shell, so the key is written into config.toml itself. Models appear as routiform/<model> in /model.",
+      },
+    ],
+    guideSteps: [
+      { step: 1, title: "Install Kimi Code", desc: "npm install -g @moonshot-ai/kimi-code" },
+      { step: 2, title: "API Key", type: "apiKeySelector" },
+      { step: 3, title: "Base URL", value: "{{baseUrl}}", copyable: true },
+      { step: 4, title: "Select Model", type: "modelSelector" },
+      {
+        step: 5,
+        title: "Save Config",
+        desc: "Click Save Config below to write config.toml automatically.",
+      },
+    ],
+    codeBlock: {
+      language: "toml",
+      code: `# ~/.kimi-code/config.toml
+{{kimiConfig}}`,
+    },
+  },
   kiro: {
     id: "kiro",
     name: "Kiro AI",
