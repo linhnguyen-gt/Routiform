@@ -61,6 +61,21 @@ const assertWritableModelId = (model: string) => {
   }
 };
 
+/**
+ * An earlier version appended `default_model` after the last header, where TOML reads it as
+ * a key of that table — Kimi Code then rejected the whole file. Such a line sits outside the
+ * root block, so the root-key helpers cannot see it, let alone replace it. Dropping every
+ * line that assigns a `routiform/` alias, wherever it sits, repairs those files on the next
+ * save; the namespace is what makes it safe, since no foreign table would carry our alias.
+ */
+const stripManagedDefaultModel = (lines: string[]) => {
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (new RegExp(`^\\s*default_model\\s*=\\s*"${KIMI_PROVIDER_ID}/`).test(lines[index])) {
+      lines.splice(index, 1);
+    }
+  }
+};
+
 export const hasRoutiformKimiConfig = (config: string | null) => {
   if (!config) return false;
   return config.includes(`[${PROVIDER_SECTION_NAME}]`);
@@ -94,6 +109,7 @@ export const applyRoutiformKimiConfig = (
   const lines = splitTomlLines(existingConfig);
 
   removeTomlSectionsWhere(lines, isManagedModelSection);
+  stripManagedDefaultModel(lines);
 
   upsertTomlRootKey(lines, "default_model", toKimiModelAlias(model));
   upsertTomlSection(lines, PROVIDER_SECTION_NAME, [
@@ -128,6 +144,7 @@ export const removeRoutiformKimiConfig = (existingConfig: string | null) => {
   if (String(parseTomlRootValue(lines, "default_model") || "").startsWith(`${KIMI_PROVIDER_ID}/`)) {
     removeTomlRootKey(lines, "default_model");
   }
+  stripManagedDefaultModel(lines);
 
   removeTomlSection(lines, PROVIDER_SECTION_NAME);
   removeTomlSectionsWhere(lines, isManagedModelSection);

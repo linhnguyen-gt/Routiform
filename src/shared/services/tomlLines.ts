@@ -32,15 +32,36 @@ export const toTomlString = (value: string) => `"${escapeTomlString(value)}"`;
 export const toTomlKey = (value: string) =>
   /^[A-Za-z0-9_-]+$/.test(value) ? value : toTomlString(value);
 
+/**
+ * `[table]` and `[[array.of.tables]]` are both headers: every key after either one belongs
+ * to it until the next header. Only the plain form is a section this module addresses by
+ * name, but both end the section before them and both end the document's root block.
+ */
+const parseTomlHeader = (line: string): { name: string; isArray: boolean } | null => {
+  const match = line.match(/^\s*(\[\[?)([^[\]]+)(\]\]?)\s*$/);
+  if (!match) return null;
+
+  const [, open, name, close] = match;
+  // Rejects the malformed `[x]]` and `[[x]`.
+  if (open.length !== close.length) return null;
+
+  return { name: name.trim(), isArray: open === "[[" };
+};
+
+const isTomlHeader = (line: string) => parseTomlHeader(line) !== null;
+
 export const getTomlSectionName = (line: string): string | null => {
-  const match = line.match(/^\s*\[([^\]]+)\]\s*$/);
-  return match ? match[1].trim() : null;
+  const header = parseTomlHeader(line);
+  return header && !header.isArray ? header.name : null;
 };
 
 const findFirstSectionIndex = (lines: string[]) => {
-  const index = lines.findIndex((line) => getTomlSectionName(line) !== null);
+  const index = lines.findIndex(isTomlHeader);
   return index === -1 ? lines.length : index;
 };
+
+/** A `key = value` line, as opposed to a comment or a blank. */
+const isAssignment = (line: string) => /^\s*[^#\s][^=]*=/.test(line);
 
 const findRootKeyIndexes = (lines: string[], key: string) => {
   const firstSectionIndex = findFirstSectionIndex(lines);
@@ -63,9 +84,14 @@ const upsertRootLine = (lines: string[], key: string, nextLine: string) => {
     return;
   }
 
-  let insertAt = findFirstSectionIndex(lines);
-  while (insertAt > 0 && lines[insertAt - 1].trim() === "") {
-    insertAt -= 1;
+  // A root key has to sit above every header, so it joins the document's root block: right
+  // after the last key already there, or at the very top when there is none. Landing it
+  // just above the first header instead would drop it inside whatever comment banner
+  // introduces that header — on a real config that was a block another tool overwrites.
+  const firstSectionIndex = findFirstSectionIndex(lines);
+  let insertAt = 0;
+  for (let index = 0; index < firstSectionIndex; index += 1) {
+    if (isAssignment(lines[index])) insertAt = index + 1;
   }
   lines.splice(insertAt, 0, nextLine);
 };
@@ -93,7 +119,8 @@ const findSectionRanges = (lines: string[], matches: (sectionName: string) => bo
 
     let end = lines.length;
     for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
-      if (getTomlSectionName(lines[cursor]) !== null) {
+      // Any header ends the section — an `[[array]]` one is not ours to absorb and delete.
+      if (isTomlHeader(lines[cursor])) {
         end = cursor;
         break;
       }
