@@ -49,35 +49,36 @@ directly runnable inside the Linux container.
 The dashboard cards in `/dashboard/cli-tools` are generated from `src/shared/constants/cliTools.ts`,
 which is the source of truth for this table:
 
-| Tool               | ID            | Command    | Setup Mode | Install Method |
-| ------------------ | ------------- | ---------- | ---------- | -------------- |
-| **Claude Code**    | `claude`      | `claude`   | env        | npm            |
-| **OpenAI Codex**   | `codex`       | `codex`    | custom     | npm            |
-| **Factory Droid**  | `droid`       | `droid`    | custom     | bundled/CLI    |
-| **OpenClaw**       | `openclaw`    | `openclaw` | custom     | bundled/CLI    |
-| **Cursor**         | `cursor`      | app        | guide      | desktop app    |
-| **Windsurf**       | `windsurf`    | app        | guide      | desktop app    |
-| **Cline**          | `cline`       | `cline`    | custom     | npm            |
-| **Kilo Code**      | `kilo`        | `kilocode` | custom     | npm            |
-| **Continue**       | `continue`    | extension  | guide      | VS Code        |
-| **Antigravity**    | `antigravity` | internal   | mitm       | Routiform      |
-| **GitHub Copilot** | `copilot`     | extension  | custom     | VS Code        |
-| **OpenCode**       | `opencode`    | `opencode` | guide      | npm            |
-| **Qwen Code**      | `qwen`        | `qwen`     | guide      | npm            |
-| **Kiro AI**        | `kiro`        | app/cli    | mitm       | desktop/CLI    |
-| **Cowork**         | `cowork`      | app        | custom     | desktop app    |
-| **Hermes**         | `hermes`      | `hermes`   | custom     | CLI            |
+| Tool               | ID            | Command    | Setup Mode | Install Method      |
+| ------------------ | ------------- | ---------- | ---------- | ------------------- |
+| **Claude Code**    | `claude`      | `claude`   | env        | npm                 |
+| **OpenAI Codex**   | `codex`       | `codex`    | custom     | npm                 |
+| **Factory Droid**  | `droid`       | `droid`    | custom     | bundled/CLI         |
+| **OpenClaw**       | `openclaw`    | `openclaw` | custom     | bundled/CLI         |
+| **Cursor**         | `cursor`      | app        | guide      | desktop app         |
+| **Windsurf**       | `windsurf`    | app        | guide      | desktop app         |
+| **Cline**          | `cline`       | `cline`    | custom     | npm                 |
+| **Kilo Code**      | `kilo`        | `kilocode` | custom     | npm                 |
+| **Continue**       | `continue`    | extension  | guide      | VS Code             |
+| **Antigravity**    | `antigravity` | internal   | mitm       | Routiform           |
+| **GitHub Copilot** | `copilot`     | extension  | custom     | VS Code             |
+| **OpenCode**       | `opencode`    | `opencode` | guide      | npm                 |
+| **Qwen Code**      | `qwen`        | `qwen`     | guide      | npm                 |
+| **Oh My Pi**       | `omp`         | `omp`      | guide      | curl \| brew \| bun |
+| **Kiro AI**        | `kiro`        | app/cli    | mitm       | desktop/CLI         |
+| **Cowork**         | `cowork`      | app        | custom     | desktop app         |
+| **Hermes**         | `hermes`      | `hermes`   | custom     | CLI                 |
 
 ### CLI fingerprint sync (Agents + Settings)
 
 `/dashboard/agents` and `Settings > CLI Fingerprint` use `src/shared/constants/cliCompatProviders.ts`.
 This keeps provider IDs aligned with CLI cards and legacy IDs.
 
-| CLI ID                                                                                                        | Fingerprint Provider ID |
-| ------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `kilo`                                                                                                        | `kilocode`              |
-| `copilot`                                                                                                     | `github`                |
-| `claude` / `codex` / `antigravity` / `kiro` / `cursor` / `cline` / `opencode` / `droid` / `openclaw` / `qwen` | same ID                 |
+| CLI ID                                                                                                                | Fingerprint Provider ID |
+| --------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `kilo`                                                                                                                | `kilocode`              |
+| `copilot`                                                                                                             | `github`                |
+| `claude` / `codex` / `antigravity` / `kiro` / `cursor` / `cline` / `opencode` / `droid` / `openclaw` / `qwen` / `omp` | same ID                 |
 
 Legacy IDs still accepted for compatibility: `copilot`, `kimi-coding`.
 
@@ -377,6 +378,41 @@ Or use the Routiform dashboard → **CLI Tools → Qwen Code → Apply Config** 
 
 ---
 
+### Oh My Pi (omp)
+
+omp splits its config across two files under `~/.omp/agent/`. `models.yml` holds provider blocks and accepts ONLY the `providers` root key — any other root key fails schema validation and makes omp skip the whole file. `config.yml` holds settings, of which `modelRoles.default` selects the model. `PI_CODING_AGENT_DIR` relocates both files.
+
+```bash
+mkdir -p ~/.omp/agent && cat > ~/.omp/agent/models.yml << 'EOF'
+providers:
+  routiform:
+    baseUrl: http://localhost:20128/v1
+    api: openai-completions
+    apiKey: sk-your-routiform-key
+    authHeader: true
+    models:
+      - id: cc/opus
+        name: cc/opus
+        contextWindow: 200000
+        maxTokens: 32000
+EOF
+
+cat > ~/.omp/agent/config.yml << 'EOF'
+modelRoles:
+  default: routiform/cc/opus
+EOF
+```
+
+`apiKey` resolves as environment-variable-name-or-literal: a value naming an existing env var reads that variable, otherwise the string itself is the key. A `!` prefix would run it as a shell command. `contextWindow` and `maxTokens` must be positive when present; omit them rather than writing 0.
+
+Verify with `omp models routiform`.
+
+Or use the Routiform dashboard → **CLI Tools → Oh My Pi → Save Config** (saves config directly via `/api/cli-tools/guide-settings/omp`).
+
+**Test:** `omp "say hello"`
+
+---
+
 ### Kiro CLI (Amazon)
 
 ```bash
@@ -464,12 +500,15 @@ npm install -g @anthropic-ai/claude-code @openai/codex opencode-ai cline kilocod
 # Qwen Code (via npm)
 npm install -g @qwen-code/qwen-code
 
+# Oh My Pi (omp)
+curl -fsSL https://omp.sh/install | sh
+
 # Kiro CLI
 apt-get install -y unzip 2>/dev/null; curl -fsSL https://cli.kiro.dev/install | bash
 
 # Write configs. Each tool reads a different file in a different shape — see Step 4 above
 # for the full form of each; only the two simplest are inlined here.
-mkdir -p ~/.claude ~/.codex ~/.config/opencode ~/.continue ~/.qwen
+mkdir -p ~/.claude ~/.codex ~/.config/opencode ~/.continue ~/.qwen ~/.omp/agent
 
 cat > ~/.claude/settings.json <<EOF
 { "env": { "ANTHROPIC_BASE_URL": "$ROUTIFORM_URL", "ANTHROPIC_AUTH_TOKEN": "$ROUTIFORM_KEY" } }

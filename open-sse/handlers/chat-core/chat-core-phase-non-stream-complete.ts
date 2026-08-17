@@ -1,6 +1,5 @@
 import { commitCompressionWrites } from "./chat-core-compression-commit.ts";
 import { recordCost } from "@/domain/costRules";
-import { saveIdempotency } from "@/lib/idempotencyLayer";
 import { calculateCost } from "@/lib/usage/costCalculator";
 import { formatUsageLog } from "@/lib/usage/tokenAccounting";
 import { appendRequestLog, saveRequestUsage } from "@/lib/usageDb";
@@ -94,16 +93,14 @@ export async function chatCorePhaseNonStreamComplete(p: ChatCorePipeline): Promi
         (usage as { cached_tokens?: number }).cached_tokens ??
         (
           (usage as Record<string, unknown>).prompt_tokens_details as
-            | Record<string, unknown>
-            | undefined
+            Record<string, unknown> | undefined
         )?.cached_tokens
     );
     const _cacheCreationTokens = toPositiveNumber(
       (usage as { cache_creation_input_tokens?: number }).cache_creation_input_tokens ??
         (
           (usage as Record<string, unknown>).prompt_tokens_details as
-            | Record<string, unknown>
-            | undefined
+            Record<string, unknown> | undefined
         )?.cache_creation_tokens
     );
 
@@ -169,15 +166,12 @@ export async function chatCorePhaseNonStreamComplete(p: ChatCorePipeline): Promi
       Number(cacheKeyBody.top_p ?? 1)
     );
     const usageRec = usage as
-      | { prompt_tokens?: number; completion_tokens?: number }
-      | null
-      | undefined;
+      { prompt_tokens?: number; completion_tokens?: number } | null | undefined;
     const tokensSaved = (usageRec?.prompt_tokens ?? 0) + (usageRec?.completion_tokens ?? 0) || 0;
     setCachedResponse(signature, p.model, translatedResponse, tokensSaved);
     log?.debug?.("CACHE", `Stored response for ${p.model} (${tokensSaved} tokens)`);
   }
 
-  saveIdempotency(p.idempotencyKey!, translatedResponse, 200);
   reqLogger.logConvertedResponse(translatedResponse);
   persistAttemptLogs({
     status: 200,

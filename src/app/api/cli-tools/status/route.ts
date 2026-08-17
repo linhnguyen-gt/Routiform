@@ -6,10 +6,13 @@ import {
   getCliRuntimeStatus,
   CLI_TOOL_IDS,
   getCliPrimaryConfigPath,
+  resolveOmpWritePaths,
 } from "@/shared/services/cliRuntime";
 import { getClaudeCliConfigStatus } from "@/shared/services/claudeCodeConfig";
 import { hasRoutiformCodexConfig, hasUsableCodexAuth } from "@/shared/services/codexConfigToml";
 import { hasRoutiformHermesConfig } from "@/shared/services/hermesConfigYaml";
+import { hasRoutiformOmpConfig } from "@/shared/services/ompConfig";
+import { load as loadYaml } from "js-yaml";
 import { getAllCliToolLastConfigured } from "@/lib/db/cliToolState";
 import { getRuntimePorts } from "@/lib/runtime/ports";
 
@@ -19,6 +22,16 @@ const { apiPort } = getRuntimePorts();
 // This replaces the expensive self-referential HTTP calls to /api/cli-tools/*-settings
 async function checkToolConfigStatus(toolId: string): Promise<string> {
   try {
+    // omp accepts both a .yml and a .yaml spelling and loads whichever exists first, so
+    // the file it actually reads has to be resolved rather than assumed.
+    if (toolId === "omp") {
+      const { models } = await resolveOmpWritePaths();
+      const raw = await fs.readFile(models, "utf-8");
+      return hasRoutiformOmpConfig(raw.trim() ? loadYaml(raw) : {})
+        ? "configured"
+        : "not_configured";
+    }
+
     const configPath = getCliPrimaryConfigPath(toolId);
     if (!configPath) return "unknown";
 
@@ -45,6 +58,9 @@ async function checkToolConfigStatus(toolId: string): Promise<string> {
     if (toolId === "hermes") {
       return hasRoutiformHermesConfig(content) ? "configured" : "not_configured";
     }
+
+    // omp is handled before this point — it has two spellings of its models file, so the
+    // path this function read may not be the one omp loads.
 
     const config = JSON.parse(content);
 
@@ -131,7 +147,16 @@ export async function GET() {
     );
 
     // Check config status for installed+runnable tools via direct file reads
-    const settingsTools = ["claude", "codex", "droid", "openclaw", "cline", "kilo", "hermes"];
+    const settingsTools = [
+      "claude",
+      "codex",
+      "droid",
+      "openclaw",
+      "cline",
+      "kilo",
+      "hermes",
+      "omp",
+    ];
 
     await Promise.all(
       settingsTools.map(async (toolId) => {

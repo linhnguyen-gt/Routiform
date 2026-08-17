@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { copyToClipboard } from "@/shared/utils/clipboard";
 import { mergeOpenCodeConfig } from "@/shared/services/opencodeConfig";
+import { OMP_PROVIDER_ID } from "@/shared/services/ompConfig";
 
 function parseModelList(value) {
   return Array.from(
@@ -69,7 +70,11 @@ export default function DefaultToolCard({
 
   /** Values for ICU placeholders ({baseUrl}, etc.) and legacy {{baseUrl}} replaceVars */
   const isOpenCode = toolId === "opencode";
-  const primaryModelValue = isOpenCode ? modelValues[0] || "" : modelValue;
+  const isOmp = toolId === "omp";
+  // Tools whose config takes a list of models, so the selector adds chips instead of
+  // replacing the single value.
+  const isMultiModel = isOpenCode || isOmp;
+  const primaryModelValue = isMultiModel ? modelValues[0] || "" : modelValue;
   const substitutionVars = useMemo(() => {
     const keyToUse =
       selectedApiKey && selectedApiKey.trim()
@@ -111,14 +116,37 @@ export default function DefaultToolCard({
           "name": "${primaryModelValue || t("modelPlaceholder")}"
         }`;
 
+    // The preview only has to match what Save Config writes; ompConfig.ts stays the single
+    // source for the file itself, including the token limits this snippet cannot know.
+    const ompModelIds =
+      isOmp && modelValues.length > 0 ? modelValues : [primaryModelValue || t("modelPlaceholder")];
+    const ompModels = isOmp
+      ? `providers:
+  ${OMP_PROVIDER_ID}:
+    baseUrl: ${baseUrlWithV1}
+    api: openai-completions
+    apiKey: ${keyToUse}
+    authHeader: true
+    models:
+${ompModelIds.map((id) => `      - id: ${id}\n        name: ${id}`).join("\n")}
+`
+      : "";
+    const ompSettings = isOmp
+      ? `modelRoles:
+  default: ${OMP_PROVIDER_ID}/${primaryModelValue || t("modelPlaceholder")}
+`
+      : "";
+
     return {
       baseUrl: baseUrlWithV1,
       apiKey: keyToUse,
       model: primaryModelValue || t("modelPlaceholder"),
       models: modelsJson,
       opencodeConfig,
+      ompModels,
+      ompSettings,
     };
-  }, [selectedApiKey, cloudEnabled, baseUrl, primaryModelValue, modelValues, isOpenCode, t]);
+  }, [selectedApiKey, cloudEnabled, baseUrl, primaryModelValue, modelValues, isOpenCode, isOmp, t]);
 
   // Persist and restore model selection per tool via localStorage
   useEffect(() => {
@@ -126,12 +154,12 @@ export default function DefaultToolCard({
     const savedModel = localStorage.getItem(`routiform-cli-model-${toolId}`) || legacyModel;
     if (savedModel) {
       setModelValue(savedModel);
-      if (toolId === "opencode") setModelValues(normalizeModelItems(savedModel));
+      if (isMultiModel) setModelValues(normalizeModelItems(savedModel));
     }
     const legacyKey = localStorage.getItem(`routiform-cli-key-${toolId}`);
     const savedKey = localStorage.getItem(`routiform-cli-key-${toolId}`) || legacyKey;
     if (savedKey && apiKeys?.some((k) => k.key === savedKey)) setSelectedApiKey(savedKey);
-  }, [toolId, apiKeys]);
+  }, [toolId, apiKeys, isMultiModel]);
 
   const handleModelChange = useCallback(
     (value) => {
@@ -199,13 +227,16 @@ export default function DefaultToolCard({
   const replaceVars = useCallback(
     (text) => {
       if (text == null || text === "") return text;
-      const { baseUrl, apiKey, model, models, opencodeConfig } = substitutionVars;
+      const { baseUrl, apiKey, model, models, opencodeConfig, ompModels, ompSettings } =
+        substitutionVars;
       return String(text)
         .replace(/\{\{baseUrl\}\}/g, baseUrl)
         .replace(/\{\{apiKey\}\}/g, apiKey)
         .replace(/\{\{model\}\}/g, model)
         .replace(/\{\{models\}\}/g, models)
-        .replace(/\{\{opencodeConfig\}\}/g, opencodeConfig);
+        .replace(/\{\{opencodeConfig\}\}/g, opencodeConfig)
+        .replace(/\{\{ompModels\}\}/g, ompModels)
+        .replace(/\{\{ompSettings\}\}/g, ompSettings);
     },
     [substitutionVars]
   );
@@ -217,7 +248,7 @@ export default function DefaultToolCard({
   };
 
   const handleSelectModel = (model) => {
-    if (isOpenCode) {
+    if (isMultiModel) {
       handleModelValuesChange(
         modelValues.includes(model.value)
           ? modelValues.filter((item) => item !== model.value)
@@ -257,8 +288,8 @@ export default function DefaultToolCard({
           // The selector holds the masked key /api/keys returns; the id is what lets the
           // route look the real one up before writing it to the tool's config.
           ...(selectedApiKey ? { keyId: apiKeys?.find((k) => k.key === selectedApiKey)?.id } : {}),
-          model: isOpenCode ? modelValues[0] || "" : modelValue,
-          ...(isOpenCode ? { models: modelValues } : {}),
+          model: isMultiModel ? modelValues[0] || "" : modelValue,
+          ...(isMultiModel ? { models: modelValues } : {}),
         }),
       });
       const data = await res.json();
@@ -293,9 +324,9 @@ export default function DefaultToolCard({
   };
 
   // Check if this tool supports direct config file write
-  const supportsDirectSave = ["continue", "opencode", "qwen"].includes(toolId);
+  const supportsDirectSave = ["continue", "opencode", "qwen", "omp"].includes(toolId);
   // Reset unwinds a write, so it is offered only where the route can perform one.
-  const supportsReset = ["continue", "opencode", "qwen"].includes(toolId);
+  const supportsReset = ["continue", "opencode", "qwen", "omp"].includes(toolId);
 
   const renderApiKeySelector = () => {
     return (
@@ -332,7 +363,7 @@ export default function DefaultToolCard({
   };
 
   const renderModelSelector = () => {
-    if (isOpenCode) {
+    if (isMultiModel) {
       return (
         <div className="mt-2 flex items-center gap-2">
           <div className="flex-1 rounded-xl border border-border bg-bg-secondary px-2 py-2 focus-within:ring-1 focus-within:ring-primary/50">
@@ -646,7 +677,7 @@ export default function DefaultToolCard({
                   variant="primary"
                   size="sm"
                   onClick={handleSaveConfig}
-                  disabled={isOpenCode ? modelValues.length === 0 : !modelValue}
+                  disabled={isMultiModel ? modelValues.length === 0 : !modelValue}
                   loading={saving}
                 >
                   <span className="material-symbols-outlined text-[14px] mr-1">save</span>
@@ -671,7 +702,7 @@ export default function DefaultToolCard({
                   {copiedField === "codeblock" ? t("copied") : t("copyConfig")}
                 </Button>
               )}
-              {(isOpenCode ? modelValues.length > 0 : !!modelValue) && (
+              {(isMultiModel ? modelValues.length > 0 : !!modelValue) && (
                 <span className="text-xs text-text-muted flex items-center gap-1">
                   <span className="material-symbols-outlined text-[14px] text-green-500">
                     check_circle
@@ -795,9 +826,9 @@ export default function DefaultToolCard({
         isOpen={showModelModal}
         onClose={() => setShowModelModal(false)}
         onSelect={handleSelectModel}
-        selectedModel={isOpenCode ? modelValues[0] || "" : modelValue}
-        addedModelValues={isOpenCode ? modelValues : []}
-        multiSelect={isOpenCode}
+        selectedModel={isMultiModel ? modelValues[0] || "" : modelValue}
+        addedModelValues={isMultiModel ? modelValues : []}
+        multiSelect={isMultiModel}
         activeProviders={activeProviders}
         modelAliases={modelAliases}
         title={t("selectModel")}
