@@ -131,6 +131,16 @@ const CLI_TOOLS: Record<string, Record<string, unknown>> = {
       config: ".omp/agent/config.yml",
     },
   },
+  kimi: {
+    defaultCommand: "kimi",
+    envBinKey: "CLI_KIMI_BIN",
+    requiresBinary: true,
+    healthcheckTimeoutMs: 12000,
+    // Resolved through resolveKimiConfigPath — KIMI_CODE_HOME relocates the whole directory.
+    paths: {
+      config: ".kimi-code/config.toml",
+    },
+  },
   qoder: {
     defaultCommand: "qodercli",
     envBinKey: "CLI_QODER_BIN",
@@ -450,6 +460,7 @@ const getKnownToolPaths = (toolId: string): string[] => {
       ["omp.exe", "omp"],
       ["omp.cmd", "omp"],
     ],
+    kimi: [["kimi.cmd", "kimi"]],
   };
 
   const bins = toolBins[toolId] || [];
@@ -893,9 +904,31 @@ export const resolveOmpWritePaths = async (
   };
 };
 
+/**
+ * Kimi Code keeps its whole data directory under `~/.kimi-code`, and `KIMI_CODE_HOME`
+ * relocates that directory wholesale. The file inside it is always named `config.toml`,
+ * so unlike omp there is only one spelling to resolve.
+ */
+export const resolveKimiHome = (
+  env: NodeJS.ProcessEnv = process.env,
+  homeDir = getCliConfigHome()
+) =>
+  normalizeSafeAbsolutePath(String(env.KIMI_CODE_HOME || "")) || path.join(homeDir, ".kimi-code");
+
+export const resolveKimiConfigPath = (
+  env: NodeJS.ProcessEnv = process.env,
+  homeDir = getCliConfigHome()
+) => path.join(resolveKimiHome(env, homeDir), "config.toml");
+
 export const getCliConfigPaths = (toolId: string) => {
   const tool = CLI_TOOLS[toolId];
   if (!tool) return null;
+
+  if (toolId === "kimi") {
+    return {
+      config: resolveKimiConfigPath(),
+    };
+  }
 
   if (toolId === "omp") {
     // Every spelling is listed so the config-footprint check sees a `.yaml` user too.

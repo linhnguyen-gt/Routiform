@@ -11,6 +11,7 @@ import {
 import { getClaudeCliConfigStatus } from "@/shared/services/claudeCodeConfig";
 import { hasRoutiformCodexConfig, hasUsableCodexAuth } from "@/shared/services/codexConfigToml";
 import { hasRoutiformHermesConfig } from "@/shared/services/hermesConfigYaml";
+import { hasRoutiformKimiConfig } from "@/shared/services/kimiConfigToml";
 import { hasRoutiformOmpConfig } from "@/shared/services/ompConfig";
 import { load as loadYaml } from "js-yaml";
 import { getAllCliToolLastConfigured } from "@/lib/db/cliToolState";
@@ -52,6 +53,12 @@ async function checkToolConfigStatus(toolId: string): Promise<string> {
       }
 
       return "configured";
+    }
+
+    // Kimi Code also uses TOML, and only the provider block proves Routiform is wired in —
+    // default_model alone can name a model the user picked from somebody else's provider.
+    if (toolId === "kimi") {
+      return hasRoutiformKimiConfig(content) ? "configured" : "not_configured";
     }
 
     // Hermes stores its config as YAML, so it never reaches the JSON branch below
@@ -156,6 +163,7 @@ export async function GET() {
       "kilo",
       "hermes",
       "omp",
+      "kimi",
     ];
 
     await Promise.all(
