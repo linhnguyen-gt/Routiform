@@ -671,7 +671,8 @@
       "windsurf": "Use when coding in Windsurf and routing OpenAI-compatible models through Routiform.",
       "qwen": "Gunakan apabila anda menjalankan Qwen Code dalam terminal dan menghalakan permintaan serasi OpenAI melalui Routiform.",
       "omp": "Gunakan apabila anda menjalankan ejen pengekodan omp dalam terminal dengan LSP, subejen dan mod rancangan, serta menghalakan modelnya melalui Routiform.",
-      "kimi": "Gunakan apabila anda menjalankan Kimi Code dalam terminal dan menghalakan permintaan serasi OpenAI melalui Routiform."
+      "kimi": "Gunakan apabila anda menjalankan Kimi Code dalam terminal dan menghalakan permintaan serasi OpenAI melalui Routiform.",
+      "grok": "Gunakan apabila anda menjalankan Grok Build dalam terminal dan menghalakan permintaan serasi OpenAI melalui Routiform."
     },
     "toolDescriptions": {
       "antigravity": "IDE Antigraviti Google dengan MITM",
@@ -689,7 +690,8 @@
       "copilot": "GitHub Copilot AI Assistant",
       "qwen": "Alibaba Qwen Code CLI (Terminal)",
       "omp": "Ejen pengekodan terminal Oh My Pi (omp)",
-      "kimi": "Moonshot Kimi Code CLI (Terminal)"
+      "kimi": "Moonshot Kimi Code CLI (Terminal)",
+      "grok": "xAI Grok Build CLI (Terminal)"
     },
     "guides": {
       "cursor": {

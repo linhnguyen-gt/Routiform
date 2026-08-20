@@ -66,6 +66,7 @@ which is the source of truth for this table:
 | **Qwen Code**      | `qwen`        | `qwen`     | guide      | npm                 |
 | **Oh My Pi**       | `omp`         | `omp`      | guide      | curl \| brew \| bun |
 | **Kimi Code**      | `kimi`        | `kimi`     | guide      | curl \| npm         |
+| **Grok Build**     | `grok`        | `grok`     | guide      | curl                |
 | **Kiro AI**        | `kiro`        | app/cli    | mitm       | desktop/CLI         |
 | **Cowork**         | `cowork`      | app        | custom     | desktop app         |
 | **Hermes**         | `hermes`      | `hermes`   | custom     | CLI                 |
@@ -75,11 +76,11 @@ which is the source of truth for this table:
 `/dashboard/agents` and `Settings > CLI Fingerprint` use `src/shared/constants/cliCompatProviders.ts`.
 This keeps provider IDs aligned with CLI cards and legacy IDs.
 
-| CLI ID                                                                                                                         | Fingerprint Provider ID |
-| ------------------------------------------------------------------------------------------------------------------------------ | ----------------------- |
-| `kilo`                                                                                                                         | `kilocode`              |
-| `copilot`                                                                                                                      | `github`                |
-| `claude` / `codex` / `antigravity` / `kiro` / `cursor` / `cline` / `opencode` / `droid` / `openclaw` / `qwen` / `omp` / `kimi` | same ID                 |
+| CLI ID                                                                                                                                  | Fingerprint Provider ID |
+| --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `kilo`                                                                                                                                  | `kilocode`              |
+| `copilot`                                                                                                                               | `github`                |
+| `claude` / `codex` / `antigravity` / `kiro` / `cursor` / `cline` / `opencode` / `droid` / `openclaw` / `qwen` / `omp` / `kimi` / `grok` | same ID                 |
 
 Legacy IDs still accepted for compatibility: `copilot`, `kimi-coding`. `kimi-coding` is the
 OAuth upstream provider and is unrelated to the `kimi` CLI tool ID above.
@@ -455,6 +456,44 @@ Or use the Routiform dashboard → **CLI Tools → Kimi Code → Save Config** (
 
 ---
 
+### Grok Build (grok)
+
+Grok Build keeps everything in one TOML file, `~/.grok/config.toml`, which `GROK_HOME`
+relocates wholesale. Each `[model.<alias>]` block is a complete provider — endpoint, key and
+context window together — and `default` inside `[models]` picks the alias to start on.
+
+```bash
+mkdir -p ~/.grok && cat > ~/.grok/config.toml << 'EOF'
+[model."routiform/cc/opus"]
+model = "cc/opus"
+base_url = "http://localhost:20128/v1"
+name = "Routiform cc/opus"
+api_key = "sk-your-routiform-key"
+context_window = 200000
+
+[models]
+default = "routiform/cc/opus"
+EOF
+```
+
+That snippet writes a fresh file. On a config that already exists — the installer writes
+`[cli]` and a `[[marketplace.sources]]` array there — merge the two blocks in by hand
+instead, or let Save Config below do it. `[models]` in particular holds `web_search`
+alongside `default`, so replacing the whole table costs the user that setting.
+
+Grok resolves credentials in the order `api_key`, `env_key`, cached `auth_provider` token,
+session token, `XAI_API_KEY`. An inline `api_key` therefore wins over a stale environment
+variable and no shell export is needed. `base_url` is used verbatim with
+`/chat/completions` appended, so it has to include `/v1`. `context_window` is what
+auto-compact measures against; 262144 is written for a model whose window Routiform could
+not resolve. An alias containing `/` must be quoted, hence `[model."routiform/cc/opus"]`.
+
+Or use the Routiform dashboard → **CLI Tools → Grok Build → Save Config** (saves config directly via `/api/cli-tools/guide-settings/grok`).
+
+**Test:** `grok -p "say hello" -m routiform/cc/opus`
+
+---
+
 ### Kiro CLI (Amazon)
 
 ```bash
@@ -548,12 +587,15 @@ curl -fsSL https://omp.sh/install | sh
 # Kimi Code
 curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash
 
+# Grok Build
+curl -fsSL https://x.ai/cli/install.sh | bash
+
 # Kiro CLI
 apt-get install -y unzip 2>/dev/null; curl -fsSL https://cli.kiro.dev/install | bash
 
 # Write configs. Each tool reads a different file in a different shape — see Step 4 above
 # for the full form of each; only the two simplest are inlined here.
-mkdir -p ~/.claude ~/.codex ~/.config/opencode ~/.continue ~/.qwen ~/.omp/agent ~/.kimi-code
+mkdir -p ~/.claude ~/.codex ~/.config/opencode ~/.continue ~/.qwen ~/.omp/agent ~/.kimi-code ~/.grok
 
 cat > ~/.claude/settings.json <<EOF
 { "env": { "ANTHROPIC_BASE_URL": "$ROUTIFORM_URL", "ANTHROPIC_AUTH_TOKEN": "$ROUTIFORM_KEY" } }

@@ -6,6 +6,7 @@ import { load as loadYaml, dump as dumpYaml } from "js-yaml";
 import {
   getCliConfigHome,
   getOpenCodeConfigPath,
+  resolveGrokConfigPath,
   resolveKimiConfigPath,
   resolveOmpWritePaths,
 } from "@/shared/services/cliRuntime";
@@ -14,6 +15,11 @@ import {
   removeRoutiformKimiConfig,
   toKimiModelAlias,
 } from "@/shared/services/kimiConfigToml";
+import {
+  applyRoutiformGrokConfig,
+  removeRoutiformGrokConfig,
+  toGrokModelAlias,
+} from "@/shared/services/grokConfigToml";
 import {
   applyRoutiformOmpModels,
   applyRoutiformOmpSettings,
@@ -107,6 +113,8 @@ export async function POST(request, { params }) {
         return await saveOmpConfig({ baseUrl, apiKey, model, models });
       case "kimi":
         return await saveKimiConfig({ baseUrl, apiKey, model, models });
+      case "grok":
+        return await saveGrokConfig({ baseUrl, apiKey, model, models });
       default:
         return NextResponse.json(
           { error: `Direct config save not supported for: ${toolId}` },
@@ -144,6 +152,8 @@ export async function DELETE(request: Request, { params }) {
         return await resetOmpConfig();
       case "kimi":
         return await resetKimiConfig();
+      case "grok":
+        return await resetGrokConfig();
       default:
         return NextResponse.json(
           { error: `Config reset not supported for: ${toolId}` },
@@ -476,7 +486,8 @@ async function saveOmpConfig({ baseUrl, apiKey, model, models }) {
   });
 }
 
-const readKimiToml = async (filePath: string) => {
+/** Shared by the TOML-configured CLIs: a config that does not exist yet reads as empty. */
+const readTomlConfig = async (filePath: string) => {
   try {
     return await fs.readFile(filePath, "utf-8");
   } catch (error) {
@@ -500,7 +511,7 @@ async function saveKimiConfig({ baseUrl, apiKey, model, models }) {
   // max_context_size is required on every Kimi model entry, and it drives the context meter.
   const { contextLengths } = await fetchModelTokenLimits([model, ...(models || [])]);
 
-  const existingConfig = await readKimiToml(configPath);
+  const existingConfig = await readTomlConfig(configPath);
   await createBackup("kimi", configPath);
 
   const nextConfig = applyRoutiformKimiConfig(existingConfig, {
@@ -522,7 +533,7 @@ async function saveKimiConfig({ baseUrl, apiKey, model, models }) {
 async function resetKimiConfig() {
   const configPath = resolveKimiConfigPath();
 
-  const existingConfig = await readKimiToml(configPath);
+  const existingConfig = await readTomlConfig(configPath);
   if (!existingConfig) {
     return NextResponse.json({ success: true, message: "No Kimi Code config to reset" });
   }
@@ -533,6 +544,58 @@ async function resetKimiConfig() {
   return NextResponse.json({
     success: true,
     message: `Routiform provider removed from ${configPath}`,
+    configPath,
+  });
+}
+
+/**
+ * Save Grok Build config to ~/.grok/config.toml.
+ *
+ * The file is edited as lines rather than parsed and rewritten, so `[cli]`, the
+ * `[[marketplace.sources]]` array, MCP servers and the user's own model entries come
+ * through untouched — only the managed `[model."routiform/…"]` entries and the `default`
+ * key inside `[models]` are rewritten.
+ */
+async function saveGrokConfig({ baseUrl, apiKey, model, models }) {
+  const configPath = resolveGrokConfigPath();
+  await fs.mkdir(path.dirname(configPath), { recursive: true });
+
+  // context_window drives Grok's auto-compact, so each entry carries the real window.
+  const { contextLengths } = await fetchModelTokenLimits([model, ...(models || [])]);
+
+  const existingConfig = await readTomlConfig(configPath);
+  await createBackup("grok", configPath);
+
+  const nextConfig = applyRoutiformGrokConfig(existingConfig, {
+    baseUrl,
+    apiKey,
+    model,
+    models,
+    contextLengths,
+  });
+  await fs.writeFile(configPath, nextConfig, "utf-8");
+
+  return NextResponse.json({
+    success: true,
+    message: `Grok Build config saved to ${configPath} — run grok and pick ${toGrokModelAlias(model)}`,
+    configPath,
+  });
+}
+
+async function resetGrokConfig() {
+  const configPath = resolveGrokConfigPath();
+
+  const existingConfig = await readTomlConfig(configPath);
+  if (!existingConfig) {
+    return NextResponse.json({ success: true, message: "No Grok Build config to reset" });
+  }
+
+  await createBackup("grok", configPath);
+  await fs.writeFile(configPath, removeRoutiformGrokConfig(existingConfig), "utf-8");
+
+  return NextResponse.json({
+    success: true,
+    message: `Routiform models removed from ${configPath}`,
     configPath,
   });
 }
