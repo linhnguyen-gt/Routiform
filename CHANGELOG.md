@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [6.2.0](https://github.com/linhnguyen-gt/Routiform/compare/v6.1.0...v6.2.0) (2026-08-20)
+
+
+### Features
+
+* **cli-tools:** add Grok Build to the CLI tools catalog ([f80009a](https://github.com/linhnguyen-gt/Routiform/commit/f80009a4e3524de2987e7678467a9f5e81b7e6d2))
+* **cli-tools:** add Kimi Code with managed config.toml writes ([aa8ece1](https://github.com/linhnguyen-gt/Routiform/commit/aa8ece15ce443ba20a7fc517b9e2f03e57c51e11))
+* **cli-tools:** add Oh My Pi with managed models.yml and config.yml writes ([3497544](https://github.com/linhnguyen-gt/Routiform/commit/3497544c60f1e5f41cf0b2d49e1763dd18517563))
+
+
+### Bug Fixes
+
+* **cli-tools:** back up a config file before every write, not only on save ([446db63](https://github.com/linhnguyen-gt/Routiform/commit/446db63b1e84db3041a4ff7ead239a8e4790df44))
+* **cli-tools:** show config status on cards without a dedicated one ([fd1e805](https://github.com/linhnguyen-gt/Routiform/commit/fd1e80554a01b06661d9addad8ba8b9b589d1c79))
+* **cli-tools:** stop a managed TOML write from damaging the rest of the file ([2ad6f2b](https://github.com/linhnguyen-gt/Routiform/commit/2ad6f2b50a9ec81e970516c4a0a25e2d43365961))
+* **cli-tools:** treat an array-of-tables header as a header when editing TOML ([f2987c5](https://github.com/linhnguyen-gt/Routiform/commit/f2987c502a82490c09108b99d74fc6ec4b21793a))
+* **combo:** resolve idempotency at the ingress, not per upstream attempt ([59bda95](https://github.com/linhnguyen-gt/Routiform/commit/59bda95bee0e02f430b5d41459e5c5afa273665f))
+* **dedup:** fingerprint the request in whatever format it reaches the upstream ([eb7a9f5](https://github.com/linhnguyen-gt/Routiform/commit/eb7a9f57bc8a8af942452e597c2bbeef2432ed13))
+* **docker:** mount the config directories full mode was missing ([50d77a5](https://github.com/linhnguyen-gt/Routiform/commit/50d77a53f7bd22787afe9a695b68c404df97f67d))
+* **sse:** default an omitted stream flag to JSON, as the OpenAI schema does ([76ff6d6](https://github.com/linhnguyen-gt/Routiform/commit/76ff6d62dd3d73cbe7c987e3280185c250412288)), closes [#656](https://github.com/linhnguyen-gt/Routiform/issues/656)
+* **sse:** recover the reply Codex streams only as output_text deltas ([89aa6ce](https://github.com/linhnguyen-gt/Routiform/commit/89aa6cea2c15106502edf13b68dce6eeec36e569))
+
 ## [6.1.0](https://github.com/linhnguyen-gt/Routiform/compare/v6.0.1...v6.1.0) (2026-08-14)
 
 
