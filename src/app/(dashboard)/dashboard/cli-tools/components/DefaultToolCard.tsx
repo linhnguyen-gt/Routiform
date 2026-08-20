@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { copyToClipboard } from "@/shared/utils/clipboard";
 import { mergeOpenCodeConfig } from "@/shared/services/opencodeConfig";
 import { OMP_PROVIDER_ID } from "@/shared/services/ompConfig";
+import CliStatusBadge from "./CliStatusBadge";
 import { applyRoutiformGrokConfig } from "@/shared/services/grokConfigToml";
 import { applyRoutiformKimiConfig } from "@/shared/services/kimiConfigToml";
 
@@ -40,6 +41,7 @@ export default function DefaultToolCard({
   activeProviders = [],
   cloudEnabled = false,
   batchStatus,
+  lastConfiguredAt = null,
 }) {
   const t = useTranslations("cliTools");
   // next-intl does not throw on a missing message — it reports through onError and renders
@@ -817,48 +819,10 @@ ${ompModelIds.map((id) => `      - id: ${id}\n        name: ${id}`).join("\n")}
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="font-medium text-sm">{tool.name}</h3>
-              {(() => {
-                // Use runtime status if available (after expanding), otherwise use batch status
-                const rs = runtimeStatus;
-                const bs = batchStatus;
-                const isGuide = rs?.reason === "not_required" || tool.configType === "guide";
-                const isDetected = rs ? rs.installed && rs.runnable : bs?.installed && bs?.runnable;
-                const isInstalled = rs ? rs.installed : bs?.installed;
-
-                if (isGuide) {
-                  return (
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                      <span className="size-1.5 rounded-full bg-blue-500" />
-                      {t("guide")}
-                    </span>
-                  );
-                }
-                if (isDetected) {
-                  return (
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium rounded-full bg-green-500/10 text-green-600 dark:text-green-400">
-                      <span className="size-1.5 rounded-full bg-green-500" />
-                      {t("detected")}
-                    </span>
-                  );
-                }
-                if (isInstalled === false && (rs || bs)) {
-                  return (
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium rounded-full bg-zinc-500/10 text-zinc-500 dark:text-zinc-400">
-                      <span className="size-1.5 rounded-full bg-zinc-400 dark:bg-zinc-500" />
-                      {t("notInstalled")}
-                    </span>
-                  );
-                }
-                if (isInstalled && !isDetected && (rs || bs)) {
-                  return (
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium rounded-full bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
-                      <span className="size-1.5 rounded-full bg-yellow-500" />
-                      {t("notReady")}
-                    </span>
-                  );
-                }
-                return null;
-              })()}
+              {/* One badge, the same one the dedicated cards use. The header used to
+                  carry a second pill for install state, which duplicated the runtime
+                  block shown when the card is expanded. */}
+              <CliStatusBadge batchStatus={batchStatus} lastConfiguredAt={lastConfiguredAt} />
             </div>
             <p className="text-xs text-text-muted truncate">
               {translateOrFallback(`toolDescriptions.${toolId}`, tool.description)}

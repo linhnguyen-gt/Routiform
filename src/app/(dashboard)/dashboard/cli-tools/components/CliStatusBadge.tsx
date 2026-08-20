@@ -36,7 +36,9 @@ function formatRelativeTime(
 }
 
 export default function CliStatusBadge({
-  effectiveConfigStatus,
+  // Optional: a card that probes its own config passes it, one that relies on the batch
+  // status endpoint alone does not. The fallback below handles both.
+  effectiveConfigStatus = null,
   batchStatus,
   lastConfiguredAt = null,
 }) {
