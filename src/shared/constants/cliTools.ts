@@ -407,6 +407,46 @@ models:
 {{kimiConfig}}`,
     },
   },
+  grok: {
+    id: "grok",
+    name: "Grok Build",
+    image: "/providers/grok.svg",
+    color: "#000000",
+    description: "xAI Grok Build CLI (Terminal)",
+    docsUrl: "https://docs.x.ai/build/overview",
+    configType: "guide",
+    defaultCommand: "grok",
+    notes: [
+      {
+        type: "warning",
+        text: "Config path: ~/.grok/config.toml on every platform. GROK_HOME relocates the whole directory.",
+      },
+      {
+        type: "info",
+        text: "Grok resolves credentials api_key first, so the key is written into config.toml and no XAI_API_KEY export is needed. Models appear as routiform/<model> in /model.",
+      },
+    ],
+    guideSteps: [
+      {
+        step: 1,
+        title: "Install Grok Build",
+        desc: "curl -fsSL https://x.ai/cli/install.sh | bash",
+      },
+      { step: 2, title: "API Key", type: "apiKeySelector" },
+      { step: 3, title: "Base URL", value: "{{baseUrl}}", copyable: true },
+      { step: 4, title: "Select Model", type: "modelSelector" },
+      {
+        step: 5,
+        title: "Save Config",
+        desc: "Click Save Config below to write config.toml automatically.",
+      },
+    ],
+    codeBlock: {
+      language: "toml",
+      code: `# ~/.grok/config.toml
+{{grokConfig}}`,
+    },
+  },
   kiro: {
     id: "kiro",
     name: "Kiro AI",

@@ -187,11 +187,7 @@ export const removeTomlSectionsWhere = (
   return ranges.length;
 };
 
-export const parseTomlRootValue = (lines: string[], key: string): string | null => {
-  const keyIndexes = findRootKeyIndexes(lines, key);
-  if (keyIndexes.length === 0) return null;
-
-  const line = lines[keyIndexes[0]];
+const parseAssignedValue = (line: string): string | null => {
   const match = line.match(/^\s*[^=]+\s*=\s*(.+)\s*$/);
   if (!match) return null;
 
@@ -203,6 +199,81 @@ export const parseTomlRootValue = (lines: string[], key: string): string | null 
     return rawValue.slice(1, -1);
   }
   return rawValue;
+};
+
+export const parseTomlRootValue = (lines: string[], key: string): string | null => {
+  const keyIndexes = findRootKeyIndexes(lines, key);
+  if (keyIndexes.length === 0) return null;
+  return parseAssignedValue(lines[keyIndexes[0]]);
+};
+
+const keyMatcher = (key: string) =>
+  new RegExp(`^\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*=`);
+
+/**
+ * A section this module edits key by key rather than wholesale, because the table holds
+ * the user's settings alongside the managed one — Grok keeps `web_search` next to
+ * `default` in `[models]`, and replacing the section would take it with it.
+ */
+const findSectionKeyIndex = (lines: string[], sectionName: string, key: string) => {
+  const [range] = findSectionRanges(lines, (name) => name === sectionName);
+  if (!range) return { range: null, index: -1 };
+
+  const matcher = keyMatcher(key);
+  for (let cursor = range.start + 1; cursor < range.end; cursor += 1) {
+    if (matcher.test(lines[cursor])) return { range, index: cursor };
+  }
+  return { range, index: -1 };
+};
+
+export const parseTomlSectionValue = (
+  lines: string[],
+  sectionName: string,
+  key: string
+): string | null => {
+  const { index } = findSectionKeyIndex(lines, sectionName, key);
+  return index === -1 ? null : parseAssignedValue(lines[index]);
+};
+
+export const upsertTomlSectionKey = (
+  lines: string[],
+  sectionName: string,
+  key: string,
+  value: string
+) => {
+  const nextLine = `${key} = ${toTomlString(value)}`;
+  const { range, index } = findSectionKeyIndex(lines, sectionName, key);
+
+  if (index !== -1) {
+    lines[index] = nextLine;
+    return;
+  }
+
+  if (range) {
+    lines.splice(range.start + 1, 0, nextLine);
+    return;
+  }
+
+  upsertTomlSection(lines, sectionName, [`[${sectionName}]`, nextLine]);
+};
+
+/**
+ * Drops the key, and the section with it once nothing but the header is left — an empty
+ * `[models]` the reset created itself is litter, while one the user still has keys in stays.
+ */
+export const removeTomlSectionKey = (lines: string[], sectionName: string, key: string) => {
+  const { range, index } = findSectionKeyIndex(lines, sectionName, key);
+  if (!range || index === -1) return;
+
+  lines.splice(index, 1);
+
+  const [nextRange] = findSectionRanges(lines, (name) => name === sectionName);
+  if (!nextRange) return;
+
+  for (let cursor = nextRange.start + 1; cursor < nextRange.end; cursor += 1) {
+    if (lines[cursor].trim() !== "") return;
+  }
+  lines.splice(nextRange.start, nextRange.end - nextRange.start);
 };
 
 export const finalizeTomlLines = (lines: string[]) => {

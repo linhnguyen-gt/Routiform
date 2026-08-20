@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { copyToClipboard } from "@/shared/utils/clipboard";
 import { mergeOpenCodeConfig } from "@/shared/services/opencodeConfig";
 import { OMP_PROVIDER_ID } from "@/shared/services/ompConfig";
+import { applyRoutiformGrokConfig } from "@/shared/services/grokConfigToml";
 import { applyRoutiformKimiConfig } from "@/shared/services/kimiConfigToml";
 
 function parseModelList(value) {
@@ -73,9 +74,10 @@ export default function DefaultToolCard({
   const isOpenCode = toolId === "opencode";
   const isOmp = toolId === "omp";
   const isKimi = toolId === "kimi";
+  const isGrok = toolId === "grok";
   // Tools whose config takes a list of models, so the selector adds chips instead of
   // replacing the single value.
-  const isMultiModel = isOpenCode || isOmp || isKimi;
+  const isMultiModel = isOpenCode || isOmp || isKimi || isGrok;
   const primaryModelValue = isMultiModel ? modelValues[0] || "" : modelValue;
   const substitutionVars = useMemo(() => {
     const keyToUse =
@@ -141,15 +143,31 @@ ${ompModelIds.map((id) => `      - id: ${id}\n        name: ${id}`).join("\n")}
 
     // Same deal as the omp preview: the real write resolves each model's context window,
     // which this snippet cannot, so it shows the default Kimi would have applied itself.
-    const kimiModel = primaryModelValue || t("modelPlaceholder");
+    const previewModel = primaryModelValue || t("modelPlaceholder");
     let kimiConfig = "";
     if (isKimi) {
       try {
         kimiConfig = applyRoutiformKimiConfig("", {
           baseUrl: baseUrlWithV1,
           apiKey: keyToUse,
-          model: kimiModel,
-          models: modelValues.length > 0 ? modelValues : [kimiModel],
+          model: previewModel,
+          models: modelValues.length > 0 ? modelValues : [previewModel],
+        });
+      } catch {
+        // A model id the TOML writer refuses is reported by Save Config, not by a blank card.
+      }
+    }
+
+    // Same deal as the Kimi preview: the real write resolves each model's context window,
+    // which this snippet cannot, so it shows the default Grok would fall back to.
+    let grokConfig = "";
+    if (isGrok) {
+      try {
+        grokConfig = applyRoutiformGrokConfig("", {
+          baseUrl: baseUrlWithV1,
+          apiKey: keyToUse,
+          model: previewModel,
+          models: modelValues.length > 0 ? modelValues : [previewModel],
         });
       } catch {
         // A model id the TOML writer refuses is reported by Save Config, not by a blank card.
@@ -165,6 +183,7 @@ ${ompModelIds.map((id) => `      - id: ${id}\n        name: ${id}`).join("\n")}
       ompModels,
       ompSettings,
       kimiConfig,
+      grokConfig,
     };
   }, [
     selectedApiKey,
@@ -175,6 +194,7 @@ ${ompModelIds.map((id) => `      - id: ${id}\n        name: ${id}`).join("\n")}
     isOpenCode,
     isOmp,
     isKimi,
+    isGrok,
     t,
   ]);
 
@@ -354,9 +374,11 @@ ${ompModelIds.map((id) => `      - id: ${id}\n        name: ${id}`).join("\n")}
   };
 
   // Check if this tool supports direct config file write
-  const supportsDirectSave = ["continue", "opencode", "qwen", "omp", "kimi"].includes(toolId);
+  const supportsDirectSave = ["continue", "opencode", "qwen", "omp", "kimi", "grok"].includes(
+    toolId
+  );
   // Reset unwinds a write, so it is offered only where the route can perform one.
-  const supportsReset = ["continue", "opencode", "qwen", "omp", "kimi"].includes(toolId);
+  const supportsReset = ["continue", "opencode", "qwen", "omp", "kimi", "grok"].includes(toolId);
 
   const renderApiKeySelector = () => {
     return (

@@ -56,6 +56,8 @@ services:
       - ${HOME}/.omp:/root/.omp
       - ${HOME}/.kimi-code:/host-home/.kimi-code
       - ${HOME}/.kimi-code:/root/.kimi-code
+      - ${HOME}/.grok:/host-home/.grok
+      - ${HOME}/.grok:/root/.grok
       - ${HOME}/.hermes:/host-home/.hermes
       - ${HOME}/.hermes:/root/.hermes
       - ${HOME}/.qoder:/host-home/.qoder

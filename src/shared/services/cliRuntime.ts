@@ -141,6 +141,16 @@ const CLI_TOOLS: Record<string, Record<string, unknown>> = {
       config: ".kimi-code/config.toml",
     },
   },
+  grok: {
+    defaultCommand: "grok",
+    envBinKey: "CLI_GROK_BIN",
+    requiresBinary: true,
+    healthcheckTimeoutMs: 12000,
+    // Resolved through resolveGrokConfigPath — GROK_HOME relocates the whole directory.
+    paths: {
+      config: ".grok/config.toml",
+    },
+  },
   qoder: {
     defaultCommand: "qodercli",
     envBinKey: "CLI_QODER_BIN",
@@ -461,6 +471,11 @@ const getKnownToolPaths = (toolId: string): string[] => {
       ["omp.cmd", "omp"],
     ],
     kimi: [["kimi.cmd", "kimi"]],
+    // The xAI installer drops a native binary; npm-based setups leave a shim beside it.
+    grok: [
+      ["grok.exe", "grok"],
+      ["grok.cmd", "grok"],
+    ],
   };
 
   const bins = toolBins[toolId] || [];
@@ -920,6 +935,20 @@ export const resolveKimiConfigPath = (
   homeDir = getCliConfigHome()
 ) => path.join(resolveKimiHome(env, homeDir), "config.toml");
 
+/**
+ * Grok Build keeps its whole data directory under `~/.grok`, and `GROK_HOME` relocates
+ * that directory wholesale. The file inside it is always named `config.toml`.
+ */
+export const resolveGrokHome = (
+  env: NodeJS.ProcessEnv = process.env,
+  homeDir = getCliConfigHome()
+) => normalizeSafeAbsolutePath(String(env.GROK_HOME || "")) || path.join(homeDir, ".grok");
+
+export const resolveGrokConfigPath = (
+  env: NodeJS.ProcessEnv = process.env,
+  homeDir = getCliConfigHome()
+) => path.join(resolveGrokHome(env, homeDir), "config.toml");
+
 export const getCliConfigPaths = (toolId: string) => {
   const tool = CLI_TOOLS[toolId];
   if (!tool) return null;
@@ -927,6 +956,12 @@ export const getCliConfigPaths = (toolId: string) => {
   if (toolId === "kimi") {
     return {
       config: resolveKimiConfigPath(),
+    };
+  }
+
+  if (toolId === "grok") {
+    return {
+      config: resolveGrokConfigPath(),
     };
   }
 

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Grok">
+  <rect width="128" height="128" rx="26" fill="#000000" />
+  <g fill="#ffffff">
+    <!-- Long diagonal, bottom-left to top-right -->
+    <path d="M30 100 L84 28 h14 L44 100 Z" />
+    <!-- Anti-diagonal, upper segment -->
+    <path d="M30 28 h14 L62 52 l-7 9 Z" />
+    <!-- Anti-diagonal, lower segment: the upper one mirrored through the centre -->
+    <path d="M98 100 h-14 L66 76 l7 -9 Z" />
+  </g>
+</svg>
