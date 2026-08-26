@@ -5,6 +5,8 @@ import {
   mergeStreamedTextIntoOutput,
 } from "../utils/responses-output-text.ts";
 
+/** Overlap dedupe only inspects the last 8KB of previously accumulated text. */
+const MAX_OVERLAP_SCAN_CHARS = 8 * 1024;
 /**
  * Convert OpenAI-style SSE chunks into a single non-streaming JSON response.
  * Used as a fallback when upstream returns text/event-stream for stream=false.
@@ -135,7 +137,11 @@ function appendTextPart(parts, chunk) {
   }
 
   // Deduplicate overlap when snapshots partially repeat prior output.
-  const maxOverlap = Math.min(previous.length, chunk.length);
+  // Only the tail of `previous` is scanned: comparing against the full history
+  // is quadratic for long streams, and a repeated prefix longer than the
+  // window is a pathological upstream we accept duplicating instead of
+  // burning O(n²) time on.
+  const maxOverlap = Math.min(previous.length, chunk.length, MAX_OVERLAP_SCAN_CHARS);
   for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
     if (previous.slice(previous.length - overlap) === chunk.slice(0, overlap)) {
       parts.push(chunk.slice(overlap));

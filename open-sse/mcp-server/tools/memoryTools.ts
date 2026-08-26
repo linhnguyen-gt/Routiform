@@ -2,14 +2,32 @@ import { z } from "zod";
 import { retrieveMemories } from "@/lib/memory/retrieval";
 import { createMemory, deleteMemory, listMemories } from "@/lib/memory/store";
 import { MemoryType } from "@/lib/memory/types";
+import type { McpToolExtraLike } from "../scopeEnforcement.ts";
 import { memorySearchInput, memoryAddInput, memoryClearInput } from "../schemas/memory.ts";
+
+/**
+ * Resolve the caller's own API key id from the session-bound authInfo the HTTP transport
+ * binds after bearer-key validation. Memory tools are strictly per-key: there is no way to
+ * address another key's memories.
+ */
+function requireCallerKeyId(extra?: McpToolExtraLike): string {
+  const clientId = extra?.authInfo?.clientId;
+  if (typeof clientId !== "string" || !clientId.trim()) {
+    throw new Error(
+      "Unauthorized: no authenticated API key identity bound to this session; memory tools are unavailable"
+    );
+  }
+  return clientId;
+}
 
 export const memoryTools = {
   routiform_memory_search: {
     name: "routiform_memory_search",
-    description: "Search memories by query, type, or API key with token budget enforcement",
+    description:
+      "Search the authenticated API key's own memories by query or type, with token budget enforcement",
     inputSchema: memorySearchInput,
-    handler: async (args: z.infer<typeof memorySearchInput>) => {
+    handler: async (args: z.infer<typeof memorySearchInput>, extra?: McpToolExtraLike) => {
+      const apiKeyId = requireCallerKeyId(extra);
       const config = {
         enabled: true,
         maxTokens: args.maxTokens || 2000,
@@ -20,7 +38,7 @@ export const memoryTools = {
         scope: "apiKey" as const,
       };
 
-      const memories = await retrieveMemories(args.apiKeyId, config);
+      const memories = await retrieveMemories(apiKeyId, config);
 
       const filtered = args.type ? memories.filter((m) => m.type === args.type) : memories;
 
@@ -39,11 +57,12 @@ export const memoryTools = {
 
   routiform_memory_add: {
     name: "routiform_memory_add",
-    description: "Add a new memory entry",
+    description: "Add a memory entry scoped to the authenticated API key",
     inputSchema: memoryAddInput,
-    handler: async (args: z.infer<typeof memoryAddInput>) => {
+    handler: async (args: z.infer<typeof memoryAddInput>, extra?: McpToolExtraLike) => {
+      const apiKeyId = requireCallerKeyId(extra);
       const memory = await createMemory({
-        apiKeyId: args.apiKeyId,
+        apiKeyId,
         sessionId: args.sessionId || "",
         type: args.type as MemoryType,
         key: args.key,
@@ -64,11 +83,13 @@ export const memoryTools = {
 
   routiform_memory_clear: {
     name: "routiform_memory_clear",
-    description: "Clear memories for an API key, optionally filtered by type or age",
+    description:
+      "Clear the authenticated API key's own memories, optionally filtered by type or age",
     inputSchema: memoryClearInput,
-    handler: async (args: z.infer<typeof memoryClearInput>) => {
+    handler: async (args: z.infer<typeof memoryClearInput>, extra?: McpToolExtraLike) => {
+      const apiKeyId = requireCallerKeyId(extra);
       const memories = await listMemories({
-        apiKeyId: args.apiKeyId,
+        apiKeyId,
         type: args.type as MemoryType | undefined,
       });
 

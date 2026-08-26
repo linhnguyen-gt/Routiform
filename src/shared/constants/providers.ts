@@ -91,6 +91,7 @@ export const USAGE_SUPPORTED_PROVIDERS = [
   "claude",
   "kimi-coding",
   "glm",
+  "xai",
 ];
 
 validateProviders(FREE_PROVIDERS, "FREE_PROVIDERS");

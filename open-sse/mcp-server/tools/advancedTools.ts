@@ -32,8 +32,10 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<unknow
   };
   const response = await fetch(url, { ...options, headers, signal: AbortSignal.timeout(30000) });
   if (!response.ok) {
-    const text = await response.text().catch(() => "Unknown error");
-    throw new Error(`API [${response.status}]: ${text}`);
+    // Log the upstream body server-side only; callers get a stable message without its contents.
+    const detail = await response.text().catch(() => "");
+    console.error(`[MCP] API ${response.status} ${path}:`, detail.slice(0, 500));
+    throw new Error(`API error [${response.status}]`);
   }
   return response.json();
 }

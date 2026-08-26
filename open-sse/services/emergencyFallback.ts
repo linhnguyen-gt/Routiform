@@ -9,6 +9,27 @@
  * automatic fallback when wallet is empty."
  */
 
+import { CREDITS_EXHAUSTED_SIGNALS } from "./accountFallback.ts";
+
+// Additions beyond CREDITS_EXHAUSTED_SIGNALS that budget fallback relies on.
+// The Portuguese variants matter because Brazilian resellers surface them.
+const EXTRA_BUDGET_KEYWORDS = [
+  "insufficient funds",
+  "insufficient_funds",
+  "budget exceeded",
+  "budget_exceeded",
+  "quota exceeded",
+  "quota_exceeded",
+  "billing",
+  "no credits",
+  "credit limit",
+  "spending limit",
+  "saldo insuficiente",
+  "limite de gastos",
+  "cota excedida",
+];
+
+
 export interface EmergencyFallbackConfig {
   enabled: boolean;
   provider: string;
@@ -27,23 +48,9 @@ export const EMERGENCY_FALLBACK_CONFIG: EmergencyFallbackConfig = {
   model: "openai/gpt-oss-120b",
   triggerOn402: true,
   triggerOnBudgetKeywords: true,
-  budgetKeywords: [
-    "insufficient funds",
-    "insufficient_funds",
-    "budget exceeded",
-    "budget_exceeded",
-    "quota exceeded",
-    "quota_exceeded",
-    "billing",
-    "payment required",
-    "out of credits",
-    "no credits",
-    "credit limit",
-    "spending limit",
-    "saldo insuficiente",
-    "limite de gastos",
-    "cota excedida",
-  ],
+  // Derived from the canonical credits-exhausted signals plus the extras this
+  // fallback has always matched — one source of truth for budget detection.
+  budgetKeywords: [...CREDITS_EXHAUSTED_SIGNALS, ...EXTRA_BUDGET_KEYWORDS],
   skipForToolRequests: true,
   maxOutputTokens: 4096,
 };

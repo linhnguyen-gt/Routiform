@@ -113,7 +113,6 @@ export type ChatCorePipeline = HandleChatCoreArgs & {
   parsedMessage?: string;
   parsedRetryAfterMs?: number | null;
   upstreamErrorBody?: unknown;
-  streamOptionsOnlyFailed?: boolean;
   /** Parsed JSON / SSE object for non-streaming success path (set by non-stream phase A). */
   nonStreamResponseBody?: unknown;
   nonStreamLooksLikeSse?: boolean;

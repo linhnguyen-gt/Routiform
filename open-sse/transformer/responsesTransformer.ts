@@ -6,6 +6,8 @@ import * as path from "path";
  * Can be used in both Next.js and Cloudflare Workers
  */
 
+import { consumeThinkContent, flushThinkContent } from "../utils/thinkTagStream.ts";
+
 // Dynamic import for Node.js-only modules (fs/path unavailable in Workers)
 let _fs = null;
 let _path = null;
@@ -111,6 +113,8 @@ export function createResponsesApiTransformStream(
     usage: null,
   };
 
+  // Per-stream instances to avoid shared state with concurrent streams
+  const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   const nextSeq = () => ++state.seq;
   let heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
@@ -135,8 +139,13 @@ export function createResponsesApiTransformStream(
       }
 
       const output = ": keep-alive\n\n";
-      logger?.logOutput(output.trim());
-      controller.enqueue(encoder.encode(output));
+      try {
+        logger?.logOutput(output.trim());
+        controller.enqueue(encoder.encode(output));
+      } catch {
+        // Stream was cancelled or errored between ticks; stop rescheduling.
+        return;
+      }
       scheduleHeartbeat(controller);
     }, heartbeatIntervalMs);
   };
@@ -338,13 +347,58 @@ export function createResponsesApiTransformStream(
     }
   };
 
+  // Emit assistant output_text for a message index, opening the item and
+  // content part lazily on first text.
+  const emitTextDelta = (controller, idx, content) => {
+    if (!content) return;
+    if (!state.msgItemAdded[idx]) {
+      state.msgItemAdded[idx] = true;
+      const msgId = `msg_${state.responseId}_${idx}`;
+
+      emit(controller, "response.output_item.added", {
+        type: "response.output_item.added",
+        output_index: idx,
+        item: { id: msgId, type: "message", content: [], role: "assistant" },
+      });
+    }
+
+    if (!state.msgContentAdded[idx]) {
+      state.msgContentAdded[idx] = true;
+
+      emit(controller, "response.content_part.added", {
+        type: "response.content_part.added",
+        item_id: `msg_${state.responseId}_${idx}`,
+        output_index: idx,
+        content_index: 0,
+        part: { type: "output_text", annotations: [], logprobs: [], text: "" },
+      });
+    }
+
+    emit(controller, "response.output_text.delta", {
+      type: "response.output_text.delta",
+      item_id: `msg_${state.responseId}_${idx}`,
+      output_index: idx,
+      content_index: 0,
+      delta: content,
+      logprobs: [],
+    });
+
+    if (!state.msgTextBuf[idx]) state.msgTextBuf[idx] = "";
+    state.msgTextBuf[idx] += content;
+  };
+
+  // The literal below carries the web-standard cancel() hook, which the bundled
+  // lib.dom Transformer dictionary does not declare yet — hence the assertion.
   return new TransformStream({
     start(controller) {
       scheduleHeartbeat(controller);
     },
+    cancel() {
+      clearHeartbeat();
+    },
 
     transform(chunk, controller) {
-      const text = new TextDecoder().decode(chunk);
+      const text = decoder.decode(chunk, { stream: true });
       logger?.logInput(text.trim());
       state.buffer += text;
       scheduleHeartbeat(controller);
@@ -414,68 +468,17 @@ export function createResponsesApiTransformStream(
           emitReasoningDelta(controller, delta.reasoning_content);
         }
 
-        // Handle text content (may contain <think> tags)
+        // Handle text content. <think> spans are routed to reasoning by the
+        // stateful splitter: partial markers are buffered across chunks, and a
+        // literal "<think>" in prose (or an unterminated span) survives verbatim.
         if (delta.content) {
-          let content = delta.content;
-
-          if (content.includes("<think>")) {
-            state.inThinking = true;
-            content = content.replaceAll("<think>", "");
+          const split = consumeThinkContent(state, delta.content);
+          if (split.reasoning) {
             startReasoning(controller, idx);
+            emitReasoningDelta(controller, split.reasoning);
           }
-
-          if (content.includes("</think>")) {
-            const parts = content.split("</think>");
-            const thinkPart = parts[0];
-            const textPart = parts.slice(1).join("</think>");
-
-            if (thinkPart) emitReasoningDelta(controller, thinkPart);
-            closeReasoning(controller);
-            state.inThinking = false;
-            content = textPart;
-          }
-
-          if (state.inThinking && content) {
-            emitReasoningDelta(controller, content);
-            continue;
-          }
-
-          // Regular text content
-          if (content) {
-            if (!state.msgItemAdded[idx]) {
-              state.msgItemAdded[idx] = true;
-              const msgId = `msg_${state.responseId}_${idx}`;
-
-              emit(controller, "response.output_item.added", {
-                type: "response.output_item.added",
-                output_index: idx,
-                item: { id: msgId, type: "message", content: [], role: "assistant" },
-              });
-            }
-
-            if (!state.msgContentAdded[idx]) {
-              state.msgContentAdded[idx] = true;
-
-              emit(controller, "response.content_part.added", {
-                type: "response.content_part.added",
-                item_id: `msg_${state.responseId}_${idx}`,
-                output_index: idx,
-                content_index: 0,
-                part: { type: "output_text", annotations: [], logprobs: [], text: "" },
-              });
-            }
-
-            emit(controller, "response.output_text.delta", {
-              type: "response.output_text.delta",
-              item_id: `msg_${state.responseId}_${idx}`,
-              output_index: idx,
-              content_index: 0,
-              delta: content,
-              logprobs: [],
-            });
-
-            if (!state.msgTextBuf[idx]) state.msgTextBuf[idx] = "";
-            state.msgTextBuf[idx] += content;
+          if (split.text) {
+            emitTextDelta(controller, idx, split.text);
           }
         }
 
@@ -545,6 +548,11 @@ export function createResponsesApiTransformStream(
 
     flush(controller) {
       clearHeartbeat();
+      state.buffer += decoder.decode();
+      // Bytes the <think> splitter still held were never part of a closed
+      // span — restore them verbatim as output text before closing.
+      const heldThinkText = flushThinkContent(state);
+      if (heldThinkText) emitTextDelta(controller, 0, heldThinkText);
       for (const i in state.msgItemAdded) closeMessage(controller, i);
       closeReasoning(controller);
       for (const i in state.funcCallIds) closeToolCall(controller, i);
@@ -554,5 +562,5 @@ export function createResponsesApiTransformStream(
       controller.enqueue(encoder.encode("data: [DONE]\n\n"));
       logger?.flush();
     },
-  });
+  } as unknown as Transformer<Uint8Array, Uint8Array>);
 }

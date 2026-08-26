@@ -1,10 +1,32 @@
-import { getCachedResponse, generateSignature, isCacheable } from "../../../src/lib/semanticCache.ts";
+import {
+  getCachedResponse,
+  generateSignature,
+  isCacheable,
+} from "../../../src/lib/semanticCache.ts";
 import { getCorsOrigin } from "../../utils/cors.ts";
 
 /**
  * Semantic cache handler phase
  * Extracted from chatCore.ts for better modularity
  */
+
+/**
+ * Build the canonical semantic-cache signature for a request body.
+ *
+ * Both the lookup path (this handler) and the store path
+ * (chatCorePhaseNonStreamComplete) MUST go through this helper so they sign
+ * with identical normalization — previously lookup passed `undefined` for a
+ * missing temperature/top_p while store coerced with `Number(x ?? 0)`, so the
+ * two paths could disagree and cache entries were stored but never hit.
+ */
+export function buildSemanticCacheSignature(model: string, body: Record<string, unknown>): string {
+  return generateSignature(
+    model,
+    body.messages,
+    typeof body.temperature === "number" ? body.temperature : 0,
+    typeof body.top_p === "number" ? body.top_p : 1
+  );
+}
 
 /**
  * Checks semantic cache for a matching response
@@ -28,12 +50,7 @@ export function checkSemanticCache(
     return null;
   }
 
-  const signature = generateSignature(
-    model,
-    body.messages,
-    typeof body.temperature === "number" ? body.temperature : undefined,
-    typeof body.top_p === "number" ? body.top_p : undefined
-  );
+  const signature = buildSemanticCacheSignature(model, body);
   const cached = getCachedResponse(signature);
 
   if (cached) {

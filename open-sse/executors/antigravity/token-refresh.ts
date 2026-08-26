@@ -3,7 +3,7 @@
  *
  * @module executors/antigravity/token-refresh
  */
-import { OAUTH_ENDPOINTS } from "../../config/constants.ts";
+import { getAccessToken } from "../../services/tokenRefresh.ts";
 import type { ProviderConfig } from "../base.ts";
 import type { AntigravityCredentials, AntigravityLog } from "./types.ts";
 
@@ -13,45 +13,35 @@ export type RefreshedAntigravityTokens = {
   expiresIn: number;
   projectId?: string;
 };
-
-type GoogleTokenResponse = {
-  access_token: string;
-  refresh_token?: string;
-  expires_in: number;
-};
-
-/** Returns null when there is nothing to refresh or the endpoint rejects the exchange. */
+/**
+ * Refresh via the centralized tokenRefresh service so concurrent 401-triggered
+ * refreshes for the same credential share one in-flight Google OAuth exchange
+ * (refreshPromiseCache dedup) instead of racing N parallel ones. The service's
+ * `antigravity` branch performs the identical refresh_token grant against
+ * OAUTH_ENDPOINTS.google.token with PROVIDERS.antigravity clientId/clientSecret
+ * (plus proxy support). The subscription cache key derives from the access
+ * token prefix, so token rotation stays safe.
+ *
+ * `config` is kept in the signature for backward compatibility with callers;
+ * the client id/secret now come from the provider registry inside the service.
+ */
 export async function refreshAntigravityTokens(
   config: ProviderConfig,
   credentials: AntigravityCredentials,
   log?: AntigravityLog
 ): Promise<RefreshedAntigravityTokens | null> {
+  void config;
   if (!credentials.refreshToken) return null;
 
   try {
-    const response = await fetch(OAUTH_ENDPOINTS.google.token, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: credentials.refreshToken,
-        client_id: config.clientId,
-        client_secret: config.clientSecret,
-      }),
-    });
+    const tokens = await getAccessToken("antigravity", credentials, log);
+    if (!tokens || !tokens.accessToken) return null;
 
-    if (!response.ok) return null;
-
-    const tokens = (await response.json()) as GoogleTokenResponse;
     log?.info?.("TOKEN", "Antigravity refreshed");
-
     return {
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token || credentials.refreshToken,
-      expiresIn: tokens.expires_in,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken || credentials.refreshToken,
+      expiresIn: tokens.expiresIn,
       projectId: credentials.projectId,
     };
   } catch (error) {

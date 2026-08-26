@@ -127,6 +127,17 @@ function normalizeAntigravityToolName(name: unknown): string {
   return namespaceIndex >= 0 ? trimmed.slice(namespaceIndex + 1) : trimmed;
 }
 
+// Consume and strip the internal marker injected by services/thinkingBudget.ts.
+// This file is its only reader; leaving it on the request body would ship an
+// unknown field upstream whenever a CUSTOM/ADAPTIVE-mode body is forwarded to
+// another provider or through passthrough. Must run before openaiToGeminiBase
+// in every entry point below so the value is captured once, then removed.
+function consumeThinkingClientRequested(body) {
+  const requested = body.__thinkingClientRequested !== false;
+  delete body.__thinkingClientRequested;
+  return requested;
+}
+
 // Core: Convert OpenAI request to Gemini format (base for all variants)
 function openaiToGeminiBase(model, body, _stream) {
   const result: GeminiRequest = {
@@ -183,18 +194,23 @@ function openaiToGeminiBase(model, body, _stream) {
   }
 
   // Convert messages
+  // System/developer instructions collected in message order; assembled into
+  // a single systemInstruction after the loop.
+  const systemTexts: string[] = [];
   if (body.messages && Array.isArray(body.messages)) {
     for (let i = 0; i < body.messages.length; i++) {
       const msg = body.messages[i];
       const role = msg.role;
       const content = msg.content;
 
-      if (role === "system" && body.messages.length > 1) {
-        result.systemInstruction = {
-          role: "user",
-          parts: [{ text: typeof content === "string" ? content : extractTextContent(content) }],
-        };
-      } else if (role === "user" || (role === "system" && body.messages.length === 1)) {
+      if (role === "system" || role === "developer") {
+        // OpenAI's 'developer' role carries instructions exactly like 'system'
+        // (ref: openai-to-claude.ts treats both identically). Concatenate every
+        // occurrence in message order instead of overwriting — the previous
+        // last-wins assignment silently dropped all but the final system prompt.
+        const text = typeof content === "string" ? content : extractTextContent(content);
+        if (text) systemTexts.push(text);
+      } else if (role === "user") {
         const parts = convertOpenAIContentToParts(content);
         if (parts.length > 0) {
           result.contents.push({ role: "user", parts });
@@ -294,6 +310,12 @@ function openaiToGeminiBase(model, body, _stream) {
       }
     }
   }
+  if (systemTexts.length > 0) {
+    result.systemInstruction = {
+      role: "user",
+      parts: [{ text: systemTexts.join("\n\n") }],
+    };
+  }
 
   // Convert tools
   if (body.tools && Array.isArray(body.tools) && body.tools.length > 0) {
@@ -349,11 +371,13 @@ function openaiToGeminiBase(model, body, _stream) {
 
 // OpenAI -> Gemini (standard API)
 export function openaiToGeminiRequest(model, body, stream) {
+  consumeThinkingClientRequested(body);
   return openaiToGeminiBase(model, body, stream);
 }
 
 // OpenAI -> Gemini over Cloud Code Assist (Antigravity)
 export function openaiToCloudCodeGeminiRequest(model, body, stream) {
+  const clientRequestedThinking = consumeThinkingClientRequested(body);
   const gemini = openaiToGeminiBase(model, body, stream);
   const _isClaude = model.toLowerCase().includes("claude");
 
@@ -407,7 +431,6 @@ export function openaiToCloudCodeGeminiRequest(model, body, stream) {
       };
     }
   }
-
   // Thinking config from Claude format. body.thinking.budget_tokens is a
   // RAW, client-supplied value with no upper bound of its own (e.g. a
   // Claude-format client can send `budget_tokens: 200000`); it is passed
@@ -426,7 +449,6 @@ export function openaiToCloudCodeGeminiRequest(model, body, stream) {
   // PASSTHROUGH mode, or a genuine Claude-format client) defaults to true —
   // the safe, "try to honor it" behavior for an actual client ask.
   if (body.thinking?.type === "enabled" && body.thinking.budget_tokens && modelSupportsThinking) {
-    const clientRequestedThinking = body.__thinkingClientRequested !== false;
     const fit = fitGeminiThinkingBudget(
       model,
       resolveClientMaxTokens(body),

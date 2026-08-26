@@ -1,10 +1,13 @@
 import { v4 as uuidv4 } from "uuid";
 import { CONTEXT_CONFIG } from "../../src/shared/constants/context";
 import { PROVIDERS } from "../config/constants.ts";
-import { refreshKiroToken } from "../services/tokenRefresh.ts";
+import { getAccessToken } from "../services/tokenRefresh.ts";
 import { generateToolCallId } from "../translator/helpers/toolCallHelper.ts";
 import {
   BaseExecutor,
+  buildStreamTtfbGuard,
+  buildUpstreamSignal,
+  getRequestTimeoutMs,
   mergeUpstreamExtraHeaders,
   type ExecuteInput,
   type ExecutorLog,
@@ -29,6 +32,8 @@ type KiroStreamState = {
   contextUsagePercentage?: number;
   hasContextUsage?: boolean;
   hasMeteringEvent?: boolean;
+  /** messageStopEvent arrived — the finish chunk can be emitted once usage settles. */
+  messageStopSeen?: boolean;
   usage?: UsageSummary;
   /** Carry buffer for stripThinkingTags — a <thinking>/</thinking>/``` marker can straddle events. */
   thinkingBuffer: string;
@@ -243,13 +248,23 @@ export class KiroExecutor extends BaseExecutor {
     const headers = this.buildHeaders(credentials, stream);
     mergeUpstreamExtraHeaders(headers, upstreamExtraHeaders);
     const transformedBody = await this.transformRequest(model, body, stream, credentials);
+    // Bound the fetch by both the client-disconnect signal and the provider
+    // timeout — without the latter an unresponsive CodeWhisperer endpoint hung
+    // forever (the base-class timeout never reached this override). Streaming
+    // requests bound only time-to-first-byte so a healthy long-lived stream is
+    // never truncated mid-body; stall detection after headers is downstream's job.
+    const requestTimeoutMs = getRequestTimeoutMs(this.config);
+    const ttfbGuard = stream ? buildStreamTtfbGuard(signal ?? null, requestTimeoutMs) : null;
+    const upstreamSignal =
+      ttfbGuard?.signal ?? buildUpstreamSignal(signal ?? null, requestTimeoutMs);
 
     const response = await fetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify(transformedBody),
-      signal,
+      signal: upstreamSignal,
     });
+    ttfbGuard?.headersReceived();
 
     if (!response.ok) {
       return { response, url, headers, transformedBody };
@@ -280,6 +295,58 @@ export class KiroExecutor extends BaseExecutor {
       thinkingBuffer: "",
       thinkingInTag: false,
       inCodeFence: false,
+    };
+    // ── Exactly-one-finish invariant ──────────────────────────────────────────
+    // Kiro's event order is not guaranteed: meteringEvent / contextUsageEvent /
+    // metricsEvent may arrive before OR after messageStopEvent. The finish_reason
+    // chunk is therefore emitted exactly once, by whichever event completes the
+    // last missing piece:
+    //   - usage tokens from metricsEvent (authoritative), or
+    //   - metering + contextUsage both seen (usage estimated below), or
+    //   - flush() for truncated streams where usage never arrives.
+    // Usage attaches to that single chunk regardless of arrival order; no
+    // duplicate finish chunks and no dropped usage.
+    const tryEmitFinish = (controller: TransformStreamDefaultController<Uint8Array>) => {
+      if (!state.messageStopSeen || state.finishEmitted) return;
+      const usageInputsSettled =
+        !!state.usage || !!(state.hasMeteringEvent && state.hasContextUsage);
+      if (!usageInputsSettled) return;
+      state.finishEmitted = true;
+
+      if (!state.usage) {
+        // Estimate output tokens from content length
+        const estimatedOutputTokens =
+          state.totalContentLength > 0 ? Math.max(1, Math.floor(state.totalContentLength / 4)) : 0;
+
+        // Estimate input tokens from contextUsagePercentage
+        // Kiro models typically have 200k context window
+        const estimatedInputTokens =
+          state.contextUsagePercentage > 0
+            ? Math.floor((state.contextUsagePercentage * CONTEXT_CONFIG.defaultLimit) / 100)
+            : 0;
+
+        state.usage = {
+          prompt_tokens: estimatedInputTokens,
+          completion_tokens: estimatedOutputTokens,
+          total_tokens: estimatedInputTokens + estimatedOutputTokens,
+        };
+      }
+
+      const finishChunk: JsonRecord = {
+        id: responseId,
+        object: "chat.completion.chunk",
+        created,
+        model,
+        choices: [
+          {
+            index: 0,
+            delta: {},
+            finish_reason: state.hasToolCalls ? "tool_calls" : "stop",
+          },
+        ],
+        usage: state.usage,
+      };
+      controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(finishChunk)}\n\n`));
     };
 
     const transformStream = new TransformStream({
@@ -491,23 +558,13 @@ export class KiroExecutor extends BaseExecutor {
             }
           }
 
-          // Handle messageStopEvent
+          // Handle messageStopEvent — do NOT emit the finish chunk here.
+          // Usage events (metering/contextUsage/metrics) may still follow; the
+          // single finish_reason chunk is emitted by tryEmitFinish once usage
+          // settles (or by flush for truncated streams).
           if (eventType === "messageStopEvent") {
-            const chunk: JsonRecord = {
-              id: responseId,
-              object: "chat.completion.chunk",
-              created,
-              model,
-              choices: [
-                {
-                  index: 0,
-                  delta: {},
-                  finish_reason: state.hasToolCalls ? "tool_calls" : "stop",
-                },
-              ],
-            };
-            state.finishEmitted = true;
-            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(chunk)}\n\n`));
+            state.messageStopSeen = true;
+            tryEmitFinish(controller);
           }
 
           // Handle contextUsageEvent to extract contextUsagePercentage
@@ -522,11 +579,13 @@ export class KiroExecutor extends BaseExecutor {
             state.contextUsagePercentage = contextUsage;
             // Mark that we received context usage event
             state.hasContextUsage = true;
+            tryEmitFinish(controller);
           }
 
           // Handle meteringEvent - mark that we received it
           if (eventType === "meteringEvent") {
             state.hasMeteringEvent = true;
+            tryEmitFinish(controller);
           }
 
           // Handle metricsEvent for token usage
@@ -565,56 +624,7 @@ export class KiroExecutor extends BaseExecutor {
                 };
               }
             }
-          }
-
-          // Emit final chunk only after receiving BOTH meteringEvent AND contextUsageEvent
-          if (state.hasMeteringEvent && state.hasContextUsage && !state.finishEmitted) {
-            state.finishEmitted = true;
-
-            // Estimate tokens if not available from events
-            if (!state.usage) {
-              // Estimate output tokens from content length
-              const estimatedOutputTokens =
-                state.totalContentLength > 0
-                  ? Math.max(1, Math.floor(state.totalContentLength / 4))
-                  : 0;
-
-              // Estimate input tokens from contextUsagePercentage
-              // Kiro models typically have 200k context window
-              const estimatedInputTokens =
-                state.contextUsagePercentage > 0
-                  ? Math.floor((state.contextUsagePercentage * CONTEXT_CONFIG.defaultLimit) / 100)
-                  : 0;
-
-              state.usage = {
-                prompt_tokens: estimatedInputTokens,
-                completion_tokens: estimatedOutputTokens,
-                total_tokens: estimatedInputTokens + estimatedOutputTokens,
-              };
-            }
-
-            const finishChunk: JsonRecord = {
-              id: responseId,
-              object: "chat.completion.chunk",
-              created,
-              model,
-              choices: [
-                {
-                  index: 0,
-                  delta: {},
-                  finish_reason: state.hasToolCalls ? "tool_calls" : "stop",
-                },
-              ],
-            };
-
-            // Include usage in final chunk if available
-            if (state.usage) {
-              finishChunk.usage = state.usage;
-            }
-
-            controller.enqueue(
-              new TextEncoder().encode(`data: ${JSON.stringify(finishChunk)}\n\n`)
-            );
+            tryEmitFinish(controller);
           }
         }
 
@@ -657,7 +667,9 @@ export class KiroExecutor extends BaseExecutor {
           );
         }
 
-        // Emit finish chunk if not already sent
+        // Last-resort finish: truncated streams (upstream cut off before usage
+        // events, or messageStop never arrived) still get exactly one
+        // finish_reason chunk so clients see a well-formed SSE terminator.
         if (!state.finishEmitted) {
           state.finishEmitted = true;
           const finishChunk = {
@@ -699,13 +711,11 @@ export class KiroExecutor extends BaseExecutor {
     if (!credentials.refreshToken) return null;
 
     try {
-      // Use centralized refreshKiroToken function (handles both AWS SSO OIDC and Social Auth)
-      const result = await refreshKiroToken(
-        credentials.refreshToken,
-        credentials.providerSpecificData,
-        log
-      );
-
+      // Route through the centralized service so concurrent 401-triggered
+      // refreshes for the same credential share one in-flight OAuth exchange
+      // (refreshPromiseCache dedup) instead of racing N parallel ones. The
+      // AWS SSO OIDC / Social Auth response parsing lives inside the service.
+      const result = await getAccessToken("kiro", credentials, log);
       return result;
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));

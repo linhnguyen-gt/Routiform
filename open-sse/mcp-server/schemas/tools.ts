@@ -273,11 +273,6 @@ export const routeRequestInput = z.object({
     )
     .describe("Chat messages in OpenAI format"),
   combo: z.string().optional().describe("Specific combo to route through"),
-  budget: z.number().optional().describe("Maximum cost in USD for this request"),
-  role: z
-    .enum(["coding", "review", "planning", "analysis"])
-    .optional()
-    .describe("Task role hint for intelligent routing"),
   stream: z.boolean().optional().default(false).describe("Whether to stream the response"),
 });
 
@@ -306,7 +301,7 @@ export const routeRequestTool: McpToolDefinition<
 > = {
   name: "routiform_route_request",
   description:
-    "Sends a chat completion request through Routiform's intelligent routing pipeline. Supports combo selection, budget limits, and task role hints for optimal provider matching.",
+    "Sends a chat completion request through Routiform's intelligent routing pipeline. Supports combo selection for optimal provider matching. The response is always non-streaming.",
   inputSchema: routeRequestInput,
   outputSchema: routeRequestOutput,
   scopes: ["execute:completions"],
@@ -526,7 +521,7 @@ export const setBudgetGuardTool: McpToolDefinition<
 > = {
   name: "routiform_set_budget_guard",
   description:
-    "Sets a budget guard that limits spending for the current session. When the budget is reached, it can degrade to cheaper models, block requests, or send alerts.",
+    "Records a budget guard for the current session and reports spend against it. Report-only: it does NOT block or degrade requests; the action field is informational.",
   inputSchema: setBudgetGuardInput,
   outputSchema: setBudgetGuardOutput,
   scopes: ["write:budget"],

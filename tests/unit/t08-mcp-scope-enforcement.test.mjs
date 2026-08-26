@@ -24,10 +24,9 @@ test("resolveCallerScopeContext prioritizes authInfo scopes", () => {
   assert.deepEqual(context.scopes, ["read:health", "read:combos"]);
 });
 
-test("resolveCallerScopeContext ignores _meta scopes and uses the trusted fallback", () => {
-  // `_meta` travels inside the JSON-RPC request and the HTTP transport does not authenticate,
-  // so scopes found there are self-asserted. Honouring them made the check
-  // `attacker_supplied_scopes ⊇ required_scopes`.
+test("resolveCallerScopeContext ignores _meta scopes and denies unidentified callers", () => {
+  // `_meta` travels inside the JSON-RPC request, so scopes found there are self-asserted.
+  // Without a bound identity AND a transport-provided trust list, the caller gets nothing.
   const context = resolveCallerScopeContext(
     {
       _meta: {
@@ -35,12 +34,12 @@ test("resolveCallerScopeContext ignores _meta scopes and uses the trusted fallba
       },
       sessionId: "session-meta",
     },
-    ["read:usage"]
+    []
   );
 
   assert.equal(context.callerId, "session-meta");
-  assert.equal(context.source, "env");
-  assert.deepEqual(context.scopes, ["read:usage"]);
+  assert.equal(context.source, "none");
+  assert.deepEqual(context.scopes, []);
 });
 
 test("resolveCallerScopeContext honours _meta scopes only behind the explicit dev flag", () => {
@@ -59,10 +58,16 @@ test("resolveCallerScopeContext honours _meta scopes only behind the explicit de
   }
 });
 
-test("resolveCallerScopeContext uses env fallback when caller has no scopes", () => {
-  const context = resolveCallerScopeContext({ sessionId: "session-env" }, ["read:health"]);
-  assert.equal(context.source, "env");
-  assert.deepEqual(context.scopes, ["read:health"]);
+test("resolveCallerScopeContext derives stdio trust from the transport, not env", () => {
+  // Only the stdio entry point passes trustedScopes (local, trusted). An HTTP caller
+  // without authInfo reaches this function with an empty list and stays denied.
+  const stdio = resolveCallerScopeContext({ sessionId: "session-stdio" }, ["read:health"]);
+  assert.equal(stdio.source, "transport");
+  assert.deepEqual(stdio.scopes, ["read:health"]);
+
+  const http = resolveCallerScopeContext({ sessionId: "session-env" }, []);
+  assert.equal(http.source, "none");
+  assert.deepEqual(http.scopes, []);
 });
 
 test("evaluateToolScopes allows requests when enforcement is disabled", () => {

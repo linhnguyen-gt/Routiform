@@ -2,11 +2,12 @@ import { commitCompressionWrites } from "./chat-core-compression-commit.ts";
 import { recordCost } from "@/domain/costRules";
 import { calculateCost } from "@/lib/usage/costCalculator";
 import { formatUsageLog } from "@/lib/usage/tokenAccounting";
-import { appendRequestLog, saveRequestUsage } from "@/lib/usageDb";
-import { generateSignature, isCacheable, setCachedResponse } from "@/lib/semanticCache";
+import { saveRequestUsage } from "@/lib/usageDb";
+import { isCacheable, setCachedResponse } from "@/lib/semanticCache";
 import { FORMATS } from "../../translator/formats.ts";
 import { getCorsOrigin } from "../../utils/cors.ts";
 import { persistCodexQuotaState } from "../services/codex-quota-manager.ts";
+import { buildSemanticCacheSignature } from "../phases/semantic-cache-handler.ts";
 import { buildCacheUsageLogMeta } from "../utils/cache-log-helpers.ts";
 import { COLORS } from "../../utils/stream.ts";
 import { restoreClaudePassthroughToolNames } from "../utils/claude-passthrough-helpers.ts";
@@ -72,13 +73,6 @@ export async function chatCorePhaseNonStreamComplete(p: ChatCorePipeline): Promi
   // Pass targetFormat explicitly: it carries per-model overrides the provider-level
   // registry lookup cannot see, and it is what the request was actually built against.
   const usage = extractUsageFromResponse(responseBody, p.provider, p.targetFormat);
-  appendRequestLog({
-    model: p.model,
-    provider: p.provider,
-    connectionId: p.connectionId,
-    tokens: usage,
-    status: "200 OK",
-  }).catch(() => {});
 
   const cacheUsageLogMeta = buildCacheUsageLogMeta(
     usage as Record<string, unknown> | null | undefined
@@ -153,18 +147,13 @@ export async function chatCorePhaseNonStreamComplete(p: ChatCorePipeline): Promi
 
   // Key the cache on the pristine pre-compression body (p.rawBody), not the
   // (possibly compression-mutated) p.body — otherwise the stored signature
-  // would depend on the requester's compression settings and would never
-  // match a future lookup's signature (checkSemanticCache always keys on a
-  // freshly parsed, still-pristine body). Falls back to p.body for callers
-  // that never went through the translate-and-bundle phase (e.g. tests).
+  // would depend on the requester's compression settings. p.rawBody is the
+  // post-sanitize snapshot, exactly what checkSemanticCache signs on lookup,
+  // so store and lookup signatures agree by construction. Falls back to p.body
+  // for callers that never went through the translate-and-bundle phase (tests).
   const cacheKeyBody = (p.rawBody as Record<string, unknown> | undefined) ?? p.body;
   if (isCacheable(cacheKeyBody, clientRawRequest?.headers as Headers | undefined)) {
-    const signature = generateSignature(
-      p.model,
-      cacheKeyBody.messages,
-      Number(cacheKeyBody.temperature ?? 0),
-      Number(cacheKeyBody.top_p ?? 1)
-    );
+    const signature = buildSemanticCacheSignature(p.model, cacheKeyBody);
     const usageRec = usage as
       { prompt_tokens?: number; completion_tokens?: number } | null | undefined;
     const tokensSaved = (usageRec?.prompt_tokens ?? 0) + (usageRec?.completion_tokens ?? 0) || 0;

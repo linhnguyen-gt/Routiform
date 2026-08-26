@@ -9,13 +9,11 @@
  * @module executors/antigravity/execute-loop
  */
 import { HTTP_STATUS } from "../../config/constants.ts";
-import { mergeUpstreamExtraHeaders } from "../base.ts";
+import { buildUpstreamSignal, mergeUpstreamExtraHeaders, sleepWithAbort } from "../base.ts";
 import { cacheRemainingCredits } from "./credits-retry.ts";
 import { handleRateLimitedResponse } from "./rate-limit-flow.ts";
 import { embedRetryAfterMs, LONG_RETRY_THRESHOLD_MS } from "./retry-policy.ts";
 import type { AntigravityExecuteInput, AntigravityRuntime, ExecutorResult } from "./types.ts";
-
-const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 function isRateLimitedOrUnavailable(status: number): boolean {
   return status === HTTP_STATUS.RATE_LIMITED || status === HTTP_STATUS.SERVICE_UNAVAILABLE;
@@ -70,7 +68,9 @@ export async function executeAntigravityRequest(
         method: "POST",
         headers,
         body: JSON.stringify(transformedBody),
-        signal,
+        // Bound the upstream call by the client-disconnect signal + provider
+        // timeout; previously only the disconnect signal reached this fetch.
+        signal: buildUpstreamSignal(signal ?? null, executor.getRequestTimeoutMs()),
       });
 
       let retryMs: number | null = null;
@@ -105,7 +105,9 @@ export async function executeAntigravityRequest(
         if (outcome.kind === "result") return outcome.result;
 
         if (outcome.kind === "wait-and-retry") {
-          await delay(outcome.waitMs);
+          // Long waits (possibly minutes) must stop immediately when the
+          // client disconnects instead of firing an unread upstream request.
+          await sleepWithAbort(outcome.waitMs, signal ?? null);
           urlIndex--;
           continue;
         }
@@ -153,6 +155,8 @@ export async function executeAntigravityRequest(
 
       return { response, url, headers, transformedBody };
     } catch (error) {
+      // Client is gone — stop the whole loop rather than failing over.
+      if (signal?.aborted) throw error;
       lastError = error;
       if (urlIndex + 1 < fallbackCount) {
         log?.debug?.("RETRY", `Error on ${url}, trying fallback ${urlIndex + 1}`);

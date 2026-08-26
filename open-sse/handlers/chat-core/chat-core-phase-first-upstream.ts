@@ -1,4 +1,4 @@
-import { appendRequestLog, trackPendingRequest } from "@/lib/usageDb";
+import { trackPendingRequest } from "@/lib/usageDb";
 import { HTTP_STATUS } from "../../config/constants.ts";
 import { buildClaudePromptCacheLogMeta } from "../utils/cache-log-helpers.ts";
 import { buildErrorBody, createErrorResult, formatProviderError } from "../../utils/error.ts";
@@ -34,19 +34,11 @@ export async function chatCorePhaseFirstUpstream(p: ChatCorePipeline): Promise<P
   let currentModel = effectiveModel;
   p.currentModel = currentModel;
 
-  appendRequestLog({
-    model: p.model,
-    provider: p.provider,
-    connectionId: p.connectionId,
-    status: "PENDING",
-  }).catch(() => {});
-
   const messages = translatedBody.messages;
   const contents = translatedBody.contents;
   const reqContents = (translatedBody.request as { contents?: unknown[] } | undefined)?.contents;
   const conversationState = translatedBody.conversationState as
-    | { history?: unknown[]; currentMessage?: unknown }
-    | undefined;
+    { history?: unknown[]; currentMessage?: unknown } | undefined;
   const kiroTurnCount =
     conversationState &&
     (Array.isArray(conversationState.history) || conversationState.currentMessage != null)
@@ -97,12 +89,6 @@ export async function chatCorePhaseFirstUpstream(p: ChatCorePipeline): Promise<P
       error.name === "AbortError"
         ? "Request aborted"
         : formatProviderError(error, p.provider, p.model, HTTP_STATUS.BAD_GATEWAY);
-    appendRequestLog({
-      model: p.model,
-      provider: p.provider,
-      connectionId: p.connectionId,
-      status: `FAILED ${failureStatus}`,
-    }).catch(() => {});
     persistAttemptLogs({
       status: failureStatus,
       error: failureMessage,

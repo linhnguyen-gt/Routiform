@@ -1,6 +1,6 @@
 import { translateResponse, initState } from "../translator/index.ts";
 import { FORMATS } from "../translator/formats.ts";
-import { trackPendingRequest, appendRequestLog } from "@/lib/usageDb";
+import { trackPendingRequest } from "@/lib/usageDb";
 import {
   extractUsage,
   hasValidUsage,
@@ -22,7 +22,7 @@ import {
   createStructuredSSECollector,
   buildStreamSummaryFromEvents,
 } from "./streamPayloadCollector.ts";
-import { STREAM_IDLE_TIMEOUT_MS, HTTP_STATUS } from "../config/constants.ts";
+import { STREAM_IDLE_TIMEOUT_MS } from "../config/constants.ts";
 import {
   sanitizeStreamingChunk,
   extractThinkingFromContent,
@@ -232,6 +232,15 @@ const STREAM_MODE = {
 };
 
 /**
+ * Cap on unterminated SSE data held between chunks. A provider that stops
+ * sending newlines would otherwise grow `buffer` without bound.
+ */
+const MAX_LINE_BUFFER_CHARS = 1_000_000;
+
+/** Minimum interval between malformed-provider-line warnings (cost control). */
+const MALFORMED_LINE_LOG_INTERVAL_MS = 5_000;
+let lastMalformedLineLogAt = 0;
+/**
  * Create unified SSE transform stream with idle timeout protection.
  * If the upstream provider stops sending data for longer than the effective idle limit
  * (`idleTimeoutMs` option, else `STREAM_IDLE_TIMEOUT_MS`), the stream errors with
@@ -326,7 +335,11 @@ export function createSSEStream(options: StreamOptions = {}) {
   let lastChunkTime = Date.now();
   let idleTimer: ReturnType<typeof setInterval> | null = null;
   let streamTimedOut = false;
+  /** Set once usage/pending accounting has run (flush or cancel) — never twice. */
+  let finalized = false;
 
+  // The literal below carries the web-standard cancel() hook, which the bundled
+  // lib.dom Transformer dictionary does not declare yet — hence the assertion.
   return new TransformStream(
     {
       start(controller) {
@@ -340,12 +353,6 @@ export function createSSEStream(options: StreamOptions = {}) {
               const timeoutMsg = `[STREAM] Idle timeout: no data from ${provider || "provider"} for ${effectiveIdleMs}ms (model: ${model || "unknown"})`;
               console.warn(timeoutMsg);
               trackPendingRequest(model, provider, connectionId, false);
-              appendRequestLog({
-                model,
-                provider,
-                connectionId,
-                status: `FAILED ${HTTP_STATUS.GATEWAY_TIMEOUT}`,
-              }).catch(() => {});
               const timeoutError = new Error(timeoutMsg);
               timeoutError.name = "StreamIdleTimeoutError";
               controller.error(timeoutError);
@@ -364,6 +371,16 @@ export function createSSEStream(options: StreamOptions = {}) {
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
+        // Unterminated-data guard: if the trailing fragment exceeds the cap,
+        // force-flush it as a complete line so memory stays bounded and the
+        // stream keeps moving instead of buffering forever.
+        if (buffer.length > MAX_LINE_BUFFER_CHARS) {
+          console.warn(
+            `[STREAM] Line buffer exceeded ${MAX_LINE_BUFFER_CHARS} chars without newline (provider: ${provider || "unknown"}, model: ${model || "unknown"}) — force-flushing`
+          );
+          lines.push(buffer);
+          buffer = "";
+        }
         for (const line of lines) {
           const trimmed = line.trim();
 
@@ -646,7 +663,19 @@ export function createSSEStream(options: StreamOptions = {}) {
                 }
 
                 clientPayload = parsed;
-              } catch {}
+              } catch (error) {
+                // Malformed provider JSON on one line is expected noise from some
+                // upstreams — drop the line, but log it (rate-limited) so silent
+                // content loss is visible.
+                const now = Date.now();
+                if (now - lastMalformedLineLogAt >= MALFORMED_LINE_LOG_INTERVAL_MS) {
+                  lastMalformedLineLogAt = now;
+                  console.warn(
+                    `[STREAM] Malformed provider line dropped (provider: ${provider || "unknown"}, model: ${model || "unknown"}, connectionId: ${connectionId || "n/a"}):`,
+                    error instanceof Error ? error.message : error
+                  );
+                }
+              }
             }
 
             if (!injectedUsage) {
@@ -951,6 +980,7 @@ export function createSSEStream(options: StreamOptions = {}) {
         if (streamTimedOut) {
           return;
         }
+        finalized = true;
         trackPendingRequest(model, provider, connectionId, false);
         try {
           const remaining = decoder.decode();
@@ -978,14 +1008,6 @@ export function createSSEStream(options: StreamOptions = {}) {
 
             if (hasValidUsage(usage)) {
               logUsage(provider, usage, model, connectionId, apiKeyInfo);
-            } else {
-              appendRequestLog({
-                model,
-                provider,
-                connectionId,
-                tokens: null,
-                status: "200 OK",
-              }).catch(() => {});
             }
             // Notify caller for call log persistence (include full response body with accumulated content)
             if (onComplete) {
@@ -1041,7 +1063,12 @@ export function createSSEStream(options: StreamOptions = {}) {
                     includeEvents: false,
                   }),
                 });
-              } catch {}
+              } catch (error) {
+                console.log(
+                  `[STREAM] Error building onComplete payload for disconnected/passthrough stream (model: ${model || "unknown"}):`,
+                  error instanceof Error ? error.message : error
+                );
+              }
             }
             return;
           }
@@ -1130,14 +1157,6 @@ export function createSSEStream(options: StreamOptions = {}) {
 
           if (hasValidUsage(state?.usage)) {
             logUsage(state.provider || targetFormat, state.usage, model, connectionId, apiKeyInfo);
-          } else {
-            appendRequestLog({
-              model,
-              provider,
-              connectionId,
-              tokens: null,
-              status: "200 OK",
-            }).catch(() => {});
           }
           // Notify caller for call log persistence (include full response body with accumulated content)
           if (onComplete) {
@@ -1197,13 +1216,134 @@ export function createSSEStream(options: StreamOptions = {}) {
                   includeEvents: false,
                 }),
               });
-            } catch {}
+            } catch (error) {
+              console.log(
+                `[STREAM] Error building onComplete payload in flush (model: ${model || "unknown"}):`,
+                error instanceof Error ? error.message : error
+              );
+            }
           }
         } catch (error) {
           console.log(`[STREAM] Error in flush (${model || "unknown"}):`, error.message || error);
         }
       },
-    },
+
+      cancel() {
+        // Client disconnected mid-stream: flush() will never run for this
+        // reader, so finalize accounting here instead of leaking the pending
+        // slot and silently dropping tokens already spent upstream.
+        if (idleTimer) {
+          clearInterval(idleTimer);
+          idleTimer = null;
+        }
+        if (streamTimedOut || finalized) return;
+        finalized = true;
+        console.warn(
+          `[STREAM] Client disconnected mid-stream (provider: ${provider || "unknown"}, model: ${model || "unknown"}, connectionId: ${connectionId || "n/a"}) — finalizing partial usage`
+        );
+        trackPendingRequest(model, provider, connectionId, false);
+
+        const isPassthrough = mode === STREAM_MODE.PASSTHROUGH;
+        let partialUsage = (isPassthrough ? usage : state?.usage) as UsageTokenRecord | null;
+        if (!hasValidUsage(partialUsage) && totalContentLength > 0) {
+          partialUsage = estimateUsage(body, totalContentLength, sourceFormat || FORMATS.OPENAI);
+        }
+        if (isPassthrough) {
+          usage = partialUsage;
+        } else if (state) {
+          state.usage = partialUsage;
+        }
+        if (hasValidUsage(partialUsage)) {
+          logUsage(
+            isPassthrough
+              ? provider
+              : (state?.provider as string | null | undefined) || targetFormat,
+            partialUsage,
+            model,
+            connectionId,
+            apiKeyInfo
+          );
+        }
+
+        if (!onComplete) return;
+        try {
+          const u = partialUsage as Record<string, unknown> | null;
+          const prompt = Number(u?.prompt_tokens ?? u?.input_tokens ?? 0);
+          const completion = Number(u?.completion_tokens ?? u?.output_tokens ?? 0);
+          const contentSource = isPassthrough
+            ? passthroughAccumulatedContent
+            : (state?.accumulatedContent ?? "");
+          const message: Record<string, unknown> = {
+            role: "assistant",
+            content: collapseExactDuplicateAssistantText(contentSource.trim()) || null,
+          };
+          let finishReason = "stop";
+          if (isPassthrough) {
+            const reasoning = collapseExactDuplicateAssistantText(
+              passthroughAccumulatedReasoning.trim()
+            );
+            if (reasoning) {
+              message.reasoning_content = reasoning;
+            }
+            if (passthroughToolCalls.size > 0) {
+              message.tool_calls = [...passthroughToolCalls.values()].sort(
+                (a, b) => a.index - b.index
+              );
+              finishReason = "tool_calls";
+            }
+          } else if (state?.toolCalls?.size > 0) {
+            message.tool_calls = [...state.toolCalls.values()]
+              .map((tc: Record<string, unknown>): ToolCall => ({
+                id: (tc.id as string) ?? null,
+                index: (tc.index as number) ?? (tc.blockIndex as number) ?? 0,
+                type: (tc.type as string) ?? "function",
+                function: (tc.function as ToolCall["function"]) ?? {
+                  name: (tc.name as string) ?? "",
+                  arguments: "",
+                },
+              }))
+              .sort((a, b) => a.index - b.index);
+            finishReason = "tool_calls";
+          }
+          const responseBody = {
+            choices: [
+              {
+                message,
+                finish_reason: finishReason,
+              },
+            ],
+            usage: {
+              prompt_tokens: prompt,
+              completion_tokens: completion,
+              total_tokens: prompt + completion,
+            },
+            _streamed: true,
+            _disconnected: true,
+          };
+          onComplete({
+            status: 499, // Client Closed Request — partial-usage semantics
+            usage: partialUsage,
+            responseBody,
+            providerPayload: providerPayloadCollector.build(
+              buildStreamSummaryFromEvents(
+                providerPayloadCollector.getEvents(),
+                isPassthrough ? sourceFormat : targetFormat,
+                model
+              ),
+              { includeEvents: false }
+            ),
+            clientPayload: clientPayloadCollector.build(responseBody, {
+              includeEvents: false,
+            }),
+          });
+        } catch (error) {
+          console.log(
+            `[STREAM] Error finalizing disconnected stream (${model || "unknown"}):`,
+            error instanceof Error ? error.message : error
+          );
+        }
+      },
+    } as unknown as Transformer<Uint8Array, Uint8Array>,
     // Writable side backpressure — limit buffered chunks to avoid unbounded memory
     { highWaterMark: 16 },
     // Readable side backpressure — limit queued output chunks

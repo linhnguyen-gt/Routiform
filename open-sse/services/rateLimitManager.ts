@@ -10,6 +10,7 @@
 
 import Bottleneck from "bottleneck";
 import { parseRetryAfterFromBody, lockModel } from "./accountFallback.ts";
+import { parseResetDelayMs as parseResetTime } from "./usage/reset-time.ts";
 import { getProviderCategory } from "../config/registry-params.ts";
 import { DEFAULT_API_LIMITS } from "../config/constants.ts";
 import { getCodexRateLimitKey } from "../executors/codex.ts";
@@ -56,21 +57,23 @@ const enabledConnections = new Set<string>();
 const learnedLimits: Record<string, LearnedLimitEntry> = {};
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 const PERSIST_DEBOUNCE_MS = 60_000; // Debounce persistence to every 60s max
+const LEARNED_LIMIT_TTL_MS = 24 * 60 * 60 * 1000; // Learned limits expire after 24h
 
 // Track initialization
 let initialized = false;
 
 // Bottleneck v2 does not document `maxWait` on the constructor (unknown keys are ignored).
-// Per-job `expiration` (see `withRateLimit`) caps execution time after the job starts running
-// (Bottleneck JobOptions), not time spent waiting in the internal queue.
-// Queue-depth stalls when the reservoir is depleted are handled by header-driven updates,
-// `stop({ dropWaitingJobs: true })` on 429, and optional shedding via `RATE_LIMIT_QUEUE_HIGH_WATER`.
-// RATE_LIMIT_MAX_WAIT_MS is retained for backward compatibility; it maps to job expiration ms.
-const _parsedJobExpiration = parseInt(process.env.RATE_LIMIT_MAX_WAIT_MS || "120000", 10);
-const JOB_EXPIRATION_MS =
-  Number.isFinite(_parsedJobExpiration) && _parsedJobExpiration > 0
-    ? _parsedJobExpiration
-    : 120_000;
+// Per-job `expiration` caps job RUNTIME after the job starts running, so using it here made
+// every healthy non-streaming upstream call longer than the limit fail with
+// "This job timed out after N ms". Instead we schedule WITHOUT `expiration` — runtime is the
+// executor's responsibility (its own fetch timeouts) — and enforce RATE_LIMIT_MAX_WAIT_MS as
+// a QUEUE-WAIT ceiling only: the wrapper installed in `withRateLimit` runs when the job is
+// dispatched and rejects BEFORE `fn()` starts if the job spent longer than QUEUE_MAX_WAIT_MS
+// waiting. Concurrency semantics (maxConcurrent/minTime/reservoir) live on the limiter
+// settings and are untouched.
+const _parsedMaxWait = parseInt(process.env.RATE_LIMIT_MAX_WAIT_MS || "120000", 10);
+const QUEUE_MAX_WAIT_MS =
+  Number.isFinite(_parsedMaxWait) && _parsedMaxWait > 0 ? _parsedMaxWait : 120_000;
 
 const QUEUE_HIGH_WATER = parseInt(process.env.RATE_LIMIT_QUEUE_HIGH_WATER || "0", 10);
 
@@ -200,11 +203,14 @@ export function enableRateLimitProtection(connectionId) {
  */
 export function disableRateLimitProtection(connectionId) {
   enabledConnections.delete(connectionId);
-  // Clean up limiters for this connection
-  for (const [key] of limiters) {
-    if (key.includes(connectionId)) {
-      const limiter = limiters.get(key);
-      limiter?.disconnect();
+  // Exact key match: limiter keys are "provider:connectionId" or
+  // "provider:connectionId:model" (see getLimiterKey), so the connection id is
+  // always the second colon-separated segment. A substring match here also
+  // removed unrelated connections whose id happened to appear inside another
+  // key.
+  for (const [key, limiter] of limiters) {
+    if (key.split(":")[1] === connectionId) {
+      limiter.disconnect();
       limiters.delete(key);
     }
   }
@@ -269,9 +275,8 @@ function getLimiter(provider, connectionId, model = null) {
  */
 export async function withRateLimit(provider, connectionId, model, fn, options) {
   // Health-check probes (combo/provider/model test routes) carry an explicit
-  // bypass flag — they must NOT enter Bottleneck's queue, which holds jobs up
-  // to JOB_EXPIRATION_MS (120s) and surfaces as "This job timed out after
-  // 120000 ms" 502s even when the upstream is healthy.
+  // bypass flag — they must NOT enter Bottleneck's queue, which can hold jobs
+  // up to QUEUE_MAX_WAIT_MS before shedding them.
   if (options?.bypass) return fn();
 
   if (!enabledConnections.has(connectionId)) {
@@ -279,7 +284,17 @@ export async function withRateLimit(provider, connectionId, model, fn, options) 
   }
 
   const limiter = getLimiter(provider, connectionId, model);
-  return limiter.schedule({ expiration: JOB_EXPIRATION_MS }, fn);
+  const queuedAt = Date.now();
+  return limiter.schedule({}, () => {
+    // Queue-wait watchdog (runs at dispatch time, before fn starts). Job
+    // RUNTIME is deliberately uncapped here — see the QUEUE_MAX_WAIT_MS note above.
+    if (Date.now() - queuedAt > QUEUE_MAX_WAIT_MS) {
+      throw new Error(
+        `[RATE-LIMIT] ${provider}:${connectionId} queued for ${Date.now() - queuedAt}ms (> ${QUEUE_MAX_WAIT_MS}ms) — shedding request`
+      );
+    }
+    return fn();
+  });
 }
 
 // ─── Header Parsing ──────────────────────────────────────────────────────────
@@ -310,44 +325,6 @@ const ANTHROPIC_HEADERS = {
   resetTokens: "anthropic-ratelimit-input-tokens-reset",
   retryAfter: "retry-after",
 };
-
-/**
- * Parse a reset time string into milliseconds.
- * Formats: "1s", "1m", "1h", "1ms", "60", ISO date, Unix timestamp
- */
-function parseResetTime(value) {
-  if (!value) return null;
-
-  // Duration strings: "1s", "500ms", "1m30s"
-  const durationMatch = value.match(/^(?:(\d+)h)?(?:(\d+)m(?!s))?(?:(\d+)s)?(?:(\d+)ms)?$/);
-  if (durationMatch) {
-    const [, h, m, s, ms] = durationMatch;
-    return (
-      (parseInt(h || 0) * 3600 + parseInt(m || 0) * 60 + parseInt(s || 0)) * 1000 +
-      parseInt(ms || 0)
-    );
-  }
-
-  // Pure number: assume seconds
-  const num = parseFloat(value);
-  if (!isNaN(num) && num > 0) {
-    // If it looks like a Unix timestamp (> year 2025)
-    if (num > 1700000000) {
-      return Math.max(0, num * 1000 - Date.now());
-    }
-    return num * 1000;
-  }
-
-  // ISO date string
-  try {
-    const date = new Date(value);
-    if (!isNaN(date.getTime())) {
-      return Math.max(0, date.getTime() - Date.now());
-    }
-  } catch {}
-
-  return null;
-}
 
 /**
  * Update rate limiter based on API response headers.
@@ -502,8 +479,18 @@ export function getLearnedLimits() {
 // ─── Persistence ────────────────────────────────────────────────────────────
 
 /**
- * Record a learned limit for debounced persistence.
+ * Remove learned-limit entries older than 24h. Called before every debounced
+ * persist (and at load time) so the persisted map cannot grow without bound.
  */
+function pruneLearnedLimits(now = Date.now()) {
+  for (const [key, entry] of Object.entries(learnedLimits)) {
+    const lastUpdated = toNumber(entry.lastUpdated, 0);
+    if (lastUpdated > 0 && now - lastUpdated > LEARNED_LIMIT_TTL_MS) {
+      delete learnedLimits[key];
+    }
+  }
+}
+
 function recordLearnedLimit(
   provider: string,
   connectionId: string,
@@ -523,6 +510,8 @@ function recordLearnedLimit(
     persistTimer = setTimeout(async () => {
       persistTimer = null;
       try {
+        // Drop stale entries before persisting so old limits don't live forever.
+        pruneLearnedLimits();
         const { updateSettings } = await import("@/lib/db/settings");
         await updateSettings({ learnedRateLimits: JSON.stringify(learnedLimits) });
         console.log(
@@ -552,7 +541,7 @@ async function loadPersistedLimits() {
       const data = toRecord(dataRaw);
       const lastUpdated = toNumber(data.lastUpdated, 0);
       // Skip stale entries (older than 24h)
-      if (lastUpdated > 0 && Date.now() - lastUpdated > 24 * 60 * 60 * 1000) continue;
+      if (lastUpdated > 0 && Date.now() - lastUpdated > LEARNED_LIMIT_TTL_MS) continue;
 
       const connectionId = typeof data.connectionId === "string" ? data.connectionId : "";
       const provider = typeof data.provider === "string" ? data.provider : "";
@@ -579,7 +568,6 @@ async function loadPersistedLimits() {
         }
       }
     }
-
     if (count > 0) {
       console.log(`📥 [RATE-LIMIT] Restored ${count} learned rate limit(s) from persistence`);
     }

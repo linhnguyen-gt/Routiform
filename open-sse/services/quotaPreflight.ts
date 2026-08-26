@@ -30,6 +30,53 @@ export function registerQuotaFetcher(provider: string, fetcher: QuotaFetcher): v
   quotaFetcherRegistry.set(provider, fetcher);
 }
 
+// ─── Fetcher Failure Telemetry ──────────────────────────────────────────────
+// Fetcher failures are swallowed (preflight proceeds) but must not be silent:
+// failures are counted per provider and logged at most once per interval.
+const FAILURE_LOG_INTERVAL_MS = 60_000;
+
+interface FetcherFailureState {
+  count: number;
+  lastError: string;
+  lastFailedAt: number;
+  lastLoggedAt: number;
+}
+
+const fetcherFailures = new Map<string, FetcherFailureState>();
+
+function recordQuotaFetcherFailure(provider: string, detail: string): void {
+  const now = Date.now();
+  const state = fetcherFailures.get(provider) ?? {
+    count: 0,
+    lastError: "",
+    lastFailedAt: 0,
+    lastLoggedAt: 0,
+  };
+  state.count++;
+  state.lastError = detail;
+  state.lastFailedAt = now;
+  if (now - state.lastLoggedAt >= FAILURE_LOG_INTERVAL_MS) {
+    state.lastLoggedAt = now;
+    console.warn(
+      `[QuotaPreflight] ${provider}: quota fetcher failed (${state.count} failure(s) so far) — ${detail}`
+    );
+  }
+  fetcherFailures.set(provider, state);
+}
+
+/** Per-provider quota fetcher failure counters (for dashboards/monitoring). */
+export function getStats(): Record<
+  string,
+  { failures: number; lastError: string; lastFailedAt: number }
+> {
+  return Object.fromEntries(
+    [...fetcherFailures.entries()].map(([provider, state]) => [
+      provider,
+      { failures: state.count, lastError: state.lastError, lastFailedAt: state.lastFailedAt },
+    ])
+  );
+}
+
 export function isQuotaPreflightEnabled(connection: Record<string, unknown>): boolean {
   const psd = connection?.providerSpecificData as Record<string, unknown> | undefined;
   return psd?.quotaPreflightEnabled === true;
@@ -52,13 +99,17 @@ export async function preflightQuota(
   let quota: QuotaInfo | null = null;
   try {
     quota = await fetcher(connectionId);
-  } catch {
+  } catch (err) {
+    recordQuotaFetcherFailure(provider, err instanceof Error ? err.message : String(err));
     return { proceed: true };
   }
 
   if (!quota) {
+    // A null result is a soft failure — the fetcher ran but produced nothing.
+    recordQuotaFetcherFailure(provider, "fetcher returned no data");
     return { proceed: true };
   }
+
 
   const { percentUsed } = quota;
 

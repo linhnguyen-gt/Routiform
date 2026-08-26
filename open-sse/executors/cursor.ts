@@ -20,7 +20,12 @@ declare const EdgeRuntime: string | undefined;
  * @see cursorProtobuf.js for Protobuf encoding/decoding utilities
  */
 
-import { BaseExecutor, mergeUpstreamExtraHeaders } from "./base.ts";
+import {
+  BaseExecutor,
+  buildUpstreamSignal,
+  getRequestTimeoutMs,
+  mergeUpstreamExtraHeaders,
+} from "./base.ts";
 import { PROVIDERS, HTTP_STATUS } from "../config/constants.ts";
 import { generateCursorBody, extractTextFromResponse } from "../utils/cursorProtobuf.ts";
 import { estimateUsage } from "../utils/usageTracking.ts";
@@ -134,46 +139,6 @@ function createErrorResponse(jsonError) {
       headers: { "Content-Type": "application/json" },
     }
   );
-}
-
-function _parseCursorJsonErrorFrame(text: string) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-function _isToolBoundaryAbort(jsonError: unknown, toolCallCount: number) {
-  if (!jsonError || toolCallCount <= 0) return false;
-  const e = jsonError as Record<string, unknown>;
-  const err = e?.error as Record<string, unknown> | undefined;
-  const details = (err?.details as Record<string, unknown>[] | undefined)?.[0];
-  const debug = details?.debug as Record<string, unknown> | undefined;
-  const debugDetails = debug?.details as Record<string, unknown> | undefined;
-  const code = (err?.code as string) || "";
-  const debugError = (debug?.error as string) || "";
-  const title = (debugDetails?.title as string) || "";
-  const detail = (debugDetails?.detail as string) || "";
-  const message = `${title} ${detail}`.toLowerCase();
-  const isAbortedCode = code === "aborted" || debugError === "ERROR_USER_ABORTED_REQUEST";
-  return isAbortedCode && message.includes("tool call ended before result was received");
-}
-
-function _mergeToolCallDelta(existing, incoming) {
-  const mergedName = incoming?.function?.name || existing?.function?.name || "";
-  const existingArgs = existing?.function?.arguments || "";
-  const deltaArgs = incoming?.function?.arguments || "";
-  return {
-    id: incoming.id || existing.id,
-    type: "function",
-    function: {
-      name: mergedName,
-      arguments: `${existingArgs}${deltaArgs}`,
-    },
-    isLast: Boolean(existing?.isLast || incoming?.isLast),
-    index: existing?.index ?? incoming?.index ?? 0,
-  };
 }
 
 type CursorHttpResponse = {
@@ -364,16 +329,21 @@ export class CursorExecutor extends BaseExecutor {
     });
   }
 
-  async execute({ model, body, stream, credentials, signal, _log, upstreamExtraHeaders }) {
+  async execute({ model, body, stream, credentials, signal, log: _log, upstreamExtraHeaders }) {
     const url = this.buildUrl();
     const headers = this.buildHeaders(credentials);
     mergeUpstreamExtraHeaders(headers, upstreamExtraHeaders);
     const transformedBody = await this.transformRequest(model, body, stream, credentials);
 
+    // Cursor buffers the entire (protobuf) body before transforming it, so the
+    // full-lifetime timeout is the correct bound here — unlike SSE-passthrough
+    // executors there is no long-lived stream to protect after headers arrive.
+    const upstreamSignal = buildUpstreamSignal(signal ?? null, getRequestTimeoutMs(this.config));
+
     try {
       const response: CursorHttpResponse = http2
-        ? await this.makeHttp2Request(url, headers, transformedBody, signal)
-        : await this.makeFetchRequest(url, headers, transformedBody, signal);
+        ? await this.makeHttp2Request(url, headers, transformedBody, upstreamSignal)
+        : await this.makeFetchRequest(url, headers, transformedBody, upstreamSignal);
 
       if (response.status !== 200) {
         const errorText = response.body?.toString() || "Unknown error";

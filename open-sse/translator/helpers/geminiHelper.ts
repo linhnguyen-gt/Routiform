@@ -1,5 +1,6 @@
 // Gemini helper functions for translator
 
+import { parseDataImageUrl } from "./imageDataUrl.ts";
 // Unsupported JSON Schema constraints that should be removed for Antigravity
 // Reference: CLIProxyAPI/internal/util/gemini_schema.go (removeUnsupportedKeywords)
 export const UNSUPPORTED_SCHEMA_CONSTRAINTS = [
@@ -83,16 +84,11 @@ export function convertOpenAIContentToParts(content) {
     for (const item of content) {
       if (item.type === "text") {
         parts.push({ text: item.text });
-      } else if (item.type === "image_url" && item.image_url?.url?.startsWith("data:")) {
-        const url = item.image_url.url;
-        const commaIndex = url.indexOf(",");
-        if (commaIndex !== -1) {
-          const mimePart = url.substring(5, commaIndex); // skip "data:"
-          const data = url.substring(commaIndex + 1);
-          const mimeType = mimePart.split(";")[0];
-
+      } else if (item.type === "image_url" && item.image_url?.url) {
+        const parsed = parseDataImageUrl(item.image_url.url);
+        if (parsed) {
           parts.push({
-            inlineData: { mimeType, data },
+            inlineData: { mimeType: parsed.mimeType, data: parsed.data },
           });
         }
       }

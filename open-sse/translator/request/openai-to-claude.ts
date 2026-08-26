@@ -3,6 +3,7 @@ import { FORMATS } from "../formats.ts";
 import { CLAUDE_SYSTEM_PROMPT } from "../../config/constants.ts";
 import { adjustMaxTokens } from "../helpers/maxTokensHelper.ts";
 import { sanitizeToolId } from "../helpers/schemaCoercion.ts";
+import { parseDataImageUrl } from "../helpers/imageDataUrl.ts";
 import { DEFAULT_THINKING_CLAUDE_SIGNATURE } from "../../config/defaultThinkingSignature.ts";
 
 // Prefix for Claude OAuth tool names to avoid conflicts
@@ -471,7 +472,10 @@ function getContentBlocksFromMessage(msg, _toolNameMap = new Map(), disableToolP
       : normalizedToolContent;
     blocks.push({
       type: "tool_result",
-      tool_use_id: msg.tool_call_id,
+      // Sanitize with the same function applied to tool_use ids below — an
+      // unsanitized id (e.g. containing ".") never matches its sanitized
+      // tool_use counterpart and gets silently dropped by the orphan filter.
+      tool_use_id: sanitizeToolId(msg.tool_call_id),
       content: toolContent,
     });
   } else if (msg.role === "function") {
@@ -510,17 +514,16 @@ function getContentBlocksFromMessage(msg, _toolNameMap = new Map(), disableToolP
             ...(part.is_error && { is_error: part.is_error }),
           });
         } else if (part.type === "image_url") {
-          const url = part.image_url.url;
-          const match = url.match(/^data:([^;]+);base64,(.+)$/);
-          if (match) {
+          const parsed = parseDataImageUrl(part.image_url?.url);
+          if (parsed) {
             blocks.push({
               type: "image",
-              source: { type: "base64", media_type: match[1], data: match[2] },
+              source: { type: "base64", media_type: parsed.mimeType, data: parsed.data },
             });
-          } else if (/^https?:\/\//i.test(url)) {
+          } else if (/^https?:\/\//i.test(part.image_url?.url)) {
             blocks.push({
               type: "image",
-              source: { type: "url", url },
+              source: { type: "url", url: part.image_url.url },
             });
           }
         } else if (part.type === "image" && part.source) {

@@ -207,12 +207,18 @@ describe("wrapQoderSSE", () => {
     expect(text).toContain("data: [DONE]");
   });
 
-  it("converts upstream non-200 envelope into a synthetic error chunk", async () => {
+  it("converts upstream non-200 envelope into a mid-stream error chunk", async () => {
     const env = JSON.stringify({ statusCodeValue: 500, body: "boom" });
     const upstream = sseStream([`data: ${env}\n\n`]);
     const wrapped = wrapQoderSSE(upstream, "qoder/auto");
     const text = await readAll(wrapped);
-    expect(text).toContain("[qoder error 500: boom]");
+    // Canonical mid-stream error shape: finish_reason "error" + top-level
+    // error object carrying the upstream status — NOT content disguised as a
+    // normal completion.
+    expect(text).toContain('"finish_reason":"error"');
+    expect(text).toContain('"code":500');
+    expect(text).toContain("boom");
+    expect(text).not.toContain('"stop"');
     expect(text).toContain("data: [DONE]");
   });
 

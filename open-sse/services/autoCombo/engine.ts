@@ -98,9 +98,12 @@ export function selectProvider(
     // Pool filter
     if (config.candidatePool.length > 0 && !config.candidatePool.includes(c.provider)) return false;
 
-    // Self-healing exclusion
-    const evaluation = healer.evaluate(c.provider, 0.5, c.circuitBreakerState);
-    if (evaluation.excluded) {
+    // Self-healing exclusion — read-only at selection time. The old code
+    // called healer.evaluate(provider, 0.5, cbState) here: a hardcoded score,
+    // and a stateful call that inflated probeCount on every selection for
+    // HALF_OPEN breakers.
+    const exclusion = healer.checkExcluded(c.provider, c.circuitBreakerState);
+    if (exclusion.excluded) {
       excluded.push(c.provider);
       return false;
     }
@@ -116,7 +119,10 @@ export function selectProvider(
   // Score all providers (using classified intent if available)
   const scored = scorePool(pool, effectiveTaskType, weights, getTaskFitness);
 
-  // Apply self-healing re-evaluation with actual scores
+  // Stateful self-healing pass with ACTUAL computed scores — the one place
+  // selection may mutate healer state (new exclusions for low scores,
+  // re-admission after cooldown). "CLOSED" is passed deliberately: probe
+  // counting must only ever happen on real probe requests.
   const finalCandidates = scored.filter((s) => {
     const eval_ = healer.evaluate(s.provider, s.score, "CLOSED");
     if (eval_.excluded) {

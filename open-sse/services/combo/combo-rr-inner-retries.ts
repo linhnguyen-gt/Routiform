@@ -1,4 +1,3 @@
-import * as semaphore from "../rateLimitSemaphore.ts";
 import { checkFallbackError, getProviderProfile } from "../accountFallback.ts";
 import { recordComboRequest } from "../comboMetrics.ts";
 import { getCircuitBreaker } from "../../../src/shared/utils/circuitBreaker";
@@ -7,6 +6,10 @@ import { shouldFallbackComboBadRequest } from "./combo-bad-request-fallback.ts";
 import { isAllAccountsRateLimitedResponse } from "./combo-rate-limit-detect.ts";
 import { resolveRetryWaitMs } from "./combo-retry-settings.ts";
 import { TRANSIENT_FOR_BREAKER } from "./combo-constants.ts";
+import {
+  applyTransientFailurePenalty,
+  isTransientComboStatus,
+} from "./combo-standard-retry-outcome.ts";
 import { readUpstreamErrorFromResponse } from "./combo-parse-upstream-error.ts";
 import { tryRoundRobinOkResponse } from "./combo-rr-ok-snippet.ts";
 
@@ -132,9 +135,10 @@ export async function runRoundRobinInnerRetries(options: {
       String(errStr)
     );
 
+    // Shared with the standard chain: breaker fires for every
+    // TRANSIENT_FOR_BREAKER status, semaphore cooldown applied when reported.
+    applyTransientFailurePenalty({ modelStr, status: result.status, cooldownMs, breaker });
     if (TRANSIENT_FOR_BREAKER.includes(result.status) && cooldownMs > 0) {
-      semaphore.markRateLimited(modelStr, cooldownMs);
-      breaker._onFailure();
       log.warn(
         "COMBO-RR",
         `${modelStr} error ${result.status}, cooldown ${cooldownMs}ms (breaker: ${breaker.getStatus().failureCount}/${profile.circuitBreakerThreshold})`
@@ -171,7 +175,7 @@ export async function runRoundRobinInnerRetries(options: {
       );
     }
 
-    const isTransient = [408, 429, 500, 502, 503, 504].includes(result.status);
+    const isTransient = isTransientComboStatus(result.status);
     if (retry < maxRetries && isTransient) {
       nextRetryDelayMs = resolveRetryWaitMs(retryDelayMs, cooldownMs, config);
       continue;

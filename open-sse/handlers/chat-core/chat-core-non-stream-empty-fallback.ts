@@ -1,4 +1,3 @@
-import { appendRequestLog } from "@/lib/usageDb";
 import { HTTP_STATUS } from "../../config/constants.ts";
 import { getNextFamilyFallback } from "../../services/modelFamilyFallback.ts";
 import { buildErrorBody, createErrorResult } from "../../utils/error.ts";
@@ -41,13 +40,6 @@ export async function chatCoreNonStreamEmptyContentFallback(
   } = ctx;
   let providerUrl = p.providerUrl as string;
   let providerHeaders = p.providerHeaders as Headers;
-
-  appendRequestLog({
-    model: p.model,
-    provider: p.provider,
-    connectionId: p.connectionId,
-    status: `FAILED ${HTTP_STATUS.BAD_GATEWAY}`,
-  }).catch(() => {});
   const emptyContentMessage = "Provider returned empty content";
   persistAttemptLogs({
     status: HTTP_STATUS.BAD_GATEWAY,

@@ -5,6 +5,7 @@
 import { register } from "../registry.ts";
 import { FORMATS } from "../formats.ts";
 import { generateToolCallId } from "../helpers/toolCallHelper.ts";
+import { consumeThinkContent, flushThinkContent } from "../../utils/thinkTagStream.ts";
 
 function normalizeToolName(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -16,7 +17,20 @@ function normalizeToolName(value) {
  */
 export function openaiToOpenAIResponsesResponse(chunk, state) {
   if (!chunk) {
-    return flushEvents(state);
+    // Stream end: anything the <think> splitter still holds was never part of
+    // a real <think>...</think> span — restore it verbatim as plain text.
+    const heldText = flushThinkContent(state);
+    if (!heldText) return flushEvents(state);
+
+    const events = [];
+    const nextSeq = () => ++state.seq;
+    const flushEmit = (eventType, data) => {
+      data.sequence_number = nextSeq();
+      events.push({ event: eventType, data });
+    };
+    emitTextContent(state, flushEmit, 0, heldText);
+    for (const e of flushEvents(state)) events.push(e);
+    return events;
   }
 
   // Capture usage from all chunks that carry it (usage-only chunks OR final chunks with finish_reason)
@@ -89,31 +103,17 @@ export function openaiToOpenAIResponsesResponse(chunk, state) {
 
   // Handle text content
   if (delta.content) {
-    let content = delta.content;
-
-    if (content.includes("<think>")) {
-      state.inThinking = true;
-      content = content.replaceAll("<think>", "");
+    // Kiro-style stateful <think> splitting (see consumeThinkContent above).
+    // Replaces the previous heuristic that set state.inThinking on ANY chunk
+    // containing "<think>" and only cleared it on "</think>": literal "<think>"
+    // prose reclassified the whole rest of the stream as reasoning.
+    const { reasoning, text } = consumeThinkContent(state, delta.content);
+    if (reasoning) {
       startReasoning(state, emit, idx);
+      emitReasoningDelta(state, emit, reasoning);
     }
-
-    if (content.includes("</think>")) {
-      const parts = content.split("</think>");
-      const thinkPart = parts[0];
-      const textPart = parts.slice(1).join("</think>");
-      if (thinkPart) emitReasoningDelta(state, emit, thinkPart);
-      closeReasoning(state, emit);
-      state.inThinking = false;
-      content = textPart;
-    }
-
-    if (state.inThinking && content) {
-      emitReasoningDelta(state, emit, content);
-      return events;
-    }
-
-    if (content) {
-      emitTextContent(state, emit, idx, content);
+    if (text) {
+      emitTextContent(state, emit, idx, text);
     }
   }
 

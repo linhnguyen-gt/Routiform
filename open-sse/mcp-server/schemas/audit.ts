@@ -111,11 +111,38 @@ export async function hashInput(input: unknown): Promise<string> {
 }
 
 /**
- * Truncate output to a summary string for audit logging.
+ * Patterns for credentials that must never reach the audit table, even truncated.
+ * Applied to output summaries before they are persisted.
+ */
+const SECRET_PATTERNS: Array<{ pattern: RegExp; replacement: string }> = [
+  { pattern: /sk-[A-Za-z0-9_-]{8,}/g, replacement: "[REDACTED]" },
+  { pattern: /Bearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, replacement: "Bearer [REDACTED]" },
+  { pattern: /\b[0-9a-f]{32,}\b/gi, replacement: "[REDACTED]" },
+];
+
+// Key/value shape handled separately so the field name stays readable.
+const SECRET_KV_PATTERN =
+  /(?:"?(?:api[-_]?key|token|secret|password|authorization)"?\s*[:=]\s*"?)([^",\s}]{6,})/gi;
+
+function redactSecrets(text: string): string {
+  const withoutTokens = SECRET_PATTERNS.reduce(
+    (acc, entry) => acc.replace(entry.pattern, entry.replacement),
+    text
+  );
+  return withoutTokens.replace(
+    SECRET_KV_PATTERN,
+    (_match, value: string) => _match.slice(0, _match.indexOf(value)) + "[REDACTED]"
+  );
+}
+
+/**
+ * Truncate output to a summary string for audit logging, with secret patterns redacted
+ * before anything is persisted.
  */
 export function summarizeOutput(output: unknown, maxLength = 200): string {
   if (output === null || output === undefined) return "(null)";
   const str = typeof output === "string" ? output : JSON.stringify(output);
-  if (str.length <= maxLength) return str;
-  return str.slice(0, maxLength) + "…";
+  const redacted = redactSecrets(str);
+  if (redacted.length <= maxLength) return redacted;
+  return redacted.slice(0, maxLength) + "…";
 }

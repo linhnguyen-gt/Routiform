@@ -73,16 +73,6 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
   p.stream = stream;
   stripNonStandardStreamAliases(p.body);
 
-  const cachedResponse = checkSemanticCache(
-    p.model,
-    p.body,
-    clientRawRequest as { headers?: Record<string, string> } | null | undefined,
-    log ?? undefined
-  );
-  if (cachedResponse) {
-    return { done: true, result: { success: true, response: cachedResponse } };
-  }
-
   const reqLogger = await createRequestLogger(p.sourceFormat || "", p.targetFormat || "", p.model);
   p.reqLogger = reqLogger;
 
@@ -99,6 +89,20 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
     string,
     unknown
   >;
+
+  // Semantic-cache lookup signs the POST-sanitize body — the same snapshot the
+  // store path keys on in chatCorePhaseNonStreamComplete (p.rawBody is captured
+  // after this point). Looking up pre-sanitize while storing post-sanitize made
+  // entries effectively unreachable.
+  const cachedResponse = checkSemanticCache(
+    p.model,
+    p.body,
+    clientRawRequest as { headers?: Record<string, string> } | null | undefined,
+    log ?? undefined
+  );
+  if (cachedResponse) {
+    return { done: true, result: { success: true, response: cachedResponse } };
+  }
 
   if (p.targetFormat === FORMATS.OPENAI_RESPONSES) {
     if (p.body.max_tokens !== undefined && p.body.max_output_tokens === undefined) {

@@ -58,8 +58,8 @@ test("shouldDeduplicate excludes high-temperature requests", () => {
   assert.equal(shouldDeduplicate(newBody({ temperature: 0.9 })), false);
 });
 
-test("shouldDeduplicate allows streaming (no longer hard-excluded)", () => {
-  assert.equal(shouldDeduplicate(newBody({ stream: true })), true);
+test("shouldDeduplicate excludes streaming (lifecycle coupling + double billing)", () => {
+  assert.equal(shouldDeduplicate(newBody({ stream: true })), false);
 });
 
 test("detectSideEffect: last role=tool is side-effecting", () => {

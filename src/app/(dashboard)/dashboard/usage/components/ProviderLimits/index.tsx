@@ -19,6 +19,7 @@ import {
 
 const LS_GROUP_BY = "routiform:limits:groupBy";
 const LS_EXPANDED_GROUPS = "routiform:limits:expandedGroups";
+const LS_EXPANDED_ACCOUNTS = "routiform:limits:expandedAccounts";
 
 const MIN_FETCH_INTERVAL_MS = 30000; // Debounce per-connection fetches
 const QUOTA_BAR_GREEN_THRESHOLD = 50;
@@ -33,6 +34,7 @@ const PROVIDER_CONFIG = {
   claude: { label: "Claude Code", color: "#D97757" },
   glm: { label: "GLM (Z.AI)", color: "#4A90D9" },
   "kimi-coding": { label: "Kimi Coding", color: "#1E3A8A" },
+  xai: { label: "xAI (Grok)", color: "#9CA3AF" },
 };
 
 const TIER_FILTERS = [
@@ -96,6 +98,15 @@ export default function ProviderLimits() {
     if (typeof window === "undefined") return new Set();
     try {
       const saved = localStorage.getItem(LS_EXPANDED_GROUPS);
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const saved = localStorage.getItem(LS_EXPANDED_ACCOUNTS);
       return saved ? new Set(JSON.parse(saved)) : new Set();
     } catch {
       return new Set();
@@ -293,6 +304,7 @@ export default function ProviderLimits() {
       kiro: 5,
       glm: 6,
       "kimi-coding": 7,
+      xai: 8,
     };
     return [...filteredConnections].sort(
       (a, b) => (priority[a.provider] || 9) - (priority[b.provider] || 9)
@@ -391,6 +403,15 @@ export default function ProviderLimits() {
       const next = new Set(prev);
       next.has(groupName) ? next.delete(groupName) : next.add(groupName);
       localStorage.setItem(LS_EXPANDED_GROUPS, JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  const toggleAccount = (accountId: string) => {
+    setExpandedAccounts((prev) => {
+      const next = new Set(prev);
+      next.has(accountId) ? next.delete(accountId) : next.add(accountId);
+      localStorage.setItem(LS_EXPANDED_ACCOUNTS, JSON.stringify([...next]));
       return next;
     });
   };
@@ -548,107 +569,240 @@ export default function ProviderLimits() {
             const resolvedPlan = resolvedPlanByConnection[conn.id];
             const planBadgeLabel = getPlanBadgeLabel(conn.provider, tierMeta, resolvedPlan);
             const refreshedAt = lastRefreshedAt[conn.id];
+            const quotas = quota?.quotas ?? [];
+            const expanded = expandedAccounts.has(conn.id);
+
+            // Summary metrics for the collapsed row: worst usage across tiles
+            // and the nearest upcoming reset window.
+            let worstUsed = 0;
+            let nearestResetMs = null;
+            for (const q of quotas) {
+              if (q.unlimited !== true) {
+                worstUsed = Math.max(worstUsed, resolveUsedDisplayPercentage(q));
+              }
+              const ms = typeof q.resetAt === "string" ? Date.parse(q.resetAt) : NaN;
+              if (
+                Number.isFinite(ms) &&
+                ms > Date.now() &&
+                (nearestResetMs === null || ms < nearestResetMs)
+              ) {
+                nearestResetMs = ms;
+              }
+            }
+            const worstColors = getBarColor(worstUsed);
+            const countdown = nearestResetMs
+              ? formatCountdown(new Date(nearestResetMs).toISOString())
+              : null;
+            const refreshedTime = refreshedAt
+              ? new Date(refreshedAt).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  hour12: false,
+                })
+              : null;
+
+            const quotaTiles =
+              quotas.length > 0 ? (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {quota.quotas.map((q, i) => {
+                    const usedPercentage = q.unlimited ? 0 : resolveUsedDisplayPercentage(q);
+                    const colors = getBarColor(usedPercentage);
+                    const cd = formatCountdown(q.resetAt);
+                    const shortName = formatQuotaLabel(q.name);
+                    const staleAfterReset = q.staleAfterReset === true;
+
+                    // Credits display (special case)
+                    if ((q as Record<string, unknown>).isCredits) {
+                      return (
+                        <div
+                          key={i}
+                          className="flex min-h-[92px] flex-col items-center justify-center rounded-lg border border-border/50 bg-bg-subtle/20 p-2.5"
+                        >
+                          <span
+                            className="mb-1 rounded-md px-2 py-0.5 text-[11px] font-semibold"
+                            style={{ background: colors.bg, color: colors.text }}
+                          >
+                            🪙 {shortName}
+                          </span>
+                          <span
+                            className="text-[20px] font-bold tabular-nums"
+                            style={{ color: colors.text }}
+                          >
+                            {((q as Record<string, unknown>).creditCount as number) ?? q.remaining}
+                          </span>
+                          <span className="text-[10px] text-text-muted">left</span>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={i}
+                        className="flex min-h-[92px] flex-col rounded-lg border border-border/50 bg-bg-subtle/20 p-2.5"
+                      >
+                        <div className="mb-2 flex items-start justify-between gap-2">
+                          <span
+                            title={q.modelKey || q.name}
+                            className="min-w-0 max-w-[calc(100%-3rem)] truncate rounded-md px-2 py-0.5 text-[11px] font-semibold leading-tight"
+                            style={{ background: colors.bg, color: colors.text }}
+                          >
+                            {shortName}
+                          </span>
+                          <span
+                            className="shrink-0 tabular-nums text-[11px] font-semibold"
+                            style={{ color: colors.text }}
+                          >
+                            {usedPercentage}%
+                          </span>
+                        </div>
+                        <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/[0.06]">
+                          <div
+                            className="h-full rounded-full transition-[width] duration-300 ease-out"
+                            style={{
+                              width: `${Math.min(usedPercentage, 100)}%`,
+                              background: colors.bar,
+                            }}
+                          />
+                        </div>
+                        <div className="mb-2 text-[10px] tabular-nums leading-tight text-text-muted">
+                          {Number(q.used ?? 0).toLocaleString()} /{" "}
+                          {q.total > 0 ? Number(q.total).toLocaleString() : "∞"}
+                        </div>
+                        <div className="mt-auto text-[10px] leading-tight text-text-muted">
+                          {staleAfterReset ? (
+                            <span className="inline-flex items-center gap-1">
+                              <span className="material-symbols-outlined animate-spin text-[12px] opacity-80">
+                                progress_activity
+                              </span>
+                              {t("quotaRefreshing")}
+                            </span>
+                          ) : cd ? (
+                            <span>⏱ {cd}</span>
+                          ) : (
+                            <span className="opacity-50">—</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null;
 
             return (
-              <div
-                key={conn.id}
-                className={cn(
-                  "px-4 py-4 transition-colors duration-150 hover:bg-black/[0.03] dark:hover:bg-white/[0.02] sm:px-5",
-                  !isLast && "border-b border-border/40"
-                )}
-              >
-                <div className="flex flex-col gap-3">
-                  {/* Top: account + last refresh + action */}
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
-                        <Image
-                          src={`/providers/${conn.provider}.png`}
-                          alt={conn.provider}
-                          width={32}
-                          height={32}
-                          className="object-contain"
-                          sizes="32px"
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="truncate text-[13px] font-semibold text-text-main">
-                          {conn.name || conn.displayName || conn.email || config.label}
-                        </div>
-                        <div className="mt-1 flex min-h-5 flex-wrap items-center gap-1.5">
-                          <span
-                            title={
-                              resolvedPlan
-                                ? t("rawPlanWithValue", { plan: resolvedPlan })
-                                : t("noPlanFromProvider")
-                            }
-                            className="inline-flex shrink-0 items-center"
-                          >
-                            <Badge
-                              variant={tierMeta.variant}
-                              size="sm"
-                              dot
-                              className="h-5 leading-none"
-                            >
-                              {planBadgeLabel}
-                            </Badge>
-                          </span>
-                          <span className="text-[11px] leading-none text-text-muted">
-                            {config.label}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex shrink-0 flex-row items-center justify-between gap-3 sm:justify-end">
-                      <div className="text-left sm:text-right">
-                        <div className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
-                          {t("lastUsed")}
-                        </div>
-                        <div className="tabular-nums text-[12px] text-text-main">
-                          {refreshedAt ? (
-                            new Date(refreshedAt).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              second: "2-digit",
-                              hour12: false,
-                            })
-                          ) : (
-                            <span className="text-text-muted">—</span>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => refreshProvider(conn.id, conn.provider)}
-                        disabled={isLoading}
-                        title={t("refreshQuota")}
-                        className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border/50 bg-bg-subtle/40 text-text-muted transition-colors hover:border-border hover:bg-sidebar hover:text-text-main disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        <span
-                          className={cn(
-                            "material-symbols-outlined text-[18px]",
-                            isLoading && "animate-spin"
-                          )}
-                        >
-                          refresh
-                        </span>
-                      </button>
+              <div key={conn.id} className={cn(!isLast && "border-b border-border/40")}>
+                {/* Collapsed summary row — click to expand quota detail */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={expanded}
+                  onClick={() => toggleAccount(conn.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggleAccount(conn.id);
+                    }
+                  }}
+                  className="flex cursor-pointer select-none items-center gap-2.5 px-4 py-2.5 transition-colors hover:bg-black/[0.03] focus-visible:bg-black/[0.03] focus-visible:outline-none dark:hover:bg-white/[0.02] sm:px-5"
+                >
+                  <span
+                    className="material-symbols-outlined shrink-0 text-[18px] text-text-muted"
+                    aria-hidden
+                  >
+                    {expanded ? "expand_less" : "expand_more"}
+                  </span>
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md">
+                    <Image
+                      src={`/providers/${conn.provider}.png`}
+                      alt={conn.provider}
+                      width={24}
+                      height={24}
+                      className="object-contain"
+                      sizes="24px"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-[13px] font-semibold text-text-main">
+                        {conn.name || conn.displayName || conn.email || config.label}
+                      </span>
+                      <span className="hidden shrink-0 text-[11px] leading-none text-text-muted sm:inline">
+                        {config.label}
+                      </span>
                     </div>
                   </div>
-
-                  {/* Quotas: responsive card grid */}
-                  <div>
-                    <div className="mb-2 flex items-baseline justify-between gap-2">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
-                        {t("modelQuotas")}
+                  <Badge
+                    variant={tierMeta.variant}
+                    size="sm"
+                    dot
+                    className="hidden h-5 shrink-0 leading-none sm:inline-flex"
+                  >
+                    {planBadgeLabel}
+                  </Badge>
+                  {quotas.length > 0 && !error && !isLoading && (
+                    <div
+                      className="hidden shrink-0 items-center gap-1.5 md:flex"
+                      title={t("modelQuotas")}
+                    >
+                      <div className="h-1.5 w-14 overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/[0.06]">
+                        <div
+                          className="h-full rounded-full transition-[width] duration-300 ease-out"
+                          style={{
+                            width: `${Math.min(worstUsed, 100)}%`,
+                            background: worstColors.bar,
+                          }}
+                        />
+                      </div>
+                      <span
+                        className="w-9 text-right tabular-nums text-[11px] font-semibold"
+                        style={{ color: worstColors.text }}
+                      >
+                        {worstUsed}%
                       </span>
-                      {!isLoading && !error && quota?.quotas?.length > 0 && (
-                        <span className="tabular-nums text-[10px] text-text-muted">
-                          {quota.quotas.length}
-                        </span>
-                      )}
                     </div>
+                  )}
+                  {countdown && !isLoading && (
+                    <span
+                      className="hidden shrink-0 tabular-nums text-[11px] text-text-muted lg:inline"
+                      title={new Date(nearestResetMs).toLocaleString()}
+                    >
+                      ⏱ {countdown}
+                    </span>
+                  )}
+                  {isLoading && (
+                    <span
+                      className="material-symbols-outlined shrink-0 animate-spin text-[14px] text-text-muted"
+                      aria-hidden
+                    >
+                      progress_activity
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      refreshProvider(conn.id, conn.provider);
+                    }}
+                    disabled={isLoading}
+                    title={
+                      refreshedTime ? `${t("refreshQuota")} · ${refreshedTime}` : t("refreshQuota")
+                    }
+                    className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border/50 bg-bg-subtle/40 text-text-muted transition-colors hover:border-border hover:bg-sidebar hover:text-text-main disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <span
+                      className={cn(
+                        "material-symbols-outlined text-[16px]",
+                        isLoading && "animate-spin"
+                      )}
+                    >
+                      refresh
+                    </span>
+                  </button>
+                </div>
+
+                {/* Expanded detail — quota tiles on demand */}
+                {expanded && (
+                  <div className="border-t border-border/30 bg-bg-subtle/10 px-4 py-3 sm:px-5">
                     {isLoading ? (
                       <div className="flex items-center gap-1.5 text-xs text-text-muted">
                         <span className="material-symbols-outlined animate-spin text-[14px]">
@@ -663,98 +817,15 @@ export default function ProviderLimits() {
                           {error}
                         </span>
                       </div>
-                    ) : quota?.message && (!quota.quotas || quota.quotas.length === 0) ? (
+                    ) : quota?.message && quotas.length === 0 ? (
                       <div className="text-xs italic text-text-muted">{quota.message}</div>
-                    ) : quota?.quotas?.length > 0 ? (
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {quota.quotas.map((q, i) => {
-                          const usedPercentage = q.unlimited ? 0 : resolveUsedDisplayPercentage(q);
-                          const colors = getBarColor(usedPercentage);
-                          const cd = formatCountdown(q.resetAt);
-                          const shortName = formatQuotaLabel(q.name);
-                          const staleAfterReset = q.staleAfterReset === true;
-
-                          // Credits display (special case)
-                          if ((q as Record<string, unknown>).isCredits) {
-                            return (
-                              <div
-                                key={i}
-                                className="flex min-h-[92px] flex-col items-center justify-center rounded-lg border border-border/50 bg-bg-subtle/20 p-2.5"
-                              >
-                                <span
-                                  className="mb-1 rounded-md px-2 py-0.5 text-[11px] font-semibold"
-                                  style={{ background: colors.bg, color: colors.text }}
-                                >
-                                  🪙 {shortName}
-                                </span>
-                                <span
-                                  className="text-[20px] font-bold tabular-nums"
-                                  style={{ color: colors.text }}
-                                >
-                                  {((q as Record<string, unknown>).creditCount as number) ??
-                                    q.remaining}
-                                </span>
-                                <span className="text-[10px] text-text-muted">left</span>
-                              </div>
-                            );
-                          }
-
-                          return (
-                            <div
-                              key={i}
-                              className="flex min-h-[92px] flex-col rounded-lg border border-border/50 bg-bg-subtle/20 p-2.5"
-                            >
-                              <div className="mb-2 flex items-start justify-between gap-2">
-                                <span
-                                  title={q.modelKey || q.name}
-                                  className="min-w-0 max-w-[calc(100%-3rem)] truncate rounded-md px-2 py-0.5 text-[11px] font-semibold leading-tight"
-                                  style={{ background: colors.bg, color: colors.text }}
-                                >
-                                  {shortName}
-                                </span>
-                                <span
-                                  className="shrink-0 tabular-nums text-[11px] font-semibold"
-                                  style={{ color: colors.text }}
-                                >
-                                  {usedPercentage}%
-                                </span>
-                              </div>
-                              <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/[0.06]">
-                                <div
-                                  className="h-full rounded-full transition-[width] duration-300 ease-out"
-                                  style={{
-                                    width: `${Math.min(usedPercentage, 100)}%`,
-                                    background: colors.bar,
-                                  }}
-                                />
-                              </div>
-                              <div className="mb-2 text-[10px] tabular-nums leading-tight text-text-muted">
-                                {Number(q.used ?? 0).toLocaleString()} /{" "}
-                                {q.total > 0 ? Number(q.total).toLocaleString() : "∞"}
-                              </div>
-                              <div className="mt-auto text-[10px] leading-tight text-text-muted">
-                                {staleAfterReset ? (
-                                  <span className="inline-flex items-center gap-1">
-                                    <span className="material-symbols-outlined animate-spin text-[12px] opacity-80">
-                                      progress_activity
-                                    </span>
-                                    {t("quotaRefreshing")}
-                                  </span>
-                                ) : cd ? (
-                                  <span>⏱ {cd}</span>
-                                ) : (
-                                  <span className="opacity-50">—</span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                    ) : quotaTiles ? (
+                      quotaTiles
                     ) : (
                       <div className="text-xs italic text-text-muted">{t("noQuotaData")}</div>
                     )}
                   </div>
-                </div>
+                )}
               </div>
             );
           };
