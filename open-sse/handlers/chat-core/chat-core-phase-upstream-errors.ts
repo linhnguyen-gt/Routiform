@@ -1,4 +1,4 @@
-import { appendRequestLog, trackPendingRequest } from "@/lib/usageDb";
+import { trackPendingRequest } from "@/lib/usageDb";
 import { HTTP_STATUS } from "../../config/constants.ts";
 import { updateFromHeaders } from "../../services/rateLimitManager.ts";
 import { formatProviderError, parseUpstreamError } from "../../utils/error.ts";
@@ -82,13 +82,6 @@ export async function chatCorePhaseUpstreamErrors(p: ChatCorePipeline): Promise<
       retryAfterMs,
     });
   }
-
-  appendRequestLog({
-    model: p.model,
-    provider: p.provider,
-    connectionId: p.connectionId,
-    status: `FAILED ${statusCode}`,
-  }).catch(() => {});
 
   const errMsg = formatProviderError(new Error(message), p.provider, p.model, statusCode);
   console.log(`${COLORS.red}[ERROR] ${errMsg}${COLORS.reset}`);

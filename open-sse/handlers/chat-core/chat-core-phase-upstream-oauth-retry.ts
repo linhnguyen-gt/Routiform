@@ -42,13 +42,11 @@ export async function chatCorePhaseUpstreamOauthRetry(p: ChatCorePipeline): Prom
   let parsedRetryAfterMs: number | null = null;
   let upstreamErrorBody: unknown = null;
 
-  const streamOptionsOnlyFailed = false;
   const canOAuthRefresh = credentials?.refreshToken && typeof credentials.refreshToken === "string";
 
   if (
     (providerResponse.status === HTTP_STATUS.UNAUTHORIZED ||
       providerResponse.status === HTTP_STATUS.FORBIDDEN) &&
-    !streamOptionsOnlyFailed &&
     canOAuthRefresh
   ) {
     const newCredentials = (await refreshWithRetry(
@@ -110,5 +108,4 @@ export async function chatCorePhaseUpstreamOauthRetry(p: ChatCorePipeline): Prom
   p.parsedMessage = parsedMessage;
   p.parsedRetryAfterMs = parsedRetryAfterMs;
   p.upstreamErrorBody = upstreamErrorBody;
-  p.streamOptionsOnlyFailed = streamOptionsOnlyFailed;
 }

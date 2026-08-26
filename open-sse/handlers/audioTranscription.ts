@@ -26,6 +26,13 @@ type TranscriptionCredentials = {
   accessToken?: string;
 };
 
+// Upstream fetch timeouts (ms) so hung providers cannot block requests indefinitely.
+// Env-overridable; defaults are generous relative to existing poll budgets.
+const AUDIO_UPLOAD_TIMEOUT_MS = Number(process.env.AUDIO_UPLOAD_TIMEOUT_MS) || 300000;
+const AUDIO_SUBMIT_TIMEOUT_MS = Number(process.env.AUDIO_SUBMIT_TIMEOUT_MS) || 60000;
+const AUDIO_POLL_TIMEOUT_MS = Number(process.env.AUDIO_POLL_TIMEOUT_MS) || 30000;
+const AUDIO_REQUEST_TIMEOUT_MS = Number(process.env.AUDIO_REQUEST_TIMEOUT_MS) || 300000;
+
 /**
  * Return a CORS error response from an upstream fetch failure
  */
@@ -138,6 +145,7 @@ async function handleDeepgramTranscription(
       "Content-Type": resolveAudioContentType(file),
     },
     body: arrayBuffer,
+    signal: AbortSignal.timeout(AUDIO_REQUEST_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -171,6 +179,7 @@ async function handleAssemblyAITranscription(providerConfig, file, modelId, toke
       "Content-Type": "application/octet-stream",
     },
     body: arrayBuffer,
+    signal: AbortSignal.timeout(AUDIO_UPLOAD_TIMEOUT_MS),
   });
 
   if (!uploadRes.ok) {
@@ -191,6 +200,7 @@ async function handleAssemblyAITranscription(providerConfig, file, modelId, toke
       speech_models: [modelId],
       language_detection: true,
     }),
+    signal: AbortSignal.timeout(AUDIO_SUBMIT_TIMEOUT_MS),
   });
 
   if (!submitRes.ok) {
@@ -204,11 +214,51 @@ async function handleAssemblyAITranscription(providerConfig, file, modelId, toke
   const maxWait = 120_000;
   const start = Date.now();
 
+  // Abort after repeated polling failures instead of silently continuing
+  // until the overall timeout.
+  const maxConsecutiveFailures = 5;
+  let consecutiveFailures = 0;
+
   while (Date.now() - start < maxWait) {
     await new Promise((r) => setTimeout(r, 2000));
 
-    const pollRes = await fetch(pollUrl, { headers: authHeaders });
-    if (!pollRes.ok) continue;
+    let pollRes: Response;
+    try {
+      pollRes = await fetch(pollUrl, {
+        headers: authHeaders,
+        signal: AbortSignal.timeout(AUDIO_POLL_TIMEOUT_MS),
+      });
+    } catch (err) {
+      consecutiveFailures += 1;
+      console.error(
+        `[AUDIO] assemblyai poll failed (${consecutiveFailures}/${maxConsecutiveFailures}) for job ${transcriptId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+      if (consecutiveFailures >= maxConsecutiveFailures) {
+        return errorResponse(
+          502,
+          `AssemblyAI transcription failed after ${consecutiveFailures} consecutive polling errors`
+        );
+      }
+      continue;
+    }
+
+    if (!pollRes.ok) {
+      consecutiveFailures += 1;
+      console.error(
+        `[AUDIO] assemblyai poll failed with HTTP ${pollRes.status} (${consecutiveFailures}/${maxConsecutiveFailures}) for job ${transcriptId}`
+      );
+      if (consecutiveFailures >= maxConsecutiveFailures) {
+        return errorResponse(
+          502,
+          `AssemblyAI transcription failed after ${consecutiveFailures} consecutive polling errors`
+        );
+      }
+      continue;
+    }
+
+    consecutiveFailures = 0;
 
     const result = await pollRes.json();
 
@@ -240,6 +290,7 @@ async function handleNvidiaTranscription(providerConfig, file, modelId, token) {
     method: "POST",
     headers: buildAuthHeaders(providerConfig, token),
     body: upstreamForm,
+    signal: AbortSignal.timeout(AUDIO_REQUEST_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -271,6 +322,7 @@ async function handleHuggingFaceTranscription(providerConfig, file, modelId, tok
       "Content-Type": resolveAudioContentType(file),
     },
     body: arrayBuffer,
+    signal: AbortSignal.timeout(AUDIO_REQUEST_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -378,6 +430,7 @@ export async function handleAudioTranscription({
       method: "POST",
       headers: buildAuthHeaders(providerConfig, token),
       body: upstreamForm,
+      signal: AbortSignal.timeout(AUDIO_REQUEST_TIMEOUT_MS),
     });
 
     if (!res.ok) {

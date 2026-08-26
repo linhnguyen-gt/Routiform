@@ -71,6 +71,8 @@ export type AntigravityExecuteInput = {
 /** The executor surface the execute loop depends on (satisfied by AntigravityExecutor). */
 export type AntigravityRuntime = {
   getFallbackCount(): number;
+  /** Effective upstream timeout (ms) — provider override or FETCH_TIMEOUT_MS. */
+  getRequestTimeoutMs(): number;
   buildUrl(model: string, stream: boolean, urlIndex?: number): string;
   buildHeaders(credentials: AntigravityCredentials, stream?: boolean): Record<string, string>;
   transformRequest(

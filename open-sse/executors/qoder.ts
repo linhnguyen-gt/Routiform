@@ -22,7 +22,13 @@
 import { v4 as uuidv4 } from "uuid";
 import { createHash } from "crypto";
 
-import { BaseExecutor, type ExecuteInput, type ProviderCredentials } from "./base.ts";
+import {
+  BaseExecutor,
+  buildStreamTtfbGuard,
+  getRequestTimeoutMs,
+  type ExecuteInput,
+  type ProviderCredentials,
+} from "./base.ts";
 import { PROVIDERS } from "../config/constants.ts";
 import { qoderEncodeBody } from "@/lib/qoder/encoding";
 import { buildCosyHeaders } from "@/lib/qoder/cosy";
@@ -38,11 +44,21 @@ type JsonRecord = Record<string, unknown>;
 type QoderChatMessage = {
   role?: string;
   content?: unknown;
+  /** Preserved verbatim on assistant turns so agent loops keep their call history. */
+  tool_calls?: unknown;
 };
 
 /**
  * Hoist role:"system" messages out of the messages array (Qoder rejects
  * system in messages) and flatten any multipart content arrays.
+ *
+ * Known limitations of the Qoder chat endpoint, handled here:
+ *   - Image parts are not supported upstream. They are replaced with a visible
+ *     text placeholder so multi-part user turns keep their position in history
+ *     instead of silently disappearing.
+ *   - Assistant tool_calls ARE preserved verbatim (spread below): tools are
+ *     declared in the payload, so an agent loop whose assistant turns lost
+ *     their tool_calls would desynchronize the tool-call/tool-result pairing.
  */
 function normalizeMessages(messages: unknown): {
   messages: QoderChatMessage[];
@@ -60,6 +76,8 @@ function normalizeMessages(messages: unknown): {
       if (text) systemParts.push(text);
       continue;
     }
+    // Spread keeps role/content/tool_calls structure intact; only `content`
+    // is rewritten from multipart arrays to plain text.
     const cloned: QoderChatMessage = { ...msg };
     cloned.content = text;
     out.push(cloned);
@@ -79,6 +97,9 @@ function extractText(content: unknown): string {
           parts.push(r.text);
         } else if (typeof r.text === "string") {
           parts.push(r.text);
+        } else if (r.type === "image_url" || r.type === "image") {
+          // Unsupported upstream — keep an explicit placeholder in history.
+          parts.push("[image omitted: not supported by this provider]");
         }
       }
     }
@@ -291,19 +312,30 @@ function wrapQoderSSE(response: Response, model: string): Response {
     const statusVal = typeof envelope.statusCodeValue === "number" ? envelope.statusCodeValue : 200;
     const inner = typeof envelope.body === "string" ? envelope.body : "";
     if (statusVal !== 200) {
+      // A non-200 envelope inside a 200-OK SSE body must NOT masquerade as
+      // content with finish_reason "stop" — that reads as a normal completion
+      // (billed as one, no failover). Emit the pipeline's canonical mid-stream
+      // error event instead (same shape createDisconnectAwareStream produces:
+      // finish_reason "error" + top-level `error` object). `error.code` carries
+      // the upstream status so standard failure classification
+      // (classifyProviderError(statusCode, message)) and combo fallback engage.
       const msg = inner || `upstream status ${statusVal}`;
       const errChunk = JSON.stringify({
-        id: `qoder-error-${Date.now()}`,
         object: "chat.completion.chunk",
         created: Math.floor(Date.now() / 1000),
         model,
         choices: [
           {
             index: 0,
-            delta: { content: `\n[qoder error ${statusVal}: ${truncate(msg, 200)}]` },
-            finish_reason: "stop",
+            delta: {},
+            finish_reason: "error",
           },
         ],
+        error: {
+          message: `[${statusVal}]: ${truncate(msg, 500)}`,
+          type: statusVal >= 500 ? "server_error" : "invalid_request_error",
+          code: statusVal,
+        },
       });
       controller.enqueue(encoder.encode(`data: ${errChunk}\n\n`));
       controller.enqueue(encoder.encode("data: [DONE]\n\n"));
@@ -433,6 +465,7 @@ export class QoderExecutor extends BaseExecutor {
 
     const modelConfigSource =
       (payload.model_config && (payload.model_config as JsonRecord).source) || "system";
+
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
@@ -444,12 +477,17 @@ export class QoderExecutor extends BaseExecutor {
       ...cosyHeaders,
     };
 
+    // Bound the upstream call by the client-disconnect signal + provider timeout;
+    // Qoder is always SSE here, so only time-to-first-byte is bounded — a healthy
+    // long-lived stream must not be truncated mid-body by the full-lifetime clock.
+    const ttfbGuard = buildStreamTtfbGuard(signal ?? null, getRequestTimeoutMs(this.config));
     const response = await fetch(url, {
       method: "POST",
       headers,
       body: encodedBodyBuf,
-      signal: signal ?? undefined,
+      signal: ttfbGuard.signal,
     });
+    ttfbGuard.headersReceived();
 
     if (!response.ok) {
       // Pass error response through unchanged so chatCore can capture it.

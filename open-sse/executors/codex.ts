@@ -1,4 +1,4 @@
-import { BaseExecutor, type ExecuteInput } from "./base.ts";
+import { BaseExecutor, sleepWithAbort, type ExecuteInput } from "./base.ts";
 import { HTTP_STATUS, PROVIDERS } from "../config/constants.ts";
 import {
   getResponsesSubpath,
@@ -173,7 +173,13 @@ export class CodexExecutor extends BaseExecutor {
         "CODEX",
         `SSE overloaded — retry ${attempt}/${CODEX_SSE_RETRY_MAX_ATTEMPTS} on same account after ${CODEX_SSE_RETRY_DELAY_MS}ms`
       );
-      await new Promise((resolve) => setTimeout(resolve, CODEX_SSE_RETRY_DELAY_MS));
+      try {
+        await sleepWithAbort(CODEX_SSE_RETRY_DELAY_MS, input.signal ?? null);
+      } catch {
+        // Client disconnected while waiting — stop instead of firing another
+        // upstream request nobody will read.
+        return result;
+      }
     }
   }
 

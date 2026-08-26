@@ -158,16 +158,14 @@ export async function chatCorePhaseStreamingResponse(
           (streamUsage as { cached_tokens?: number }).cached_tokens ??
           (
             (streamUsage as Record<string, unknown>).prompt_tokens_details as
-              | Record<string, unknown>
-              | undefined
+              Record<string, unknown> | undefined
           )?.cached_tokens
       );
       const _cacheCreationTokens = toPositiveNumber(
         (streamUsage as { cache_creation_input_tokens?: number }).cache_creation_input_tokens ??
           (
             (streamUsage as Record<string, unknown>).prompt_tokens_details as
-              | Record<string, unknown>
-              | undefined
+              Record<string, unknown> | undefined
           )?.cache_creation_tokens
       );
 
@@ -264,7 +262,6 @@ export async function chatCorePhaseStreamingResponse(
     const progressTransform = createProgressTransform({ signal: streamController.signal });
     const transformedBody = pipeWithDisconnect(providerResponse, transformStream, streamController);
     finalStream = transformedBody.pipeThrough(progressTransform);
-    responseHeaders["X-Routiform-Progress"] = "enabled";
     responseHeaders["X-Routiform-Progress"] = "enabled";
   } else {
     finalStream = pipeWithDisconnect(providerResponse, transformStream, streamController);

@@ -22,6 +22,44 @@ const GEMINI_FINISH_REASON: Record<string, string> = {
   finish_reason_unspecified: "stop",
 };
 
+// Push one assistant delta chunk in this stream's envelope shape.
+function pushDeltaChunk(state, results, delta) {
+  results.push({
+    id: `chatcmpl-${state.messageId}`,
+    object: "chat.completion.chunk",
+    created: Math.floor(Date.now() / 1000),
+    model: state.model,
+    choices: [{ index: 0, delta, finish_reason: null }],
+  });
+}
+
+// Build an OpenAI tool_call from a Gemini functionCall part, persist any pending
+// thought signature onto it, and register it in state. Shared by the
+// thinking-signature branch and the plain branch below.
+function buildGeminiToolCall(state, functionCall) {
+  const fcName = functionCall.name;
+  const fcArgs = functionCall.args || {};
+  const toolCallIndex = state.functionIndex++;
+
+  const toolCall = {
+    id: `${fcName}-${Date.now()}-${toolCallIndex}`,
+    index: toolCallIndex,
+    type: "function",
+    function: {
+      name: fcName,
+      arguments: JSON.stringify(fcArgs),
+    },
+  };
+
+  if (state.pendingThoughtSignature) {
+    storeGeminiThoughtSignature(toolCall.id, state.pendingThoughtSignature);
+    state.pendingThoughtSignature = null;
+  }
+
+  state.toolCalls.set(toolCallIndex, toolCall);
+  return toolCall;
+}
+
 // Convert Gemini response chunk to OpenAI format
 export function geminiToOpenAIResponse(chunk, state) {
   if (!chunk) return null;
@@ -69,136 +107,40 @@ export function geminiToOpenAIResponse(chunk, state) {
         const hasFunctionCall = !!part.functionCall;
 
         if (hasTextContent) {
-          results.push({
-            id: `chatcmpl-${state.messageId}`,
-            object: "chat.completion.chunk",
-            created: Math.floor(Date.now() / 1000),
-            model: state.model,
-            choices: [
-              {
-                index: 0,
-                delta: isThought ? { reasoning_content: part.text } : { content: part.text },
-                finish_reason: null,
-              },
-            ],
-          });
+          pushDeltaChunk(
+            state,
+            results,
+            isThought ? { reasoning_content: part.text } : { content: part.text }
+          );
         }
 
         if (hasFunctionCall) {
-          const fcName = part.functionCall.name;
-          const fcArgs = part.functionCall.args || {};
-          const toolCallIndex = state.functionIndex++;
-
-          const toolCall = {
-            id: `${fcName}-${Date.now()}-${toolCallIndex}`,
-            index: toolCallIndex,
-            type: "function",
-            function: {
-              name: fcName,
-              arguments: JSON.stringify(fcArgs),
-            },
-          };
-
-          if (state.pendingThoughtSignature) {
-            storeGeminiThoughtSignature(toolCall.id, state.pendingThoughtSignature);
-            state.pendingThoughtSignature = null;
-          }
-
-          state.toolCalls.set(toolCallIndex, toolCall);
-
-          results.push({
-            id: `chatcmpl-${state.messageId}`,
-            object: "chat.completion.chunk",
-            created: Math.floor(Date.now() / 1000),
-            model: state.model,
-            choices: [
-              {
-                index: 0,
-                delta: { tool_calls: [toolCall] },
-                finish_reason: null,
-              },
-            ],
-          });
+          const toolCall = buildGeminiToolCall(state, part.functionCall);
+          pushDeltaChunk(state, results, { tool_calls: [toolCall] });
         }
         continue;
       }
 
       // Text content (non-thinking)
       if (part.text !== undefined && part.text !== "") {
-        results.push({
-          id: `chatcmpl-${state.messageId}`,
-          object: "chat.completion.chunk",
-          created: Math.floor(Date.now() / 1000),
-          model: state.model,
-          choices: [
-            {
-              index: 0,
-              delta: { content: part.text },
-              finish_reason: null,
-            },
-          ],
-        });
+        pushDeltaChunk(state, results, { content: part.text });
       }
 
       // Function call
       if (part.functionCall) {
-        const fcName = part.functionCall.name;
-        const fcArgs = part.functionCall.args || {};
-        const toolCallIndex = state.functionIndex++;
-
-        const toolCall = {
-          id: `${fcName}-${Date.now()}-${toolCallIndex}`,
-          index: toolCallIndex,
-          type: "function",
-          function: {
-            name: fcName,
-            arguments: JSON.stringify(fcArgs),
-          },
-        };
-
-        if (state.pendingThoughtSignature) {
-          storeGeminiThoughtSignature(toolCall.id, state.pendingThoughtSignature);
-          state.pendingThoughtSignature = null;
-        }
-
-        state.toolCalls.set(toolCallIndex, toolCall);
-
-        results.push({
-          id: `chatcmpl-${state.messageId}`,
-          object: "chat.completion.chunk",
-          created: Math.floor(Date.now() / 1000),
-          model: state.model,
-          choices: [
-            {
-              index: 0,
-              delta: { tool_calls: [toolCall] },
-              finish_reason: null,
-            },
-          ],
-        });
+        const toolCall = buildGeminiToolCall(state, part.functionCall);
+        pushDeltaChunk(state, results, { tool_calls: [toolCall] });
       }
 
       // Inline data (images)
       const inlineData = part.inlineData || part.inline_data;
       if (inlineData?.data) {
         const mimeType = inlineData.mimeType || inlineData.mime_type || "image/png";
-        results.push({
-          id: `chatcmpl-${state.messageId}`,
-          object: "chat.completion.chunk",
-          created: Math.floor(Date.now() / 1000),
-          model: state.model,
-          choices: [
+        pushDeltaChunk(state, results, {
+          images: [
             {
-              index: 0,
-              delta: {
-                images: [
-                  {
-                    type: "image_url",
-                    image_url: { url: `data:${mimeType};base64,${inlineData.data}` },
-                  },
-                ],
-              },
-              finish_reason: null,
+              type: "image_url",
+              image_url: { url: `data:${mimeType};base64,${inlineData.data}` },
             },
           ],
         });

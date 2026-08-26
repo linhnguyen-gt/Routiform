@@ -8,7 +8,7 @@
  * @module executors/antigravity/executor
  */
 import { PROVIDERS } from "../../config/constants.ts";
-import { BaseExecutor } from "../base.ts";
+import { BaseExecutor, getRequestTimeoutMs } from "../base.ts";
 import { executeAntigravityRequest } from "./execute-loop.ts";
 import { buildAntigravityHeaders, buildAntigravityUrl } from "./header-builder.ts";
 import { buildAntigravityRequest, generateAntigravitySessionId } from "./request-transform.ts";
@@ -33,6 +33,10 @@ export class AntigravityExecutor extends BaseExecutor implements AntigravityRunt
     void model;
     void stream;
     return buildAntigravityUrl(this.getBaseUrls(), urlIndex);
+  }
+
+  getRequestTimeoutMs(): number {
+    return getRequestTimeoutMs(this.config);
   }
 
   buildHeaders(credentials: AntigravityCredentials, _stream = true): Record<string, string> {

@@ -1,6 +1,7 @@
 import { register } from "../registry.ts";
 import { FORMATS } from "../formats.ts";
 import { CLAUDE_OAUTH_TOOL_PREFIX } from "../request/openai-to-claude.ts";
+import { parseDataImageUrl } from "../helpers/imageDataUrl.ts";
 
 // Helper: stop thinking block if started
 function stopThinkingBlock(state, results) {
@@ -145,6 +146,28 @@ export function openaiToClaudeResponse(chunk, state) {
       index: state.textBlockIndex,
       delta: { type: "text_delta", text: delta.content },
     });
+  }
+
+  // Handle inline images. gemini-to-openai emits them as a non-standard
+  // delta.images[] (OpenAI has no such field), so without this mapping the
+  // images are silently dropped on every Gemini -> OpenAI -> Claude chain.
+  if (Array.isArray(delta?.images)) {
+    stopThinkingBlock(state, results);
+    stopTextBlock(state, results);
+    for (const img of delta.images) {
+      const parsed = parseDataImageUrl(img?.image_url?.url);
+      if (!parsed) continue;
+      const imageBlockIndex = state.nextBlockIndex++;
+      results.push({
+        type: "content_block_start",
+        index: imageBlockIndex,
+        content_block: {
+          type: "image",
+          source: { type: "base64", media_type: parsed.mimeType, data: parsed.data },
+        },
+      });
+      results.push({ type: "content_block_stop", index: imageBlockIndex });
+    }
   }
 
   // Tool calls

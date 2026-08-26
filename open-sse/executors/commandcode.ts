@@ -4,6 +4,9 @@ import { PROVIDERS } from "../config/constants.ts";
 import { convertCommandCodeToOpenAI } from "../translator/response/commandcode-to-openai.ts";
 import {
   BaseExecutor,
+  buildStreamTtfbGuard,
+  buildUpstreamSignal,
+  getRequestTimeoutMs,
   mergeUpstreamExtraHeaders,
   type ExecuteInput,
   type ProviderCredentials,
@@ -43,12 +46,19 @@ export class CommandCodeExecutor extends BaseExecutor {
     mergeUpstreamExtraHeaders(headers, upstreamExtraHeaders);
     const transformedBody = await this.transformRequest(model, body, stream ?? true, credentials);
 
+    // Bound the upstream call by the client-disconnect signal + provider timeout;
+    // the override previously passed only the disconnect signal. Streaming
+    // requests bound only time-to-first-byte so healthy long streams survive.
+    const requestTimeoutMs = getRequestTimeoutMs(this.config);
+    const ttfbGuard =
+      (stream ?? true) ? buildStreamTtfbGuard(signal ?? null, requestTimeoutMs) : null;
     const response = await fetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify(transformedBody),
-      signal,
+      signal: ttfbGuard?.signal ?? buildUpstreamSignal(signal ?? null, requestTimeoutMs),
     });
+    ttfbGuard?.headersReceived();
 
     if (!response.ok || !response.body) {
       return { response, url, headers, transformedBody };

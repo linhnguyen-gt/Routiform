@@ -47,6 +47,35 @@ function createImageFanoutError(provider, delivered, requested, message) {
   };
 }
 
+/**
+ * Bounded, generic client-facing error for an image provider failure.
+ * Raw upstream error text must never reach clients; callers persist it
+ * server-side via saveCallLog instead (see handlers/search.ts for the pattern).
+ */
+function imageProviderErrorResponse(provider, status) {
+  return {
+    success: false,
+    status,
+    error: `Image provider ${provider} failed (${status})`,
+  };
+}
+
+// Upstream fetch timeouts (ms) so hung providers cannot block requests indefinitely.
+// Env-overridable; defaults are generous relative to existing poll budgets.
+const IMAGE_SUBMIT_TIMEOUT_MS = normalizePositiveNumber(
+  process.env.IMAGE_SUBMIT_TIMEOUT_MS,
+  180000
+);
+const IMAGE_POLL_FETCH_TIMEOUT_MS = normalizePositiveNumber(
+  process.env.IMAGE_POLL_FETCH_TIMEOUT_MS,
+  30000
+);
+const IMAGE_DOWNLOAD_TIMEOUT_MS = normalizePositiveNumber(
+  process.env.IMAGE_DOWNLOAD_TIMEOUT_MS,
+  60000
+);
+const LOCAL_IMAGE_TIMEOUT_MS = normalizePositiveNumber(process.env.LOCAL_IMAGE_TIMEOUT_MS, 600000);
+
 async function runWithConcurrency(tasks, concurrency) {
   const results = new Array(tasks.length);
   let nextIndex = 0;
@@ -430,6 +459,7 @@ async function handleGeminiImageGeneration({
       method: "POST",
       headers,
       body: JSON.stringify(geminiBody),
+      signal: AbortSignal.timeout(IMAGE_SUBMIT_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -451,7 +481,7 @@ async function handleGeminiImageGeneration({
         }).catch(() => {});
       }
 
-      return { success: false, status: response.status, error: errorText };
+      return imageProviderErrorResponse(provider, response.status);
     }
 
     const data = await response.json();
@@ -510,7 +540,7 @@ async function handleGeminiImageGeneration({
       }).catch(() => {});
     }
 
-    return { success: false, status: 502, error: `Image provider error: ${err.message}` };
+    return imageProviderErrorResponse("antigravity", 502);
   }
 }
 
@@ -625,6 +655,12 @@ async function handleOpenAIImageGeneration({
     }).catch(() => {});
   }
 
+  // Sanitize the client-visible error; fetchImageEndpoint's raw error text was
+  // already persisted server-side via the saveCallLog above.
+  if (!result.success) {
+    return imageProviderErrorResponse(provider, result.status || 502);
+  }
+
   return result;
 }
 
@@ -637,6 +673,7 @@ async function fetchImageEndpoint(url, headers, body, provider, log) {
       method: "POST",
       headers,
       body,
+      signal: AbortSignal.timeout(IMAGE_SUBMIT_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -712,6 +749,7 @@ async function handleHyperbolicImageGeneration({
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(upstreamBody),
+      signal: AbortSignal.timeout(LOCAL_IMAGE_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -731,7 +769,7 @@ async function handleHyperbolicImageGeneration({
         }).catch(() => {});
       }
 
-      return { success: false, status: response.status, error: errorText };
+      return imageProviderErrorResponse(provider, response.status);
     }
 
     const data = await response.json();
@@ -770,7 +808,7 @@ async function handleHyperbolicImageGeneration({
         error: err.message,
       }).catch(() => {});
     }
-    return { success: false, status: 502, error: `Image provider error: ${err.message}` };
+    return imageProviderErrorResponse(provider, 502);
   }
 }
 
@@ -843,6 +881,7 @@ async function handleNanoBananaImageGeneration({
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(upstreamBody),
+      signal: AbortSignal.timeout(IMAGE_SUBMIT_TIMEOUT_MS),
     });
 
     if (!submitResp.ok) {
@@ -864,7 +903,7 @@ async function handleNanoBananaImageGeneration({
         error: errorText.slice(0, 500),
       }).catch(() => {});
 
-      return { success: false, status: submitResp.status, error: errorText };
+      return imageProviderErrorResponse(provider, submitResp.status);
     }
 
     const submitData = await submitResp.json();
@@ -906,7 +945,7 @@ async function handleNanoBananaImageGeneration({
         duration: Date.now() - startTime,
         error: errorText,
       }).catch(() => {});
-      return { success: false, status: 502, error: errorText };
+      return imageProviderErrorResponse(provider, 502);
     }
 
     if (!statusUrl) {
@@ -934,11 +973,11 @@ async function handleNanoBananaImageGeneration({
 
     let lastTaskData = null;
     const deadline = Date.now() + timeoutMs;
-
     while (Date.now() < deadline) {
       const pollResp = await fetch(`${statusUrl}?taskId=${encodeURIComponent(taskId)}`, {
         method: "GET",
         headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(IMAGE_POLL_FETCH_TIMEOUT_MS),
       });
 
       if (!pollResp.ok) {
@@ -949,7 +988,7 @@ async function handleNanoBananaImageGeneration({
             `${provider} poll error ${pollResp.status}: ${errorText.slice(0, 200)}`
           );
         }
-        return { success: false, status: pollResp.status, error: errorText };
+        return imageProviderErrorResponse(provider, pollResp.status);
       }
 
       const pollData = await pollResp.json();
@@ -994,7 +1033,7 @@ async function handleNanoBananaImageGeneration({
           responseBody: { taskId, successFlag, errorCode: taskData?.errorCode ?? null },
         }).catch(() => {});
 
-        return { success: false, status: 502, error: errorText };
+        return imageProviderErrorResponse(provider, 502);
       }
 
       await sleep(pollIntervalMs);
@@ -1012,7 +1051,7 @@ async function handleNanoBananaImageGeneration({
       responseBody: { taskId, lastSuccessFlag: lastTaskData?.successFlag ?? null },
     }).catch(() => {});
 
-    return { success: false, status: 504, error: timeoutError };
+    return imageProviderErrorResponse(provider, 504);
   } catch (err) {
     if (log) log.error("IMAGE", `${provider} fetch error: ${err.message}`);
     saveCallLog({
@@ -1024,7 +1063,7 @@ async function handleNanoBananaImageGeneration({
       duration: Date.now() - startTime,
       error: err.message,
     }).catch(() => {});
-    return { success: false, status: 502, error: `Image provider error: ${err.message}` };
+    return imageProviderErrorResponse(provider, 502);
   }
 }
 
@@ -1088,7 +1127,9 @@ async function normalizeNanoBananaTaskResult(taskData, body, log) {
 
     if (urlCandidates.length > 0) {
       const firstUrl = urlCandidates[0];
-      const resp = await fetch(firstUrl);
+      const resp = await fetch(firstUrl, {
+        signal: AbortSignal.timeout(IMAGE_DOWNLOAD_TIMEOUT_MS),
+      });
       if (!resp.ok) {
         throw new Error(`Failed to fetch NanoBanana result image URL (${resp.status})`);
       }
@@ -1172,6 +1213,7 @@ async function handleSDWebUIImageGeneration({ model, provider, providerConfig, b
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(upstreamBody),
+      signal: AbortSignal.timeout(LOCAL_IMAGE_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -1189,7 +1231,7 @@ async function handleSDWebUIImageGeneration({ model, provider, providerConfig, b
         error: errorText.slice(0, 500),
       }).catch(() => {});
 
-      return { success: false, status: response.status, error: errorText };
+      return imageProviderErrorResponse(provider, response.status);
     }
 
     const data = await response.json();
@@ -1224,7 +1266,7 @@ async function handleSDWebUIImageGeneration({ model, provider, providerConfig, b
       duration: Date.now() - startTime,
       error: err.message,
     }).catch(() => {});
-    return { success: false, status: 502, error: `Image provider error: ${err.message}` };
+    return imageProviderErrorResponse(provider, 502);
   }
 }
 
@@ -1285,8 +1327,17 @@ async function handleComfyUIImageGeneration({ model, provider, providerConfig, b
   }
 
   try {
-    const promptId = await submitComfyWorkflow(providerConfig.baseUrl, workflow);
-    const historyEntry = await pollComfyResult(providerConfig.baseUrl, promptId);
+    const promptId = await submitComfyWorkflow(
+      providerConfig.baseUrl,
+      workflow,
+      AbortSignal.timeout(IMAGE_SUBMIT_TIMEOUT_MS)
+    );
+    const historyEntry = await pollComfyResult(
+      providerConfig.baseUrl,
+      promptId,
+      120_000,
+      AbortSignal.timeout(LOCAL_IMAGE_TIMEOUT_MS)
+    );
     const outputFiles = extractComfyOutputFiles(historyEntry);
 
     const images = [];
@@ -1295,7 +1346,8 @@ async function handleComfyUIImageGeneration({ model, provider, providerConfig, b
         providerConfig.baseUrl,
         file.filename,
         file.subfolder,
-        file.type
+        file.type,
+        AbortSignal.timeout(IMAGE_DOWNLOAD_TIMEOUT_MS)
       );
       const base64 = Buffer.from(buffer).toString("base64");
       images.push({ b64_json: base64, revised_prompt: body.prompt });
@@ -1326,7 +1378,7 @@ async function handleComfyUIImageGeneration({ model, provider, providerConfig, b
       duration: Date.now() - startTime,
       error: err.message,
     }).catch(() => {});
-    return { success: false, status: 502, error: `Image provider error: ${err.message}` };
+    return imageProviderErrorResponse(provider, 502);
   }
 }
 
@@ -1385,6 +1437,7 @@ async function handleImagen3ImageGeneration({
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(upstreamBody),
+      signal: AbortSignal.timeout(IMAGE_SUBMIT_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -1403,7 +1456,7 @@ async function handleImagen3ImageGeneration({
         requestBody: upstreamBody,
       }).catch(() => {});
 
-      return { success: false, status: response.status, error: errorText };
+      return imageProviderErrorResponse(provider, response.status);
     }
 
     const data = await response.json();
@@ -1455,6 +1508,6 @@ async function handleImagen3ImageGeneration({
       error: errMsg,
     }).catch(() => {});
 
-    return { success: false, status: 502, error: `Image provider error: ${errMsg}` };
+    return imageProviderErrorResponse(provider, 502);
   }
 }

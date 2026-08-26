@@ -2,7 +2,6 @@
  * Token Usage Tracking - Extract, normalize, estimate and log token usage
  */
 
-import { appendRequestLog } from "@/lib/usageDb";
 import {
   getLoggedInputTokens,
   getLoggedOutputTokens,
@@ -565,7 +564,7 @@ export function estimateUsage(body, contentLength, targetFormat = FORMATS.OPENAI
 /**
  * Log usage with cache info (green color)
  */
-export function logUsage(provider, usage, model = null, connectionId = null, _apiKeyInfo = null) {
+export function logUsage(provider, usage, _model = null, connectionId = null, _apiKeyInfo = null) {
   if (!usage || typeof usage !== "object") return;
 
   const p = provider?.toUpperCase() || "UNKNOWN";
@@ -598,12 +597,4 @@ export function logUsage(provider, usage, model = null, connectionId = null, _ap
 
   // Streaming requests persist usage once in chatCore's completion callback.
   // Keep this helper side-effect free apart from console visibility.
-  const tokens = {
-    input: inTokens,
-    output: outTokens,
-    cacheRead: cacheRead || 0,
-    cacheCreation: cacheCreation || 0,
-    reasoning: reasoning || 0,
-  };
-  appendRequestLog({ model, provider, connectionId, tokens, status: "200 OK" }).catch(() => {});
 }

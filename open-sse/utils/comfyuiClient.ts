@@ -31,11 +31,16 @@ function toRecord(value: unknown): JsonRecord {
  * Submit a workflow to ComfyUI for execution.
  * @returns The prompt_id for polling
  */
-export async function submitComfyWorkflow(baseUrl: string, workflow: object): Promise<string> {
+export async function submitComfyWorkflow(
+  baseUrl: string,
+  workflow: object,
+  signal?: AbortSignal
+): Promise<string> {
   const res = await fetch(`${baseUrl}/prompt`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt: workflow }),
+    signal,
   });
 
   if (!res.ok) {
@@ -58,14 +63,15 @@ export async function submitComfyWorkflow(baseUrl: string, workflow: object): Pr
 export async function pollComfyResult(
   baseUrl: string,
   promptId: string,
-  timeoutMs: number = 120_000
+  timeoutMs: number = 120_000,
+  signal?: AbortSignal
 ): Promise<ComfyHistoryEntry> {
   const start = Date.now();
 
   while (Date.now() - start < timeoutMs) {
     await new Promise((r) => setTimeout(r, 2000));
 
-    const res = await fetch(`${baseUrl}/history/${promptId}`);
+    const res = await fetch(`${baseUrl}/history/${promptId}`, { signal });
     if (!res.ok) continue;
 
     const data = toRecord(await res.json());
@@ -87,14 +93,15 @@ export async function fetchComfyOutput(
   baseUrl: string,
   filename: string,
   subfolder: string,
-  type: string
+  type: string,
+  signal?: AbortSignal
 ): Promise<ArrayBuffer> {
   const url = new URL(`${baseUrl}/view`);
   url.searchParams.set("filename", filename);
   url.searchParams.set("subfolder", subfolder);
   url.searchParams.set("type", type);
 
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), { signal });
   if (!res.ok) {
     throw new Error(`ComfyUI fetch output failed (${res.status})`);
   }

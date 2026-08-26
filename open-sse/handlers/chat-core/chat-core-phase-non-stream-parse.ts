@@ -1,4 +1,4 @@
-import { appendRequestLog, trackPendingRequest } from "@/lib/usageDb";
+import { trackPendingRequest } from "@/lib/usageDb";
 import { HTTP_STATUS } from "../../config/constants.ts";
 import { isEmptyContentResponse } from "../../services/errorClassifier.ts";
 import { chatCoreNonStreamEmptyContentFallback } from "./chat-core-non-stream-empty-fallback.ts";
@@ -41,12 +41,6 @@ export async function chatCorePhaseNonStreamParse(p: ChatCorePipeline): Promise<
           ? parseSSEToClaudeResponse(rawBody, p.model)
           : parseSSEToOpenAIResponse(rawBody, p.model);
     if (!parsedFromSSE) {
-      appendRequestLog({
-        model: p.model,
-        provider: p.provider,
-        connectionId: p.connectionId,
-        status: `FAILED ${HTTP_STATUS.BAD_GATEWAY}`,
-      }).catch(() => {});
       const invalidSseMessage = "Invalid SSE response for non-streaming request";
       persistAttemptLogs({
         status: HTTP_STATUS.BAD_GATEWAY,
@@ -63,12 +57,6 @@ export async function chatCorePhaseNonStreamParse(p: ChatCorePipeline): Promise<
     const looksLikeHtml =
       contentType.includes("text/html") || /^\s*<(?:!doctype html|html|body)\b/i.test(rawBody);
     if (looksLikeHtml) {
-      appendRequestLog({
-        model: p.model,
-        provider: p.provider,
-        connectionId: p.connectionId,
-        status: `FAILED ${HTTP_STATUS.BAD_GATEWAY}`,
-      }).catch(() => {});
       const htmlErrorMessage = "Provider returned HTML error page";
       persistAttemptLogs({
         status: HTTP_STATUS.BAD_GATEWAY,
@@ -83,13 +71,7 @@ export async function chatCorePhaseNonStreamParse(p: ChatCorePipeline): Promise<
     try {
       responseBody = rawBody ? JSON.parse(rawBody) : {};
     } catch {
-      appendRequestLog({
-        model: p.model,
-        provider: p.provider,
-        connectionId: p.connectionId,
-        status: `FAILED ${HTTP_STATUS.BAD_GATEWAY}`,
-      }).catch(() => {});
-      const invalidJsonMessage = rawBody.trim() || "Invalid JSON response from provider";
+      const invalidJsonMessage = `${providerResponse.status} upstream returned non-JSON response`;
       persistAttemptLogs({
         status: HTTP_STATUS.BAD_GATEWAY,
         error: invalidJsonMessage,

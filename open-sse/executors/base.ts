@@ -10,7 +10,7 @@ import { signRequestBody } from "../services/claudeCodeCCH.ts";
  * Valid paths must start with '/', contain no '..' segments,
  * no null bytes, and be reasonable in length.
  */
-function sanitizePath(path: string): boolean {
+export function sanitizePath(path: string): boolean {
   if (typeof path !== "string") return false;
   if (!path.startsWith("/")) return false;
   if (path.includes("\0")) return false; // null byte
@@ -137,6 +137,84 @@ export function mergeAbortSignals(primary: AbortSignal, secondary: AbortSignal):
   primary.addEventListener("abort", abortBoth, { once: true });
   secondary.addEventListener("abort", abortBoth, { once: true });
   return controller.signal;
+}
+
+/** Resolve the effective upstream timeout for a provider config (ms). */
+export function getRequestTimeoutMs(config: ProviderConfig): number {
+  return typeof config.timeoutMs === "number" && config.timeoutMs > 0
+    ? config.timeoutMs
+    : FETCH_TIMEOUT_MS;
+}
+
+/**
+ * Full-lifetime bounded signal: aborts when the caller disconnects OR the request
+ * timeout elapses. Use for non-streaming requests and for executors that buffer
+ * the whole upstream body before transforming it.
+ */
+export function buildUpstreamSignal(
+  signal: AbortSignal | null | undefined,
+  requestTimeoutMs: number
+): AbortSignal {
+  const timeoutSignal = AbortSignal.timeout(requestTimeoutMs);
+  return signal ? mergeAbortSignals(signal, timeoutSignal) : timeoutSignal;
+}
+
+/**
+ * Time-to-first-byte guard for streaming requests.
+ *
+ * Arms a timer that aborts the fetch if response HEADERS do not arrive within
+ * `requestTimeoutMs`, then disarms it once headers arrive so healthy long-lived
+ * streams are never truncated mid-body — stall detection after data starts
+ * flowing is STREAM_IDLE_TIMEOUT_MS's job downstream. Caller-disconnect
+ * propagation stays armed for the whole body lifetime via mergeAbortSignals.
+ */
+export function buildStreamTtfbGuard(
+  signal: AbortSignal | null | undefined,
+  requestTimeoutMs: number
+): { signal: AbortSignal; headersReceived: () => void } {
+  const ttfbController = new AbortController();
+  // Abort with a TimeoutError-named reason so callers classify this exactly
+  // like an AbortSignal.timeout expiry (execute() logs TIMEOUT on that name).
+  const timer = setTimeout(() => {
+    const err = new Error(`Upstream time-to-first-byte timeout after ${requestTimeoutMs}ms`);
+    err.name = "TimeoutError";
+    ttfbController.abort(err);
+  }, requestTimeoutMs);
+  return {
+    signal: signal ? mergeAbortSignals(signal, ttfbController.signal) : ttfbController.signal,
+    headersReceived: () => clearTimeout(timer),
+  };
+}
+
+const newAbortError = () => {
+  const err = new Error("Aborted");
+  err.name = "AbortError";
+  return err;
+};
+
+/**
+ * Sleep that rejects as soon as `signal` aborts, so retry backoffs stop
+ * immediately on client disconnect instead of holding a dead request's slot
+ * (and then firing another upstream call) for the full delay.
+ */
+export function sleepWithAbort(ms: number, signal?: AbortSignal | null): Promise<void> {
+  if (!signal) {
+    const { promise, resolve } = Promise.withResolvers<void>();
+    setTimeout(resolve, ms);
+    return promise;
+  }
+  if (signal.aborted) return Promise.reject(newAbortError());
+  const { promise, resolve, reject } = Promise.withResolvers<void>();
+  const timer = setTimeout(() => {
+    signal.removeEventListener("abort", onAbort);
+    resolve();
+  }, ms);
+  const onAbort = () => {
+    clearTimeout(timer);
+    reject(newAbortError());
+  };
+  signal.addEventListener("abort", onAbort, { once: true });
+  return promise;
 }
 
 /**
@@ -312,17 +390,22 @@ export class BaseExecutor {
 
       const transformedBody = await this.transformRequest(model, body, stream, credentials);
 
+      // Apply a timeout to all requests so unresponsive providers cannot hang the
+      // caller (e.g. 300s TCP default timeout — #769).
+      //
+      // Streaming requests bound only TIME-TO-FIRST-BYTE here: once response
+      // headers arrive the clock is disarmed and healthy long-lived streams are
+      // never truncated mid-body — stall detection after data starts flowing is
+      // STREAM_IDLE_TIMEOUT_MS's job downstream. Non-streaming requests keep the
+      // full-lifetime timeout because their body is consumed under this signal.
+      const requestTimeoutMs = getRequestTimeoutMs(this.config);
+      const streamTtfbGuard = stream
+        ? buildStreamTtfbGuard(signal ?? null, requestTimeoutMs)
+        : null;
+
       try {
-        // Apply timeout to all requests. Non-streaming requests need this to prevent
-        // stalled connections. Streaming requests also need it for the initial fetch() call
-        // to prevent hanging on unresponsive providers (e.g. 300s TCP default timeout — #769).
-        // Stream idle detection (STREAM_IDLE_TIMEOUT_MS) handles stalls after data starts flowing.
-        const requestTimeoutMs =
-          typeof this.config.timeoutMs === "number" && this.config.timeoutMs > 0
-            ? this.config.timeoutMs
-            : FETCH_TIMEOUT_MS;
-        const timeoutSignal = AbortSignal.timeout(requestTimeoutMs);
-        const combinedSignal = signal ? mergeAbortSignals(signal, timeoutSignal) : timeoutSignal;
+        const combinedSignal =
+          streamTtfbGuard?.signal ?? buildUpstreamSignal(signal, requestTimeoutMs);
 
         // Apply CLI fingerprint ordering if enabled for this provider
         let finalHeaders = headers;
@@ -351,6 +434,8 @@ export class BaseExecutor {
         if (combinedSignal) fetchOptions.signal = combinedSignal;
 
         const response = await fetch(url, fetchOptions);
+        // Headers arrived: stop the streaming TTFB clock (no-op when null).
+        streamTtfbGuard?.headersReceived();
 
         // Intra-URL retry: if 429 and we haven't exhausted per-URL retries, wait and retry the same URL
         if (
@@ -363,7 +448,7 @@ export class BaseExecutor {
             "RETRY",
             `429 intra-retry ${attempt}/${BaseExecutor.RETRY_CONFIG.maxAttempts} on ${url} — waiting ${BaseExecutor.RETRY_CONFIG.delayMs}ms`
           );
-          await new Promise((resolve) => setTimeout(resolve, BaseExecutor.RETRY_CONFIG.delayMs));
+          await sleepWithAbort(BaseExecutor.RETRY_CONFIG.delayMs, combinedSignal);
           urlIndex--; // re-run this urlIndex on the next loop iteration
           continue;
         }
@@ -379,8 +464,15 @@ export class BaseExecutor {
         // Distinguish timeout errors from other abort errors
         const err = error instanceof Error ? error : new Error(String(error));
         if (err.name === "TimeoutError") {
-          log?.warn?.("TIMEOUT", `Fetch timeout after ${FETCH_TIMEOUT_MS}ms on ${url}`);
+          log?.warn?.(
+            "TIMEOUT",
+            `Upstream timeout after ${getRequestTimeoutMs(this.config)}ms on ${url}`
+          );
         }
+        streamTtfbGuard?.headersReceived();
+        // The client is gone — stop immediately instead of failing over to the
+        // next URL and firing an upstream request nobody will read.
+        if (signal?.aborted) throw err;
         lastError = err;
         if (urlIndex + 1 < fallbackCount) {
           log?.debug?.("RETRY", `Error on ${url}, trying fallback ${urlIndex + 1}`);
