@@ -49,23 +49,55 @@ const PUBLIC_API_ROUTES = [
 // ──────────────── Auth Verification ────────────────
 
 /**
+ * Session token shared by verifyAuth and hasValidSessionToken.
+ *
+ * Named alias for NextRequest's documented .cookies contract: middleware passes NextRequest,
+ * but route handlers/tests may hold a plain Request with only the raw header.
+ */
+function extractSessionToken(request: Request): string | undefined {
+  const maybeNextRequest = request as Request & {
+    cookies?: { get: (name: string) => { value: string } | undefined };
+  };
+  return (
+    maybeNextRequest.cookies?.get("auth_token")?.value ||
+    /(?:^|;\s*)auth_token=([^;]*)/.exec(request.headers.get("cookie") ?? "")?.[1]
+  );
+}
+
+/**
+ * True when the request carries a valid dashboard SESSION JWT (parsed cookies or raw header).
+ *
+ * Deliberately excludes Bearer API keys: those are gateway credentials handed to inference
+ * clients (Cursor, Cline, any /v1 consumer) and must never satisfy operator-only surfaces
+ * such as rotating the dashboard password or toggling auth requirements. Same policy as
+ * isHostSecretAuthenticated, expressed against the request instead of next/headers cookies()
+ * so handlers invoked outside a Next request context (tests, direct calls) still work.
+ */
+export async function hasValidSessionToken(request: Request): Promise<boolean> {
+  const token = extractSessionToken(request);
+  if (!token) return false;
+  try {
+    await jwtVerify(token, getJwtSecret());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Check if a request is authenticated via JWT cookie or Bearer API key.
  *
  * @returns null if authenticated, error message string if not
  */
 export async function verifyAuth(request: Request): Promise<string | null> {
   // 1. Check JWT cookie (dashboard session)
-  const cookies = (
-    request as unknown as { cookies?: { get: (name: string) => { value: string } | undefined } }
-  ).cookies;
-  const token = cookies?.get("auth_token")?.value;
   // Verify against the same secret the login route mints with. Gating on process.env.JWT_SECRET
   // meant a deployment that left it unset minted tokens through getJwtSecret's auto-generated
   // secret which this path would then never validate.
+  const token = extractSessionToken(request);
   if (token) {
     try {
-      const secret = getJwtSecret();
-      await jwtVerify(token, secret);
+      await jwtVerify(token, getJwtSecret());
       return null; // ✔ Authenticated via cookie
     } catch {
       // Invalid/expired token — fall through to API key check
