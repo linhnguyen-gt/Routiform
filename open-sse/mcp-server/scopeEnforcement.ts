@@ -11,7 +11,7 @@ export type McpToolExtraLike = {
   _meta?: unknown;
 };
 
-export type ScopeSource = "authInfo" | "meta" | "env" | "none";
+export type ScopeSource = "authInfo" | "meta" | "transport" | "none";
 
 export interface CallerScopeContext {
   callerId: string;
@@ -39,12 +39,13 @@ function normalizeScopeList(raw: unknown): string[] {
 /**
  * Opt-in flag that restores the legacy behaviour of reading scopes from the request's own `_meta`.
  * Development only: `_meta` travels inside the JSON-RPC request, so a caller can name its own
- * scopes and the check degrades to `attacker_supplied_scopes ⊇ required_scopes`.
+ * scopes and the check degrades to `attacker_supplied_scopes ⊇ required_scopes`. Hard-disabled
+ * in production regardless of the flag.
  */
 export const META_SCOPE_TRUST_ENV = "ROUTIFORM_MCP_TRUST_META_SCOPES";
 
 function metaScopesTrusted(): boolean {
-  return process.env[META_SCOPE_TRUST_ENV] === "true";
+  return process.env.NODE_ENV !== "production" && process.env[META_SCOPE_TRUST_ENV] === "true";
 }
 
 function extractMetaScopeList(meta: unknown): string[] {
@@ -80,9 +81,18 @@ function scopeMatches(grantedScope: string, requiredScope: string): boolean {
   return false;
 }
 
+/**
+ * Resolve the caller's effective scopes.
+ *
+ * Order: server-bound `authInfo` (set by the HTTP transport after bearer-key validation),
+ * then caller-supplied `_meta` behind the dev-only trust flag, then `trustedScopes` — which is
+ * NOT an env grant. Only the stdio entry point passes it, deriving full tool scopes from the
+ * transport being local and trusted. HTTP callers without a bound identity get empty scopes
+ * and are denied by enforcement.
+ */
 export function resolveCallerScopeContext(
   extra: McpToolExtraLike | undefined,
-  fallbackScopes: readonly string[] = []
+  trustedScopes: readonly string[] = []
 ): CallerScopeContext {
   const callerId =
     (typeof extra?.authInfo?.clientId === "string" && extra.authInfo.clientId.trim()) ||
@@ -94,8 +104,8 @@ export function resolveCallerScopeContext(
     return { callerId, scopes: authScopes, source: "authInfo" };
   }
 
-  // `_meta` is part of the request body and the HTTP transport does not authenticate, so scopes
-  // found there are self-asserted by the caller. They are ignored unless explicitly trusted.
+  // `_meta` is part of the request body, so scopes found there are self-asserted by the caller.
+  // They are ignored unless explicitly trusted, and never in production.
   if (metaScopesTrusted()) {
     const metaScopes = extractMetaScopeList(extra?._meta);
     if (metaScopes.length > 0) {
@@ -107,9 +117,9 @@ export function resolveCallerScopeContext(
     }
   }
 
-  const fallback = normalizeScopeList(fallbackScopes);
-  if (fallback.length > 0) {
-    return { callerId, scopes: fallback, source: "env" };
+  const trusted = normalizeScopeList(trustedScopes);
+  if (trusted.length > 0) {
+    return { callerId, scopes: trusted, source: "transport" };
   }
 
   return { callerId, scopes: [], source: "none" };

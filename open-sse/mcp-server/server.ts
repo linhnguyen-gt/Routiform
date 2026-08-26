@@ -15,6 +15,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import {
   MCP_TOOLS,
+  MCP_TOOL_MAP,
   getHealthInput,
   listCombosInput,
   getComboMetricsInput,
@@ -66,19 +67,30 @@ import { COMPRESSION_PRESETS, DEFAULT_COMPRESSION_PRESET } from "../compression/
 import { ENGINE_CATALOG } from "../compression/engine-catalog.ts";
 
 // ============ Configuration ============
-
 const ROUTIFORM_BASE_URL =
   process.env.ROUTIFORM_BASE_URL || process.env.ROUTIFORM_BASE_URL || "http://localhost:20128";
 const ROUTIFORM_API_KEY = process.env.ROUTIFORM_API_KEY || process.env.ROUTIFORM_API_KEY || "";
-const MCP_ENFORCE_SCOPES =
-  process.env.ROUTIFORM_MCP_ENFORCE_SCOPES === "true" ||
-  process.env.ROUTIFORM_MCP_ENFORCE_SCOPES === "true";
-const MCP_ALLOWED_SCOPES = new Set(
-  (process.env.ROUTIFORM_MCP_SCOPES || process.env.ROUTIFORM_MCP_SCOPES || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
+
+/**
+ * Full scope manifest across every registered tool. stdio callers are granted this set by
+ * virtue of running on a trusted-local transport; HTTP callers only ever get what the
+ * transport binds into authInfo after bearer-key validation.
+ */
+const FULL_TOOL_SCOPES = Object.freeze(
+  Array.from(new Set(Object.values(MCP_TOOL_MAP).flatMap((tool) => [...tool.scopes])))
 );
+
+type McpTransportKind = "stdio" | "http";
+
+interface McpServerOptions {
+  /** Transport the server is served over. Defaults to stdio (trusted local). */
+  transport?: McpTransportKind;
+  /**
+   * Identity bound by the HTTP transport after bearer-key validation. When present it is
+   * injected into every tool call's `extra.authInfo`, which scope enforcement reads.
+   */
+  authInfo?: { clientId: string; scopes: string[] };
+}
 
 type JsonRecord = Record<string, unknown>;
 
@@ -135,57 +147,13 @@ async function routiformFetch(path: string, options: RequestInit = {}): Promise<
   const response = await fetch(url, { ...options, headers, signal: AbortSignal.timeout(10000) });
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => "Unknown error");
-    throw new Error(`Routiform API error [${response.status}]: ${errorText}`);
+    // Log the upstream body server-side only; callers get a stable message without its contents.
+    const detail = await response.text().catch(() => "");
+    console.error(`[MCP] Routiform API ${response.status} ${path}:`, detail.slice(0, 500));
+    throw new Error(`Routiform API error [${response.status}]`);
   }
-
   return response.json();
 }
-
-function withScopeEnforcement(
-  toolName: string,
-  handler: (args: unknown, extra?: McpToolExtraLike) => Promise<TextToolResult>
-) {
-  return async (args: unknown, extra?: McpToolExtraLike): Promise<TextToolResult> => {
-    const scopeContext = resolveCallerScopeContext(extra, Array.from(MCP_ALLOWED_SCOPES));
-    const scopeCheck = evaluateToolScopes(toolName, scopeContext.scopes, MCP_ENFORCE_SCOPES);
-    if (!scopeCheck.allowed) {
-      const missingScopes =
-        scopeCheck.missing.length > 0 ? scopeCheck.missing.join(", ") : "unavailable";
-      const reason = scopeCheck.reason || "scope_check_failed";
-      const msg =
-        `Insufficient MCP scopes for ${toolName}. ` +
-        `Missing: ${missingScopes}. ` +
-        `Caller=${scopeContext.callerId}, source=${scopeContext.source}.`;
-      const safeArgs = args && typeof args === "object" ? toRecord(args) : { rawArgs: args };
-      await logToolCall(
-        toolName,
-        {
-          ...safeArgs,
-          _scopeCheck: {
-            callerId: scopeContext.callerId,
-            source: scopeContext.source,
-            required: scopeCheck.required,
-            provided: scopeCheck.provided,
-            missing: scopeCheck.missing,
-          },
-        },
-        null,
-        0,
-        false,
-        `scope_denied:${reason}`
-      );
-      return {
-        content: [{ type: "text" as const, text: `Error: ${msg}` }],
-        isError: true,
-      };
-    }
-
-    return handler(args, extra);
-  };
-}
-
-// ============ Tool Handlers ============
 
 async function handleGetHealth() {
   const start = Date.now();
@@ -336,8 +304,6 @@ async function handleRouteRequest(args: {
   model: string;
   messages: Array<{ role: string; content: string }>;
   combo?: string;
-  budget?: number;
-  role?: string;
   stream?: boolean;
 }) {
   const start = Date.now();
@@ -514,11 +480,7 @@ async function handleWebSearch(args: {
   max_results?: number;
   search_type?: "web" | "news";
   provider?:
-    | "serper-search"
-    | "brave-search"
-    | "perplexity-search"
-    | "exa-search"
-    | "tavily-search";
+    "serper-search" | "brave-search" | "perplexity-search" | "exa-search" | "tavily-search";
 }) {
   const start = Date.now();
   try {
@@ -545,13 +507,76 @@ async function handleWebSearch(args: {
 // ============ MCP Server Setup ============
 
 /**
- * Create and configure the Routiform MCP Server with all essential tools.
+ * Create and configure the Routiform MCP Server.
+ *
+ * Scope model by transport:
+ *   - stdio (default): trusted local process. Scope enforcement is opt-in via
+ *     ROUTIFORM_MCP_ENFORCE_SCOPES=true; when on, callers get the full tool scope manifest
+ *     derived from the registry, never from ROUTIFORM_MCP_SCOPES.
+ *   - http: enforcement defaults ON (opt-out with ROUTIFORM_MCP_ENFORCE_SCOPES=false) and the
+ *     caller's scopes come exclusively from the session-bound authInfo the HTTP transport
+ *     binds after bearer-key validation. No env var grants scopes here.
  */
-export function createMcpServer(): McpServer {
+export function createMcpServer(options: McpServerOptions = {}): McpServer {
   const server = new McpServer({
     name: "routiform",
     version: process.env.npm_package_version || "1.8.1",
   });
+
+  const transport: McpTransportKind = options.transport ?? "stdio";
+  const enforceScopes =
+    transport === "http"
+      ? process.env.ROUTIFORM_MCP_ENFORCE_SCOPES !== "false"
+      : process.env.ROUTIFORM_MCP_ENFORCE_SCOPES === "true";
+  // stdio is a trusted-local transport, so its callers derive full tool scopes from the
+  // registry itself. HTTP callers never receive this fallback — no authInfo means no scopes.
+  const trustedScopes = transport === "stdio" ? FULL_TOOL_SCOPES : [];
+
+  function withScopeEnforcement(
+    toolName: string,
+    handler: (args: unknown, extra?: McpToolExtraLike) => Promise<TextToolResult>
+  ) {
+    return async (args: unknown, extra?: McpToolExtraLike): Promise<TextToolResult> => {
+      const effectiveExtra = options.authInfo
+        ? { ...(extra ?? {}), authInfo: options.authInfo }
+        : extra;
+      const scopeContext = resolveCallerScopeContext(effectiveExtra, trustedScopes);
+      const scopeCheck = evaluateToolScopes(toolName, scopeContext.scopes, enforceScopes);
+      if (!scopeCheck.allowed) {
+        const missingScopes =
+          scopeCheck.missing.length > 0 ? scopeCheck.missing.join(", ") : "unavailable";
+        const reason = scopeCheck.reason || "scope_check_failed";
+        const msg =
+          `Insufficient MCP scopes for ${toolName}. ` +
+          `Missing: ${missingScopes}. ` +
+          `Caller=${scopeContext.callerId}, source=${scopeContext.source}.`;
+        const safeArgs = args && typeof args === "object" ? toRecord(args) : { rawArgs: args };
+        await logToolCall(
+          toolName,
+          {
+            ...safeArgs,
+            _scopeCheck: {
+              callerId: scopeContext.callerId,
+              source: scopeContext.source,
+              required: scopeCheck.required,
+              provided: scopeCheck.provided,
+              missing: scopeCheck.missing,
+            },
+          },
+          null,
+          0,
+          false,
+          `scope_denied:${reason}`
+        );
+        return {
+          content: [{ type: "text" as const, text: `Error: ${msg}` }],
+          isError: true,
+        };
+      }
+
+      return handler(args, effectiveExtra);
+    };
+  }
 
   // Register essential tools
   server.registerTool(
@@ -662,7 +687,7 @@ export function createMcpServer(): McpServer {
     "routiform_set_budget_guard",
     {
       description:
-        "Sets a session budget limit with configurable action when exceeded (degrade/block/alert)",
+        "Records a session budget limit and reports spend against it (report-only; it does not block or degrade requests). Action is informational: degrade/block/alert",
       inputSchema: setBudgetGuardInput,
     },
     withScopeEnforcement("routiform_set_budget_guard", (args) =>
@@ -865,11 +890,11 @@ export function createMcpServer(): McpServer {
         // @ts-ignore: dynamic zod access
         inputSchema: toolDef.inputSchema,
       },
-      withScopeEnforcement(toolDef.name, async (args) => {
+      withScopeEnforcement(toolDef.name, async (args, extra) => {
         try {
           const parsedArgs = toolDef.inputSchema.parse(args ?? {});
           // @ts-ignore: handler expected specific object
-          const result = await toolDef.handler(parsedArgs);
+          const result = await toolDef.handler(parsedArgs, extra);
           return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -894,8 +919,8 @@ export async function startMcpStdio(): Promise<void> {
   const version = process.env.npm_package_version || "1.8.1";
   const stopHeartbeat = startMcpHeartbeat({
     version,
-    scopesEnforced: MCP_ENFORCE_SCOPES,
-    allowedScopes: Array.from(MCP_ALLOWED_SCOPES),
+    scopesEnforced: process.env.ROUTIFORM_MCP_ENFORCE_SCOPES === "true",
+    allowedScopes: [...FULL_TOOL_SCOPES],
     toolCount: MCP_TOOLS.length,
   });
   const stopHeartbeatOnce = () => {

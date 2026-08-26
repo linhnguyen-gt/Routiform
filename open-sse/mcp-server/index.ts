@@ -2,7 +2,13 @@
  * Routiform MCP Server — barrel export.
  */
 export { createMcpServer, startMcpStdio } from "./server.ts";
-export { logToolCall, getRecentAuditEntries, getAuditStats, queryAuditEntries } from "./audit.ts";
+export {
+  logToolCall,
+  getRecentAuditEntries,
+  getAuditStats,
+  queryAuditEntries,
+  getAuditStatus,
+} from "./audit.ts";
 export {
   resolveMcpHeartbeatPath,
   readMcpHeartbeat,

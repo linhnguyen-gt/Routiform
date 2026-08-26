@@ -53,15 +53,35 @@ describe("caller scope resolution", () => {
     expect(ctx.scopes).toEqual(["read:combos"]);
   });
 
-  it("prefers authInfo over the env fallback", () => {
+  it("never honours _meta in production, even behind the flag", () => {
+    const previousEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      process.env[META_SCOPE_TRUST_ENV] = "true";
+      const ctx = resolveCallerScopeContext({ _meta: { routiform: { scopes: ["*"] } } });
+      expect(ctx.scopes).toEqual([]);
+      expect(ctx.source).not.toBe("meta");
+    } finally {
+      if (previousEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousEnv;
+    }
+  });
+
+  it("prefers authInfo over the trusted fallback", () => {
     const ctx = resolveCallerScopeContext({ authInfo: { scopes: ["combos:read"] } }, ["*"]);
     expect(ctx.source).toBe("authInfo");
   });
 
-  it("falls back to the configured env scopes when nothing is bound", () => {
+  it("uses trustedScopes (transport-derived, e.g. stdio) when nothing is bound", () => {
     const ctx = resolveCallerScopeContext(undefined, ["read:health"]);
-    expect(ctx.source).toBe("env");
+    expect(ctx.source).toBe("transport");
     expect(ctx.scopes).toEqual(["read:health"]);
+  });
+
+  it("gives unidentified callers empty scopes when no transport trust is passed", () => {
+    const ctx = resolveCallerScopeContext(undefined);
+    expect(ctx.scopes).toEqual([]);
+    expect(ctx.source).toBe("none");
   });
 });
 

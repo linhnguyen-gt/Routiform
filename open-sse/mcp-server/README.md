@@ -40,15 +40,48 @@ The MCP Server allows any AI agent (Claude Desktop, Cursor, VS Code Copilot, cus
 # Required: Routiform base URL (ROUTIFORM_* names still work)
 export ROUTIFORM_BASE_URL="http://localhost:20128"
 
-# Optional: API key for authenticated access
+# Optional: API key the MCP server itself uses to call Routiform APIs
 export ROUTIFORM_API_KEY="your-api-key"
 
-# Optional: Scope enforcement (default: disabled)
+# Scope enforcement:
+#   - HTTP transports (SSE / Streamable HTTP): ON by default. Set to "false" to opt out.
+#   - stdio (trusted local): OFF by default. Set to "true" to opt in.
 export ROUTIFORM_MCP_ENFORCE_SCOPES="true"
-export ROUTIFORM_MCP_SCOPES="read:health,read:combos,read:quota,read:usage,read:models,execute:completions,write:combos,write:budget,write:resilience"
+
+# Optional capability manifest for HTTP callers: when set, every validated API key is granted
+# exactly these scopes (e.g. a read-only manifest denies all write tools). When unset,
+# validated keys get the full tool scope manifest.
+export ROUTIFORM_MCP_SCOPES="read:health,read:combos,read:quota,read:usage,read:models"
+
+# Development only (ignored in production): honour caller-supplied _meta scopes.
+# Never enable outside development — scopes in _meta are self-asserted by the caller.
+export ROUTIFORM_MCP_TRUST_META_SCOPES="false"
 ```
 
-### 2. stdio Transport (IDE Integration)
+### 2. HTTP Transports (SSE / Streamable HTTP) — Authentication Required
+
+Both HTTP endpoints require bearer-key authentication on **every** request, using the same
+API-keys store as the gateway routes (`/v1/...`):
+
+```bash
+curl -X POST http://localhost:20128/api/mcp/stream \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
+```
+
+- Missing or invalid key → `401` before any session is created.
+- Each session is bound to the validated key; requests for that session with a different key
+  get `403`. Sessions are capped (100 concurrent) and swept after 30 minutes idle (`429` while
+  the cap is full).
+- The validated key's id and derived scopes are bound into the MCP session and drive scope
+  enforcement. Memory tools operate strictly on the caller's own key id — there is no
+  caller-supplied `apiKeyId` parameter anymore.
+
+> stdio transport stays trusted-local: it runs on your machine with your credentials and does
+> not require an API key handshake.
+
+### 3. stdio Transport (IDE Integration)
 
 Add to your MCP client configuration:
 
@@ -103,7 +136,7 @@ Add to your MCP client configuration:
 }
 ```
 
-### 3. Start via CLI
+### 4. Start via CLI
 
 ```bash
 # Direct start (stdio)
@@ -490,7 +523,12 @@ async def find_cheapest_models(session, capability="chat"):
 
 ## Security & Scope Enforcement
 
-The MCP server supports **fine-grained scope enforcement** for multi-tenant environments:
+The MCP server supports **fine-grained scope enforcement** for multi-tenant environments.
+HTTP transports authenticate every request against the gateway's API-key store and bind the
+validated key id + scopes into the session; stdio (trusted local) derives the full manifest
+from the registry itself. No environment variable grants scopes to unauthenticated callers.
+
+Scope requirements per tool:
 
 | Scope                 | Tools                                                                                     |
 | --------------------- | ----------------------------------------------------------------------------------------- |

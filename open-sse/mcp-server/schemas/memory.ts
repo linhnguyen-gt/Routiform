@@ -5,12 +5,14 @@ import type { McpToolDefinition } from "./tools.ts";
  * Memory tool schemas live here rather than beside their handlers so the tool registry can
  * declare them without importing the memory store. `scopeEnforcement` imports the registry on
  * every call; pulling database code into that path would be a needless cost.
+ *
+ * None of these inputs take an apiKeyId: the caller's key identity is resolved server-side
+ * from the authenticated session (extra.authInfo), never from caller-supplied arguments.
  */
 
 const MEMORY_TYPE = z.enum(["factual", "episodic", "procedural", "semantic"]);
 
 export const memorySearchInput = z.object({
-  apiKeyId: z.string(),
   query: z.string().optional(),
   type: MEMORY_TYPE.optional(),
   maxTokens: z.number().int().positive().max(8000).optional(),
@@ -18,7 +20,6 @@ export const memorySearchInput = z.object({
 });
 
 export const memoryAddInput = z.object({
-  apiKeyId: z.string(),
   sessionId: z.string().optional(),
   type: MEMORY_TYPE,
   key: z.string().min(1),
@@ -27,7 +28,6 @@ export const memoryAddInput = z.object({
 });
 
 export const memoryClearInput = z.object({
-  apiKeyId: z.string(),
   type: MEMORY_TYPE.optional(),
   olderThan: z.string().optional(),
 });
@@ -51,7 +51,8 @@ export const memorySearchTool: McpToolDefinition<
   typeof memorySearchOutput
 > = {
   name: "routiform_memory_search",
-  description: "Search memories by query, type, or API key with token budget enforcement",
+  description:
+    "Search the authenticated API key's own memories by query or type, with token budget enforcement",
   inputSchema: memorySearchInput,
   outputSchema: memorySearchOutput,
   scopes: ["read:memory"],
@@ -62,7 +63,7 @@ export const memorySearchTool: McpToolDefinition<
 
 export const memoryAddTool: McpToolDefinition<typeof memoryAddInput, typeof memoryAddOutput> = {
   name: "routiform_memory_add",
-  description: "Add a new memory entry",
+  description: "Add a memory entry scoped to the authenticated API key",
   inputSchema: memoryAddInput,
   outputSchema: memoryAddOutput,
   scopes: ["write:memory"],
@@ -74,7 +75,8 @@ export const memoryAddTool: McpToolDefinition<typeof memoryAddInput, typeof memo
 export const memoryClearTool: McpToolDefinition<typeof memoryClearInput, typeof memoryClearOutput> =
   {
     name: "routiform_memory_clear",
-    description: "Clear memories for an API key, optionally filtered by type or age",
+    description:
+      "Clear the authenticated API key's own memories, optionally filtered by type or age",
     inputSchema: memoryClearInput,
     outputSchema: memoryClearOutput,
     scopes: ["write:memory"],

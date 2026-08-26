@@ -214,11 +214,27 @@ async function getDb(): Promise<AuditDatabase | null> {
 
 // ============ Audit Logger ============
 
+interface AuditStatus {
+  enabled: boolean;
+  /** Why auditing is disabled, when it is. */
+  reason: string | null;
+}
+
+let auditStatus: AuditStatus = { enabled: true, reason: null };
+
+/**
+ * Last-known audit state, for status surfaces (getMcpHttpStatus) that must show when
+ * tool invocations are NOT being recorded.
+ */
+export function getAuditStatus(): AuditStatus {
+  return { ...auditStatus };
+}
+
 /**
  * Log a tool invocation to the mcp_tool_audit table.
  *
  * Security: Input is hashed, never stored in clear text.
- * Output is truncated to a summary.
+ * Output is truncated to a summary with secret patterns redacted before persisting.
  */
 export async function logToolCall(
   toolName: string,
@@ -230,7 +246,11 @@ export async function logToolCall(
 ): Promise<void> {
   try {
     const database = await getDb();
-    if (!database) return; // Audit disabled if no DB
+    if (!database) {
+      // Audit disabled if no DB — surface that through status instead of failing silently.
+      auditStatus = { enabled: false, reason: "database_unavailable" };
+      return;
+    }
 
     const inputHash = await hashInput(input);
     const outputSummary = summarizeOutput(output);
@@ -248,12 +268,14 @@ export async function logToolCall(
         durationMs,
         apiKeyId,
         success ? 1 : 0,
-        errorCode || null
+        errorCode ? summarizeOutput(errorCode, 200) : null
       );
+    auditStatus = { enabled: true, reason: null };
   } catch (err: unknown) {
     // Never let audit failure break tool execution
     const message = err instanceof Error ? err.message : String(err);
     console.error("[MCP Audit] Failed to log:", message);
+    auditStatus = { enabled: false, reason: "write_failed" };
   }
 }
 
