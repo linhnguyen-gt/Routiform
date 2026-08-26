@@ -17,6 +17,7 @@ import {
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 import { syncToCloud } from "@/lib/cloudSync";
 import { startLocalServer } from "@/lib/oauth/utils/server";
+import { isDockerLikeRuntime } from "@/lib/runtime/zeroConfigBanner";
 import { runWithProxyContext } from "@routiform/open-sse/utils/proxyFetch.ts";
 import { supportsProviderModelAutoSync } from "@/shared/utils/providerAutoSync";
 import {
@@ -157,6 +158,19 @@ const CALLBACK_SERVER_PROVIDERS: Record<string, { port: number; path: string; ho
 
 async function handleStartCallbackServer(provider: string, _searchParams: URLSearchParams) {
   const serverCfg = CALLBACK_SERVER_PROVIDERS[provider];
+  // Inside a container the pinned callback port is unreachable from the HOST browser:
+  // redirect_uri targets 127.0.0.1 on the host while this server listens inside the
+  // container. xAI has a working device-code fallback on every network topology, so fail
+  // fast (HTTP 400) and let clients switch instead of polling until timeout.
+  if (provider === "xai" && isDockerLikeRuntime()) {
+    return NextResponse.json(
+      {
+        error:
+          "Local OAuth callback server is not reachable from the host browser inside Docker; use the device-code flow.",
+      },
+      { status: 400 }
+    );
+  }
   if (!serverCfg) {
     return NextResponse.json(
       {
