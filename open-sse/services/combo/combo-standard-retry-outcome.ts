@@ -1,5 +1,6 @@
 import { checkFallbackError } from "../accountFallback.ts";
 import { recordComboRequest } from "../comboMetrics.ts";
+import * as semaphore from "../rateLimitSemaphore.ts";
 import { validateResponseQuality } from "./combo-response-quality.ts";
 import { shouldFallbackComboBadRequest } from "./combo-bad-request-fallback.ts";
 import { isAllAccountsRateLimitedResponse } from "./combo-rate-limit-detect.ts";
@@ -12,6 +13,37 @@ type LogLike = {
 };
 
 type BreakerLike = { _onFailure: () => void; _onSuccess: () => void };
+
+/** Statuses eligible for a same-model retry (superset of the breaker list). */
+const TRANSIENT_FOR_RETRY = [408, 500, ...TRANSIENT_FOR_BREAKER];
+
+/**
+ * Shared handling of transient upstream failures for all combo strategies
+ * (standard chain and round-robin). Standard-chain semantics win:
+ *   - the circuit breaker records a failure for every TRANSIENT_FOR_BREAKER
+ *     status, regardless of any reported cooldown;
+ *   - when a cooldown was reported, the semaphore marks the model
+ *     rate-limited so fallback ordering skips it while it lasts.
+ */
+export function applyTransientFailurePenalty(options: {
+  modelStr: string;
+  status: number;
+  cooldownMs: number;
+  breaker: BreakerLike;
+}) {
+  const { modelStr, status, cooldownMs, breaker } = options;
+  if (!TRANSIENT_FOR_BREAKER.includes(status)) return;
+  breaker._onFailure();
+  if (cooldownMs > 0) {
+    semaphore.markRateLimited(modelStr, cooldownMs);
+  }
+}
+
+/** Same-model retry eligibility, shared by all combo strategies. */
+export function isTransientComboStatus(status: number): boolean {
+  return TRANSIENT_FOR_RETRY.includes(status);
+}
+
 
 /** Successful upstream response: return body, or signal bad 200 quality. */
 export async function resolveStandardOkAttempt(options: {
@@ -155,15 +187,12 @@ export async function resolveStandardNonOkAttempt(options: {
     String(errStr)
   );
 
-  if (TRANSIENT_FOR_BREAKER.includes(result.status)) {
-    breaker._onFailure();
-  }
+  applyTransientFailurePenalty({ modelStr, status: result.status, cooldownMs, breaker });
 
   if (isAllAccountsRateLimited) {
     log.info("COMBO", `All accounts rate-limited for ${modelStr}, falling back to next model`);
   } else if (!shouldFallback && !comboBadRequestFallback) {
     log.warn("COMBO", "Combo routing: terminal error (no fallback to next model)", {
-      comboName: combo.name,
       strategy,
       modelIndex,
       totalModels: orderedModelsLength,
@@ -189,7 +218,7 @@ export async function resolveStandardNonOkAttempt(options: {
     );
   }
 
-  const isTransient = [408, 429, 500, 502, 503, 504].includes(result.status);
+  const isTransient = isTransientComboStatus(result.status);
   if (retry < maxRetries && isTransient) {
     return {
       kind: "retry",

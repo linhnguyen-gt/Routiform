@@ -6,6 +6,7 @@ import {
   HTTP_STATUS,
   PROVIDER_PROFILES,
 } from "../config/constants.ts";
+import { parseResetTime } from "./usage/reset-time.ts";
 import { getProviderCategory } from "../config/registry-params.ts";
 
 // T06 (sub2api PR #1037): Signals that indicate permanent account deactivation.
@@ -83,8 +84,13 @@ export function getProviderProfile(provider) {
 }
 
 // ─── Per-Model Lockout Tracking ─────────────────────────────────────────────
-// In-memory map: "provider:connectionId:model" → { reason, until, lockedAt }
-const modelLockouts = new Map();
+// In-memory map: "provider:connectionId:model" → entry with parsed fields.
+// The model id is stored structurally (not re-parsed from the key) because
+// model ids may themselves contain ':' (e.g. "deepseek/deepseek-r1:free").
+const modelLockouts = new Map<
+  string,
+  { provider: string; connectionId: string; model: string; reason: string; until: number; lockedAt: number }
+>();
 
 // Auto-cleanup expired lockouts every 15 seconds (lazy init for Cloudflare Workers compatibility)
 let _cleanupTimer: ReturnType<typeof setInterval> | null = null;
@@ -125,6 +131,9 @@ export function lockModel(provider, connectionId, model, reason, cooldownMs) {
   const existing = modelLockouts.get(key);
   if (existing && existing.until > newUntil) return;
   modelLockouts.set(key, {
+    provider,
+    connectionId,
+    model,
     reason,
     until: newUntil,
     lockedAt: Date.now(),
@@ -202,13 +211,12 @@ export function getModelLockoutInfo(provider, connectionId, model) {
 export function getAllModelLockouts() {
   const now = Date.now();
   const active = [];
-  for (const [key, entry] of modelLockouts) {
+  for (const entry of modelLockouts.values()) {
     if (now <= entry.until) {
-      const [provider, connectionId, model] = key.split(":");
       active.push({
-        provider,
-        connectionId,
-        model,
+        provider: entry.provider,
+        connectionId: entry.connectionId,
+        model: entry.model,
         reason: entry.reason,
         remainingMs: entry.until - now,
       });
@@ -298,13 +306,10 @@ function parseDelayString(value) {
 export function parseRetryFromErrorText(errorText) {
   if (!errorText || typeof errorText !== "string") return null;
 
+  // "reset after XhYmZs" also matches "will reset after XhYmZs", so one
+  // regex covers both phrasings — there is no separate alt-match case.
   const match = errorText.match(/reset after (\d+h)?(\d+m)?(\d+s)?/i);
-  if (!match) {
-    // Also try the variant without "reset after": "will reset after XhYmZs"
-    const altMatch = errorText.match(/will reset after (\d+h)?(\d+m)?(\d+s)?/i);
-    if (!altMatch) return null;
-    return computeDurationMs(altMatch);
-  }
+  if (!match) return null;
 
   return computeDurationMs(match);
 }
@@ -428,31 +433,29 @@ export function getQuotaCooldown(backoffLevel = 0) {
 function parseResetTimestampFromHeaders(headers) {
   if (!headers) return null;
 
-  const retryAfter =
+  const pick = (name: string, altName: string): string | null =>
     typeof headers.get === "function"
-      ? headers.get("retry-after")
-      : headers["retry-after"] || headers["Retry-After"];
+      ? headers.get(name)
+      : headers[name] || headers[altName] || null;
 
+  const retryAfter = pick("retry-after", "Retry-After");
   if (retryAfter) {
     const retryStr = String(retryAfter).trim();
+    // Retry-After carries a delay in seconds or an HTTP-date — never an epoch.
     const seconds = parseInt(retryStr, 10);
     if (!isNaN(seconds) && String(seconds) === retryStr) {
       return Date.now() + seconds * 1000;
     }
-    const date = new Date(retryStr);
-    if (!isNaN(date.getTime())) return date.getTime();
+    // Absolute date form — delegate to the shared reset-time parser.
+    const iso = parseResetTime(retryStr);
+    if (iso) return new Date(iso).getTime();
   }
 
-  const rlReset =
-    typeof headers.get === "function"
-      ? headers.get("x-ratelimit-reset")
-      : headers["x-ratelimit-reset"] || headers["X-RateLimit-Reset"];
-
+  const rlReset = pick("x-ratelimit-reset", "X-RateLimit-Reset");
   if (rlReset) {
-    const ts = parseInt(String(rlReset).trim(), 10);
-    if (!isNaN(ts)) {
-      return ts > 10000000000 ? ts : ts * 1000;
-    }
+    // Epoch seconds or milliseconds — the shared parser normalizes both.
+    const iso = parseResetTime(String(rlReset).trim());
+    if (iso) return new Date(iso).getTime();
   }
 
   return null;

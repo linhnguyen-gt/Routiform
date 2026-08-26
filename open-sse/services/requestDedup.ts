@@ -295,8 +295,11 @@ export function readDedupeControls(
 
 /**
  * Determine whether a request is dedupe-eligible based on body shape alone
- * (no header / inflight knowledge). Stream is NOT excluded any more — the
- * enforce path uses Response.clone() to share streaming bodies.
+ * (no header / inflight knowledge).
+ *
+ * Streaming requests are excluded entirely: sharing one upstream stream across
+ * clients couples their lifecycles (client A's disconnect aborts client B),
+ * double-bills via two onComplete paths, and forces unbounded tee buffering.
  */
 export function shouldDeduplicate(
   requestBody: unknown,
@@ -304,6 +307,7 @@ export function shouldDeduplicate(
 ): boolean {
   if (!config.enabled || config.mode === "off") return false;
   const body = (requestBody ?? {}) as Record<string, unknown>;
+  if (body.stream === true) return false;
   // Read through the provider envelope too, or a high-temperature Gemini request
   // looks like an unset default and two concurrent ones would share one sample.
   if (readTemperature(body) > config.maxTemperatureForDedup) return false;

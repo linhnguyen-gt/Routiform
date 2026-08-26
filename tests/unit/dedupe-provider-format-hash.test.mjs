@@ -155,8 +155,13 @@ test("a cosmetic name nested inside a tool result still counts", () => {
 
 test("temperature is read through the Gemini envelope", () => {
   setDedupConfig({ enabled: true, mode: "enforce", maxTemperatureForDedup: 1.0 });
-  const hot = geminiBody({ generationConfig: { temperature: 2 } });
+  const hot = { ...geminiBody({ generationConfig: { temperature: 2 } }), stream: false };
 
   assert.equal(shouldDeduplicate(hot), false);
-  assert.equal(shouldDeduplicate(geminiBody()), true);
+  assert.equal(shouldDeduplicate({ ...geminiBody(), stream: false }), true);
+});
+
+test("streaming requests are excluded from dedupe entirely", () => {
+  setDedupConfig({ enabled: true, mode: "enforce", maxTemperatureForDedup: 1.0 });
+  assert.equal(shouldDeduplicate(geminiBody()), false);
 });

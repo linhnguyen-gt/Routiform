@@ -37,6 +37,33 @@ export class SelfHealingManager {
   }
 
   /**
+   * Read-only exclusion check for selection-time filtering. Unlike evaluate(),
+   * this never mutates state: no probe counting (the source of probeCount
+   * inflation), no new exclusions, no re-admissions. evaluate() stays reserved
+   * for post-result health updates.
+   *
+   * HALF_OPEN providers are let through so a real probe request can run —
+   * probe admission is counted later via recordProbeResult/evaluate.
+   * When `score` is given, providers below EXCLUSION_THRESHOLD are reported
+   * excluded without creating an entry (mirrors evaluate()'s rule).
+   */
+  checkExcluded(
+    provider: string,
+    circuitBreakerState: string,
+    score?: number
+  ): { excluded: boolean; reason?: string } {
+    const entry = this.exclusions.get(provider);
+    if (entry && this.isExcluded(provider)) {
+      if (circuitBreakerState === "HALF_OPEN") return { excluded: false };
+      return { excluded: true, reason: entry.reason };
+    }
+    if (score !== undefined && score < EXCLUSION_THRESHOLD) {
+      return { excluded: true, reason: `Score ${score.toFixed(2)} below threshold` };
+    }
+    return { excluded: false };
+  }
+
+  /**
    * Evaluate provider health and potentially exclude or re-admit.
    */
   evaluate(
