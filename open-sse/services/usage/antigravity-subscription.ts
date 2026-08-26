@@ -18,6 +18,12 @@ export async function getAntigravitySubscriptionInfoCached(accessToken) {
     return cached.data;
   }
 
+  // Delete-on-stale-read: access tokens rotate, so each rotation leaves a
+  // dead entry keyed by a token prefix (which embeds the bearer token).
+  // Dropping the stale entry on read keeps the map bounded instead of
+  // accumulating rotated-token entries forever.
+  if (cached) _antigravitySubCache.delete(cacheKey);
+
   const data = await getAntigravitySubscriptionInfo(accessToken);
   _antigravitySubCache.set(cacheKey, { data, fetchedAt: Date.now() });
   return data;

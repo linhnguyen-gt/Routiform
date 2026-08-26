@@ -6,6 +6,7 @@ import { getGlmUsage } from "./glm-usage.ts";
 import { getQoderUsage } from "./qwen-qoder-usage.ts";
 import { getKimiUsage } from "./kimi-usage.ts";
 import { getKiroUsage } from "./kiro-usage.ts";
+import { getXaiUsage } from "./xai-usage.ts";
 
 /**
  * Get usage data for a provider connection
@@ -32,6 +33,8 @@ export async function getUsageForProvider(connection) {
       return await getQoderUsage(accessToken);
     case "glm":
       return await getGlmUsage(apiKey, providerSpecificData);
+    case "xai":
+      return await getXaiUsage(accessToken);
     default:
       return { message: `Usage API not implemented for ${provider}` };
   }
