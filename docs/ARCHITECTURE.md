@@ -943,6 +943,8 @@ Detailed request payload capture stores up to four JSON payload stages per route
 
 - JWT secret (`JWT_SECRET`) secures dashboard session cookie verification/signing
 - Initial password bootstrap (`INITIAL_PASSWORD`) should be explicitly configured for first-run provisioning
+- Login bootstrap (`POST /api/settings/require-login`) mints the first dashboard session when the initial password is created, and stops accepting unauthenticated calls once any credential exists
+- Flipping `requireLogin` via `PATCH /api/settings` requires a dashboard session; Bearer gateway API keys are rejected
 - API key HMAC secret (`API_KEY_SECRET`) secures generated local API key format
 - Provider secrets (API keys/tokens) are persisted in local DB and should be protected at filesystem level
 - Cloud sync endpoints rely on API key auth + machine id semantics
