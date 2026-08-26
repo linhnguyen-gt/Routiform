@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [6.2.1](https://github.com/linhnguyen-gt/Routiform/compare/v6.2.0...v6.2.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* **auth:** mint a session at first password set and close takeover ([0759602](https://github.com/linhnguyen-gt/Routiform/commit/0759602a69cd9227ee0d2bfc2ac115d062f7ea11)), closes [#99](https://github.com/linhnguyen-gt/Routiform/issues/99)
+* **oauth:** fail fast for xAI local callback inside Docker ([8f1b10e](https://github.com/linhnguyen-gt/Routiform/commit/8f1b10ecdb701f449c464b3ee348b10a6e977eb7))
+
 ## [6.2.0](https://github.com/linhnguyen-gt/Routiform/compare/v6.1.0...v6.2.0) (2026-08-20)
 
 
