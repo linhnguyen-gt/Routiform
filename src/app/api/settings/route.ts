@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { hasValidSessionToken } from "@/shared/utils/apiAuth";
 import { getSettings, updateSettings } from "@/lib/localDb";
 import { clearHealthCheckLogCache } from "@/lib/tokenHealthCheck";
 import bcrypt from "bcryptjs";
@@ -75,6 +76,16 @@ export async function PATCH(request) {
     }
     const body: typeof validation.data & { password?: string } = { ...validation.data };
 
+    // requireLogin is an auth-policy toggle: flipping it off disables authentication for the
+    // whole instance. Bearer gateway API keys (handed to Cursor/Cline and any /v1 consumer)
+    // must never reach it — only a dashboard session cookie may change auth policy. The
+    // bootstrap endpoint owns pre-credential changes.
+    if (body.requireLogin !== undefined && !(await hasValidSessionToken(request))) {
+      return NextResponse.json(
+        { error: { message: "A dashboard session is required to change login requirements." } },
+        { status: 403 }
+      );
+    }
     // If updating password, hash it
     if (body.newPassword) {
       const settings = await getSettings();
@@ -198,8 +209,7 @@ export async function PATCH(request) {
       const wasEnabled = (oldSettings as Record<string, unknown>).modelsDevSyncEnabled === true;
       const isEnabled = settings.modelsDevSyncEnabled === true;
       const oldInterval = (oldSettings as Record<string, unknown>).modelsDevSyncInterval as
-        | number
-        | undefined;
+        number | undefined;
       const newInterval = settings.modelsDevSyncInterval as number | undefined;
 
       if (wasEnabled && !isEnabled) {

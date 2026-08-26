@@ -174,11 +174,18 @@ Response example:
 Management routes guarded by `requireManagementAuth` now require a valid dashboard session cookie (`auth_token`).
 Bearer API keys are intentionally rejected for these routes.
 
-| Endpoint                      | Method  | Description           |
-| ----------------------------- | ------- | --------------------- |
-| `/api/auth/login`             | POST    | Login                 |
-| `/api/auth/logout`            | POST    | Logout                |
-| `/api/settings/require-login` | GET/PUT | Toggle login required |
+| Endpoint                      | Method   | Description                                                    |
+| ----------------------------- | -------- | -------------------------------------------------------------- |
+| `/api/auth/login`             | POST     | Login                                                          |
+| `/api/auth/logout`            | POST     | Logout                                                         |
+| `/api/settings/require-login` | GET/POST | First-run bootstrap (read login state / set password + toggle) |
+
+`POST /api/settings/require-login` is the first-run bootstrap surface: it accepts
+unauthenticated calls only until the first credential exists (a stored password hash or an
+`INITIAL_PASSWORD` env login). Afterwards it returns `403` unless the caller presents a
+dashboard session cookie. On the first successful password set the response also mints the
+`auth_token` session cookie, so the onboarding wizard completes without a separate login
+step.
 
 ### Provider Management
 
@@ -273,14 +280,17 @@ Persists the display order of combos. The `ids` array defines the new sequence; 
 
 ### Settings
 
-| Endpoint                        | Method        | Description            |
-| ------------------------------- | ------------- | ---------------------- |
-| `/api/settings`                 | GET/PUT/PATCH | General settings       |
-| `/api/settings/proxy`           | GET/PUT       | Network proxy config   |
-| `/api/settings/proxy/test`      | POST          | Test proxy connection  |
-| `/api/settings/ip-filter`       | GET/PUT       | IP allowlist/blocklist |
-| `/api/settings/thinking-budget` | GET/PUT       | Reasoning token budget |
-| `/api/settings/system-prompt`   | GET/PUT       | Global system prompt   |
+| Endpoint                        | Method    | Description            |
+| ------------------------------- | --------- | ---------------------- |
+| `/api/settings`                 | GET/PATCH | General settings       |
+| `/api/settings/proxy`           | GET/PUT   | Network proxy config   |
+| `/api/settings/proxy/test`      | POST      | Test proxy connection  |
+| `/api/settings/ip-filter`       | GET/PUT   | IP allowlist/blocklist |
+| `/api/settings/thinking-budget` | GET/PUT   | Reasoning token budget |
+| `/api/settings/system-prompt`   | GET/PUT   | Global system prompt   |
+
+`PATCH /api/settings` with a `requireLogin` field requires a dashboard session cookie;
+Bearer gateway API keys are rejected with `403`.
 
 ### Monitoring
 
@@ -524,5 +534,5 @@ Full architecture reference: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - Dashboard routes (`/dashboard/*`) use `auth_token` cookie
 - Management APIs using `requireManagementAuth` accept dashboard session cookie only (no Bearer API key fallback)
 - Login uses saved password hash; fallback to `INITIAL_PASSWORD`
-- `requireLogin` toggleable via `/api/settings/require-login`
+- First-run bootstrap (`POST /api/settings/require-login`) locks once any credential exists; afterwards changing `requireLogin` needs a dashboard session (`PATCH /api/settings`)
 - `/v1/*` routes optionally require Bearer API key when `REQUIRE_API_KEY=true`

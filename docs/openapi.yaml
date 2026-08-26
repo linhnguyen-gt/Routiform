@@ -740,6 +740,9 @@ paths:
     patch:
       tags: [Settings]
       summary: Update settings
+      description: >-
+        Setting `requireLogin` requires a dashboard session cookie; Bearer gateway API keys
+        are rejected with 403.
       requestBody:
         required: true
         content:
@@ -749,6 +752,8 @@ paths:
       responses:
         "200":
           description: Updated settings
+        "403":
+          description: requireLogin change attempted without a dashboard session
 
   /api/settings/combo-defaults:
     get:
@@ -783,10 +788,16 @@ paths:
   /api/settings/require-login:
     post:
       tags: [Settings]
-      summary: Toggle login requirement
+      summary: Toggle login requirement (first-run bootstrap)
+      description: >-
+        Public until the first credential exists (stored password hash or INITIAL_PASSWORD);
+        afterwards requires a dashboard session cookie and returns 403. On the first
+        successful password set the response also mints the `auth_token` session cookie.
       responses:
         "200":
           description: Updated
+        "403":
+          description: Password already configured and no dashboard session provided
 
   /api/settings/ip-filter:
     get:
@@ -2477,74 +2488,3 @@ components:
                 type: integer
               priority:
                 type: integer
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

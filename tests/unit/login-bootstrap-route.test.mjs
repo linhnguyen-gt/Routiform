@@ -173,3 +173,87 @@ test("public login bootstrap route POST returns 500 when hashing fails", async (
   assert.equal(response.status, 500);
   assert.deepEqual(body, { error: "hash failed" });
 });
+
+test("public login bootstrap route POST mints a session cookie on first password set", async () => {
+  const request = new Request("http://localhost/api/settings/require-login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requireLogin: true, password: "first-password" }),
+  });
+
+  const response = await route.POST(request);
+
+  assert.equal(response.status, 200);
+  const setCookie = response.headers.get("set-cookie") || "";
+  assert.match(setCookie, /auth_token=/);
+  assert.match(setCookie, /HttpOnly/i);
+});
+
+test("public login bootstrap route POST rejects unauthenticated password takeover once a hash exists", async () => {
+  const original = "keep-this-password";
+  await settingsDb.updateSettings({
+    password: await bcrypt.hash(original, 4),
+    requireLogin: true,
+  });
+
+  const request = new Request("http://localhost/api/settings/require-login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requireLogin: true, password: "attacker-password" }),
+  });
+
+  const response = await route.POST(request);
+  const body = await response.json();
+  const settings = await settingsDb.getSettings();
+
+  assert.equal(response.status, 403);
+
+  assert.equal(body.success, undefined);
+  assert.equal(await bcrypt.compare(original, settings.password), true);
+  assert.equal(await bcrypt.compare("attacker-password", settings.password), false);
+});
+
+test("public login bootstrap route POST rejects takeover when only INITIAL_PASSWORD is configured", async () => {
+  process.env.INITIAL_PASSWORD = "env-bootstrap-secret";
+
+  const request = new Request("http://localhost/api/settings/require-login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requireLogin: true, password: "attacker-password" }),
+  });
+
+  const response = await route.POST(request);
+  const settings = await settingsDb.getSettings();
+
+  assert.equal(response.status, 403);
+  assert.equal(settings.password, undefined);
+});
+
+test("public login bootstrap route POST allows authenticated updates after a hash exists", async () => {
+  await settingsDb.updateSettings({
+    password: await bcrypt.hash("current-password", 4),
+    requireLogin: true,
+  });
+
+  const { SignJWT } = await import("jose");
+  const { getJwtSecret } = await import("../../src/shared/utils/jwtSecret.ts");
+  const token = await new SignJWT({ authenticated: true })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("30d")
+    .sign(getJwtSecret());
+
+  const request = new Request("http://localhost/api/settings/require-login", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      cookie: `auth_token=${token}`,
+    },
+    body: JSON.stringify({ requireLogin: true, password: "rotated-password" }),
+  });
+
+  const response = await route.POST(request);
+  const settings = await settingsDb.getSettings();
+
+  assert.equal(response.status, 200);
+  assert.equal(await bcrypt.compare("rotated-password", settings.password), true);
+});
