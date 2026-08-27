@@ -10,6 +10,7 @@
  */
 
 import { FORMATS } from "../../translator/formats.ts";
+import { getDefaultParams } from "../../config/registry-params.ts";
 import type { HandlerLogger, JsonRecord } from "../types/chat-core.ts";
 import { downgradeReasoningEffort } from "./chat-core-reasoning-effort-support.ts";
 
@@ -125,4 +126,60 @@ export function applyModelDefaultParams({
     }
     if (body[key] === undefined) body[key] = value;
   }
+}
+
+/**
+ * Formats whose translator reads `reasoning_effort` from the PRE-translation
+ * (openai-shape) body and converts it into their native thinking shape with the
+ * right per-model clamping applied: openai-to-claude (#627 effort→budget map),
+ * openai-to-gemini / openai-to-antigravity (thinkingConfig fitting), and
+ * openai-to-kiro (adaptive thinking). Injecting the stored default into the
+ * inbound body for these targets lets a default ride the exact same ladder a
+ * client-supplied effort does — every cap the post-translate skip below was
+ * written to protect is applied by the translators themselves.
+ */
+const PRE_TRANSLATE_EFFORT_FORMATS: Record<string, true> = {
+  [FORMATS.CLAUDE]: true,
+  [FORMATS.GEMINI]: true,
+  [FORMATS.KIRO]: true,
+  [FORMATS.ANTIGRAVITY]: true,
+};
+
+/**
+ * Inject a model-level reasoning-effort default into the INBOUND (pre-translation)
+ * body as `reasoning_effort`, for the target formats whose translators consume that
+ * field. Runs before `translateInboundRequestBody`, so the translator's own clamping
+ * (Claude budget map + max_tokens bump, Gemini/AG fitGeminiThinkingBudget, Kiro
+ * adaptive) sizes the native thinking shape — the thing a post-translate write
+ * cannot do safely, which is why those formats were skipped there.
+ *
+ * A default never overrides reasoning the request already carries. Formats with no
+ * pre-translate consumer (openai, codex, responses, cursor, commandcode, devin) are
+ * left to the post-translate pass, which already handles them.
+ */
+export function injectPreTranslateEffortDefault({
+  body,
+  provider,
+  model,
+  targetFormat,
+  log,
+}: {
+  body: JsonRecord;
+  provider: string;
+  model: string;
+  targetFormat: string;
+  log?: HandlerLogger | null;
+}): void {
+  if (!PRE_TRANSLATE_EFFORT_FORMATS[targetFormat]) return;
+  if (bodyAlreadyRequestsReasoning(body)) return;
+
+  const defaultParams = getDefaultParams(provider, model);
+  const effort = defaultParams ? readEffort(defaultParams.reasoning) : null;
+  if (!effort) return;
+
+  body.reasoning_effort = effort;
+  log?.debug?.(
+    "PARAMS",
+    `Injected pre-translation reasoning_effort=${effort} for ${provider}/${model}`
+  );
 }

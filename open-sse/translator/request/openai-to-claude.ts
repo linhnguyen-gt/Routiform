@@ -430,6 +430,7 @@ export function openaiToClaudeRequest(model, body, stream) {
       low: 1024,
       medium: 10240,
       high: 131072,
+      xhigh: 131072,
       max: 131072,
     };
     const effort = String(body.reasoning_effort).toLowerCase();
@@ -450,6 +451,14 @@ export function openaiToClaudeRequest(model, body, stream) {
   const budgetTokens = Number(result.thinking?.budget_tokens) || 0;
   if (budgetTokens > 0 && result.max_tokens <= budgetTokens) {
     result.max_tokens = budgetTokens + 8192;
+  }
+  // Anthropic rejects temperature/top_p/top_k other than their defaults while
+  // extended thinking is enabled. A client temperature must not 400 the whole
+  // request just because thinking got turned on (client-supplied effort or a
+  // model default injected pre-translation) — the claude-code bridge already
+  // enforces this via enforceThinkingTemperature; the plain path did not.
+  if (budgetTokens > 0 && result.temperature !== undefined && result.temperature !== 1) {
+    result.temperature = 1;
   }
 
   // Attach toolNameMap to result for response translation

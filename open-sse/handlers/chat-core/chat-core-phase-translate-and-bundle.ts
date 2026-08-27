@@ -26,6 +26,7 @@ import { sanitizeRequestInput } from "../phases/input-sanitizer.ts";
 import { checkSemanticCache } from "../phases/semantic-cache-handler.ts";
 import { createBuildUpstreamHeadersForExecute } from "./chat-core-build-upstream-headers.ts";
 import { createExecuteProviderRequestBundle } from "./chat-core-create-execute-provider-request.ts";
+import { injectPreTranslateEffortDefault } from "./chat-core-apply-default-params.ts";
 import { extractToolNameMapAndTuneTranslatedBody } from "./chat-core-post-translate-tune.ts";
 import type { HandlerLogger, ProviderCredentials, RawRequestLike } from "../types/chat-core.ts";
 import type { RoutingStrategyValue } from "../../../src/shared/constants/routingStrategies.ts";
@@ -261,6 +262,19 @@ export async function chatCorePhaseTranslateAndBundle(p: ChatCorePipeline): Prom
   // Replaced, not appended: each attempt stages its own writes, and carrying a failed attempt's
   // staging forward would commit content the successful attempt did not send.
   p.compressionDeferredWrites = stack.deferredWrites;
+  // Model-level reasoning-effort default for formats whose translators read
+  // `reasoning_effort` off the inbound body (claude/gemini/kiro/antigravity).
+  // Runs AFTER the rawBody capture above and immediately before translation:
+  // the injected effort is proxy config, not client content, so it must stay
+  // out of rawBody or the semantic-cache signature and the persisted call-log
+  // requestBody would start varying with dashboard settings.
+  injectPreTranslateEffortDefault({
+    body: p.body,
+    provider: p.provider || "",
+    model: p.effectiveModel || p.model || "",
+    targetFormat: p.targetFormat || "",
+    log,
+  });
 
   const translateResult = await translateInboundRequestBody({
     nativeCodexPassthrough: !!p.nativeCodexPassthrough,

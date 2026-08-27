@@ -181,3 +181,43 @@ test("openaiToClaudeRequest skips nameless built-in responses tools", () => {
   assert.equal(translated.tools[0].name.includes("undefined"), false);
   assert.equal(translated.tools[0].name.includes("get_weather"), true);
 });
+
+test("openaiToClaudeRequest maps every reasoning_effort level to a thinking budget", () => {
+  const expected = { low: 1024, medium: 10240, high: 131072, xhigh: 131072, max: 131072 };
+  for (const [effort, budget] of Object.entries(expected)) {
+    const translated = openaiToClaudeRequest(
+      "claude-sonnet-4",
+      { messages: [{ role: "user", content: "hi" }], reasoning_effort: effort },
+      false
+    );
+    assert.deepEqual(
+      translated.thinking,
+      { type: "enabled", budget_tokens: budget },
+      `reasoning_effort=${effort} should map to budget_tokens=${budget}`
+    );
+    assert.ok(
+      translated.max_tokens > budget,
+      `max_tokens (${translated.max_tokens}) must exceed budget_tokens (${budget}) for ${effort}`
+    );
+  }
+});
+
+test("thinking from reasoning_effort forces temperature to 1 (Anthropic requirement)", () => {
+  const translated = openaiToClaudeRequest(
+    "claude-sonnet-4",
+    { messages: [{ role: "user", content: "hi" }], reasoning_effort: "high", temperature: 0.7 },
+    false
+  );
+  assert.equal(translated.thinking.type, "enabled");
+  assert.equal(translated.temperature, 1);
+});
+
+test("temperature is untouched when thinking is not enabled", () => {
+  const translated = openaiToClaudeRequest(
+    "claude-sonnet-4",
+    { messages: [{ role: "user", content: "hi" }], temperature: 0.7 },
+    false
+  );
+  assert.equal(translated.thinking, undefined);
+  assert.equal(translated.temperature, 0.7);
+});
