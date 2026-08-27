@@ -62,7 +62,7 @@ export async function POST(request) {
     const modelCheck = validateComboModels({
       ...context,
       models: models || [],
-      knownComboNames: new Set(allCombos.map((c) => c.name).filter(Boolean)),
+      knownComboNames: new Set<string>(allCombos.map((c) => c.name).filter(Boolean) as string[]),
     });
     if (modelCheck.errors.length > 0) {
       return NextResponse.json({ error: modelCheck.errors[0] }, { status: 400 });

@@ -18,6 +18,7 @@ import { getAllAudioModels } from "@routiform/open-sse/config/audioRegistry.ts";
 import { getAllModerationModels } from "@routiform/open-sse/config/moderationRegistry.ts";
 import { getAllVideoModels } from "@routiform/open-sse/config/videoRegistry.ts";
 import { getAllMusicModels } from "@routiform/open-sse/config/musicRegistry.ts";
+import { getModelSpec } from "@/shared/constants/modelSpecs";
 import { REGISTRY } from "@routiform/open-sse/config/registry-providers.ts";
 import { getSyncedAvailableModels } from "@/lib/db/models";
 import { loadAntigravityModelsFromConnections } from "@/lib/providers/antigravityLiveModels";
@@ -322,6 +323,8 @@ export async function getUnifiedModelsResponse(
           if (getModelIsHidden("antigravity", model.id)) continue;
 
           const visionFields = getVisionCapabilityFields("antigravity", model.id);
+          const spec = getModelSpec(model.id);
+
           models.push({
             id: modelId,
             object: "model",
@@ -330,7 +333,7 @@ export async function getUnifiedModelsResponse(
             permission: [],
             root: model.id,
             parent: null,
-            ...resolveTokenLimits(["antigravity"]),
+            ...resolveTokenLimits(["antigravity"], spec?.contextWindow, spec?.maxOutputTokens),
             ...(visionFields || {}),
           });
         }

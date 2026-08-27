@@ -30,7 +30,7 @@ function partialMarkerTailLength(text: string, marker: string): number {
  * think span and span content seen so far.
  */
 export function consumeThinkContent(
-  state: Record<string, unknown>,
+  state: { thinkBuffer?: string; inThinkSpan?: boolean },
   delta: string
 ): { reasoning: string; text: string } {
   state.thinkBuffer = String(state.thinkBuffer || "") + delta;
@@ -62,7 +62,7 @@ export function consumeThinkContent(
  * Stream end: bytes still held are either a partial-marker tail or the body of
  * an unterminated <think> span — both are literal text. Restores them verbatim.
  */
-export function flushThinkContent(state: Record<string, unknown>): string {
+export function flushThinkContent(state: { thinkBuffer?: string; inThinkSpan?: boolean }): string {
   const rest = String(state.thinkBuffer || "");
   state.thinkBuffer = "";
   state.inThinkSpan = false;
