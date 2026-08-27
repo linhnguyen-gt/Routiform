@@ -35,11 +35,30 @@ export function getDefaultDataDir() {
   return path.join(homeDir, `.${APP_NAME}`);
 }
 
+/**
+ * Test-runner detection: node:test sets NODE_TEST_CONTEXT; vitest sets VITEST / NODE_ENV=test.
+ * Tests that import the DB layer write through it, and several suites seed fixtures with
+ * placeholder values (e.g. password: "hashed"). When a test file is invoked directly without
+ * DATA_DIR set, that used to land in the real ~/.routiform storage and clobber live operator
+ * settings. Redirect to the project-local .test-data directory instead. The npm test scripts
+ * already set DATA_DIR=.test-data explicitly; this covers direct `node --test <file>` and
+ * IDE runner invocations that bypass them.
+ */
+function isTestRunnerContext(): boolean {
+  return (
+    process.env.NODE_TEST_CONTEXT !== undefined ||
+    process.env.VITEST !== undefined ||
+    process.env.NODE_ENV === "test"
+  );
+}
+
 export function resolveDataDir({ isCloud = false }: { isCloud?: boolean } = {}): string {
   if (isCloud) return "/tmp";
 
   const configured = normalizeConfiguredPath(process.env.DATA_DIR);
   if (configured) return configured;
+
+  if (isTestRunnerContext()) return path.join(process.cwd(), ".test-data");
 
   return getDefaultDataDir();
 }
