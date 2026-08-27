@@ -2,109 +2,112 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
-### [6.2.1](https://github.com/linhnguyen-gt/Routiform/compare/v6.2.0...v6.2.1) (2026-08-26)
+### [6.2.2](https://github.com/linhnguyen-gt/Routiform/compare/v6.2.1...v6.2.2) (2026-08-27)
 
+### Code Refactoring
+
+- **open-sse:** split all files exceeding ~700 LOC into subdirectory modules behind re-export facades. 13 monoliths (imageGeneration, stream, registry-providers-apikey, MCP schemas/server, tokenRefresh, claudeCodeCompatible, cursor, accountFallback, kiro, sseParser, search, responseTranslator) now live in per-domain modules with byte-identical behavior; all external importers unchanged via facades.
 
 ### Bug Fixes
 
-* **auth:** mint a session at first password set and close takeover ([0759602](https://github.com/linhnguyen-gt/Routiform/commit/0759602a69cd9227ee0d2bfc2ac115d062f7ea11)), closes [#99](https://github.com/linhnguyen-gt/Routiform/issues/99)
-* **oauth:** fail fast for xAI local callback inside Docker ([8f1b10e](https://github.com/linhnguyen-gt/Routiform/commit/8f1b10ecdb701f449c464b3ee348b10a6e977eb7))
+- **db:** redirect test-runner DB writes to .test-data instead of the real data dir — direct `node --test` invocations without DATA_DIR no longer clobber the operator's ~/.routiform settings (password hash included)
+- **docs:** restore the translator-directory table lost in a stash-conflict resolution
+
+### [6.2.1](https://github.com/linhnguyen-gt/Routiform/compare/v6.2.0...v6.2.1) (2026-08-26)
+
+### Bug Fixes
+
+- **auth:** mint a session at first password set and close takeover ([0759602](https://github.com/linhnguyen-gt/Routiform/commit/0759602a69cd9227ee0d2bfc2ac115d062f7ea11)), closes [#99](https://github.com/linhnguyen-gt/Routiform/issues/99)
+- **oauth:** fail fast for xAI local callback inside Docker ([8f1b10e](https://github.com/linhnguyen-gt/Routiform/commit/8f1b10ecdb701f449c464b3ee348b10a6e977eb7))
 
 ## [6.2.0](https://github.com/linhnguyen-gt/Routiform/compare/v6.1.0...v6.2.0) (2026-08-20)
 
-
 ### Features
 
-* **cli-tools:** add Grok Build to the CLI tools catalog ([f80009a](https://github.com/linhnguyen-gt/Routiform/commit/f80009a4e3524de2987e7678467a9f5e81b7e6d2))
-* **cli-tools:** add Kimi Code with managed config.toml writes ([aa8ece1](https://github.com/linhnguyen-gt/Routiform/commit/aa8ece15ce443ba20a7fc517b9e2f03e57c51e11))
-* **cli-tools:** add Oh My Pi with managed models.yml and config.yml writes ([3497544](https://github.com/linhnguyen-gt/Routiform/commit/3497544c60f1e5f41cf0b2d49e1763dd18517563))
-
+- **cli-tools:** add Grok Build to the CLI tools catalog ([f80009a](https://github.com/linhnguyen-gt/Routiform/commit/f80009a4e3524de2987e7678467a9f5e81b7e6d2))
+- **cli-tools:** add Kimi Code with managed config.toml writes ([aa8ece1](https://github.com/linhnguyen-gt/Routiform/commit/aa8ece15ce443ba20a7fc517b9e2f03e57c51e11))
+- **cli-tools:** add Oh My Pi with managed models.yml and config.yml writes ([3497544](https://github.com/linhnguyen-gt/Routiform/commit/3497544c60f1e5f41cf0b2d49e1763dd18517563))
 
 ### Bug Fixes
 
-* **cli-tools:** back up a config file before every write, not only on save ([446db63](https://github.com/linhnguyen-gt/Routiform/commit/446db63b1e84db3041a4ff7ead239a8e4790df44))
-* **cli-tools:** show config status on cards without a dedicated one ([fd1e805](https://github.com/linhnguyen-gt/Routiform/commit/fd1e80554a01b06661d9addad8ba8b9b589d1c79))
-* **cli-tools:** stop a managed TOML write from damaging the rest of the file ([2ad6f2b](https://github.com/linhnguyen-gt/Routiform/commit/2ad6f2b50a9ec81e970516c4a0a25e2d43365961))
-* **cli-tools:** treat an array-of-tables header as a header when editing TOML ([f2987c5](https://github.com/linhnguyen-gt/Routiform/commit/f2987c502a82490c09108b99d74fc6ec4b21793a))
-* **combo:** resolve idempotency at the ingress, not per upstream attempt ([59bda95](https://github.com/linhnguyen-gt/Routiform/commit/59bda95bee0e02f430b5d41459e5c5afa273665f))
-* **dedup:** fingerprint the request in whatever format it reaches the upstream ([eb7a9f5](https://github.com/linhnguyen-gt/Routiform/commit/eb7a9f57bc8a8af942452e597c2bbeef2432ed13))
-* **docker:** mount the config directories full mode was missing ([50d77a5](https://github.com/linhnguyen-gt/Routiform/commit/50d77a53f7bd22787afe9a695b68c404df97f67d))
-* **sse:** default an omitted stream flag to JSON, as the OpenAI schema does ([76ff6d6](https://github.com/linhnguyen-gt/Routiform/commit/76ff6d62dd3d73cbe7c987e3280185c250412288)), closes [#656](https://github.com/linhnguyen-gt/Routiform/issues/656)
-* **sse:** recover the reply Codex streams only as output_text deltas ([89aa6ce](https://github.com/linhnguyen-gt/Routiform/commit/89aa6cea2c15106502edf13b68dce6eeec36e569))
+- **cli-tools:** back up a config file before every write, not only on save ([446db63](https://github.com/linhnguyen-gt/Routiform/commit/446db63b1e84db3041a4ff7ead239a8e4790df44))
+- **cli-tools:** show config status on cards without a dedicated one ([fd1e805](https://github.com/linhnguyen-gt/Routiform/commit/fd1e80554a01b06661d9addad8ba8b9b589d1c79))
+- **cli-tools:** stop a managed TOML write from damaging the rest of the file ([2ad6f2b](https://github.com/linhnguyen-gt/Routiform/commit/2ad6f2b50a9ec81e970516c4a0a25e2d43365961))
+- **cli-tools:** treat an array-of-tables header as a header when editing TOML ([f2987c5](https://github.com/linhnguyen-gt/Routiform/commit/f2987c502a82490c09108b99d74fc6ec4b21793a))
+- **combo:** resolve idempotency at the ingress, not per upstream attempt ([59bda95](https://github.com/linhnguyen-gt/Routiform/commit/59bda95bee0e02f430b5d41459e5c5afa273665f))
+- **dedup:** fingerprint the request in whatever format it reaches the upstream ([eb7a9f5](https://github.com/linhnguyen-gt/Routiform/commit/eb7a9f57bc8a8af942452e597c2bbeef2432ed13))
+- **docker:** mount the config directories full mode was missing ([50d77a5](https://github.com/linhnguyen-gt/Routiform/commit/50d77a53f7bd22787afe9a695b68c404df97f67d))
+- **sse:** default an omitted stream flag to JSON, as the OpenAI schema does ([76ff6d6](https://github.com/linhnguyen-gt/Routiform/commit/76ff6d62dd3d73cbe7c987e3280185c250412288)), closes [#656](https://github.com/linhnguyen-gt/Routiform/issues/656)
+- **sse:** recover the reply Codex streams only as output_text deltas ([89aa6ce](https://github.com/linhnguyen-gt/Routiform/commit/89aa6cea2c15106502edf13b68dce6eeec36e569))
 
 ## [6.1.0](https://github.com/linhnguyen-gt/Routiform/compare/v6.0.1...v6.1.0) (2026-08-14)
 
-
 ### Features
 
-* **cli-tools:** give Qwen Code its own logo on the card ([e39d33a](https://github.com/linhnguyen-gt/Routiform/commit/e39d33a5a618d22d2ff3205ec3baedf1368f92ca))
-* **combos:** sanitize error messages and improve rate-limit fairness ([ea7b43b](https://github.com/linhnguyen-gt/Routiform/commit/ea7b43b05a1c55f8a0e3c3598ed0f17b64ac69af))
-* **models:** save model defaults as they are edited instead of behind Apply ([e29f7a0](https://github.com/linhnguyen-gt/Routiform/commit/e29f7a0253dd1d544f24a789e15fa256afe38aba))
-* **models:** set reasoning effort per model from every model picker ([a186391](https://github.com/linhnguyen-gt/Routiform/commit/a1863910a93f7a2648f72ea17fb44eaf699fc127))
-
+- **cli-tools:** give Qwen Code its own logo on the card ([e39d33a](https://github.com/linhnguyen-gt/Routiform/commit/e39d33a5a618d22d2ff3205ec3baedf1368f92ca))
+- **combos:** sanitize error messages and improve rate-limit fairness ([ea7b43b](https://github.com/linhnguyen-gt/Routiform/commit/ea7b43b05a1c55f8a0e3c3598ed0f17b64ac69af))
+- **models:** save model defaults as they are edited instead of behind Apply ([e29f7a0](https://github.com/linhnguyen-gt/Routiform/commit/e29f7a0253dd1d544f24a789e15fa256afe38aba))
+- **models:** set reasoning effort per model from every model picker ([a186391](https://github.com/linhnguyen-gt/Routiform/commit/a1863910a93f7a2648f72ea17fb44eaf699fc127))
 
 ### Bug Fixes
 
-* **antigravity:** send the CLI User-Agent so Gemini 3.7 Flash appears ([#89](https://github.com/linhnguyen-gt/Routiform/issues/89)) ([ea5aab9](https://github.com/linhnguyen-gt/Routiform/commit/ea5aab91aedf76aa59984a747d7c08de90a82ec2))
-* **audit:** drop js-yaml and http-proxy-middleware from the allowlist ([#90](https://github.com/linhnguyen-gt/Routiform/issues/90)) ([fe008ef](https://github.com/linhnguyen-gt/Routiform/commit/fe008ef5bd100c4e166f240c3e4a79eca33636ae))
-* **cli-tools:** make the guide's missing-translation fallback actually run ([0d96171](https://github.com/linhnguyen-gt/Routiform/commit/0d961713676a0737517b5cb5885df575db7e6352))
-* **cli-tools:** write real context windows into the OpenClaw config ([4bc6cf3](https://github.com/linhnguyen-gt/Routiform/commit/4bc6cf36579e96e5e3134c1dcea8b6526a0c9d5c))
-* **model-specs:** resolve provider-qualified model ids to their spec ([7abc3ca](https://github.com/linhnguyen-gt/Routiform/commit/7abc3ca9535d5fe1c9563dc828aacd98ac7c1f61))
-* **models:** keep the effort picker responsive and stop late loads reverting edits ([a352177](https://github.com/linhnguyen-gt/Routiform/commit/a352177d7ac3c09f2326c1eaba314538e9f3dce2))
-* **providers:** drop NVIDIA models NVIDIA no longer serves, and report the drift ([0bb5661](https://github.com/linhnguyen-gt/Routiform/commit/0bb5661b83cdc7f56f4938b8dd13a510e7ea7e1f))
-* **providers:** stop one failing model test from killing the rest ([d37a12f](https://github.com/linhnguyen-gt/Routiform/commit/d37a12fffaeac6bd18b2041843b76b9988510394))
-* **providers:** stop one gated model from disabling the whole account ([1c5fab9](https://github.com/linhnguyen-gt/Routiform/commit/1c5fab9d40c250c9cba2c521a9bc0169de952d7d))
-* **providers:** stop request-level failures from retiring an account ([b93b8b6](https://github.com/linhnguyen-gt/Routiform/commit/b93b8b65668e9ac9c838aa2702b164389a835d6c))
+- **antigravity:** send the CLI User-Agent so Gemini 3.7 Flash appears ([#89](https://github.com/linhnguyen-gt/Routiform/issues/89)) ([ea5aab9](https://github.com/linhnguyen-gt/Routiform/commit/ea5aab91aedf76aa59984a747d7c08de90a82ec2))
+- **audit:** drop js-yaml and http-proxy-middleware from the allowlist ([#90](https://github.com/linhnguyen-gt/Routiform/issues/90)) ([fe008ef](https://github.com/linhnguyen-gt/Routiform/commit/fe008ef5bd100c4e166f240c3e4a79eca33636ae))
+- **cli-tools:** make the guide's missing-translation fallback actually run ([0d96171](https://github.com/linhnguyen-gt/Routiform/commit/0d961713676a0737517b5cb5885df575db7e6352))
+- **cli-tools:** write real context windows into the OpenClaw config ([4bc6cf3](https://github.com/linhnguyen-gt/Routiform/commit/4bc6cf36579e96e5e3134c1dcea8b6526a0c9d5c))
+- **model-specs:** resolve provider-qualified model ids to their spec ([7abc3ca](https://github.com/linhnguyen-gt/Routiform/commit/7abc3ca9535d5fe1c9563dc828aacd98ac7c1f61))
+- **models:** keep the effort picker responsive and stop late loads reverting edits ([a352177](https://github.com/linhnguyen-gt/Routiform/commit/a352177d7ac3c09f2326c1eaba314538e9f3dce2))
+- **providers:** drop NVIDIA models NVIDIA no longer serves, and report the drift ([0bb5661](https://github.com/linhnguyen-gt/Routiform/commit/0bb5661b83cdc7f56f4938b8dd13a510e7ea7e1f))
+- **providers:** stop one failing model test from killing the rest ([d37a12f](https://github.com/linhnguyen-gt/Routiform/commit/d37a12fffaeac6bd18b2041843b76b9988510394))
+- **providers:** stop one gated model from disabling the whole account ([1c5fab9](https://github.com/linhnguyen-gt/Routiform/commit/1c5fab9d40c250c9cba2c521a9bc0169de952d7d))
+- **providers:** stop request-level failures from retiring an account ([b93b8b6](https://github.com/linhnguyen-gt/Routiform/commit/b93b8b65668e9ac9c838aa2702b164389a835d6c))
 
 ### [6.0.1](https://github.com/linhnguyen-gt/Routiform/compare/v6.0.0...v6.0.1) (2026-08-11)
 
-
 ### Bug Fixes
 
-* **cli-tools:** stop a new tool taking the page down over a missing message ([fab06e5](https://github.com/linhnguyen-gt/Routiform/commit/fab06e55884e1cb2874accc1631a8d02265c419b))
-* **combos:** rank quick-template models by fitness, not catalog order ([5ab907c](https://github.com/linhnguyen-gt/Routiform/commit/5ab907c32c0b85e7608ee10ddf4bba8bd3d9826e))
+- **cli-tools:** stop a new tool taking the page down over a missing message ([fab06e5](https://github.com/linhnguyen-gt/Routiform/commit/fab06e55884e1cb2874accc1631a8d02265c419b))
+- **combos:** rank quick-template models by fitness, not catalog order ([5ab907c](https://github.com/linhnguyen-gt/Routiform/commit/5ab907c32c0b85e7608ee10ddf4bba8bd3d9826e))
 
 ## [6.0.0](https://github.com/linhnguyen-gt/Routiform/compare/v5.0.0...v6.0.0) (2026-08-08)
 
-
 ### ⚠ BREAKING CHANGES
 
-* **providers:** the `gemini` provider and its stored connections are removed,
-along with Veo video generation. Use `antigravity` for Gemini models.
-* **providers:** the `gemini-cli` provider is removed. Migration 028 deletes
-stored provider_connections and quota_snapshots rows for it; they cannot be
-recovered without a database backup, though the migration runner takes a
-pre-migration snapshot first. Usage history is left intact. Combos and model
-aliases referencing `gemini-cli/...` no longer resolve, and the `gc/` model
-alias no longer maps in /api/v1/models. The env vars GEMINI_OAUTH_CLIENT_ID,
-GEMINI_OAUTH_CLIENT_SECRET, GEMINI_CLI_OAUTH_CLIENT_ID,
-GEMINI_CLI_OAUTH_CLIENT_SECRET and GEMINI_CLI_USER_AGENT are no longer read.
-Use the `gemini` provider with a Google AI Studio API key instead.
+- **providers:** the `gemini` provider and its stored connections are removed,
+  along with Veo video generation. Use `antigravity` for Gemini models.
+- **providers:** the `gemini-cli` provider is removed. Migration 028 deletes
+  stored provider_connections and quota_snapshots rows for it; they cannot be
+  recovered without a database backup, though the migration runner takes a
+  pre-migration snapshot first. Usage history is left intact. Combos and model
+  aliases referencing `gemini-cli/...` no longer resolve, and the `gc/` model
+  alias no longer maps in /api/v1/models. The env vars GEMINI_OAUTH_CLIENT_ID,
+  GEMINI_OAUTH_CLIENT_SECRET, GEMINI_CLI_OAUTH_CLIENT_ID,
+  GEMINI_CLI_OAUTH_CLIENT_SECRET and GEMINI_CLI_USER_AGENT are no longer read.
+  Use the `gemini` provider with a Google AI Studio API key instead.
 
 ### Features
 
-* **cli-tools:** add a Reset button to Continue and OpenCode ([f36d9b5](https://github.com/linhnguyen-gt/Routiform/commit/f36d9b53999a79641d91ad1b7cdac8f36749acab))
-* **cli-tools:** bring back the Qwen Code card, in the shape Qwen reads ([67dcb17](https://github.com/linhnguyen-gt/Routiform/commit/67dcb171e9e0fa7ab3f83ac8f3a5522aafa76d2e))
-* **cli-tools:** follow the current Copilot, Continue and Hermes config formats ([8c4b197](https://github.com/linhnguyen-gt/Routiform/commit/8c4b197600048e383ea9694f589a084890d5819d))
-* **combos:** default new combos to measured token limits ([516ae5c](https://github.com/linhnguyen-gt/Routiform/commit/516ae5c1b6f0d63ef5600408225a9e8a55598b58))
-* **combos:** let a combo carry its own token limits ([d8fec93](https://github.com/linhnguyen-gt/Routiform/commit/d8fec938a2c6af3a836b950e453e12da5274c85c))
-* **combos:** resolve quick templates against connected providers ([f6712c7](https://github.com/linhnguyen-gt/Routiform/commit/f6712c77d73c367057a066a0667b19ba152c3658))
-* **providers:** remove the Gemini CLI provider ([fae9d0a](https://github.com/linhnguyen-gt/Routiform/commit/fae9d0aaab888e1b179653ab74a965ab2adebfff))
-* **providers:** remove the Gemini provider ([4d0a1e3](https://github.com/linhnguyen-gt/Routiform/commit/4d0a1e3dcb3b267133b35c5a6f9db4434e7b8dac))
-
+- **cli-tools:** add a Reset button to Continue and OpenCode ([f36d9b5](https://github.com/linhnguyen-gt/Routiform/commit/f36d9b53999a79641d91ad1b7cdac8f36749acab))
+- **cli-tools:** bring back the Qwen Code card, in the shape Qwen reads ([67dcb17](https://github.com/linhnguyen-gt/Routiform/commit/67dcb171e9e0fa7ab3f83ac8f3a5522aafa76d2e))
+- **cli-tools:** follow the current Copilot, Continue and Hermes config formats ([8c4b197](https://github.com/linhnguyen-gt/Routiform/commit/8c4b197600048e383ea9694f589a084890d5819d))
+- **combos:** default new combos to measured token limits ([516ae5c](https://github.com/linhnguyen-gt/Routiform/commit/516ae5c1b6f0d63ef5600408225a9e8a55598b58))
+- **combos:** let a combo carry its own token limits ([d8fec93](https://github.com/linhnguyen-gt/Routiform/commit/d8fec938a2c6af3a836b950e453e12da5274c85c))
+- **combos:** resolve quick templates against connected providers ([f6712c7](https://github.com/linhnguyen-gt/Routiform/commit/f6712c77d73c367057a066a0667b19ba152c3658))
+- **providers:** remove the Gemini CLI provider ([fae9d0a](https://github.com/linhnguyen-gt/Routiform/commit/fae9d0aaab888e1b179653ab74a965ab2adebfff))
+- **providers:** remove the Gemini provider ([4d0a1e3](https://github.com/linhnguyen-gt/Routiform/commit/4d0a1e3dcb3b267133b35c5a6f9db4434e7b8dac))
 
 ### Bug Fixes
 
-* **auto-combo:** score models by the longest matching pattern ([7578a01](https://github.com/linhnguyen-gt/Routiform/commit/7578a0116e6a96f48a9fffabff2c5b8e66059780))
-* **cli-tools:** give every tool the model's real context window ([996852f](https://github.com/linhnguyen-gt/Routiform/commit/996852f4a31611ea57555f87f00dfe05c18e6f1a))
-* **cli-tools:** stop clobbering a Claude setting and repoint stale docs links ([e86aade](https://github.com/linhnguyen-gt/Routiform/commit/e86aadea9c6ced18fd61030cd4a79d7f822f7e4f))
-* **cli-tools:** write Kilo and Cline config in the shapes those CLIs read ([865e636](https://github.com/linhnguyen-gt/Routiform/commit/865e636791b9bedc2611d650f3d4488e20b8ac66))
-* **combos:** drop dead connections from quick-template resolution ([4d7a4cc](https://github.com/linhnguyen-gt/Routiform/commit/4d7a4cc9665308e9565a47ce571ebc23fd5a5b9c))
-* **deps:** note the undici pin in the 5.0.0 release ([73c0958](https://github.com/linhnguyen-gt/Routiform/commit/73c0958a568499a762c462f1bd79eae267d6377b))
-* **deps:** pin undici to v7 so Node 22's fetch accepts our dispatcher ([0997f84](https://github.com/linhnguyen-gt/Routiform/commit/0997f8401a07ea22d6c9fd458375bf8a207c6e7e))
-* **docker:** base images on trixie so the arm64 native addon loads ([d010596](https://github.com/linhnguyen-gt/Routiform/commit/d0105962009c699f308172caf506ba12f7742624))
-* **sse:** keep the Responses reply that arrives only as deltas ([87ba8c4](https://github.com/linhnguyen-gt/Routiform/commit/87ba8c4f0d80f21e08017b3f327d959175b85608))
-* **tests:** isolate the unit suite from the real data directory ([d5eb2ea](https://github.com/linhnguyen-gt/Routiform/commit/d5eb2ea8b74639d72434bbb1f6c16f2dad524bef))
+- **auto-combo:** score models by the longest matching pattern ([7578a01](https://github.com/linhnguyen-gt/Routiform/commit/7578a0116e6a96f48a9fffabff2c5b8e66059780))
+- **cli-tools:** give every tool the model's real context window ([996852f](https://github.com/linhnguyen-gt/Routiform/commit/996852f4a31611ea57555f87f00dfe05c18e6f1a))
+- **cli-tools:** stop clobbering a Claude setting and repoint stale docs links ([e86aade](https://github.com/linhnguyen-gt/Routiform/commit/e86aadea9c6ced18fd61030cd4a79d7f822f7e4f))
+- **cli-tools:** write Kilo and Cline config in the shapes those CLIs read ([865e636](https://github.com/linhnguyen-gt/Routiform/commit/865e636791b9bedc2611d650f3d4488e20b8ac66))
+- **combos:** drop dead connections from quick-template resolution ([4d7a4cc](https://github.com/linhnguyen-gt/Routiform/commit/4d7a4cc9665308e9565a47ce571ebc23fd5a5b9c))
+- **deps:** note the undici pin in the 5.0.0 release ([73c0958](https://github.com/linhnguyen-gt/Routiform/commit/73c0958a568499a762c462f1bd79eae267d6377b))
+- **deps:** pin undici to v7 so Node 22's fetch accepts our dispatcher ([0997f84](https://github.com/linhnguyen-gt/Routiform/commit/0997f8401a07ea22d6c9fd458375bf8a207c6e7e))
+- **docker:** base images on trixie so the arm64 native addon loads ([d010596](https://github.com/linhnguyen-gt/Routiform/commit/d0105962009c699f308172caf506ba12f7742624))
+- **sse:** keep the Responses reply that arrives only as deltas ([87ba8c4](https://github.com/linhnguyen-gt/Routiform/commit/87ba8c4f0d80f21e08017b3f327d959175b85608))
+- **tests:** isolate the unit suite from the real data directory ([d5eb2ea](https://github.com/linhnguyen-gt/Routiform/commit/d5eb2ea8b74639d72434bbb1f6c16f2dad524bef))
 
 ## [5.0.0](https://github.com/linhnguyen-gt/Routiform/compare/v4.0.0...v5.0.0) (2026-08-05)
 
