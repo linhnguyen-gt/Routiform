@@ -20,11 +20,12 @@ const KIMI_PROVIDER_TYPE = "openai";
 
 /**
  * `max_context_size` is required on every model entry and must be at least 1, so a model
- * whose window Routiform could not resolve still needs a number. Kimi's own default for a
- * model defined through the KIMI_MODEL_* variables is 256K, and matching it keeps an
- * unresolved model behaving the way the CLI would have behaved on its own.
+ * whose window Routiform could not resolve still needs a number. Written large on
+ * purpose: over-advertising costs nothing (the CLI trusts the proxy to reject overlong
+ * requests), while under-advertising makes the CLI truncate context it actually had
+ * room for. Follows CONTEXT_CONFIG.defaultLimit.
  */
-export const KIMI_DEFAULT_CONTEXT_SIZE = 262144;
+export const KIMI_DEFAULT_CONTEXT_SIZE = 300_000;
 
 /** A model alias is namespaced so it is obvious in `/model` which entries Routiform owns. */
 export const toKimiModelAlias = (model: string) => `${KIMI_PROVIDER_ID}/${model}`;

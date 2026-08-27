@@ -17,10 +17,11 @@ const MODELS_SECTION_NAME = "models";
 
 /**
  * `context_window` drives Grok's auto-compact, so an entry without one compacts on the
- * wrong boundary. 256K matches the window Grok's own documented custom-model example
- * declares, and it is what an unresolved model falls back to.
+ * wrong boundary. Written large on purpose: over-advertising costs nothing (Grok trusts
+ * the proxy to reject overlong requests), while under-advertising compacts context the
+ * proxy actually had room for. Follows CONTEXT_CONFIG.defaultLimit.
  */
-export const GROK_DEFAULT_CONTEXT_WINDOW = 262144;
+export const GROK_DEFAULT_CONTEXT_WINDOW = 300_000;
 
 /** A model alias is namespaced so it is obvious in `/model` which entries Routiform owns. */
 export const toGrokModelAlias = (model: string) => `${GROK_PROVIDER_ID}/${model}`;
