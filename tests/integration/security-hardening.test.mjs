@@ -199,14 +199,18 @@ test("API key update route and DB layer wire persisted no-log controls", () => {
 });
 
 test("MCP server enforces scopes from caller context before tool execution", () => {
-  const serverContent = readIfExists("open-sse/mcp-server/server.ts");
-  assert.ok(serverContent, "open-sse/mcp-server/server.ts should exist");
+  // Scope dispatch lives in server/registerTools.ts; server.ts is the executable
+  // entrypoint that re-exports createMcpServer from it.
+  const dispatchContent =
+    readIfExists("open-sse/mcp-server/server.ts") +
+    (readIfExists("open-sse/mcp-server/server/registerTools.ts") ?? "");
+  assert.ok(dispatchContent, "MCP server entrypoint should exist");
   assert.ok(
-    serverContent.includes("resolveCallerScopeContext"),
+    dispatchContent.includes("resolveCallerScopeContext"),
     "MCP server should resolve caller scopes from request context"
   );
   assert.ok(
-    serverContent.includes("evaluateToolScopes"),
+    dispatchContent.includes("evaluateToolScopes"),
     "MCP server should evaluate required scopes per tool"
   );
 
