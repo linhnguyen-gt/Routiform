@@ -76,8 +76,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ agents, refreshed: true });
     }
 
-    // Add custom agent
-    const { id, name, binary, versionCommand, providerAlias, spawnArgs, protocol } = body;
+    const { id, name, binary, versionCommand, providerAlias, spawnArgs, protocol } =
+      body as Extract<typeof body, { id: string }>;
 
     const newAgent: CustomAgentDef = {
       id: id.toLowerCase().replace(/[^a-z0-9-]/g, "-"),

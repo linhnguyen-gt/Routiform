@@ -23,9 +23,15 @@ const UNSAFE_FILTER_NAMES = new Set(["read-numbered", "smart-truncate"]);
 type CompressArg = RtkProfile | boolean | { profile: RtkProfile; touched?: Set<number> };
 
 function normalizeProfile(arg: CompressArg): RtkProfile {
+  if (typeof arg === "string") return arg;
   if (typeof arg === "boolean") return arg ? "full" : "off";
-  if (typeof arg === "object" && arg !== null) return arg.profile;
-  return arg;
+  if (arg && typeof arg === "object" && "profile" in arg) {
+    const candidate = arg.profile;
+    if (candidate === "off" || candidate === "safe" || candidate === "full") {
+      return candidate;
+    }
+  }
+  return "off";
 }
 
 function touchedSink(arg: CompressArg): Set<number> | undefined {

@@ -4,12 +4,15 @@ import assert from "node:assert/strict";
 const { orderModelsByLkgp, orderModelsByHeadroom, orderModelsByP2c } =
   await import("../../open-sse/services/combo/combo-strategy-orderers.ts");
 
-const { recordComboRequest, getComboMetrics, resetComboMetrics } =
-  await import("../../open-sse/services/comboMetrics.ts").catch(async () => {
-    // Some exports may differ; load module and inspect
-    const m = await import("../../open-sse/services/comboMetrics.ts");
-    return m;
-  });
+const {
+  recordComboRequest,
+  getComboMetrics: _getComboMetrics,
+  resetComboMetrics,
+} = await import("../../open-sse/services/comboMetrics.ts").catch(async () => {
+  // Some exports may differ; load module and inspect
+  const m = await import("../../open-sse/services/comboMetrics.ts");
+  return m;
+});
 
 test("fill-first semantics: orderModelsByLkgp is identity without provider", () => {
   const models = ["a/m1", "b/m2", "c/m3"];

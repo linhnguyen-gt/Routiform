@@ -90,11 +90,22 @@ export async function PUT(request, { params }) {
       modelCheck = validateComboModels({
         ...context,
         models: body.models,
-        knownComboNames: new Set(allCombos.map((c) => c.name).filter(Boolean)),
-        existingModels: new Set(
-          (stored?.models || [])
-            .map((entry) => (typeof entry === "string" ? entry : entry?.model))
-            .filter((value) => typeof value === "string")
+        knownComboNames: new Set<string>(allCombos.map((c) => c.name).filter(Boolean) as string[]),
+        existingModels: new Set<string>(
+          (Array.isArray(stored?.models) ? stored.models : [])
+            .map((entry: unknown) => {
+              if (typeof entry === "string") return entry;
+              if (
+                entry &&
+                typeof entry === "object" &&
+                "model" in entry &&
+                typeof entry.model === "string"
+              ) {
+                return entry.model;
+              }
+              return undefined;
+            })
+            .filter((value: unknown): value is string => typeof value === "string")
         ),
       });
       if (modelCheck.errors.length > 0) {
