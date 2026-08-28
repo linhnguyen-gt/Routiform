@@ -2,22 +2,27 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
-## [6.3.0](https://github.com/linhnguyen-gt/Routiform/compare/v6.2.1...v6.3.0) (2026-08-27)
-
+## [6.3.1](https://github.com/linhnguyen-gt/Routiform/compare/v6.3.0...v6.3.1) (2026-08-28)
 
 ### Features
 
-* **chat-core:** inject model reasoning-effort defaults before translation ([4e945bf](https://github.com/linhnguyen-gt/Routiform/commit/4e945bfc7547dd13ae71bfd65f354cc845518d23))
-* **config:** raise default context window to 300k ([2457b5b](https://github.com/linhnguyen-gt/Routiform/commit/2457b5b19aa14d07bb6ec4e749d23a8faf7aa4a1))
-* **mcp:** add HTTP transport session auth and scope enforcement ([3fefbf8](https://github.com/linhnguyen-gt/Routiform/commit/3fefbf81f8931e389991b728457c66a277532bab))
-* **usage:** add xAI/Grok limits parsing and compact ProviderLimits UI ([d1cf9f4](https://github.com/linhnguyen-gt/Routiform/commit/d1cf9f484ef30c6f52afa59c933c5290e229b065))
+- **models:** layered token-limit resolution in /v1/models catalog — explicit model value → MODEL_SPECS → models.dev sync → registry default ([#102](https://github.com/linhnguyen-gt/Routiform/issues/102))
+- **models:** raise default output ceilings — SAFE_DEFAULT_MAX_OUTPUT_TOKENS 16384 → 65536, `__default__` spec 8192 → 32768, claude-code-compatible default max_tokens 8092 → 32000
 
+## [6.3.0](https://github.com/linhnguyen-gt/Routiform/compare/v6.2.1...v6.3.0) (2026-08-27)
+
+### Features
+
+- **chat-core:** inject model reasoning-effort defaults before translation ([4e945bf](https://github.com/linhnguyen-gt/Routiform/commit/4e945bfc7547dd13ae71bfd65f354cc845518d23))
+- **config:** raise default context window to 300k ([2457b5b](https://github.com/linhnguyen-gt/Routiform/commit/2457b5b19aa14d07bb6ec4e749d23a8faf7aa4a1))
+- **mcp:** add HTTP transport session auth and scope enforcement ([3fefbf8](https://github.com/linhnguyen-gt/Routiform/commit/3fefbf81f8931e389991b728457c66a277532bab))
+- **usage:** add xAI/Grok limits parsing and compact ProviderLimits UI ([d1cf9f4](https://github.com/linhnguyen-gt/Routiform/commit/d1cf9f484ef30c6f52afa59c933c5290e229b065))
 
 ### Bug Fixes
 
-* **db:** redirect test-runner DB writes to .test-data instead of the real data dir ([15b73cd](https://github.com/linhnguyen-gt/Routiform/commit/15b73cdbb96c6e55084defc3a4718a2430dbe9f3))
-* **open-sse:** harden executors, abort signal propagation, and SSE stream handling ([cac1aa3](https://github.com/linhnguyen-gt/Routiform/commit/cac1aa343bea9bab79952d916a3bc8a8044bb0ce))
-* **ts:** resolve strict type and explicit-any issues ([951163e](https://github.com/linhnguyen-gt/Routiform/commit/951163e7e9836a5a9dc98a4708527c0514069b66))
+- **db:** redirect test-runner DB writes to .test-data instead of the real data dir ([15b73cd](https://github.com/linhnguyen-gt/Routiform/commit/15b73cdbb96c6e55084defc3a4718a2430dbe9f3))
+- **open-sse:** harden executors, abort signal propagation, and SSE stream handling ([cac1aa3](https://github.com/linhnguyen-gt/Routiform/commit/cac1aa343bea9bab79952d916a3bc8a8044bb0ce))
+- **ts:** resolve strict type and explicit-any issues ([951163e](https://github.com/linhnguyen-gt/Routiform/commit/951163e7e9836a5a9dc98a4708527c0514069b66))
 
 ### [6.2.2](https://github.com/linhnguyen-gt/Routiform/compare/v6.2.1...v6.2.2) (2026-08-27)
 

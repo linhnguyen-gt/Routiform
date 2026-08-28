@@ -23,6 +23,8 @@ import { REGISTRY } from "@routiform/open-sse/config/registry-providers.ts";
 import { getSyncedAvailableModels } from "@/lib/db/models";
 import { loadAntigravityModelsFromConnections } from "@/lib/providers/antigravityLiveModels";
 import { getCompatibleFallbackModels } from "@/lib/providers/managedAvailableModels";
+import { getModelContextLimit, getModelOutputLimit } from "@/lib/modelsDevSync";
+import { CONTEXT_CONFIG } from "@/shared/constants/context";
 
 const FALLBACK_ALIAS_TO_PROVIDER = {
   ag: "antigravity",
@@ -59,16 +61,53 @@ const positiveLimit = (value: unknown) =>
  * tool configured with no context window. The default is the same either way — every
  * branch resolves it here.
  */
-export function resolveTokenLimits(
-  registryKeys: Array<string | undefined>,
-  modelContextLength?: unknown,
-  modelMaxOutputTokens?: unknown
-) {
-  const entry = registryKeys.map((key) => (key ? REGISTRY[key] : undefined)).find(Boolean);
-  const contextLength =
-    positiveLimit(modelContextLength) ?? positiveLimit(entry?.defaultContextLength);
-  const maxOutputTokens =
-    positiveLimit(modelMaxOutputTokens) ?? positiveLimit(entry?.defaultMaxOutputTokens);
+export function resolveTokenLimits(opts: {
+  registryKeys: Array<string | undefined>;
+  modelId?: string;
+  context?: unknown;
+  output?: unknown;
+}): { context_length?: number; max_output_tokens?: number } {
+  let contextLength = positiveLimit(opts.context);
+  let maxOutputTokens = positiveLimit(opts.output);
+
+  if (opts.registryKeys.length > 0) {
+    if (opts.modelId) {
+      const spec = getModelSpec(opts.modelId);
+      if (spec) {
+        contextLength = contextLength ?? positiveLimit(spec.contextWindow);
+        maxOutputTokens = maxOutputTokens ?? positiveLimit(spec.maxOutputTokens);
+      }
+    }
+
+    if (opts.modelId) {
+      for (const key of opts.registryKeys) {
+        if (!key) continue;
+        if (contextLength == null) {
+          contextLength = positiveLimit(getModelContextLimit(key, opts.modelId));
+        }
+        if (maxOutputTokens == null) {
+          maxOutputTokens = positiveLimit(getModelOutputLimit(key, opts.modelId));
+        }
+        if (contextLength != null && maxOutputTokens != null) break;
+      }
+    }
+
+    for (const key of opts.registryKeys) {
+      if (!key) continue;
+      const entry = REGISTRY[key];
+      if (entry) {
+        if (entry.defaultContextLength !== CONTEXT_CONFIG.defaultLimit) {
+          if (contextLength == null) {
+            contextLength = positiveLimit(entry.defaultContextLength);
+          }
+          if (maxOutputTokens == null) {
+            maxOutputTokens = positiveLimit(entry.defaultMaxOutputTokens);
+          }
+        }
+        break;
+      }
+    }
+  }
 
   return {
     ...(contextLength ? { context_length: contextLength } : {}),
@@ -275,11 +314,12 @@ export async function getUnifiedModelsResponse(
 
         const visionFields = getVisionCapabilityFields(canonicalProviderId, model.id);
         // Model-level limits override the provider default
-        const tokenLimits = resolveTokenLimits(
-          [alias, canonicalProviderId],
-          model.contextLength,
-          model.maxOutputTokens
-        );
+        const tokenLimits = resolveTokenLimits({
+          registryKeys: [alias, canonicalProviderId],
+          modelId: model.id,
+          context: model.contextLength,
+          output: model.maxOutputTokens,
+        });
 
         models.push({
           id: aliasId,
@@ -323,8 +363,6 @@ export async function getUnifiedModelsResponse(
           if (getModelIsHidden("antigravity", model.id)) continue;
 
           const visionFields = getVisionCapabilityFields("antigravity", model.id);
-          const spec = getModelSpec(model.id);
-
           models.push({
             id: modelId,
             object: "model",
@@ -333,7 +371,10 @@ export async function getUnifiedModelsResponse(
             permission: [],
             root: model.id,
             parent: null,
-            ...resolveTokenLimits(["antigravity"], spec?.contextWindow, spec?.maxOutputTokens),
+            ...resolveTokenLimits({
+              registryKeys: ["antigravity"],
+              modelId: model.id,
+            }),
             ...(visionFields || {}),
           });
         }
@@ -358,11 +399,12 @@ export async function getUnifiedModelsResponse(
           else if (endpoints.includes("audio")) modelType = "audio";
 
           // Only chat models carry a context window worth falling back on.
-          const tokenLimits = resolveTokenLimits(
-            modelType ? [] : [alias, providerId],
-            sm.inputTokenLimit,
-            sm.outputTokenLimit
-          );
+          const tokenLimits = resolveTokenLimits({
+            registryKeys: modelType ? [] : [alias, providerId],
+            modelId: sm.id,
+            context: sm.inputTokenLimit,
+            output: sm.outputTokenLimit,
+          });
 
           models.push({
             id: aliasId,
@@ -545,11 +587,14 @@ export async function getUnifiedModelsResponse(
           const visionFields =
             modelType === "chat" ? getVisionCapabilityFields(canonicalProviderId, modelId) : null;
           // Only chat models carry a context window worth falling back on.
-          const tokenLimits = resolveTokenLimits(
-            modelType ? [] : [alias, canonicalProviderId, providerId, parentProviderType],
-            (model as Record<string, unknown>).inputTokenLimit,
-            (model as Record<string, unknown>).outputTokenLimit
-          );
+          const tokenLimits = resolveTokenLimits({
+            registryKeys: modelType
+              ? []
+              : [alias, canonicalProviderId, providerId, parentProviderType],
+            modelId,
+            context: (model as Record<string, unknown>).inputTokenLimit,
+            output: (model as Record<string, unknown>).outputTokenLimit,
+          });
 
           models.push({
             id: aliasId,
@@ -625,11 +670,12 @@ export async function getUnifiedModelsResponse(
           permission: [],
           root: modelId,
           parent: null,
-          ...resolveTokenLimits(
-            [alias, providerId],
-            (model as Record<string, unknown>).contextLength,
-            (model as Record<string, unknown>).maxOutputTokens
-          ),
+          ...resolveTokenLimits({
+            registryKeys: [alias, providerId],
+            modelId,
+            context: (model as Record<string, unknown>).contextLength,
+            output: (model as Record<string, unknown>).maxOutputTokens,
+          }),
           ...(visionFields || {}),
         });
       }

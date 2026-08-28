@@ -260,8 +260,14 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
   },
 
   // Defaults
+  // 32768 (was 8192): models missing from MODEL_SPECS still get a usable
+  // default output ceiling. capMaxOutputTokens still clamps an explicit
+  // client max_tokens by this, so a client asking 64K on an unknown model
+  // now gets 32K instead of 8K — upstreams that truly cannot serve that
+  // much reject the request themselves, which is the pre-existing behavior
+  // for any unregistered cap mismatch.
   __default__: {
-    maxOutputTokens: 8192,
+    maxOutputTokens: 32768,
   },
 };
 
@@ -324,15 +330,15 @@ export function getModelSpec(modelId: string): ModelSpec | undefined {
 }
 
 // Safe default output ceiling applied ONLY when the client omits max_tokens
-// entirely (HIGH 6). Before MODEL_SPECS gained real entries for the Gemini
-// 2.5 family, an unregistered model fell back to `__default__.maxOutputTokens`
-// (8192). Once gemini-2.5-pro etc. got their real, correct 65536 maxOutputTokens
-// spec, a client that never set max_tokens silently jumped from an effective
-// 8192 ceiling to 65536 — 8x the max billable output, with no client opt-in.
-// This constant caps the *default* (client did not ask) ceiling; a client
-// that explicitly wants more can always send max_tokens up to the model's
-// real cap.
-export const SAFE_DEFAULT_MAX_OUTPUT_TOKENS = 16384;
+// entirely. Originally 8192 (the __default__ placeholder), lowered to 16384
+// when the Gemini 2.5 family gained real 65536 specs (HIGH 6) to stop a
+// missing client field from silently 8x-ing billable output. Raised back to
+// 65536 by demand: 16384 truncated long completions (the most common
+// "output too short" report) and the thinking-budget path already reserves
+// answer headroom inside whatever cap is chosen, so a larger default no
+// longer risks starving the visible answer. A client that wants a smaller
+// ceiling can always send an explicit max_tokens.
+export const SAFE_DEFAULT_MAX_OUTPUT_TOKENS = 65536;
 
 export function capMaxOutputTokens(modelId: string, requested?: number): number {
   const spec = getModelSpec(modelId);

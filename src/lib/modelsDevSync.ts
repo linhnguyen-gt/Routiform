@@ -701,3 +701,8 @@ export function getModelContextLimit(provider: string, modelId: string): number 
   const caps = getSyncedCapabilities(provider, modelId);
   return caps[provider]?.[modelId]?.limit_context ?? null;
 }
+
+export function getModelOutputLimit(provider: string, modelId: string): number | null {
+  const caps = getSyncedCapabilities(provider, modelId);
+  return caps[provider]?.[modelId]?.limit_output ?? null;
+}

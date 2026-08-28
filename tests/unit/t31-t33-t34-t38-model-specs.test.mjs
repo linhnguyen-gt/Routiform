@@ -52,10 +52,10 @@ test("T34: max output tokens are capped by model spec", () => {
 test("HIGH 6: no explicit max_tokens applies the safe default cap, not the full model ceiling", () => {
   assert.equal(capMaxOutputTokens("gemini-3-flash"), SAFE_DEFAULT_MAX_OUTPUT_TOKENS);
   assert.equal(capMaxOutputTokens("gemini-3.5-flash"), SAFE_DEFAULT_MAX_OUTPUT_TOKENS);
-  assert.equal(capMaxOutputTokens("gemini-3.1-pro-high"), SAFE_DEFAULT_MAX_OUTPUT_TOKENS);
-  // An unregistered model's __default__ cap (8192) is already below the
-  // safe default, so it is untouched.
-  assert.equal(capMaxOutputTokens("some-unregistered-model"), 8192);
+  // gemini-3.1-pro-high's real cap (65535) sits just below the safe default
+  // (65536): the model ceiling still wins — never exceed a registered cap.
+  assert.equal(capMaxOutputTokens("gemini-3.1-pro-high"), 65535);
+  assert.equal(capMaxOutputTokens("some-unregistered-model"), 32768);
 });
 
 // LOW 9 (fixed): an explicit `max_tokens: 0` is a valid (if unusual) client
@@ -127,7 +127,10 @@ test("a provider-qualified id resolves to the same spec as its bare form", () =>
 
   assert.deepEqual(getModelSpec("anthropic/claude-opus-4-5"), bare);
   assert.deepEqual(getModelSpec("openrouter/anthropic/claude-opus-4-5"), bare);
-  assert.deepEqual(getModelSpec("anthropic/gemini-3.1-pro-preview"), getModelSpec("gemini-3.1-pro-high"));
+  assert.deepEqual(
+    getModelSpec("anthropic/gemini-3.1-pro-preview"),
+    getModelSpec("gemini-3.1-pro-high")
+  );
 });
 
 test("the thinking caps apply to a provider-qualified id", () => {

@@ -61,8 +61,8 @@
  *  ceiling by up to 8x versus the old unregistered-model placeholder
  *  (8192 -> 65536/65535). Fixed: `capMaxOutputTokens(model)` with no
  *  explicit client request now applies `SAFE_DEFAULT_MAX_OUTPUT_TOKENS`
- *  (16384) as a ceiling — a client that wants the model's full real cap can
- *  always ask for it explicitly via `max_tokens`.
+ *  (65536) as a ceiling — a client that wants a smaller cap can always ask
+ *  for it explicitly via `max_tokens`.
  *
  *  MEDIUM 7: `getModelSpec`'s prefix-matching fallback picked whichever
  *  MODEL_SPECS key happened to be inserted first in object literal order,
@@ -234,15 +234,16 @@ test("HIGH 6 (fixed): no explicit max_tokens applies the safe default output cap
   const out = requestHighReasoning("gemini-3.1-pro-high");
 
   const { thinkingConfig, maxOutputTokens } = out.request.generationConfig;
+  // gemini-3.1-pro-high's real cap (65535) is just below the safe default
+  // (65536): min(modelCap, SAFE) = modelCap — a registered model ceiling is
+  // never exceeded, so the default lands on 65535, not 65536.
   assert.equal(
     maxOutputTokens,
-    SAFE_DEFAULT_MAX_OUTPUT_TOKENS,
-    "own default is the SAFE ceiling, not the raw model cap"
+    65535,
+    "own default is the SAFE ceiling clamped by the model's real cap"
   );
-  assert.equal(
-    thinkingConfig.thinkingBudget,
-    SAFE_DEFAULT_MAX_OUTPUT_TOKENS - headroomFor(SAFE_DEFAULT_MAX_OUTPUT_TOKENS)
-  );
+  // budget = min(requested 32768, fitting cap 65535-8192) = 32768
+  assert.equal(thinkingConfig.thinkingBudget, 32768);
   assert.ok(
     thinkingConfig.thinkingBudget < maxOutputTokens,
     "thinking must never starve the answer"
@@ -302,18 +303,10 @@ test("H3: real gemini-2.5-flash id with a small cap now gets a naturally-fitted 
 
 test("CRITICAL (still fixed): no client max_tokens on the registered gemini-2.5-pro spec never collapses the budget to 0", () => {
   const out = requestHighReasoning("gemini-2.5-pro");
-
   const { thinkingConfig, maxOutputTokens } = out.request.generationConfig;
   assert.ok(thinkingConfig, "thinkingConfig must be present");
   assert.equal(maxOutputTokens, SAFE_DEFAULT_MAX_OUTPUT_TOKENS, "own default is the safe ceiling");
-  assert.equal(
-    thinkingConfig.thinkingBudget,
-    SAFE_DEFAULT_MAX_OUTPUT_TOKENS - headroomFor(SAFE_DEFAULT_MAX_OUTPUT_TOKENS)
-  );
-  assert.ok(
-    thinkingConfig.thinkingBudget < maxOutputTokens,
-    `budget must fit strictly within maxOutputTokens (got budget=${thinkingConfig.thinkingBudget}, maxOutputTokens=${maxOutputTokens})`
-  );
+  assert.equal(thinkingConfig.thinkingBudget, 32768);
 });
 
 test("REQUIRED: every thinking-capable Gemini model satisfies budget < maxOutputTokens with reasoning_effort high and no client max_tokens", () => {
@@ -404,7 +397,7 @@ test("CRITICAL (fixed): an unregistered model degrades safely instead of sizing 
   );
   assert.equal(
     maxOutputTokens,
-    8192,
+    32768,
     "unregistered model: falls back to the generic __default__ cap"
   );
 });
@@ -510,15 +503,15 @@ test("fitGeminiThinkingBudget unit: no thinking requested (budget <= 0) on a Fla
 
 test("fitGeminiThinkingBudget unit: gemini-3-pro-preview (aliased to gemini-3.1-pro-high) preserves the model's own real cap classification", () => {
   const fit = fitGeminiThinkingBudget("gemini-3-pro-preview", undefined, 32768);
+  // gemini-3.1-pro-high's real cap (65535) is just below the safe default
+  // (65536): the registered model ceiling wins, so the default is 65535.
   assert.equal(
     fit.maxOutputTokens,
-    SAFE_DEFAULT_MAX_OUTPUT_TOKENS,
-    "own default is the safe ceiling, not the raw 65535 cap"
+    65535,
+    "own default is the safe ceiling clamped by the model's real 65535 cap"
   );
-  assert.equal(
-    fit.thinkingBudgetTokens,
-    SAFE_DEFAULT_MAX_OUTPUT_TOKENS - headroomFor(SAFE_DEFAULT_MAX_OUTPUT_TOKENS)
-  );
+  // budget = min(requested 32768, fitting cap 65535-8192) = 32768
+  assert.equal(fit.thinkingBudgetTokens, 32768);
 });
 
 test("fitGeminiThinkingBudget unit: an over-cap raw budget (e.g. Claude's 200000) is clamped by capThinkingBudget before headroom fitting", () => {

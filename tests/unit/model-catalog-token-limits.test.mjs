@@ -11,57 +11,89 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const { resolveTokenLimits } = await import("../../src/app/api/v1/models/catalog.ts");
+const { getModelSpec } = await import("../../src/shared/constants/modelSpecs.ts");
 const { REGISTRY } = await import("../../open-sse/config/registry-providers.ts");
 
-// A provider whose registry entry carries defaults, so the fallback has something to find.
 const PROVIDER = "cline";
+const MODEL_ID = "gemini-3.7-flash";
+const SPEC = getModelSpec(MODEL_ID);
 
-test("the registry entry supplies the defaults", () => {
-  const entry = REGISTRY[PROVIDER];
-  assert.ok(entry?.defaultContextLength, "fixture provider must have a default context length");
-
-  assert.deepEqual(resolveTokenLimits([PROVIDER]), {
-    context_length: entry.defaultContextLength,
-    ...(entry.defaultMaxOutputTokens ? { max_output_tokens: entry.defaultMaxOutputTokens } : {}),
+test("explicit context/output win over spec", () => {
+  const limits = resolveTokenLimits({
+    registryKeys: [PROVIDER],
+    modelId: MODEL_ID,
+    context: 123456,
+    output: 7890,
   });
-});
-
-test("a model-level limit wins over the provider default", () => {
-  const limits = resolveTokenLimits([PROVIDER], 123456, 7890);
   assert.equal(limits.context_length, 123456);
   assert.equal(limits.max_output_tokens, 7890);
 });
 
-test("each field falls back on its own", () => {
-  const entry = REGISTRY[PROVIDER];
-  const limits = resolveTokenLimits([PROVIDER], 123456);
-  assert.equal(limits.context_length, 123456);
-  assert.equal(limits.max_output_tokens, entry.defaultMaxOutputTokens);
+test("modelId in MODEL_SPECS fills both fields when explicit absent", () => {
+  const limits = resolveTokenLimits({
+    registryKeys: [PROVIDER],
+    modelId: MODEL_ID,
+  });
+  assert.equal(limits.context_length, SPEC.contextWindow);
+  assert.equal(limits.max_output_tokens, SPEC.maxOutputTokens);
 });
 
-test("the alias is tried before the canonical id", () => {
-  assert.deepEqual(resolveTokenLimits(["definitely-not-a-provider", PROVIDER]), {
-    context_length: REGISTRY[PROVIDER].defaultContextLength,
-    ...(REGISTRY[PROVIDER].defaultMaxOutputTokens
-      ? { max_output_tokens: REGISTRY[PROVIDER].defaultMaxOutputTokens }
-      : {}),
+test("unknown modelId + sentinel provider cline -> {}", () => {
+  const limits = resolveTokenLimits({
+    registryKeys: [PROVIDER],
+    modelId: "definitely-not-a-model-id",
+  });
+  assert.deepEqual(limits, {});
+});
+
+test("unknown modelId + Codex registry keys -> { context_length: 400000, max_output_tokens: 128000 }", () => {
+  const limits = resolveTokenLimits({
+    registryKeys: ["codex"],
+    modelId: "definitely-not-a-model-id",
+  });
+
+  // Verify what we expect against the actual REGISTRY defaults
+  assert.equal(REGISTRY["codex"].defaultContextLength, 400000);
+  assert.equal(REGISTRY["codex"].defaultMaxOutputTokens, 128000);
+
+  assert.deepEqual(limits, {
+    context_length: 400000,
+    max_output_tokens: 128000,
   });
 });
 
-test("a provider with no registry entry yields no fields rather than zeros", () => {
-  assert.deepEqual(resolveTokenLimits(["definitely-not-a-provider"]), {});
-  assert.deepEqual(resolveTokenLimits([undefined]), {});
+test("non-positive explicit does not count as a row value", () => {
+  // For sentinel cline + no/unknown modelId, result is {}
+  assert.deepEqual(resolveTokenLimits({ registryKeys: [PROVIDER], context: 0 }), {});
+  assert.deepEqual(resolveTokenLimits({ registryKeys: [PROVIDER], context: -1 }), {});
+  assert.deepEqual(resolveTokenLimits({ registryKeys: [PROVIDER], context: NaN }), {});
+  assert.deepEqual(resolveTokenLimits({ registryKeys: [PROVIDER], context: "262144" }), {});
+
+  // For a MODEL_SPECS id, result is the spec
+  const limits = resolveTokenLimits({
+    registryKeys: [PROVIDER],
+    modelId: MODEL_ID,
+    context: 0,
+    output: -1,
+  });
+  assert.equal(limits.context_length, SPEC.contextWindow);
+  assert.equal(limits.max_output_tokens, SPEC.maxOutputTokens);
 });
 
-test("non-positive and non-numeric model values do not shadow the default", () => {
-  const expected = REGISTRY[PROVIDER].defaultContextLength;
-  assert.equal(resolveTokenLimits([PROVIDER], 0).context_length, expected);
-  assert.equal(resolveTokenLimits([PROVIDER], -1).context_length, expected);
-  assert.equal(resolveTokenLimits([PROVIDER], "262144").context_length, expected);
-  assert.equal(resolveTokenLimits([PROVIDER], NaN).context_length, expected);
+test("empty registryKeys + explicit context still publishes context only", () => {
+  assert.deepEqual(resolveTokenLimits({ registryKeys: [], context: 4096 }), {
+    context_length: 4096,
+  });
+  assert.deepEqual(resolveTokenLimits({ registryKeys: [] }), {});
 });
 
-test("an empty key list opts out entirely, for entries that are not chat models", () => {
-  assert.deepEqual(resolveTokenLimits([]), {});
-  assert.deepEqual(resolveTokenLimits([], 4096), { context_length: 4096 });
+test("output-only explicit does not invent context", () => {
+  assert.deepEqual(resolveTokenLimits({ registryKeys: [], output: 1024 }), {
+    max_output_tokens: 1024,
+  });
+});
+
+test("unknown provider keys still yield {} (no zeros)", () => {
+  assert.deepEqual(resolveTokenLimits({ registryKeys: ["definitely-not-a-provider"] }), {});
+  assert.deepEqual(resolveTokenLimits({ registryKeys: [undefined] }), {});
 });

@@ -3,7 +3,7 @@ import { getStainlessTimeoutSeconds } from "@/shared/utils/runtimeTimeouts";
 export const CLAUDE_CODE_COMPATIBLE_PREFIX = "anthropic-compatible-cc-";
 export const CLAUDE_CODE_COMPATIBLE_DEFAULT_CHAT_PATH = "/v1/messages?beta=true";
 export const CLAUDE_CODE_COMPATIBLE_DEFAULT_MODELS_PATH = "/models";
-export const CLAUDE_CODE_COMPATIBLE_DEFAULT_MAX_TOKENS = 8092;
+export const CLAUDE_CODE_COMPATIBLE_DEFAULT_MAX_TOKENS = 32000;
 export const CLAUDE_CODE_COMPATIBLE_ANTHROPIC_VERSION = "2023-06-01";
 export const CLAUDE_CODE_COMPATIBLE_ANTHROPIC_BETA =
   "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,effort-2025-11-24,fast-mode-2025-04-01,redact-thinking-2025-06-20,token-efficient-tools-2025-02-19";
