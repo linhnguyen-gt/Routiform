@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [6.4.0](https://github.com/linhnguyen-gt/Routiform/compare/v6.3.0...v6.4.0) (2026-08-28)
+
+
+### Features
+
+* **models:** layered token-limit resolution in /v1/models catalog and higher default output ceilings ([52a6b12](https://github.com/linhnguyen-gt/Routiform/commit/52a6b124eec68edd17de90941ffe9f001c466116)), closes [#102](https://github.com/linhnguyen-gt/Routiform/issues/102)
+* **search:** intercept Claude Code WebSearch and WebFetch without Claude OAuth ([5f62c3a](https://github.com/linhnguyen-gt/Routiform/commit/5f62c3ae6df77938b5caf1705c82511e8bd5bf20))
+
 ## [6.3.2](https://github.com/linhnguyen-gt/Routiform/compare/v6.3.1...v6.3.2) (2026-08-28)
 
 ### Features
