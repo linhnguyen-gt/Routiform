@@ -1,8 +1,14 @@
 /**
  * Search handler — main orchestrator and per-provider execution.
  */
-import { getSearchProvider, type SearchProviderConfig } from "../../config/searchRegistry.ts";
+import {
+  getSearchProvider,
+  withResolvedSearchBaseUrl,
+  type SearchProviderConfig,
+} from "../../config/searchRegistry.ts";
 import { saveCallLog } from "@/lib/usageDb";
+import { safeOutboundFetch } from "@/lib/network/safeOutboundFetch";
+import { readCappedText } from "../../services/webFetch.ts";
 
 import type { SearchHandlerOptions, SearchHandlerResult } from "./types.ts";
 import { GLOBAL_TIMEOUT_MS, NON_RETRIABLE, sanitizeQuery } from "./types.ts";
@@ -59,7 +65,13 @@ export async function handleSearch(options: SearchHandlerOptions): Promise<Searc
   };
 
   // 4. Try primary provider
-  const result = await tryProvider(primaryConfig, requestParams, credentials, startTime, log);
+  const result = await tryProvider(
+    withResolvedSearchBaseUrl(primaryConfig),
+    requestParams,
+    credentials,
+    startTime,
+    log
+  );
 
   if (result.success) return result;
 
@@ -78,7 +90,7 @@ export async function handleSearch(options: SearchHandlerOptions): Promise<Searc
     }
 
     const fallbackResult = await tryProvider(
-      alternateConfig,
+      withResolvedSearchBaseUrl(alternateConfig),
       requestParams,
       alternateCredentials,
       startTime,
@@ -112,7 +124,7 @@ async function tryProvider(
         ? accessToken
         : "";
 
-  if (!token) {
+  if (!token && config.authType !== "none") {
     return {
       success: false,
       status: 401,
@@ -134,7 +146,14 @@ async function tryProvider(
   }
 
   try {
-    const response = await fetch(url, { ...init, signal: controller.signal });
+    const response = await safeOutboundFetch(
+      url,
+      { ...init, signal: controller.signal },
+      {
+        timeoutMs: timeout,
+        guard: { allowPrivateAddress: config.id === "searxng-search" },
+      }
+    );
     clearTimeout(timer);
 
     if (!response.ok) {
@@ -168,7 +187,10 @@ async function tryProvider(
       };
     }
 
-    const data = await response.json();
+    const data =
+      config.responseFormat === "html"
+        ? { html: await readCappedText(response) }
+        : await response.json();
     const normalized = normalizeResponse(config.id, data, query, searchType);
     // Enforce max_results — some providers return more than requested
     const results = normalized.results.slice(0, maxResults);

@@ -15,7 +15,7 @@ export interface SearchProviderConfig {
   name: string;
   baseUrl: string;
   method: "GET" | "POST";
-  authType: "apikey";
+  authType: "apikey" | "none";
   authHeader: string;
   costPerQuery: number;
   freeMonthlyQuota: number;
@@ -24,6 +24,7 @@ export interface SearchProviderConfig {
   maxMaxResults: number;
   timeoutMs: number;
   cacheTTLMs: number;
+  responseFormat?: "json" | "html";
 }
 
 export const SEARCH_PROVIDERS: Record<string, SearchProviderConfig> = {
@@ -106,6 +107,39 @@ export const SEARCH_PROVIDERS: Record<string, SearchProviderConfig> = {
     timeoutMs: 10_000,
     cacheTTLMs: 5 * 60 * 1000,
   },
+
+  "searxng-search": {
+    id: "searxng-search",
+    name: "SearXNG",
+    baseUrl: "",
+    method: "GET",
+    authType: "none",
+    authHeader: "",
+    costPerQuery: 0,
+    freeMonthlyQuota: 0,
+    searchTypes: ["web", "news"],
+    defaultMaxResults: 5,
+    maxMaxResults: 20,
+    timeoutMs: 12_000,
+    cacheTTLMs: 5 * 60 * 1000,
+  },
+
+  "duckduckgo-search": {
+    id: "duckduckgo-search",
+    name: "DuckDuckGo",
+    baseUrl: "https://html.duckduckgo.com/html/",
+    method: "GET",
+    authType: "none",
+    authHeader: "",
+    costPerQuery: 0,
+    freeMonthlyQuota: 0,
+    searchTypes: ["web"],
+    defaultMaxResults: 5,
+    maxMaxResults: 10,
+    timeoutMs: 12_000,
+    cacheTTLMs: 5 * 60 * 1000,
+    responseFormat: "html",
+  },
 };
 
 /**
@@ -143,12 +177,33 @@ export function getAllSearchProviders(): Array<{
  * If an explicit provider is given, validate and return it.
  * Otherwise, return the cheapest by costPerQuery.
  */
+export function keyedSearchProviders(): SearchProviderConfig[] {
+  return Object.values(SEARCH_PROVIDERS).filter((p) => p.authType === "apikey");
+}
+
+export function getSearxngBaseUrl(): string {
+  const raw = (process.env.SEARXNG_URL || process.env.SEARXNG_API_BASE || "").trim();
+  return raw.replace(/\/+$/, "");
+}
+
+export function isKeylessSearchReady(config: SearchProviderConfig): boolean {
+  if (config.authType !== "none") return false;
+  if (config.id === "searxng-search") return getSearxngBaseUrl().length > 0;
+  return true;
+}
+
+export function withResolvedSearchBaseUrl(config: SearchProviderConfig): SearchProviderConfig {
+  if (config.id !== "searxng-search") return config;
+  const baseUrl = getSearxngBaseUrl();
+  return baseUrl ? { ...config, baseUrl } : config;
+}
+
 export function selectProvider(explicitProvider?: string): SearchProviderConfig | null {
   if (explicitProvider) {
     return SEARCH_PROVIDERS[explicitProvider] || null;
   }
 
-  const providers = Object.values(SEARCH_PROVIDERS);
+  const providers = keyedSearchProviders();
   if (providers.length === 0) return null;
 
   return providers.reduce((cheapest, p) => (p.costPerQuery < cheapest.costPerQuery ? p : cheapest));

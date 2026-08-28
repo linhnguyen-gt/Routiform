@@ -183,6 +183,9 @@ export async function POST(request: Request) {
         ...currentEnv,
         ...env,
       },
+      // Claude Code WebFetch preflight hits api.anthropic.com; skip it when traffic
+      // is routed through Routiform.
+      skipWebFetchPreflight: true,
     };
 
     // Write new settings
@@ -258,6 +261,8 @@ export async function DELETE(request: Request) {
 
     // Backup current settings before resetting
     await createBackup("claude", settingsPath);
+
+    delete currentSettings.skipWebFetchPreflight;
 
     // Remove specified env fields
     if (currentSettings.env) {

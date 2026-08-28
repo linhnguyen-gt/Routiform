@@ -11,6 +11,13 @@ import {
   getTargetFormat,
 } from "@routiform/open-sse/services/provider.ts";
 import { handleChatCore } from "@routiform/open-sse/handlers/chatCore.ts";
+import { interceptWebTools } from "@routiform/open-sse/services/webToolIntercept.ts";
+import {
+  hasUsableClaudeCredentials,
+  helperNeedsComboFallback,
+  isNestedHelperRequest,
+  pickActiveCombo,
+} from "@routiform/open-sse/services/claudeCodeHelperCombo.ts";
 import { isHealthCheckProbe } from "@routiform/open-sse/handlers/chat-core/chat-core-health-check-probe.ts";
 import { resolveAccountFallbackDecision } from "./chat-account-fallback-decision";
 import {
@@ -215,6 +222,16 @@ export async function handleChat(
   const apiKeyInfo = policy.apiKeyInfo as unknown as Record<string, unknown> | null;
   telemetry.endPhase();
 
+  const webToolResponse = await interceptWebTools(body as Record<string, unknown>, {
+    format: detectFormatFromEndpoint(body, url.pathname),
+    stream: body.stream === true,
+    log,
+  });
+  if (webToolResponse) {
+    log.info("WEB_TOOLS", `Intercepted web_search/web_fetch for ${modelStr}`);
+    return await finish(webToolResponse);
+  }
+
   // T08: per-key active session limit (0 = unlimited).
   const apiKeyId = apiKeyInfo?.id ? String(apiKeyInfo.id) : null;
   if (apiKeyId && sessionId) {
@@ -266,7 +283,39 @@ export async function handleChat(
 
   // Check if model is a combo (has multiple models with fallback)
   telemetry.startPhase("resolve");
-  const combo = (await getComboForModel(resolvedModelStr)) as ComboRecord | null;
+  let combo = (await getComboForModel(resolvedModelStr)) as ComboRecord | null;
+  if (!combo && isNestedHelperRequest(body as Record<string, unknown>)) {
+    const helperInfo = await getModelInfo(resolvedModelStr);
+    let helperCreds: Record<string, unknown> | null = null;
+    if (helperInfo.provider === "claude" || helperInfo.provider === "cc") {
+      helperCreds = await getProviderCredentials(
+        "claude",
+        null,
+        Array.isArray(apiKeyInfo?.allowedConnections)
+          ? (apiKeyInfo.allowedConnections as string[])
+          : null,
+        helperInfo.model || resolvedModelStr
+      ).catch(() => null);
+    }
+    if (
+      helperNeedsComboFallback({
+        combo,
+        body: body as Record<string, unknown>,
+        provider: helperInfo.provider,
+        hasClaudeCredentials: hasUsableClaudeCredentials(helperCreds),
+      })
+    ) {
+      const helperCombos = await getCombos().catch((): ComboRecord[] => []);
+      const picked = pickActiveCombo(helperCombos);
+      if (picked) {
+        combo = picked;
+        log.info(
+          "CHAT",
+          `Nested helper ${resolvedModelStr} → combo "${combo.name}" (no claude credentials)`
+        );
+      }
+    }
+  }
   if (combo) {
     log.info(
       "CHAT",

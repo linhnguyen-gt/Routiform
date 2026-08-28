@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   SEARCH_PROVIDERS,
   SEARCH_CREDENTIAL_FALLBACKS,
+  isKeylessSearchReady,
 } from "@routiform/open-sse/config/searchRegistry.ts";
 import { getDbInstance } from "@/lib/db/core";
 import { isAuthenticated } from "@/shared/utils/apiAuth";
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
                 )
                 .get(fallbackId)
             : null;
-        if (cred || fallbackCred) status = "active";
+        if (cred || fallbackCred || isKeylessSearchReady(p)) status = "active";
       } catch {
         // DB error — report as no_credentials
       }

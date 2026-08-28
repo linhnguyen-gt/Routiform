@@ -8,6 +8,8 @@ import { buildBraveRequest, normalizeBraveResponse } from "./brave.ts";
 import { buildPerplexityRequest, normalizePerplexityResponse } from "./perplexity.ts";
 import { buildExaRequest, normalizeExaResponse } from "./exa.ts";
 import { buildTavilyRequest, normalizeTavilyResponse } from "./tavily.ts";
+import { buildSearxngRequest, normalizeSearxngResponse } from "./searxng.ts";
+import { buildDuckduckgoRequest, normalizeDuckduckgoResponse } from "./duckduckgo.ts";
 
 export interface SearchRequestParams {
   query: string;
@@ -36,6 +38,8 @@ const REQUEST_BUILDERS: Record<string, RequestBuilder> = {
   "perplexity-search": buildPerplexityRequest,
   "exa-search": buildExaRequest,
   "tavily-search": buildTavilyRequest,
+  "searxng-search": buildSearxngRequest,
+  "duckduckgo-search": buildDuckduckgoRequest,
 };
 
 const RESPONSE_NORMALIZERS: Record<string, ResponseNormalizer> = {
@@ -44,6 +48,8 @@ const RESPONSE_NORMALIZERS: Record<string, ResponseNormalizer> = {
   "perplexity-search": normalizePerplexityResponse,
   "exa-search": normalizeExaResponse,
   "tavily-search": normalizeTavilyResponse,
+  "searxng-search": normalizeSearxngResponse,
+  "duckduckgo-search": normalizeDuckduckgoResponse,
 };
 
 export function buildRequest(

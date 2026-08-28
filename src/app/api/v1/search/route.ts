@@ -1,13 +1,8 @@
 import { CORS_ORIGIN } from "@/shared/utils/cors";
 import { handleSearch } from "@routiform/open-sse/handlers/search.ts";
-import { getProviderCredentials, extractApiKey, isValidApiKey } from "@/sse/services/auth";
-import {
-  getAllSearchProviders,
-  getSearchProvider,
-  selectProvider,
-  SEARCH_PROVIDERS,
-  SEARCH_CREDENTIAL_FALLBACKS,
-} from "@routiform/open-sse/config/searchRegistry.ts";
+import { extractApiKey, isValidApiKey } from "@/sse/services/auth";
+import { getAllSearchProviders } from "@routiform/open-sse/config/searchRegistry.ts";
+import { pickSearchBackend } from "@routiform/open-sse/services/searchBackend.ts";
 import { errorResponse } from "@routiform/open-sse/utils/error.ts";
 import { HTTP_STATUS } from "@routiform/open-sse/config/constants.ts";
 import * as log from "@/sse/utils/logger";
@@ -53,15 +48,6 @@ export async function GET() {
   return new Response(JSON.stringify({ object: "list", data }), {
     headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
-}
-
-// Helper: resolve credentials with fallback (e.g., perplexity-search → perplexity)
-async function resolveSearchCredentials(providerId: string) {
-  const creds = await getProviderCredentials(providerId).catch(() => null);
-  if (creds) return creds;
-  const fallbackId = SEARCH_CREDENTIAL_FALLBACKS[providerId];
-  if (fallbackId) return getProviderCredentials(fallbackId).catch(() => null);
-  return null;
 }
 
 // Helper: build domain filter array from filters object
@@ -110,72 +96,19 @@ export async function POST(request: Request) {
   const policy = await enforceApiKeyPolicy(request, "search");
   if (policy.rejection) return policy.rejection;
 
-  // Resolve provider and credentials
-  let providerConfig = selectProvider(body.provider);
-  if (!providerConfig) {
+  const picked = await pickSearchBackend(body.provider);
+  if (!picked) {
     return errorResponse(
       HTTP_STATUS.BAD_REQUEST,
-      body.provider ? `Unknown search provider: ${body.provider}` : "No search providers available"
+      body.provider
+        ? `No credentials configured for search provider: ${body.provider}. Add an API key in the dashboard, or for SearXNG set SEARXNG_URL.`
+        : "No search backend available. Add a search provider API key, or set SEARXNG_URL."
     );
   }
-
-  let credentials: Record<string, unknown> | null = null;
-  let alternateProviderId: string | undefined;
-  let alternateCredentials: Record<string, unknown> | null = null;
-
-  if (body.provider) {
-    // Explicit provider — single credential lookup (with fallback)
-    credentials = await resolveSearchCredentials(providerConfig.id);
-    if (!credentials) {
-      return errorResponse(
-        HTTP_STATUS.BAD_REQUEST,
-        `No credentials configured for search provider: ${providerConfig.id}. Add an API key for "${providerConfig.id}" in the dashboard.`
-      );
-    }
-  } else {
-    // Auto-select — try the resolved provider first, then iterate others by cost
-    credentials = await resolveSearchCredentials(providerConfig.id);
-
-    if (!credentials) {
-      // Sort by cost to find cheapest with credentials
-      const sortedIds = Object.values(SEARCH_PROVIDERS)
-        .sort((a, b) => a.costPerQuery - b.costPerQuery)
-        .map((p) => p.id);
-
-      for (const pid of sortedIds) {
-        if (pid === providerConfig.id) continue;
-        const altConfig = getSearchProvider(pid);
-        const altCreds = await resolveSearchCredentials(pid);
-        if (altConfig && altCreds) {
-          providerConfig = altConfig;
-          credentials = altCreds;
-          break;
-        }
-      }
-    }
-
-    if (!credentials) {
-      return errorResponse(
-        HTTP_STATUS.BAD_REQUEST,
-        `No credentials configured for any search provider. Add an API key for a search provider (${Object.keys(SEARCH_PROVIDERS).join(", ")}) in the dashboard.`
-      );
-    }
-
-    // Find alternate for failover — must bind credentials to the matched provider
-    const otherIds = Object.values(SEARCH_PROVIDERS)
-      .sort((a, b) => a.costPerQuery - b.costPerQuery)
-      .map((p) => p.id)
-      .filter((id) => id !== providerConfig.id);
-
-    for (const pid of otherIds) {
-      const creds = await resolveSearchCredentials(pid);
-      if (creds) {
-        alternateProviderId = pid;
-        alternateCredentials = creds;
-        break;
-      }
-    }
-  }
+  const providerConfig = picked.config;
+  const credentials = picked.credentials;
+  const alternateProviderId = picked.alternateProvider;
+  const alternateCredentials = picked.alternateCredentials;
 
   // Clamp max_results to provider limit
   const clampedMaxResults = Math.min(body.max_results, providerConfig.maxMaxResults);

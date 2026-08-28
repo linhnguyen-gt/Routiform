@@ -332,7 +332,13 @@ export async function handleWebSearch(args: {
   max_results?: number;
   search_type?: "web" | "news";
   provider?:
-    "serper-search" | "brave-search" | "perplexity-search" | "exa-search" | "tavily-search";
+    | "serper-search"
+    | "brave-search"
+    | "perplexity-search"
+    | "exa-search"
+    | "tavily-search"
+    | "searxng-search"
+    | "duckduckgo-search";
 }) {
   const start = Date.now();
   try {

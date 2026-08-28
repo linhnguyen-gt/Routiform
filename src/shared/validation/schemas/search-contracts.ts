@@ -8,7 +8,15 @@ export const v1SearchSchema = z
       .min(1, "Query is required")
       .max(500, "Query must be 500 characters or fewer"),
     provider: z
-      .enum(["serper-search", "brave-search", "perplexity-search", "exa-search", "tavily-search"])
+      .enum([
+        "serper-search",
+        "brave-search",
+        "perplexity-search",
+        "exa-search",
+        "tavily-search",
+        "searxng-search",
+        "duckduckgo-search",
+      ])
       .optional(),
     max_results: z.coerce.number().int().min(1).max(100).default(5),
     search_type: z.enum(["web", "news"]).default("web"),

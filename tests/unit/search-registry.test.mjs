@@ -14,13 +14,17 @@ const { computeCacheKey, getOrCoalesce, getCacheStats, SEARCH_CACHE_DEFAULT_TTL_
 
 // ─── Registry Tests ──────────────────────────────────────────
 
-test("SEARCH_PROVIDERS has all 5 providers", () => {
+test("SEARCH_PROVIDERS has keyed and keyless providers", () => {
   assert.ok(SEARCH_PROVIDERS["serper-search"], "serper should exist");
   assert.ok(SEARCH_PROVIDERS["brave-search"], "brave should exist");
   assert.ok(SEARCH_PROVIDERS["perplexity-search"], "perplexity-search should exist");
   assert.ok(SEARCH_PROVIDERS["exa-search"], "exa should exist");
   assert.ok(SEARCH_PROVIDERS["tavily-search"], "tavily should exist");
-  assert.equal(Object.keys(SEARCH_PROVIDERS).length, 5);
+  assert.ok(SEARCH_PROVIDERS["searxng-search"], "searxng should exist");
+  assert.ok(SEARCH_PROVIDERS["duckduckgo-search"], "duckduckgo should exist");
+  assert.equal(Object.keys(SEARCH_PROVIDERS).length, 7);
+  assert.equal(SEARCH_PROVIDERS["searxng-search"].authType, "none");
+  assert.equal(SEARCH_PROVIDERS["duckduckgo-search"].authType, "none");
 });
 
 test("serper-search config is correct", () => {
@@ -76,7 +80,7 @@ test("tavily config is correct", () => {
 
 test("getAllSearchProviders returns flat list", () => {
   const all = getAllSearchProviders();
-  assert.equal(all.length, 5);
+  assert.equal(all.length, 7);
   assert.ok(all.some((p) => p.id === "serper-search"));
   assert.ok(all.some((p) => p.id === "brave-search"));
   assert.ok(all.some((p) => p.id === "perplexity-search"));

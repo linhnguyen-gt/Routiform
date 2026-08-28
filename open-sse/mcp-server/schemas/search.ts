@@ -17,7 +17,15 @@ export const webSearchInput = z.object({
     .describe("Maximum number of search results to return"),
   search_type: z.enum(["web", "news"]).default("web").describe("Type of search to perform"),
   provider: z
-    .enum(["serper-search", "brave-search", "perplexity-search", "exa-search", "tavily-search"])
+    .enum([
+      "serper-search",
+      "brave-search",
+      "perplexity-search",
+      "exa-search",
+      "tavily-search",
+      "searxng-search",
+      "duckduckgo-search",
+    ])
     .optional()
     .describe("Specific search provider to use"),
 });
