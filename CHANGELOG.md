@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [6.3.2](https://github.com/linhnguyen-gt/Routiform/compare/v6.3.1...v6.3.2) (2026-08-28)
+
+### Features
+
+- **search:** intercept Claude Code WebSearch/WebFetch nested `/v1/messages` calls so they run without Claude OAuth
+- **search:** add keyless DuckDuckGo and SearXNG backends behind keyed providers (Serper, Brave, Tavily, Exa, Perplexity)
+- **cli-tools:** write `skipWebFetchPreflight: true` into Claude Code settings when saving Routiform proxy config
+- **chat:** route empty-tools Claude Code helpers (REPL, compact, Haiku apply) to the active combo when provider `claude` has no credentials
+
+### Bug Fixes
+
+- **search:** WebSearch/WebFetch no longer 400 with `No credentials for provider: claude`
+- **search:** fetch-apply intercept matches only the latest user turn so REPL/compact are not stolen
+- **search:** WebFetch uses direct `safeOutboundFetch` only (no default Jina hop)
+
 ## [6.3.1](https://github.com/linhnguyen-gt/Routiform/compare/v6.3.0...v6.3.1) (2026-08-28)
 
 ### Features
