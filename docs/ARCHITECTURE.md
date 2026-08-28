@@ -79,7 +79,7 @@ Main pages under `src/app/(dashboard)/dashboard/`:
 - `/dashboard/cli-tools` — CLI onboarding, runtime detection, config generation
 - `/dashboard/agents` — detected ACP agents + custom agent registration
 - `/dashboard/media` — image/video/music playground
-- `/dashboard/search-tools` — search provider testing and history
+- `/dashboard/search-tools` — search provider testing and history (same backend chain as WebSearch intercept: keyed providers, then SearXNG, then DuckDuckGo)
 - `/dashboard/health` — uptime, circuit breakers, rate limits
 - `/dashboard/logs` — request/proxy/audit/console logs
 - `/dashboard/settings` — system settings tabs (general, routing, combo defaults, etc.)
@@ -238,7 +238,7 @@ Management domains:
 
 Main flow modules:
 
-- Entry: `src/sse/handlers/chat.ts`
+- Entry: `src/sse/handlers/chat.ts` (web-tool intercept + empty-tools Claude Code helper combo fallback run here)
 - Core orchestration: `open-sse/handlers/chatCore.ts` (2,094 lines, modularized)
 - Idempotency: `src/sse/handlers/chat-idempotency.ts` — resolved once per client request at
   the ingress, never per upstream attempt (a combo request fans out into many attempts)
@@ -763,7 +763,7 @@ flowchart LR
 
 ### Routing and Execution Core
 
-- `src/sse/handlers/chat.ts`: request parse, combo handling, account selection loop
+- `src/sse/handlers/chat.ts`: request parse, web-tool intercept, combo handling, account selection loop
 - `open-sse/handlers/chatCore.ts`: translation, executor dispatch, retry/refresh handling, stream setup
 - `open-sse/executors/*`: provider-specific network and format behavior
 
@@ -858,7 +858,9 @@ Additional processing layers in the translation pipeline:
 | Endpoint                                           | Format             | Handler                                                             |
 | -------------------------------------------------- | ------------------ | ------------------------------------------------------------------- |
 | `POST /v1/chat/completions`                        | OpenAI Chat        | `src/sse/handlers/chat.ts`                                          |
-| `POST /v1/messages`                                | Claude Messages    | Same handler (auto-detected)                                        |
+| `POST /v1/messages`                                | Claude Messages    | Same handler (auto-detected); nested WebSearch/WebFetch intercepted |
+| `POST /v1/search`                                  | Web Search         | Keyed providers, then SearXNG (`SEARXNG_URL`), then DuckDuckGo      |
+| `GET /v1/search`                                   | Search providers   | Lists registry IDs including keyless SearXNG and DuckDuckGo         |
 | `POST /v1/responses`                               | OpenAI Responses   | `open-sse/handlers/responsesHandler.ts`                             |
 | `POST /v1/embeddings`                              | OpenAI Embeddings  | `open-sse/handlers/embeddings.ts`                                   |
 | `GET /v1/embeddings`                               | Model listing      | API route                                                           |
@@ -980,6 +982,7 @@ Environment variables actively used by code:
 - Sync/cloud URLing: `NEXT_PUBLIC_BASE_URL`, `NEXT_PUBLIC_CLOUD_URL`
 - Outbound proxy: `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` and lowercase variants
 - SOCKS5 feature flags: `ENABLE_SOCKS5_PROXY`, `NEXT_PUBLIC_ENABLE_SOCKS5_PROXY`
+- Search (keyless SearXNG): `SEARXNG_URL` or `SEARXNG_API_BASE`
 - Platform/runtime helpers (not app-specific config): `APPDATA`, `NODE_ENV`, `PORT`, `HOSTNAME`
 
 ## Known Architectural Notes

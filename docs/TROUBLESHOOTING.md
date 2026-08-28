@@ -48,6 +48,24 @@ Routiform auto-refreshes tokens. If issues persist:
 
 ---
 
+## Claude Code via Routiform
+
+### WebSearch / WebFetch 400 `No credentials for provider: claude`
+
+Nested WebSearch/WebFetch-only `/v1/messages` calls are intercepted and do not need Claude OAuth. If search still fails:
+
+1. Confirm `ANTHROPIC_BASE_URL` points at Routiform
+2. Add a keyed search provider in dashboard **Providers** (for example `brave-search`)
+3. Or set `SEARXNG_URL` (DuckDuckGo is the last fallback; no key)
+
+WebFetch uses direct outbound fetch (`safeOutboundFetch()`), not Jina. Dashboard **Save Config** sets `skipWebFetchPreflight: true` so Claude Code does not preflight `api.anthropic.com`.
+
+### Nested helper 400 without Claude OAuth
+
+REPL, compact, title generation, and Haiku apply send `tools: []`. When that model resolves to provider `claude` / `cc` and there are no Claude credentials, Routiform uses the active combo. Activate one in `/dashboard/combos`.
+
+---
+
 ## Cloud Issues
 
 ### Cloud Sync Errors

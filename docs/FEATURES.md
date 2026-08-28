@@ -75,7 +75,7 @@ Comprehensive settings panel with tabs:
 
 ## 🔧 CLI Tools
 
-One-click configuration for AI coding tools: Claude Code, Codex CLI, OpenClaw, Kilo Code, Antigravity, Cline, Continue, Cursor, and Factory Droid. Features automated config apply/reset, connection profiles, and model mapping.
+One-click configuration for AI coding tools: Claude Code, Codex CLI, OpenClaw, Kilo Code, Antigravity, Cline, Continue, Cursor, and Factory Droid. Features automated config apply/reset, connection profiles, and model mapping. Claude Code **Save Config** writes `skipWebFetchPreflight: true` because traffic already goes through Routiform.
 
 ![CLI Tools Dashboard](screenshots/07-cli-tools.png)
 

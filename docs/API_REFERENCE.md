@@ -117,6 +117,8 @@ Authorization: Bearer your-api-key
 | ------ | --------------------------- | ---------------------- |
 | POST   | `/v1/chat/completions`      | OpenAI                 |
 | POST   | `/v1/messages`              | Anthropic              |
+| GET    | `/v1/search`                | Search provider list   |
+| POST   | `/v1/search`                | Web search             |
 | POST   | `/v1/responses`             | OpenAI Responses       |
 | POST   | `/v1/embeddings`            | OpenAI                 |
 | POST   | `/v1/images/generations`    | OpenAI                 |
@@ -516,14 +518,15 @@ Content-Type: application/json
 
 1. Client sends request to `/v1/*`
 2. Route handler calls `handleChat`, `handleEmbedding`, `handleAudioTranscription`, or `handleImageGeneration`
-3. For chat: idempotency is resolved once, at the ingress — a cached body is replayed before any model work
-4. Model is resolved (direct provider/model or alias/combo)
-5. Credentials selected from local DB with account availability filtering
-6. For chat: `handleChatCore` — format detection, translation, cache check (runs per upstream attempt)
-7. Provider executor sends upstream request
-8. Response translated back to client format (chat) or returned as-is (embeddings/images/audio)
-9. Usage/logging recorded
-10. Fallback applies on errors according to combo rules
+3. For chat: exclusive nested WebSearch/WebFetch calls are intercepted before combo resolution (keyed search providers from dashboard Providers, then SearXNG via `SEARXNG_URL`, then DuckDuckGo). WebFetch uses direct `safeOutboundFetch()`, not Jina. Empty-tools Claude Code helpers without Claude credentials use the active combo
+4. For chat: idempotency is resolved once, at the ingress — a cached body is replayed before any model work
+5. Model is resolved (direct provider/model or alias/combo)
+6. Credentials selected from local DB with account availability filtering
+7. For chat: `handleChatCore` — format detection, translation, cache check (runs per upstream attempt)
+8. Provider executor sends upstream request
+9. Response translated back to client format (chat) or returned as-is (embeddings/images/audio)
+10. Usage/logging recorded
+11. Fallback applies on errors according to combo rules
 
 Full architecture reference: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 

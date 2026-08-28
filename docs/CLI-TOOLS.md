@@ -170,13 +170,30 @@ mkdir -p ~/.claude && cat > ~/.claude/settings.json << EOF
     "ANTHROPIC_BASE_URL": "http://localhost:20128/v1",
     "ANTHROPIC_AUTH_TOKEN": "sk-your-routiform-key",
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "auto"
-  }
+  },
+  "skipWebFetchPreflight": true
 }
 EOF
 ```
 
 `ANTHROPIC_DEFAULT_OPUS_MODEL` and `ANTHROPIC_DEFAULT_HAIKU_MODEL` map the other two
 aliases; omit them to leave those aliases on Anthropic's own models.
+
+Dashboard **Save Config** writes the same `env` keys and sets `skipWebFetchPreflight: true`.
+Claude Code's WebFetch preflight would otherwise hit `api.anthropic.com`; traffic already
+goes through Routiform, so that check is skipped. **Reset Config** removes the flag.
+
+**WebSearch / WebFetch:** nested `/v1/messages` calls that only declare `WebSearch` /
+`WebFetch` (or Anthropic `web_search` / `web_fetch`) are intercepted and do not need
+Claude OAuth. Search tries keyed providers from dashboard **Providers** first (for example
+`brave-search`), then SearXNG when `SEARXNG_URL` is set, then DuckDuckGo. WebFetch uses
+direct outbound fetch (`safeOutboundFetch`); it does not use Jina. A full Claude Code
+toolbag that merely includes WebSearch among Bash/Read/etc. is not intercepted.
+
+**Empty-tools helpers:** nested Claude Code helpers (REPL, compact, title generation,
+Haiku apply) send `/v1/messages` with `tools: []`. If that model resolves to provider
+`claude` / `cc` and there is no Claude OAuth or API key, Routiform routes the call to
+the active combo.
 
 **Test:** `claude "say hello"`
 
@@ -558,14 +575,16 @@ They run as internal routes and use Routiform's model routing automatically.
 
 ## Troubleshooting
 
-| Error                     | Cause                   | Fix                                        |
-| ------------------------- | ----------------------- | ------------------------------------------ |
-| `Connection refused`      | Routiform not running   | `pm2 start routiform`                      |
-| `401 Unauthorized`        | Wrong API key           | Check in `/dashboard/api-manager`          |
-| `No combo configured`     | No active routing combo | Set up in `/dashboard/combos`              |
-| `invalid model`           | Model not in catalog    | Use `auto` or check `/dashboard/providers` |
-| CLI shows "not installed" | Binary not in PATH      | Check `which <command>`                    |
-| `kiro-cli: not found`     | Not in PATH             | `export PATH="$HOME/.local/bin:$PATH"`     |
+| Error                                               | Cause                                         | Fix                                                                                         |
+| --------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `Connection refused`                                | Routiform not running                         | `pm2 start routiform`                                                                       |
+| `401 Unauthorized`                                  | Wrong API key                                 | Check in `/dashboard/api-manager`                                                           |
+| `No combo configured`                               | No active routing combo                       | Set up in `/dashboard/combos`                                                               |
+| `invalid model`                                     | Model not in catalog                          | Use `auto` or check `/dashboard/providers`                                                  |
+| CLI shows "not installed"                           | Binary not in PATH                            | Check `which <command>`                                                                     |
+| `kiro-cli: not found`                               | Not in PATH                                   | `export PATH="$HOME/.local/bin:$PATH"`                                                      |
+| WebSearch 400 `No credentials for provider: claude` | Nested search had no intercept backend        | Add a search key in dashboard Providers, or set `SEARXNG_URL` (DuckDuckGo is last fallback) |
+| Nested helper 400 without Claude OAuth              | Empty-tools helper (`tools: []`) had no combo | Activate a combo in `/dashboard/combos`                                                     |
 
 ---
 
@@ -598,7 +617,7 @@ apt-get install -y unzip 2>/dev/null; curl -fsSL https://cli.kiro.dev/install | 
 mkdir -p ~/.claude ~/.codex ~/.config/opencode ~/.continue ~/.qwen ~/.omp/agent ~/.kimi-code ~/.grok
 
 cat > ~/.claude/settings.json <<EOF
-{ "env": { "ANTHROPIC_BASE_URL": "$ROUTIFORM_URL", "ANTHROPIC_AUTH_TOKEN": "$ROUTIFORM_KEY" } }
+{ "env": { "ANTHROPIC_BASE_URL": "$ROUTIFORM_URL", "ANTHROPIC_AUTH_TOKEN": "$ROUTIFORM_KEY" }, "skipWebFetchPreflight": true }
 EOF
 
 cat > ~/.codex/config.toml <<EOF
