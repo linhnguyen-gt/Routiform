@@ -121,18 +121,23 @@ export function openaiToOpenAIResponsesResponse(chunk, state) {
       emitReasoningDelta(state, emit, reasoning);
     }
     if (text) {
+      if (state.reasoningId && !state.reasoningDone) {
+        closeReasoning(state, emit);
+      }
       emitTextContent(state, emit, idx, text);
     }
   }
 
   // Handle tool_calls
   if (delta.tool_calls) {
+    if (state.reasoningId && !state.reasoningDone) {
+      closeReasoning(state, emit);
+    }
     closeMessage(state, emit, idx);
     for (const tc of delta.tool_calls) {
       emitToolCall(state, emit, tc);
     }
   }
-
   // Handle finish_reason
   if (choice.finish_reason) {
     for (const i in state.msgItemAdded) closeMessage(state, emit, i);
@@ -322,22 +327,26 @@ function emitToolCall(state, emit, tc) {
     delete state.funcArgsBuf[tcIdx];
     delete state.funcArgsDone[tcIdx];
     delete state.funcItemDone[tcIdx];
+    const freshOutIdx = getOutputIndex(state, `func_${tcIdx}_${newCallId}`);
+    state.funcOutputIndices[tcIdx] = freshOutIdx;
   }
 
   if (funcName) state.funcNames[tcIdx] = funcName;
 
-  if (!state.funcCallIds[tcIdx] && newCallId) {
-    state.funcCallIds[tcIdx] = newCallId;
+  if (!state.funcCallIds[tcIdx]) {
+    const callId = newCallId || generateToolCallId();
+    state.funcCallIds[tcIdx] = callId;
+    const currentOutIdx = state.funcOutputIndices[tcIdx] ?? outIdx;
 
     emit("response.output_item.added", {
       type: "response.output_item.added",
-      output_index: outIdx,
+      output_index: currentOutIdx,
       item: {
-        id: `fc_${newCallId}`,
+        id: `fc_${callId}`,
         type: "function_call",
         arguments: "",
-        call_id: newCallId,
-        name: state.funcNames[tcIdx] || "",
+        call_id: callId,
+        name: state.funcNames[tcIdx] || funcName || "",
       },
     });
   }

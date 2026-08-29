@@ -94,3 +94,72 @@ test("openaiToOpenAIResponsesResponse assigns distinct, sequential output_index 
   assert.equal(output[1].type, "message");
   assert.equal(output[2].type, "function_call");
 });
+
+test("openaiToOpenAIResponsesResponse closes reasoning output_item before message begins", async () => {
+  const { openaiToOpenAIResponsesResponse } =
+    await import("../../open-sse/translator/response/openai-responses.ts");
+  const { initState } = await import("../../open-sse/translator/index.ts");
+  const { FORMATS } = await import("../../open-sse/translator/formats.ts");
+
+  const state = initState(FORMATS.OPENAI_RESPONSES);
+
+  // Chunk 1: reasoning
+  const chunk1 = {
+    id: "test2",
+    choices: [{ index: 0, delta: { reasoning_content: "Step 1" } }],
+  };
+  openaiToOpenAIResponsesResponse(chunk1, state);
+
+  // Chunk 2: text starts -> reasoning should be closed in this turn before message output item is added
+  const chunk2 = {
+    id: "test2",
+    choices: [{ index: 0, delta: { content: "Done thinking" } }],
+  };
+  const events2 = openaiToOpenAIResponsesResponse(chunk2, state);
+
+  const reasoningDoneIdx = events2.findIndex(
+    (e) => e.event === "response.output_item.done" && e.data.item?.type === "reasoning"
+  );
+  const msgAddedIdx = events2.findIndex(
+    (e) => e.event === "response.output_item.added" && e.data.item?.type === "message"
+  );
+
+  assert.ok(reasoningDoneIdx !== -1, "Reasoning output_item.done must be emitted when text begins");
+  assert.ok(msgAddedIdx !== -1, "Message output_item.added must be emitted");
+  assert.ok(reasoningDoneIdx < msgAddedIdx, "Reasoning done must precede message added");
+});
+test("responsesTransformer handles sequential output indices for reasoning, text, and tools", async () => {
+  const { createResponsesApiTransformStream } =
+    await import("../../open-sse/transformer/responsesTransformer.ts");
+
+  const chunks = [
+    'data: {"id":"c1","choices":[{"index":0,"delta":{"reasoning_content":"Thinking..."}}]}\n\n',
+    'data: {"id":"c1","choices":[{"index":0,"delta":{"content":"Answer"}}]}\n\n',
+    'data: {"id":"c1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
+    "data: [DONE]\n\n",
+  ];
+
+  const input = new ReadableStream({
+    start(controller) {
+      for (const c of chunks) {
+        controller.enqueue(new TextEncoder().encode(c));
+      }
+      controller.close();
+    },
+  });
+
+  const stream = input.pipeThrough(createResponsesApiTransformStream(null));
+  const allText = await new Response(stream).text();
+
+  assert.ok(
+    allText.includes(
+      'event: response.output_item.added\ndata: {"type":"response.output_item.added","output_index":0,"item":{"id":"rs_'
+    )
+  );
+  assert.ok(
+    allText.includes(
+      'event: response.output_item.added\ndata: {"type":"response.output_item.added","output_index":1,"item":{"id":"msg_'
+    )
+  );
+  assert.ok(allText.includes("event: response.completed"));
+});
