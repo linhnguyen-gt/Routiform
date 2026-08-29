@@ -46,7 +46,8 @@ async function movePath(sourcePath, destinationPath) {
 function runNextBuild() {
   return new Promise((resolve) => {
     const nextBin = path.join(projectRoot, "node_modules", "next", "dist", "bin", "next");
-    const child = spawn(process.execPath, [nextBin, "build"], {
+    const extraArgs = process.argv.slice(2);
+    const child = spawn(process.execPath, [nextBin, "build", ...extraArgs], {
       cwd: projectRoot,
       stdio: "inherit",
       env: process.env,

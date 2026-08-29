@@ -654,7 +654,17 @@ export function createSSEStream(options: StreamOptions = {}) {
               if (state?.accumulatedContent !== undefined) state.accumulatedContent += r;
             }
           }
-
+          if (Array.isArray(parsed.choices?.[0]?.delta?.tool_calls)) {
+            for (const tc of parsed.choices[0].delta.tool_calls) {
+              const name = tc?.function?.name || "";
+              const args = tc?.function?.arguments || "";
+              const len = name.length + args.length;
+              totalContentLength += len;
+              if (state?.accumulatedContent !== undefined && len > 0) {
+                state.accumulatedContent += (name ? `[tool: ${name}]` : "") + args;
+              }
+            }
+          }
           // Gemini / Cloud Code format - may have multiple parts
           // Cloud Code API wraps in { response: { candidates: [...] } }, so unwrap.
           // Only applies to Gemini-family formats — skip for OpenAI, Claude, etc.
@@ -908,7 +918,7 @@ export function createSSEStream(options: StreamOptions = {}) {
             }
 
             // Estimate usage if provider didn't return valid usage
-            if (!hasValidUsage(usage) && totalContentLength > 0) {
+            if (!hasValidUsage(usage) && (totalContentLength > 0 || Boolean(body))) {
               usage = estimateUsage(body, totalContentLength, sourceFormat || FORMATS.OPENAI);
             }
 
@@ -1065,7 +1075,7 @@ export function createSSEStream(options: StreamOptions = {}) {
           }
 
           // Estimate usage if provider didn't return valid usage (for translate mode)
-          if (!hasValidUsage(state?.usage) && totalContentLength > 0) {
+          if (!hasValidUsage(state?.usage) && (totalContentLength > 0 || Boolean(body))) {
             state.usage = estimateUsage(body, totalContentLength, sourceFormat);
           }
 
@@ -1167,11 +1177,33 @@ export function createSSEStream(options: StreamOptions = {}) {
           // never reading the trailing [DONE]). Accounting finalizes as a
           // success; the disconnect is teardown noise, not a client abort.
           trackPendingRequest(model, provider, connectionId, false);
+
+          let finalUsage = (isPassthrough ? usage : state?.usage) as UsageTokenRecord | null;
+          if (!hasValidUsage(finalUsage) && (totalContentLength > 0 || Boolean(body))) {
+            finalUsage = estimateUsage(body, totalContentLength, sourceFormat || FORMATS.OPENAI);
+          }
+          if (isPassthrough) {
+            usage = finalUsage;
+          } else if (state) {
+            state.usage = finalUsage;
+          }
+          if (hasValidUsage(finalUsage)) {
+            logUsage(
+              isPassthrough
+                ? provider
+                : (state?.provider as string | null | undefined) || targetFormat,
+              finalUsage,
+              model,
+              connectionId,
+              apiKeyInfo
+            );
+          }
+
           if (!onComplete) return;
           try {
-            const u = (isPassthrough ? usage : state?.usage) as Record<string, unknown> | null;
-            const prompt = Number(u?.prompt_tokens ?? u?.input_tokens ?? 0);
-            const completion = Number(u?.completion_tokens ?? u?.output_tokens ?? 0);
+            const u = finalUsage as Record<string, unknown> | null;
+            const prompt = Number(u?.prompt_tokens ?? u?.input_tokens ?? u?.input ?? 0);
+            const completion = Number(u?.completion_tokens ?? u?.output_tokens ?? u?.output ?? 0);
             const contentSource = isPassthrough
               ? passthroughAccumulatedContent
               : (state?.accumulatedContent ?? "");
@@ -1185,10 +1217,23 @@ export function createSSEStream(options: StreamOptions = {}) {
                 (a, b) => a.index - b.index
               );
               finishReason = "tool_calls";
+            } else if (state?.toolCalls?.size > 0) {
+              message.tool_calls = [...state.toolCalls.values()]
+                .map((tc: Record<string, unknown>): ToolCall => ({
+                  id: (tc.id as string) ?? null,
+                  index: (tc.index as number) ?? (tc.blockIndex as number) ?? 0,
+                  type: (tc.type as string) ?? "function",
+                  function: (tc.function as ToolCall["function"]) ?? {
+                    name: (tc.name as string) ?? "",
+                    arguments: "",
+                  },
+                }))
+                .sort((a, b) => a.index - b.index);
+              finishReason = "tool_calls";
             }
             onComplete({
               status: 200,
-              usage: (isPassthrough ? usage : state?.usage) as UsageTokenRecord | null,
+              usage: finalUsage,
               responseBody: {
                 choices: [{ message, finish_reason: finishReason }],
                 usage: {
@@ -1225,7 +1270,7 @@ export function createSSEStream(options: StreamOptions = {}) {
         trackPendingRequest(model, provider, connectionId, false);
 
         let partialUsage = (isPassthrough ? usage : state?.usage) as UsageTokenRecord | null;
-        if (!hasValidUsage(partialUsage) && totalContentLength > 0) {
+        if (!hasValidUsage(partialUsage) && (totalContentLength > 0 || Boolean(body))) {
           partialUsage = estimateUsage(body, totalContentLength, sourceFormat || FORMATS.OPENAI);
         }
         if (isPassthrough) {

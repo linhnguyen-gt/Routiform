@@ -633,7 +633,7 @@ export function estimateInputTokens(body, options: EstimateInputTokenOptions = {
 
   try {
     let total = estimateToolSchemaTokens(body.tools);
-    total += estimateSystemTokens(body.system);
+    total += estimateSystemTokens(body.system || body.instructions);
     if (options.excludeMessages) return total;
 
     if (Array.isArray(body.messages)) {
@@ -643,12 +643,28 @@ export function estimateInputTokens(body, options: EstimateInputTokenOptions = {
         total += 4;
       }
     }
+
+    if (Array.isArray(body.input)) {
+      for (const item of body.input) {
+        if (!item || typeof item !== "object") continue;
+        if (item.content !== undefined) {
+          total += estimateContentTokens(item.content);
+        }
+        if (typeof item.arguments === "string") {
+          total += Math.ceil(item.arguments.length / 3.5);
+        }
+        if (typeof item.output === "string") {
+          total += Math.ceil(item.output.length / 3.5);
+        }
+        total += 4;
+      }
+    }
+
     return total;
   } catch {
     return 0;
   }
 }
-
 /**
  * Estimate output tokens from content length.
  * Uses improved heuristic when possible, falls back to length-based estimation.
@@ -671,6 +687,9 @@ export function formatUsage(inputTokens, outputTokens, targetFormat) {
     return addBufferToUsage({
       input_tokens: inputTokens,
       output_tokens: outputTokens,
+      prompt_tokens: inputTokens,
+      completion_tokens: outputTokens,
+      total_tokens: inputTokens + outputTokens,
       estimated: true,
     });
   }
@@ -679,6 +698,8 @@ export function formatUsage(inputTokens, outputTokens, targetFormat) {
   return addBufferToUsage({
     prompt_tokens: inputTokens,
     completion_tokens: outputTokens,
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
     total_tokens: inputTokens + outputTokens,
     estimated: true,
   });

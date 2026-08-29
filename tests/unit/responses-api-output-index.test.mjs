@@ -163,3 +163,102 @@ test("responsesTransformer handles sequential output indices for reasoning, text
   );
   assert.ok(allText.includes("event: response.completed"));
 });
+
+test("estimateInputTokens calculates tokens for Responses API body with input and instructions", async () => {
+  const { estimateInputTokens } = await import("../../open-sse/utils/usageTracking.ts");
+
+  const body = {
+    instructions: "You are a helpful coding assistant with extensive tools and context.",
+    input: [
+      {
+        type: "message",
+        role: "user",
+        content: [
+          { type: "input_text", text: "Please read the file /tmp/test.ts and summarize it" },
+        ],
+      },
+      {
+        type: "function_call",
+        call_id: "call_123",
+        name: "read_file",
+        arguments: '{"path":"/tmp/test.ts"}',
+      },
+      {
+        type: "function_call_output",
+        call_id: "call_123",
+        output: "const x = 1;\nconst y = 2;\nconsole.log(x + y);",
+      },
+    ],
+    tools: [
+      {
+        type: "function",
+        name: "read_file",
+        description: "Read a file from disk",
+        parameters: {
+          type: "object",
+          properties: { path: { type: "string" } },
+          required: ["path"],
+        },
+      },
+    ],
+  };
+
+  const tokens = estimateInputTokens(body);
+  assert.ok(tokens > 20, `Tokens should be > 20, got ${tokens}`);
+});
+
+test("createSSEStream cancel after terminal event calculates and passes finalUsage", async () => {
+  const { createSSEStream, STREAM_MODE } =
+    await import("../../open-sse/utils/stream/createSSEStream.ts");
+  const { FORMATS } = await import("../../open-sse/translator/formats.ts");
+
+  let completedPayload = null;
+  const body = {
+    input: [{ role: "user", content: [{ type: "input_text", text: "Hello" }] }],
+  };
+
+  const stream = createSSEStream({
+    mode: STREAM_MODE.TRANSLATE,
+    targetFormat: FORMATS.OPENAI,
+    sourceFormat: FORMATS.OPENAI_RESPONSES,
+    body,
+    onComplete: (payload) => {
+      completedPayload = payload;
+    },
+  });
+
+  const writer = stream.writable.getWriter();
+  const reader = stream.readable.getReader();
+
+  // Send a chunk that delivers response.completed
+  await writer.write(
+    new TextEncoder().encode(
+      'data: {"id":"c1","choices":[{"index":0,"delta":{"content":"Hi"}}]}\n\n'
+    )
+  );
+  await writer.write(
+    new TextEncoder().encode(
+      'data: {"id":"c1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n'
+    )
+  );
+
+  // Read out the events
+  await reader.read(); // response.created / in_progress / added
+  await reader.read();
+  await reader.read();
+
+  // Client cancels stream after receiving terminal event
+  await reader.cancel();
+
+  assert.ok(completedPayload, "onComplete must be called on cancel after terminal event");
+  assert.equal(completedPayload.status, 200);
+  assert.ok(completedPayload.usage, "usage must be populated");
+  assert.ok(
+    completedPayload.usage.prompt_tokens > 0 || completedPayload.usage.input_tokens > 0,
+    "prompt tokens must be > 0"
+  );
+  assert.ok(
+    completedPayload.usage.completion_tokens > 0 || completedPayload.usage.output_tokens > 0,
+    "completion tokens must be > 0"
+  );
+});

@@ -43,6 +43,8 @@ export function openaiToOpenAIResponsesResponse(chunk, state) {
     state.usage = {
       input_tokens,
       output_tokens,
+      prompt_tokens: input_tokens,
+      completion_tokens: output_tokens,
       total_tokens: u.total_tokens ?? input_tokens + output_tokens,
     };
     const cached = u.prompt_tokens_details?.cached_tokens ?? u.input_tokens_details?.cached_tokens;
