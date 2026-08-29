@@ -44,6 +44,16 @@ const PUBLIC_API_ROUTES = [
 
   // OAuth callback routes — provider redirects back here
   "/api/oauth/",
+
+  // Ollama-compatible routes — use their own API key auth in handler layer
+  "/api/tags",
+  "/api/chat",
+  "/api/generate",
+  "/api/embed",
+  "/api/embeddings",
+  "/api/show",
+  "/api/ps",
+  "/api/version",
 ];
 
 // ──────────────── Auth Verification ────────────────

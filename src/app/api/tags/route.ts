@@ -1,12 +1,13 @@
 import { CORS_HEADERS } from "@/shared/utils/cors";
-import { ollamaModels } from "@routiform/open-sse/config/ollamaModels.ts";
+import { getDynamicOllamaModels } from "@/lib/ollama/models";
 
 export async function OPTIONS() {
   return new Response(null, { headers: CORS_HEADERS });
 }
 
 export async function GET() {
-  return new Response(JSON.stringify(ollamaModels), {
+  const modelsData = await getDynamicOllamaModels();
+  return new Response(JSON.stringify(modelsData), {
     headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
 }

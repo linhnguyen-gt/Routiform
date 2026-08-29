@@ -58,7 +58,7 @@ export const providerModelsConfigPartB2: Record<string, ProviderModelsConfigEntr
     },
   },
   "ollama-cloud": {
-    url: "https://api.ollama.com/v1/models",
+    url: "https://ollama.com/v1/models",
     method: "GET",
     headers: { "Content-Type": "application/json" },
     authHeader: "Authorization",
