@@ -100,6 +100,15 @@ export function claudeToOpenAIResponse(chunk, state) {
 
     case "content_block_start": {
       const block = chunk.content_block;
+      if (
+        block?.type === "server_tool_use" ||
+        block?.type === "web_search_tool_result" ||
+        block?.type === "web_fetch_tool_result"
+      ) {
+        // Built-in tool (e.g. web search) - Claude handles internally; skip emitting to OpenAI client
+        state.serverToolBlockIndex = chunk.index;
+        break;
+      }
       if (block?.type === "text") {
         state.textBlockStarted = true;
       } else if (block?.type === "thinking") {
@@ -131,6 +140,7 @@ export function claudeToOpenAIResponse(chunk, state) {
     }
 
     case "content_block_delta": {
+      if (chunk.index === state.serverToolBlockIndex) break;
       const delta = chunk.delta;
       if (delta?.type === "text_delta" && delta.text) {
         const textDelta = { content: delta.text };
@@ -167,6 +177,10 @@ export function claudeToOpenAIResponse(chunk, state) {
     }
 
     case "content_block_stop": {
+      if (chunk.index === state.serverToolBlockIndex) {
+        state.serverToolBlockIndex = -1;
+        break;
+      }
       if (state.inThinkingBlock && chunk.index === state.currentBlockIndex) {
         // Thinking block closed — no additional content needed;
         // reasoning_content chunks have already been streamed

@@ -56,6 +56,7 @@ function isValidClaudeContentBlock(block) {
   return (
     (block?.type === "text" && block.text?.trim()) ||
     block?.type === "tool_result" ||
+    block?.type === "image" ||
     block?.type === "document" ||
     isAssistantActionBlock(block)
   );

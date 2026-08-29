@@ -525,10 +525,17 @@ function getContentBlocksFromMessage(msg, _toolNameMap = new Map(), disableToolP
         } else if (part.type === "image_url") {
           const parsed = parseDataImageUrl(part.image_url?.url);
           if (parsed) {
-            blocks.push({
-              type: "image",
-              source: { type: "base64", media_type: parsed.mimeType, data: parsed.data },
-            });
+            if (parsed.mimeType === "application/pdf") {
+              blocks.push({
+                type: "document",
+                source: { type: "base64", media_type: parsed.mimeType, data: parsed.data },
+              });
+            } else {
+              blocks.push({
+                type: "image",
+                source: { type: "base64", media_type: parsed.mimeType, data: parsed.data },
+              });
+            }
           } else if (/^https?:\/\//i.test(part.image_url?.url)) {
             blocks.push({
               type: "image",
@@ -537,6 +544,23 @@ function getContentBlocksFromMessage(msg, _toolNameMap = new Map(), disableToolP
           }
         } else if (part.type === "image" && part.source) {
           blocks.push({ type: "image", source: part.source });
+        } else if (part.type === "file" || part.type === "input_file") {
+          const fileData =
+            (part.file && typeof part.file === "object"
+              ? (part.file as Record<string, unknown>).file_data ||
+                (part.file as Record<string, unknown>).data
+              : null) ||
+            part.file_data ||
+            part.data;
+          const parsed = parseDataImageUrl(fileData);
+          if (parsed && parsed.mimeType === "application/pdf") {
+            blocks.push({
+              type: "document",
+              source: { type: "base64", media_type: parsed.mimeType, data: parsed.data },
+            });
+          }
+        } else if (part.type === "document" && part.source) {
+          blocks.push(cloneClaudeNativeBlock(part));
         } else if (isClaudeNativeUserContentBlock(part)) {
           blocks.push(cloneClaudeNativeBlock(part));
         }
