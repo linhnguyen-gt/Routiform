@@ -3,7 +3,7 @@ services:
   routiform:
     container_name: routiform
     image: ${ROUTIFORM_IMAGE:-linhnguyen0944/routiform:cli}
-    pull_policy: always
+    pull_policy: missing
     restart: unless-stopped
     stop_grace_period: 40s
     environment:
@@ -25,6 +25,7 @@ services:
       - "${ROUTIFORM_API_PORT:-20129}:20129"
     volumes:
       - routiform-data:/app/data
+      - ./scripts/bootstrap-env.mjs:/app/bootstrap-env.mjs:ro
       - ${HOME}/.claude:/host-home/.claude
       - ${HOME}/.claude:/root/.claude
       - ${HOME}/.codex:/host-home/.codex
