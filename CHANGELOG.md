@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [6.5.0](https://github.com/linhnguyen-gt/Routiform/compare/v6.4.0...v6.5.0) (2026-08-29)
+
+
+### Features
+
+* **usage:** accurate input token accounting with prompt usage memory ([eb68aa5](https://github.com/linhnguyen-gt/Routiform/commit/eb68aa536efbd8c010d25e8b90b2b63c9478e1bb))
+
+
+### Bug Fixes
+
+* **usage:** bound prompt usage store and gate intercept recall by conversation ([741dbb9](https://github.com/linhnguyen-gt/Routiform/commit/741dbb918ad86bf82682760ed74f0bce7893e145))
+
 ## [6.4.0](https://github.com/linhnguyen-gt/Routiform/compare/v6.3.0...v6.4.0) (2026-08-28)
 
 
