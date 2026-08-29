@@ -5,15 +5,18 @@ import { existsSync, readFileSync } from "fs";
  * Get raw machine ID using OS-specific methods.
  *
  * We use try/catch waterfall: try each OS method and fall through
- * to the next on failure. Platform checks are INSIDE try blocks so they
- * run at RUNTIME (not build time), avoiding Next.js SWC dead-code elimination.
- *
- * On Linux: skips Windows (REG.exe) and macOS (ioreg) strategies entirely.
+ * to the next on failure. OS detection uses RUNTIME environment signals
+ * (env vars and file existence), NOT `process.platform` string comparisons —
+ * Next.js SWC/Turbopack constant-folds `process.platform` during chunk
+ * compilation (platform differs per bundling context), which dead-code
+ * eliminated the guards and ran macOS `ioreg` inside the Linux container
+ * on every request (/bin/sh: ioreg: not found) — same bug class as #466.
  */
 function getMachineIdRaw(): string {
-  // Strategy 1: Windows — REG.exe query for MachineGuid
+  // Strategy 1: Windows — REG.exe query for MachineGuid.
+  // Signal: SystemRoot env var, present only on Windows.
   try {
-    if (process.platform !== "win32") {
+    if (!process.env.SystemRoot && !process.env.windir) {
       throw new Error("Not Windows");
     }
     const sysRoot = process.env.SystemRoot || process.env.windir || "C:\\Windows";
@@ -34,9 +37,11 @@ function getMachineIdRaw(): string {
     // Not Windows or REG.exe failed — continue
   }
 
-  // Strategy 2: macOS — ioreg IOPlatformUUID
+  // Strategy 2: macOS — ioreg IOPlatformExpertDevice.
+  // Signal: /System/Library/CoreServices exists only on macOS. The guard is
+  // an fs existence probe (no spawn), so nothing executes when absent.
   try {
-    if (process.platform !== "darwin") {
+    if (!existsSync("/System/Library/CoreServices")) {
       throw new Error("Not macOS");
     }
     const output = execSync("ioreg -rd1 -c IOPlatformExpertDevice", {
@@ -55,7 +60,7 @@ function getMachineIdRaw(): string {
     // Not macOS or ioreg not available — continue
   }
 
-  // Strategy 3: Linux — read machine-id files directly (no `head` or pipe)
+  // Strategy 3: Linux — read machine-id files directly (no `head` or pipe).
   try {
     for (const filePath of ["/etc/machine-id", "/var/lib/dbus/machine-id"]) {
       if (existsSync(filePath)) {
