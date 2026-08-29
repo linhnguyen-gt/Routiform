@@ -1,5 +1,6 @@
 import { getCorsOrigin, CORS_HEADERS } from "./cors.ts";
-
+import { LeakedThinkingStreamHealer } from "./leakedThinkingHealer.ts";
+import { extractFencedThinking } from "./fencedThinking.ts";
 type PendingToolCall = {
   id?: string;
   function: {
@@ -44,11 +45,13 @@ export async function transformToOllama(
       const parsed = await response.json();
       const choice = parsed.choices?.[0] || {};
       const msg = choice.message || {};
-      const content = typeof msg.content === "string" ? msg.content : "";
-      const thinking =
+      const rawContent = typeof msg.content === "string" ? msg.content : "";
+      const { content, thinking: extractedThinking } = extractFencedThinking(rawContent);
+      const explicitThinking =
         typeof msg.reasoning_content === "string" && msg.reasoning_content.length > 0
           ? msg.reasoning_content
           : undefined;
+      const thinking = explicitThinking || extractedThinking || undefined;
 
       const formattedToolCalls = Array.isArray(msg.tool_calls)
         ? msg.tool_calls.map((tc: { function?: { name?: string; arguments?: string } }) => ({
@@ -95,7 +98,7 @@ export async function transformToOllama(
   let buffer = "";
   let pendingToolCalls: Record<number, PendingToolCall> = {};
   const completedToolCalls: PendingToolCall[] = [];
-
+  const healer = new LeakedThinkingStreamHealer();
   const transform = new TransformStream({
     transform(chunk, controller) {
       const text = new TextDecoder().decode(chunk);
@@ -123,8 +126,9 @@ export async function transformToOllama(
         try {
           const parsed = JSON.parse(data);
           const delta = parsed.choices?.[0]?.delta || {};
-          const content = typeof delta.content === "string" ? delta.content : "";
-          const thinking =
+          const rawContent = typeof delta.content === "string" ? delta.content : "";
+          const healedChunks = healer.feed(rawContent);
+          const explicitThinking =
             typeof delta.reasoning_content === "string" && delta.reasoning_content.length > 0
               ? delta.reasoning_content
               : undefined;
@@ -149,21 +153,50 @@ export async function transformToOllama(
             }
           }
 
-          if (content || thinking !== undefined) {
+          if (explicitThinking) {
             const ollama =
               JSON.stringify({
                 model,
                 created_at: new Date().toISOString(),
                 message: {
                   role: "assistant",
-                  content,
-                  ...(thinking !== undefined ? { thinking } : {}),
+                  content: "",
+                  thinking: explicitThinking,
                 },
                 done: false,
               }) + "\n";
             controller.enqueue(new TextEncoder().encode(ollama));
           }
 
+          for (const chunk of healedChunks) {
+            if (chunk.reasoning_content) {
+              const ollama =
+                JSON.stringify({
+                  model,
+                  created_at: new Date().toISOString(),
+                  message: {
+                    role: "assistant",
+                    content: "",
+                    thinking: chunk.reasoning_content,
+                  },
+                  done: false,
+                }) + "\n";
+              controller.enqueue(new TextEncoder().encode(ollama));
+            }
+            if (chunk.content) {
+              const ollama =
+                JSON.stringify({
+                  model,
+                  created_at: new Date().toISOString(),
+                  message: {
+                    role: "assistant",
+                    content: chunk.content,
+                  },
+                  done: false,
+                }) + "\n";
+              controller.enqueue(new TextEncoder().encode(ollama));
+            }
+          }
           const finishReason = parsed.choices?.[0]?.finish_reason;
           if (finishReason === "tool_calls" || finishReason === "stop") {
             const toolCallsArr = [...completedToolCalls, ...Object.values(pendingToolCalls)];
@@ -202,6 +235,36 @@ export async function transformToOllama(
       }
     },
     flush(controller) {
+      const remaining = healer.flush();
+      for (const chunk of remaining) {
+        if (chunk.reasoning_content) {
+          const ollama =
+            JSON.stringify({
+              model,
+              created_at: new Date().toISOString(),
+              message: {
+                role: "assistant",
+                content: "",
+                thinking: chunk.reasoning_content,
+              },
+              done: false,
+            }) + "\n";
+          controller.enqueue(new TextEncoder().encode(ollama));
+        }
+        if (chunk.content) {
+          const ollama =
+            JSON.stringify({
+              model,
+              created_at: new Date().toISOString(),
+              message: {
+                role: "assistant",
+                content: chunk.content,
+              },
+              done: false,
+            }) + "\n";
+          controller.enqueue(new TextEncoder().encode(ollama));
+        }
+      }
       if (buffer.trim()) {
         console.warn(
           `[ollamaTransform] Stream ended with unparsed buffer (${buffer.length} chars):`,
@@ -255,11 +318,13 @@ export async function transformToOllamaGenerate(
       const parsed = await response.json();
       const choice = parsed.choices?.[0] || {};
       const msg = choice.message || {};
-      const content = typeof msg.content === "string" ? msg.content : "";
-      const thinking =
+      const rawContent = typeof msg.content === "string" ? msg.content : "";
+      const { content, thinking: extractedThinking } = extractFencedThinking(rawContent);
+      const explicitThinking =
         typeof msg.reasoning_content === "string" && msg.reasoning_content.length > 0
           ? msg.reasoning_content
           : undefined;
+      const thinking = explicitThinking || extractedThinking || undefined;
 
       const ollamaGenResponse = {
         model,
@@ -288,7 +353,7 @@ export async function transformToOllamaGenerate(
 
   // Streaming generate response -> application/x-ndjson
   let buffer = "";
-
+  const healer = new LeakedThinkingStreamHealer();
   const transform = new TransformStream({
     transform(chunk, controller) {
       const text = new TextDecoder().decode(chunk);
@@ -316,22 +381,47 @@ export async function transformToOllamaGenerate(
         try {
           const parsed = JSON.parse(data);
           const delta = parsed.choices?.[0]?.delta || {};
-          const content = typeof delta.content === "string" ? delta.content : "";
-          const thinking =
+          const rawContent = typeof delta.content === "string" ? delta.content : "";
+          const healedChunks = healer.feed(rawContent);
+          const explicitThinking =
             typeof delta.reasoning_content === "string" && delta.reasoning_content.length > 0
               ? delta.reasoning_content
               : undefined;
 
-          if (content || thinking !== undefined) {
+          if (explicitThinking) {
             const ollama =
               JSON.stringify({
                 model,
                 created_at: new Date().toISOString(),
-                response: content,
-                ...(thinking !== undefined ? { thinking } : {}),
+                response: "",
+                thinking: explicitThinking,
                 done: false,
               }) + "\n";
             controller.enqueue(new TextEncoder().encode(ollama));
+          }
+
+          for (const chunk of healedChunks) {
+            if (chunk.reasoning_content) {
+              const ollama =
+                JSON.stringify({
+                  model,
+                  created_at: new Date().toISOString(),
+                  response: "",
+                  thinking: chunk.reasoning_content,
+                  done: false,
+                }) + "\n";
+              controller.enqueue(new TextEncoder().encode(ollama));
+            }
+            if (chunk.content) {
+              const ollama =
+                JSON.stringify({
+                  model,
+                  created_at: new Date().toISOString(),
+                  response: chunk.content,
+                  done: false,
+                }) + "\n";
+              controller.enqueue(new TextEncoder().encode(ollama));
+            }
           }
 
           const finishReason = parsed.choices?.[0]?.finish_reason;
@@ -352,6 +442,30 @@ export async function transformToOllamaGenerate(
       }
     },
     flush(controller) {
+      const remaining = healer.flush();
+      for (const chunk of remaining) {
+        if (chunk.reasoning_content) {
+          const ollama =
+            JSON.stringify({
+              model,
+              created_at: new Date().toISOString(),
+              response: "",
+              thinking: chunk.reasoning_content,
+              done: false,
+            }) + "\n";
+          controller.enqueue(new TextEncoder().encode(ollama));
+        }
+        if (chunk.content) {
+          const ollama =
+            JSON.stringify({
+              model,
+              created_at: new Date().toISOString(),
+              response: chunk.content,
+              done: false,
+            }) + "\n";
+          controller.enqueue(new TextEncoder().encode(ollama));
+        }
+      }
       if (buffer.trim()) {
         console.warn(
           `[ollamaTransform] Generate stream ended with unparsed buffer (${buffer.length} chars):`,

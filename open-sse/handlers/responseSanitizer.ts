@@ -1,5 +1,5 @@
 import { unwrapOpenAIChatCompletionRoot } from "../utils/chatCompletionEnvelope.ts";
-
+import { extractFencedThinking } from "../utils/fencedThinking.ts";
 /**
  * Response Sanitizer — Normalizes LLM responses to strict OpenAI SDK format.
  *
@@ -34,9 +34,6 @@ function toNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-// Matches <think>...</think> blocks and <thinking>...</thinking> (greedy, dotAll)
-const THINK_TAG_REGEX = /<(?:think|thinking)>([\s\S]*?)<\/(?:think|thinking)>/gi;
-
 // #638, #727: Collapse runs of 2+ consecutive newlines into \n\n
 // Tool call responses from thinking models often accumulate excessive newlines
 const EXCESSIVE_NEWLINES = /\n{2,}/g;
@@ -52,30 +49,7 @@ export function extractThinkingFromContent(text: string): {
   content: string;
   thinking: string | null;
 } {
-  if (!text || typeof text !== "string") {
-    return { content: text || "", thinking: null };
-  }
-
-  const thinkingParts: string[] = [];
-  let hasThinkTags = false;
-
-  const cleaned = text.replace(THINK_TAG_REGEX, (_, thinkContent) => {
-    hasThinkTags = true;
-    const trimmed = thinkContent.trim();
-    if (trimmed) {
-      thinkingParts.push(trimmed);
-    }
-    return "";
-  });
-
-  if (!hasThinkTags) {
-    return { content: text, thinking: null };
-  }
-
-  return {
-    content: cleaned.trim(),
-    thinking: thinkingParts.length > 0 ? thinkingParts.join("\n\n") : null,
-  };
+  return extractFencedThinking(text);
 }
 
 /**

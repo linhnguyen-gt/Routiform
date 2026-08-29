@@ -5,7 +5,7 @@ import { translateGeminiToOpenAI } from "./responseTranslator/fromGemini.ts";
 import { translateDevinToOpenAI } from "./responseTranslator/fromDevin.ts";
 import { translateClaudeToOpenAI } from "./responseTranslator/fromClaude.ts";
 import { toRecord } from "./responseTranslator/shared.ts";
-
+import { healNonStreamingPayload } from "../utils/leakedThinkingHealer.ts";
 /**
  * Translate non-streaming response to OpenAI format
  * Handles different provider response formats (Gemini, Claude, etc.)
@@ -38,6 +38,9 @@ export function translateNonStreamingResponse(
   // Phase 3: Translate from OpenAI back to Client Source format
   if (sourceFormat === FORMATS.CLAUDE && sourceFormat !== targetFormat) {
     return convertOpenAINonStreamingToClaude(toRecord(intermediateOpenAI));
+  }
+  if (intermediateOpenAI && typeof intermediateOpenAI === "object") {
+    healNonStreamingPayload(intermediateOpenAI as Record<string, unknown>);
   }
 
   // Return intermediateOpenAI (which is either the raw response if unknown targetFormat, or an OpenAI compatible payload)
