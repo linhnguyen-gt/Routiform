@@ -12,7 +12,8 @@ import {
 } from "@routiform/open-sse/services/provider.ts";
 import { handleChatCore } from "@routiform/open-sse/handlers/chatCore.ts";
 import { interceptWebTools } from "@routiform/open-sse/services/webToolIntercept.ts";
-import { recallPromptUsage } from "@routiform/open-sse/services/promptUsageMemory.ts";
+import { recallPlausiblePromptUsage } from "@routiform/open-sse/services/promptUsageMemory.ts";
+import { estimateInputTokens } from "@routiform/open-sse/utils/usageTracking.ts";
 import {
   hasUsableClaudeCredentials,
   helperNeedsComboFallback,
@@ -227,7 +228,11 @@ export async function handleChat(
     format: detectFormatFromEndpoint(body, url.pathname),
     stream: body.stream === true,
     log,
-    promptUsage: recallPromptUsage([sessionId, apiKeyInfo?.id ? String(apiKeyInfo.id) : null]),
+    promptUsage: recallPlausiblePromptUsage({
+      body,
+      keys: [sessionId, apiKeyInfo?.id ? String(apiKeyInfo.id) : null],
+      estimatedTokens: estimateInputTokens(body),
+    }),
   });
   if (webToolResponse) {
     log.info("WEB_TOOLS", `Intercepted web_search/web_fetch for ${modelStr}`);
@@ -307,7 +312,7 @@ export async function handleChat(
         hasClaudeCredentials: hasUsableClaudeCredentials(helperCreds),
       })
     ) {
-      const helperCombos = await getCombos().catch((): ComboRecord[] => []);
+      const helperCombos = (await getCombos().catch(() => [])) as ComboRecord[];
       const picked = pickActiveCombo(helperCombos);
       if (picked) {
         combo = picked;

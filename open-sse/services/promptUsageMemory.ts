@@ -29,10 +29,27 @@ const TTL_MS = 30 * 60 * 1000;
 const FRESH_CONVERSATION_MAX_MESSAGES = 3;
 const RECALL_MAX_RATIO = 1.6;
 const RECALL_MIN_RATIO = 0.65;
+/**
+ * Sweep-on-write keeps the store bounded in long-lived proxy processes without
+ * a timer; the cap bounds growth inside one TTL window.
+ */
+const MAX_STORE_ENTRIES = 512;
 const store = new Map<string, { at: number; usage: PromptUsageSnapshot }>();
 
 function isFresh(at: number): boolean {
   return Date.now() - at < TTL_MS;
+}
+
+function sweepStore(): void {
+  const now = Date.now();
+  for (const [key, entry] of store) {
+    if (now - entry.at >= TTL_MS) store.delete(key);
+  }
+  if (store.size <= MAX_STORE_ENTRIES) return;
+  const oldest = [...store.entries()].sort((a, b) => a[1].at - b[1].at);
+  for (const [key] of oldest.slice(0, store.size - MAX_STORE_ENTRIES)) {
+    store.delete(key);
+  }
 }
 
 export function toPromptUsageSnapshot(usage: unknown): PromptUsageSnapshot | null {
@@ -65,6 +82,7 @@ export function rememberPromptUsage(usage: unknown, keys: Array<string | null | 
     ...keys.filter((k): k is string => typeof k === "string" && k.length > 0),
     "local",
   ];
+  sweepStore();
   for (const key of new Set(names)) {
     store.set(key, { at, usage: snapshot });
   }
@@ -97,7 +115,7 @@ export function isPlausiblePromptUsageRecall(
   if (recalledTotal <= 0) return false;
   const messages = countMessages(body);
   if (messages > 0 && messages <= FRESH_CONVERSATION_MAX_MESSAGES) return false;
-  if (estimatedTokens <= 0) return true;
+  if (estimatedTokens <= 0) return false;
   if (recalledTotal > estimatedTokens * RECALL_MAX_RATIO) return false;
   if (recalledTotal < estimatedTokens * RECALL_MIN_RATIO) return false;
   return true;
@@ -121,16 +139,21 @@ export function buildPromptUsageSeed(options: {
       ? (options.body as Record<string, unknown>)
       : null;
   const compact = !!body && isCompactSummarizerRequest(body);
+  const floor = options.estimatedFloorTokens;
   if (compact) {
-    const floor = options.estimatedFloorTokens;
     return { seed: floor > 0 ? { input_tokens: floor } : null, compact: true };
   }
-  const recalled = recallPromptUsage(options.keys);
-  if (recalled && isPlausiblePromptUsageRecall(recalled, options.estimatedTokens, body)) {
-    return { seed: recalled, compact: false };
-  }
   const estimated = options.estimatedTokens;
-  return { seed: estimated > 0 ? { input_tokens: estimated } : null, compact: false };
+  const base = estimated > 0 ? estimated : floor;
+  const recalled = recallPromptUsage(options.keys);
+  if (recalled && isPlausiblePromptUsageRecall(recalled, base, body)) {
+    const recalledTotal = snapshotPromptTokens(recalled);
+    // GLM/Ollama often omit prompt usage, so a stale compact floor (10%) would
+    // freeze the meter while the transcript grows. Only replay recall when it
+    // is at least as large as this request's estimate (DeepSeek 26%→36% bounce).
+    if (recalledTotal >= base) return { seed: recalled, compact: false };
+  }
+  return { seed: base > 0 ? { input_tokens: base } : null, compact: false };
 }
 
 export function recallPromptUsage(
@@ -145,6 +168,25 @@ export function recallPromptUsage(
     if (entry && isFresh(entry.at)) return { ...entry.usage };
   }
   return null;
+}
+
+/**
+ * Recall for nested web_search/web_fetch intercepts. Applies the same
+ * same-conversation plausibility gate as message_start seeding so a fresh
+ * /new conversation never replays the previous session's snapshot through the
+ * account-wide fallback keys.
+ */
+export function recallPlausiblePromptUsage(options: {
+  body: unknown;
+  keys: Array<string | null | undefined>;
+  estimatedTokens: number;
+}): PromptUsageSnapshot | null {
+  const recalled = recallPromptUsage(options.keys);
+  if (!recalled) return null;
+  if (!isPlausiblePromptUsageRecall(recalled, options.estimatedTokens, options.body)) {
+    return null;
+  }
+  return recalled;
 }
 
 export function claudeUsageFromSnapshot(

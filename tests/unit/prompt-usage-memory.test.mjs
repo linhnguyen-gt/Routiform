@@ -8,6 +8,7 @@ const {
   claudeUsageFromSnapshot,
   shouldRememberPromptUsage,
   buildPromptUsageSeed,
+  recallPlausiblePromptUsage,
 } = await import("../../open-sse/services/promptUsageMemory.ts");
 
 test("toPromptUsageSnapshot peels cache off inclusive prompt_tokens", () => {
@@ -101,6 +102,27 @@ test("new conversation does not replay the previous session snapshot on message_
   assert.equal(seed.cache_read_input_tokens, undefined);
 });
 
+test("seed uses current estimate when it is larger than a stale compact floor", () => {
+  rememberPromptUsage({ input_tokens: 56622 }, ["glm-stuck"]);
+  const { seed, compact } = buildPromptUsageSeed({
+    body: {
+      tools: [{ name: "Bash" }, { name: "Read" }],
+      messages: [
+        { role: "user", content: "a" },
+        { role: "assistant", content: "b" },
+        { role: "user", content: "c" },
+        { role: "assistant", content: "d" },
+        { role: "user", content: "keep going" },
+      ],
+    },
+    keys: ["glm-stuck"],
+    estimatedTokens: 145345,
+    estimatedFloorTokens: 56622,
+  });
+  assert.equal(compact, false);
+  assert.equal(seed.input_tokens, 145345);
+});
+
 test("stale snapshot much larger than the current estimate is not used as seed", () => {
   rememberPromptUsage({ input_tokens: 185111, cache_read_input_tokens: 28416 }, ["ds-stale"]);
   const { seed } = buildPromptUsageSeed({
@@ -152,4 +174,63 @@ test("recall falls back to local when session key misses", () => {
   assert.ok(recalled);
   assert.equal(recalled.input_tokens, 10000);
   assert.equal(recalled.cache_read_input_tokens, 30000);
+});
+
+test("gated recall rejects a fresh conversation even though the raw recall replays it", () => {
+  rememberPromptUsage({ input_tokens: 185111, cache_read_input_tokens: 28416 }, [
+    "gate-account",
+    "gate-old-session",
+    "local",
+  ]);
+  // raw recall has no conversation guard and falls through to the account key
+  assert.ok(recallPromptUsage(["gate-fresh-session"]));
+  const gated = recallPlausiblePromptUsage({
+    body: {
+      tools: [{ name: "WebSearch" }],
+      messages: [{ role: "user", content: "hello" }],
+    },
+    keys: ["gate-fresh-session", "gate-account"],
+    estimatedTokens: 94000,
+  });
+  assert.equal(gated, null);
+});
+
+test("gated recall applies the ratio band to stale snapshots", () => {
+  rememberPromptUsage({ prompt_tokens: 15000, cache_read_input_tokens: 5000 }, ["gate-src"]);
+  // recalled total 15000 is far below the current estimate
+  const gated = recallPlausiblePromptUsage({
+    body: {
+      tools: [{ name: "WebSearch" }],
+      messages: [
+        { role: "user", content: "a" },
+        { role: "assistant", content: "b" },
+        { role: "user", content: "c" },
+        { role: "assistant", content: "d" },
+        { role: "user", content: "e" },
+      ],
+    },
+    keys: ["gate-src"],
+    estimatedTokens: 90000,
+  });
+  assert.equal(gated, null);
+});
+
+test("gated recall accepts a plausible same-conversation snapshot", () => {
+  rememberPromptUsage({ input_tokens: 20000, cache_read_input_tokens: 0 }, ["gate-ok"]);
+  const gated = recallPlausiblePromptUsage({
+    body: {
+      tools: [{ name: "WebSearch" }],
+      messages: [
+        { role: "user", content: "a" },
+        { role: "assistant", content: "b" },
+        { role: "user", content: "c" },
+        { role: "assistant", content: "d" },
+        { role: "user", content: "e" },
+      ],
+    },
+    keys: ["gate-ok"],
+    estimatedTokens: 22000,
+  });
+  assert.ok(gated);
+  assert.equal(gated.input_tokens, 20000);
 });
