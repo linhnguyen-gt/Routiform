@@ -197,6 +197,14 @@ export function createSSEStream(options: StreamOptions = {}) {
   let lastChunkTime = Date.now();
   let idleTimer: ReturnType<typeof setInterval> | null = null;
   let streamTimedOut = false;
+  /**
+   * True once the client-facing stream delivered its terminal event
+   * (Responses: `response.completed`, Claude: message_stop, Chat:
+   * finish_reason chunk). Codex closes the HTTP body immediately after
+   * consuming that terminal event — before `[DONE]` and before flush()
+   * runs — so its streams end in cancel() with the response fully delivered.
+   */
+  let terminalEventSent = false;
   /** Set once usage/pending accounting has run (flush or cancel) — never twice. */
   let finalized = false;
 
@@ -714,6 +722,18 @@ export function createSSEStream(options: StreamOptions = {}) {
               let itemSanitized: Record<string, unknown> = item;
               const isResponsesEvent =
                 typeof item?.event === "string" && item.event.startsWith("response.");
+              if (item?.event === "response.completed" || item?.type === "response.completed") {
+                terminalEventSent = true;
+              }
+              if (
+                sourceFormat === FORMATS.CLAUDE &&
+                (itemSanitized as JsonRecord).type === "message_stop"
+              ) {
+                terminalEventSent = true;
+              }
+              if (itemSanitized.choices?.[0]?.finish_reason) {
+                terminalEventSent = true;
+              }
               if (sourceFormat === FORMATS.OPENAI && !isResponsesEvent) {
                 itemSanitized = sanitizeStreamingChunk(itemSanitized) as Record<string, unknown>;
 
@@ -1140,12 +1160,70 @@ export function createSSEStream(options: StreamOptions = {}) {
         }
         if (streamTimedOut || finalized) return;
         finalized = true;
+        const isPassthrough = mode === STREAM_MODE.PASSTHROUGH;
+        if (terminalEventSent) {
+          // The client consumed the complete response before closing the body
+          // (Codex tears down the connection right after response.completed,
+          // never reading the trailing [DONE]). Accounting finalizes as a
+          // success; the disconnect is teardown noise, not a client abort.
+          trackPendingRequest(model, provider, connectionId, false);
+          if (!onComplete) return;
+          try {
+            const u = (isPassthrough ? usage : state?.usage) as Record<string, unknown> | null;
+            const prompt = Number(u?.prompt_tokens ?? u?.input_tokens ?? 0);
+            const completion = Number(u?.completion_tokens ?? u?.output_tokens ?? 0);
+            const contentSource = isPassthrough
+              ? passthroughAccumulatedContent
+              : (state?.accumulatedContent ?? "");
+            const message: Record<string, unknown> = {
+              role: "assistant",
+              content: collapseExactDuplicateAssistantText(String(contentSource)) || null,
+            };
+            let finishReason = "stop";
+            if (isPassthrough && passthroughToolCalls.size > 0) {
+              message.tool_calls = [...passthroughToolCalls.values()].sort(
+                (a, b) => a.index - b.index
+              );
+              finishReason = "tool_calls";
+            }
+            onComplete({
+              status: 200,
+              usage: (isPassthrough ? usage : state?.usage) as UsageTokenRecord | null,
+              responseBody: {
+                choices: [{ message, finish_reason: finishReason }],
+                usage: {
+                  prompt_tokens: prompt,
+                  completion_tokens: completion,
+                  total_tokens: prompt + completion,
+                },
+                _streamed: true,
+              },
+              providerPayload: providerPayloadCollector.build(
+                buildStreamSummaryFromEvents(
+                  providerPayloadCollector.getEvents(),
+                  isPassthrough ? sourceFormat : targetFormat,
+                  model
+                ),
+                { includeEvents: false }
+              ),
+              clientPayload: clientPayloadCollector.build(
+                { choices: [{ message, finish_reason: finishReason }] },
+                { includeEvents: false }
+              ),
+            });
+          } catch (error) {
+            console.log(
+              `[STREAM] Error finalizing post-completion disconnect (${model || "unknown"}):`,
+              error instanceof Error ? error.message : error
+            );
+          }
+          return;
+        }
         console.warn(
           `[STREAM] Client disconnected mid-stream (provider: ${provider || "unknown"}, model: ${model || "unknown"}, connectionId: ${connectionId || "n/a"}) — finalizing partial usage`
         );
         trackPendingRequest(model, provider, connectionId, false);
 
-        const isPassthrough = mode === STREAM_MODE.PASSTHROUGH;
         let partialUsage = (isPassthrough ? usage : state?.usage) as UsageTokenRecord | null;
         if (!hasValidUsage(partialUsage) && totalContentLength > 0) {
           partialUsage = estimateUsage(body, totalContentLength, sourceFormat || FORMATS.OPENAI);
