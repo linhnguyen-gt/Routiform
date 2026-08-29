@@ -27,6 +27,7 @@ export function getPromptCacheReadTokens(tokens: unknown): number {
     tokenRecord.cacheRead ??
       tokenRecord.cache_read_input_tokens ??
       tokenRecord.cached_tokens ??
+      tokenRecord.prompt_cache_hit_tokens ??
       promptDetails.cached_tokens
   );
 }
@@ -50,6 +51,7 @@ export function getPromptCacheReadTokensOrNull(tokens: unknown): number | null {
     tokenRecord.cacheRead !== undefined ||
     tokenRecord.cache_read_input_tokens !== undefined ||
     tokenRecord.cached_tokens !== undefined ||
+    tokenRecord.prompt_cache_hit_tokens !== undefined ||
     promptDetails.cached_tokens !== undefined
   ) {
     return getPromptCacheReadTokens(tokens);
@@ -77,18 +79,24 @@ export function getPromptCacheCreationTokensOrNull(tokens: unknown): number | nu
 export function getReasoningTokens(tokens: unknown): number {
   const tokenRecord = asRecord(tokens);
   const completionDetails = asRecord(tokenRecord.completion_tokens_details);
+  const outputDetails = asRecord(tokenRecord.output_tokens_details);
   return toFiniteNumber(
-    tokenRecord.reasoning ?? tokenRecord.reasoning_tokens ?? completionDetails.reasoning_tokens
+    tokenRecord.reasoning ??
+      tokenRecord.reasoning_tokens ??
+      completionDetails.reasoning_tokens ??
+      outputDetails.reasoning_tokens
   );
 }
 
 export function getReasoningTokensOrNull(tokens: unknown): number | null {
   const tokenRecord = asRecord(tokens);
   const completionDetails = asRecord(tokenRecord.completion_tokens_details);
+  const outputDetails = asRecord(tokenRecord.output_tokens_details);
   if (
     tokenRecord.reasoning !== undefined ||
     tokenRecord.reasoning_tokens !== undefined ||
-    completionDetails.reasoning_tokens !== undefined
+    completionDetails.reasoning_tokens !== undefined ||
+    outputDetails.reasoning_tokens !== undefined
   ) {
     return getReasoningTokens(tokens);
   }

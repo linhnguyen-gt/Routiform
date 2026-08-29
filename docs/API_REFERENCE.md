@@ -402,7 +402,7 @@ These endpoints mirror Gemini's API format for clients that expect native Gemini
 
 For each item in `endpoints`, `/api/openapi/spec` includes `responses`, `security`, `parameters`, and `requestBody` fields so the dashboard API Endpoints view can render endpoint capabilities.
 
-For packaged standalone builds, `scripts/prepublish.mjs` copies `docs/openapi.yaml` to `app/public/docs/openapi.yaml` so `/api/openapi/spec` remains available at runtime.
+For packaged standalone builds, `scripts/prepublish.mjs` copies `docs/openapi.yaml` to `app/public/docs/openapi.yaml` so `/api/openapi/spec` remains available at runtime. Docker images copy the same spec into `/app/docs/openapi.yaml` and `public/docs/openapi.yaml` (`.dockerignore` excludes the rest of `docs/`).
 
 ---
 

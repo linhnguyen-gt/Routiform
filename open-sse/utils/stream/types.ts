@@ -43,6 +43,17 @@ export type TranslateState = ReturnType<typeof initState> & {
   finishReason?: unknown;
   /** Accumulated message content for call log response body */
   accumulatedContent?: string;
+  /** Prompt-side usage seeded onto Claude message_start so the context meter stays stable */
+  promptUsageSeed?: {
+    input_tokens: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+  } | null;
+  /**
+   * When true, message_delta must keep promptUsageSeed's input even if the
+   * provider/estimate reported a larger prompt (Claude Code compact summarizer).
+   */
+  forcePromptUsageSeed?: boolean;
 };
 
 export type ToolCall = {

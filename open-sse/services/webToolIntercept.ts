@@ -27,6 +27,7 @@ import {
   webToolHttpResponse,
   type SearchHit,
 } from "./webToolResponse.ts";
+import type { PromptUsageSnapshot } from "./promptUsageMemory.ts";
 
 export { shouldInterceptWebTools };
 
@@ -100,6 +101,7 @@ export async function interceptWebTools(
       warn?: (tag: string, message: string) => void;
       error?: (tag: string, message: string) => void;
     };
+    promptUsage?: PromptUsageSnapshot | null;
   }
 ): Promise<Response | null> {
   if (!shouldInterceptWebTools(body)) return null;
@@ -108,18 +110,19 @@ export async function interceptWebTools(
   const kind = interceptKind(body);
   const userText = lastUserText(body);
   const isClaude = options.format === "claude";
+  const promptUsage = options.promptUsage;
 
   try {
     if (kind === "fetch-apply") {
       const page = extractFetchApplyPage(userText) || userText;
       if (options.stream) {
         return webToolHttpResponse(
-          isClaude ? claudeSse(model, page) : openaiSse(model, page),
+          isClaude ? claudeSse(model, page, promptUsage) : openaiSse(model, page),
           true
         );
       }
       return webToolHttpResponse(
-        isClaude ? claudeMessage(model, page) : openaiMessage(model, page)
+        isClaude ? claudeMessage(model, page, promptUsage) : openaiMessage(model, page)
       );
     }
 
@@ -129,26 +132,26 @@ export async function interceptWebTools(
         const text = "Web fetch failed: no URL found in the request.";
         if (options.stream) {
           return webToolHttpResponse(
-            isClaude ? claudeSse(model, text) : openaiSse(model, text),
+            isClaude ? claudeSse(model, text, promptUsage) : openaiSse(model, text),
             true
           );
         }
         return webToolHttpResponse(
-          isClaude ? claudeMessage(model, text) : openaiMessage(model, text)
+          isClaude ? claudeMessage(model, text, promptUsage) : openaiMessage(model, text)
         );
       }
       const fetched = await fetchWebPage(url);
       if (options.stream) {
         return webToolHttpResponse(
           isClaude
-            ? claudeFetchSse(model, fetched.url, fetched.text)
+            ? claudeFetchSse(model, fetched.url, fetched.text, promptUsage)
             : openaiSse(model, fetched.text),
           true
         );
       }
       return webToolHttpResponse(
         isClaude
-          ? claudeFetchMessage(model, fetched.url, fetched.text)
+          ? claudeFetchMessage(model, fetched.url, fetched.text, promptUsage)
           : openaiMessage(model, fetched.text)
       );
     }
@@ -189,13 +192,13 @@ export async function interceptWebTools(
     if (isClaude) {
       const payload =
         lastError && hits.length === 0
-          ? claudeMessage(model, `Web search failed: ${lastError}`)
-          : claudeSearchMessage(model, query, hits);
+          ? claudeMessage(model, `Web search failed: ${lastError}`, promptUsage)
+          : claudeSearchMessage(model, query, hits, promptUsage);
       if (options.stream) {
         const sse =
           lastError && hits.length === 0
-            ? claudeSse(model, `Web search failed: ${lastError}`)
-            : claudeSearchSse(model, query, hits);
+            ? claudeSse(model, `Web search failed: ${lastError}`, promptUsage)
+            : claudeSearchSse(model, query, hits, promptUsage);
         return webToolHttpResponse(sse, true);
       }
       return webToolHttpResponse(payload);
@@ -213,8 +216,13 @@ export async function interceptWebTools(
     const text =
       kind === "fetch" ? `Web fetch failed: ${message}` : `Web search failed: ${message}`;
     if (options.stream) {
-      return webToolHttpResponse(isClaude ? claudeSse(model, text) : openaiSse(model, text), true);
+      return webToolHttpResponse(
+        isClaude ? claudeSse(model, text, promptUsage) : openaiSse(model, text),
+        true
+      );
     }
-    return webToolHttpResponse(isClaude ? claudeMessage(model, text) : openaiMessage(model, text));
+    return webToolHttpResponse(
+      isClaude ? claudeMessage(model, text, promptUsage) : openaiMessage(model, text)
+    );
   }
 }

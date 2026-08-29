@@ -45,6 +45,10 @@ function asRecord(value: unknown): JsonRecord {
 
 function toNumber(value: unknown): number {
   if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "bigint") {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : 0;
+  }
   if (typeof value === "string" && value.trim().length > 0) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
@@ -670,6 +674,18 @@ export async function getCallLogById(id: string) {
       ...entry,
       tokens: {
         ...entry.tokens,
+        cacheRead:
+          entry.tokens.cacheRead ??
+          ((artifactTokens as Record<string, unknown>).cacheRead as number | null) ??
+          null,
+        cacheCreation:
+          entry.tokens.cacheCreation ??
+          ((artifactTokens as Record<string, unknown>).cacheCreation as number | null) ??
+          null,
+        reasoning:
+          entry.tokens.reasoning ??
+          ((artifactTokens as Record<string, unknown>).reasoning as number | null) ??
+          null,
         promptDetails: (artifactTokens as Record<string, unknown>).promptDetails ?? null,
         completionDetails: (artifactTokens as Record<string, unknown>).completionDetails ?? null,
       },

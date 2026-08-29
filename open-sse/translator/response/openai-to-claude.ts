@@ -48,24 +48,40 @@ export function openaiToClaudeResponse(chunk, state) {
     // input_tokens = prompt_tokens - cached_tokens - cache_creation_tokens
     // Because OpenAI's prompt_tokens includes all prompt-side tokens
     const inputTokens = promptTokens - cacheReadTokens - cacheCreateTokens;
+    const reasoningTokens =
+      typeof chunk.usage.completion_tokens_details?.reasoning_tokens === "number"
+        ? chunk.usage.completion_tokens_details.reasoning_tokens
+        : 0;
 
     state.usage = {
+      ...(state.usage && typeof state.usage === "object" ? state.usage : {}),
       input_tokens: inputTokens,
       output_tokens: outputTokens,
+      prompt_tokens: promptTokens,
+      completion_tokens: outputTokens,
     };
 
-    // Add cache_read_input_tokens if present
     if (cacheReadTokens > 0) {
       state.usage.cache_read_input_tokens = cacheReadTokens;
     }
-
-    // Add cache_creation_input_tokens if present
     if (cacheCreateTokens > 0) {
       state.usage.cache_creation_input_tokens = cacheCreateTokens;
     }
-
-    // Note: completion_tokens_details.reasoning_tokens is already included in output_tokens
-    // No need to add separately as Claude expects total output_tokens
+    if (reasoningTokens > 0) {
+      state.usage.reasoning_tokens = reasoningTokens;
+    }
+    if (
+      chunk.usage.prompt_tokens_details &&
+      typeof chunk.usage.prompt_tokens_details === "object"
+    ) {
+      state.usage.prompt_tokens_details = chunk.usage.prompt_tokens_details;
+    }
+    if (
+      chunk.usage.completion_tokens_details &&
+      typeof chunk.usage.completion_tokens_details === "object"
+    ) {
+      state.usage.completion_tokens_details = chunk.usage.completion_tokens_details;
+    }
   }
 
   // First chunk - ALWAYS send message_start first
@@ -88,7 +104,9 @@ export function openaiToClaudeResponse(chunk, state) {
         content: [],
         stop_reason: null,
         stop_sequence: null,
-        usage: { input_tokens: 0, output_tokens: 0 },
+        usage: state.promptUsageSeed
+          ? { ...state.promptUsageSeed, output_tokens: 0 }
+          : { input_tokens: 0, output_tokens: 0 },
       },
     });
   }
@@ -232,8 +250,33 @@ export function openaiToClaudeResponse(chunk, state) {
     // Mark finish for later usage injection in stream.js
     state.finishReason = choice.finish_reason;
 
-    // Use tracked usage (will be estimated in stream.js if not valid)
-    const finalUsage = state.usage || { input_tokens: 0, output_tokens: 0 };
+    // Use tracked usage (will be estimated in stream.js if not valid).
+    // Keep the message_start prompt seed when the provider omitted prompt
+    // tokens (0) or when this is a compact summarizer (forcePromptUsageSeed).
+    const tracked = (state.usage || { input_tokens: 0, output_tokens: 0 }) as Record<
+      string,
+      unknown
+    >;
+    const seed = state.promptUsageSeed;
+    const trackedIn = Number(tracked.input_tokens || 0);
+    const cacheRead = Number(tracked.cache_read_input_tokens || 0);
+    const cacheCreate = Number(tracked.cache_creation_input_tokens || 0);
+    const promptSide = trackedIn + cacheRead + cacheCreate;
+    const finalUsage = { ...tracked };
+    if (seed && (state.forcePromptUsageSeed || promptSide <= 0)) {
+      finalUsage.input_tokens = seed.input_tokens;
+      if (state.forcePromptUsageSeed) {
+        delete finalUsage.cache_read_input_tokens;
+        delete finalUsage.cache_creation_input_tokens;
+      } else {
+        if (seed.cache_read_input_tokens) {
+          finalUsage.cache_read_input_tokens = seed.cache_read_input_tokens;
+        }
+        if (seed.cache_creation_input_tokens) {
+          finalUsage.cache_creation_input_tokens = seed.cache_creation_input_tokens;
+        }
+      }
+    }
     results.push({
       type: "message_delta",
       delta: { stop_reason: convertFinishReason(choice.finish_reason) },

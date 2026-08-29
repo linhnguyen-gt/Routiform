@@ -83,6 +83,32 @@ test("fetch-apply intercept returns page text without provider credentials", asy
   assert.equal(body.content[0].text, page);
 });
 
+test("fetch-apply intercept replays last prompt usage so the context meter does not drop", async () => {
+  const page = "Trishuli flash flood killed dozens in Rasuwa.";
+  const response = await interceptWebTools(
+    {
+      model: "claude-haiku-4-5",
+      tools: [],
+      messages: [
+        {
+          role: "user",
+          content: `Web page content:\n---\n${page}\n---\n\nSummarize casualties.`,
+        },
+      ],
+    },
+    {
+      format: "claude",
+      stream: false,
+      promptUsage: { input_tokens: 20000, cache_read_input_tokens: 60000 },
+    }
+  );
+  assert.ok(response);
+  const body = await response.json();
+  assert.equal(body.usage.input_tokens, 20000);
+  assert.equal(body.usage.cache_read_input_tokens, 60000);
+  assert.ok(body.usage.output_tokens > 0);
+});
+
 test("does not intercept empty-tools helper after a historical fetch-apply turn", () => {
   assert.equal(
     shouldInterceptWebTools({

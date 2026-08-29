@@ -40,7 +40,9 @@ export function geminiToClaudeResponse(chunk, state) {
         content: [],
         stop_reason: null,
         stop_sequence: null,
-        usage: { input_tokens: 0, output_tokens: 0 },
+        usage: state.promptUsageSeed
+          ? { ...state.promptUsageSeed, output_tokens: 0 }
+          : { input_tokens: 0, output_tokens: 0 },
       },
     });
   }
@@ -156,12 +158,18 @@ export function geminiToClaudeResponse(chunk, state) {
     const cachedTokens =
       typeof usageMeta.cachedContentTokenCount === "number" ? usageMeta.cachedContentTokenCount : 0;
 
+    // Gemini promptTokenCount is cache-INCLUSIVE. Anthropic input_tokens is not.
+    // Copying both fields through made Claude Code sum 362k+359k cache as 721k.
     state.usage = {
-      input_tokens: inputTokens,
+      ...(state.usage && typeof state.usage === "object" ? state.usage : {}),
+      input_tokens: Math.max(0, inputTokens - cachedTokens),
       output_tokens: candidatesTokens + thoughtsTokens,
     };
     if (cachedTokens > 0) {
       state.usage.cache_read_input_tokens = cachedTokens;
+    }
+    if (thoughtsTokens > 0) {
+      state.usage.reasoning_tokens = thoughtsTokens;
     }
   }
 
@@ -188,10 +196,26 @@ export function geminiToClaudeResponse(chunk, state) {
       stopReason = "end_turn";
     }
 
+    const tracked = (state.usage || { input_tokens: 0, output_tokens: 0 }) as Record<
+      string,
+      unknown
+    >;
+    const seed = state.promptUsageSeed;
+    const promptSide =
+      Number(tracked.input_tokens || 0) + Number(tracked.cache_read_input_tokens || 0);
+    const usage = { ...tracked };
+    if (seed && (state.forcePromptUsageSeed || promptSide <= 0)) {
+      usage.input_tokens = seed.input_tokens;
+      if (state.forcePromptUsageSeed) {
+        delete usage.cache_read_input_tokens;
+        delete usage.cache_creation_input_tokens;
+      }
+    }
+
     results.push({
       type: "message_delta",
       delta: { stop_reason: stopReason, stop_sequence: null },
-      usage: state.usage || { input_tokens: 0, output_tokens: 0 },
+      usage,
     });
 
     results.push({ type: "message_stop" });

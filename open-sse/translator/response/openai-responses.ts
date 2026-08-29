@@ -45,8 +45,16 @@ export function openaiToOpenAIResponsesResponse(chunk, state) {
       output_tokens,
       total_tokens: u.total_tokens ?? input_tokens + output_tokens,
     };
-    if (u.prompt_tokens_details?.cached_tokens) {
-      state.usage.input_tokens_details = { cached_tokens: u.prompt_tokens_details.cached_tokens };
+    const cached = u.prompt_tokens_details?.cached_tokens ?? u.input_tokens_details?.cached_tokens;
+    if (cached) {
+      state.usage.input_tokens_details = { cached_tokens: cached };
+    }
+    const reasoning =
+      u.completion_tokens_details?.reasoning_tokens ??
+      u.output_tokens_details?.reasoning_tokens ??
+      u.reasoning_tokens;
+    if (typeof reasoning === "number" && reasoning > 0) {
+      state.usage.output_tokens_details = { reasoning_tokens: reasoning };
     }
   }
 

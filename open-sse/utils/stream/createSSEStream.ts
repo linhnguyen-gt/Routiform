@@ -6,10 +6,17 @@ import {
   hasValidUsage,
   estimateUsage,
   estimateOutputTokens,
+  estimateInputTokens,
   logUsage,
   addBufferToUsage,
   filterUsageForFormat,
 } from "../usageTracking.ts";
+import { generateSessionId } from "../../services/sessionManager.ts";
+import {
+  buildPromptUsageSeed,
+  rememberPromptUsage,
+  shouldRememberPromptUsage,
+} from "../../services/promptUsageMemory.ts";
 import {
   parseSSELine,
   hasValuableContent,
@@ -112,6 +119,38 @@ export function createSSEStream(options: StreamOptions = {}) {
   const passthroughToolCalls = new Map<string, ToolCall>();
   let passthroughToolCallSeq = 0;
 
+  const sessionKey = generateSessionId(body as { model?: string; messages?: unknown[] });
+  const promptUsageKeys = [sessionKey, connectionId, "local"];
+  // message_start is what Claude Code paints first. A heuristic seed that is
+  // ~70% of DeepSeek's real prompt_tokens makes the meter bounce 26% → 36% on
+  // every tool turn. Seed from the conversation id only — connectionId/"local"
+  // are account-wide and leak the previous /new session onto message_start.
+  const { seed: promptUsageSeed, compact: compactSummarizer } = buildPromptUsageSeed({
+    body,
+    keys: [sessionKey],
+    estimatedTokens: estimateInputTokens(body),
+    estimatedFloorTokens: estimateInputTokens(body, { excludeMessages: true }),
+  });
+
+  function usageForClient(usage: UsageTokenRecord | Record<string, unknown> | null | undefined) {
+    if (!usage || !promptUsageSeed) return usage;
+    const rec = usage as Record<string, unknown>;
+    const inTokens = Number(rec.input_tokens ?? rec.prompt_tokens ?? 0);
+    const cacheRead = Number(rec.cache_read_input_tokens ?? rec.cache_read_tokens ?? 0);
+    const cacheCreate = Number(rec.cache_creation_input_tokens ?? rec.cache_creation_tokens ?? 0);
+    if (!compactSummarizer && inTokens + cacheRead + cacheCreate > 0) return usage;
+    const next = { ...usage } as Record<string, unknown>;
+    if (next.input_tokens !== undefined) next.input_tokens = promptUsageSeed.input_tokens;
+    if (next.prompt_tokens !== undefined) next.prompt_tokens = promptUsageSeed.input_tokens;
+    if (compactSummarizer) {
+      delete next.cache_read_input_tokens;
+      delete next.cache_creation_input_tokens;
+      delete next.cache_read_tokens;
+      delete next.cache_creation_tokens;
+    }
+    return next;
+  }
+
   // State for translate mode (accumulatedContent for call log response body)
   const state: TranslateState | null =
     mode === STREAM_MODE.TRANSLATE
@@ -120,6 +159,8 @@ export function createSSEStream(options: StreamOptions = {}) {
           provider,
           toolNameMap,
           accumulatedContent: "",
+          promptUsageSeed,
+          forcePromptUsageSeed: compactSummarizer,
         }
       : null;
 
@@ -440,7 +481,10 @@ export function createSSEStream(options: StreamOptions = {}) {
                         created: parsed.created,
                         model: parsed.model,
                         choices: [],
-                        usage: filterUsageForFormat(estimated, FORMATS.OPENAI),
+                        usage: filterUsageForFormat(
+                          usageForClient(estimated) as UsageTokenRecord,
+                          FORMATS.OPENAI
+                        ),
                         ...(parsed.system_fingerprint !== undefined
                           ? { system_fingerprint: parsed.system_fingerprint }
                           : {}),
@@ -450,7 +494,10 @@ export function createSSEStream(options: StreamOptions = {}) {
                       };
                       delete parsed.usage;
                     } else {
-                      parsed.usage = filterUsageForFormat(estimated, FORMATS.OPENAI);
+                      parsed.usage = filterUsageForFormat(
+                        usageForClient(estimated) as UsageTokenRecord,
+                        FORMATS.OPENAI
+                      );
                     }
                     output = `data: ${JSON.stringify(parsed)}\n`;
                     injectedUsage = true;
@@ -463,7 +510,10 @@ export function createSSEStream(options: StreamOptions = {}) {
                         created: parsed.created,
                         model: parsed.model,
                         choices: [],
-                        usage: filterUsageForFormat(usage, FORMATS.OPENAI),
+                        usage: filterUsageForFormat(
+                          usageForClient(usage) as UsageTokenRecord,
+                          FORMATS.OPENAI
+                        ),
                         ...(parsed.system_fingerprint !== undefined
                           ? { system_fingerprint: parsed.system_fingerprint }
                           : {}),
@@ -473,7 +523,10 @@ export function createSSEStream(options: StreamOptions = {}) {
                       };
                       delete parsed.usage;
                     } else {
-                      parsed.usage = filterUsageForFormat(buffered, FORMATS.OPENAI);
+                      parsed.usage = filterUsageForFormat(
+                        usageForClient(buffered) as UsageTokenRecord,
+                        FORMATS.OPENAI
+                      );
                     }
                     output = `data: ${JSON.stringify(parsed)}\n`;
                     injectedUsage = true;
@@ -747,7 +800,10 @@ export function createSSEStream(options: StreamOptions = {}) {
                     created: (itemSanitized as JsonRecord).created,
                     model: (itemSanitized as JsonRecord).model,
                     choices: [],
-                    usage: filterUsageForFormat(estimated, sourceFormat),
+                    usage: filterUsageForFormat(
+                      usageForClient(estimated) as UsageTokenRecord,
+                      sourceFormat
+                    ),
                     ...((itemSanitized as JsonRecord).system_fingerprint !== undefined
                       ? { system_fingerprint: (itemSanitized as JsonRecord).system_fingerprint }
                       : {}),
@@ -757,7 +813,10 @@ export function createSSEStream(options: StreamOptions = {}) {
                   };
                   delete (itemSanitized as JsonRecord).usage;
                 } else {
-                  itemSanitized.usage = filterUsageForFormat(estimated, sourceFormat); // Filter + already has buffer
+                  itemSanitized.usage = filterUsageForFormat(
+                    usageForClient(estimated) as UsageTokenRecord,
+                    sourceFormat
+                  );
                 }
               } else if (state.finishReason && isFinishChunk && state.usage) {
                 // Add buffer and filter usage for client (but keep original in state.usage for logging)
@@ -769,7 +828,10 @@ export function createSSEStream(options: StreamOptions = {}) {
                     created: (itemSanitized as JsonRecord).created,
                     model: (itemSanitized as JsonRecord).model,
                     choices: [],
-                    usage: filterUsageForFormat(buffered, sourceFormat),
+                    usage: filterUsageForFormat(
+                      usageForClient(buffered) as UsageTokenRecord,
+                      sourceFormat
+                    ),
                     ...((itemSanitized as JsonRecord).system_fingerprint !== undefined
                       ? { system_fingerprint: (itemSanitized as JsonRecord).system_fingerprint }
                       : {}),
@@ -779,7 +841,10 @@ export function createSSEStream(options: StreamOptions = {}) {
                   };
                   delete (itemSanitized as JsonRecord).usage;
                 } else {
-                  itemSanitized.usage = filterUsageForFormat(buffered, sourceFormat);
+                  itemSanitized.usage = filterUsageForFormat(
+                    usageForClient(buffered) as UsageTokenRecord,
+                    sourceFormat
+                  );
                 }
               }
 
@@ -829,6 +894,14 @@ export function createSSEStream(options: StreamOptions = {}) {
 
             if (hasValidUsage(usage)) {
               logUsage(provider, usage, model, connectionId, apiKeyInfo);
+              if (shouldRememberPromptUsage(body)) {
+                rememberPromptUsage(
+                  usageForClient(addBufferToUsage(usage)) ?? usage,
+                  promptUsageKeys
+                );
+              } else if (compactSummarizer && promptUsageSeed) {
+                rememberPromptUsage(promptUsageSeed, promptUsageKeys);
+              }
             }
             // Notify caller for call log persistence (include full response body with accumulated content)
             if (onComplete) {
@@ -978,6 +1051,14 @@ export function createSSEStream(options: StreamOptions = {}) {
 
           if (hasValidUsage(state?.usage)) {
             logUsage(state.provider || targetFormat, state.usage, model, connectionId, apiKeyInfo);
+            if (shouldRememberPromptUsage(body)) {
+              rememberPromptUsage(
+                usageForClient(addBufferToUsage(state.usage)) ?? state.usage,
+                promptUsageKeys
+              );
+            } else if (compactSummarizer && promptUsageSeed) {
+              rememberPromptUsage(promptUsageSeed, promptUsageKeys);
+            }
           }
           // Notify caller for call log persistence (include full response body with accumulated content)
           if (onComplete) {

@@ -27,6 +27,17 @@ test("detailed tokens: preserves explicit zero values", () => {
   assert.equal(getReasoningTokensOrNull(usage), 0);
 });
 
+test("detailed tokens: reads Responses output_tokens_details.reasoning_tokens", () => {
+  assert.equal(
+    getReasoningTokensOrNull({
+      input_tokens: 32028,
+      output_tokens: 155,
+      output_tokens_details: { reasoning_tokens: 81 },
+    }),
+    81
+  );
+});
+
 test("detailed tokens: supports openrouter cache_write_tokens field", () => {
   const usage = {
     prompt_tokens_details: {

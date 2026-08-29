@@ -47,8 +47,13 @@ test-results
 playwright-report
 blob-report
 
-# Documentation (not needed in container)
-docs
+# Documentation (not needed in container). Keep the OpenAPI spec: the dashboard
+# GET /api/openapi/spec reads docs/openapi.yaml at runtime, and a missing file
+# is a 404. `docs/*` + the exception is required — ignoring the `docs` directory
+# itself would make Docker skip the folder and ignore the un-exclude.
+docs/**
+!docs
+!docs/openapi.yaml
 *.md
 !README.md
 

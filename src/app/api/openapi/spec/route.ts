@@ -15,6 +15,7 @@ let cachedSpec: { data: unknown; mtime: number; specPath: string } | null = null
 const OPENAPI_SPEC_CANDIDATES = [
   ["docs", "openapi.yaml"],
   ["public", "docs", "openapi.yaml"],
+  ["app", "public", "docs", "openapi.yaml"],
   ["app", "docs", "openapi.yaml"],
   ["..", "docs", "openapi.yaml"],
 ] as const;

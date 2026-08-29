@@ -5,7 +5,7 @@
  *  - Phase 1: parseSSEToResponsesOutput() richer native field preservation
  *  - Phase 2: streaming event parity (unknown events non-fatal, completed payload)
  *  - Phase 3: non-streaming Responses→Chat translation (refusal, reasoning, ordering)
- *  - Phase 4: unsupported built-in tool explicit rejection and background:true warning
+ *  - Phase 4: hosted built-in tools stripped on Chat translation; background:true warning
  */
 
 import test from "node:test";
@@ -586,28 +586,28 @@ test("Non-streaming: web_search_call output item is skipped gracefully", () => {
 // Phase 4: Unsupported built-in tool behavior
 // ---------------------------------------------------------------------------
 
-test("Responses→Chat: file_search tool type throws unsupported error", () => {
+test("Responses→Chat: file_search tool type is stripped on Chat translation", () => {
   const body = {
     model: "gpt-4",
     input: "find documents",
-    tools: [{ type: "file_search", vector_store_ids: ["vs_abc"] }],
+    tools: [
+      { type: "file_search", vector_store_ids: ["vs_abc"] },
+      { type: "function", name: "lookup", parameters: { type: "object" } },
+    ],
   };
-  assert.throws(
-    () => openaiResponsesToOpenAIRequest(null, body, null, null),
-    (err) => err.message.includes("file_search") && err.statusCode === 400
-  );
+  const result = openaiResponsesToOpenAIRequest(null, body, null, null);
+  assert.equal(result.tools.length, 1);
+  assert.equal(result.tools[0].function.name, "lookup");
 });
 
-test("Responses→Chat: code_interpreter tool type throws unsupported error", () => {
+test("Responses→Chat: code_interpreter tool type is stripped on Chat translation", () => {
   const body = {
     model: "gpt-4",
     input: "analyze this data",
     tools: [{ type: "code_interpreter" }],
   };
-  assert.throws(
-    () => openaiResponsesToOpenAIRequest(null, body, null, null),
-    (err) => err.message.includes("code_interpreter") && err.statusCode === 400
-  );
+  const result = openaiResponsesToOpenAIRequest(null, body, null, null);
+  assert.equal(result.tools, undefined);
 });
 
 test("Responses→Chat: background:true logs warning but does not throw", () => {
@@ -635,21 +635,105 @@ test("Responses→Chat: background:true logs warning but does not throw", () => 
   );
 });
 
-test("Responses→Chat: unsupported tool error has statusCode 400 and errorType", () => {
+test("Responses→Chat: web_search_preview is stripped so Codex can hit a combo", () => {
   const body = {
     model: "gpt-4",
     input: "search",
     tools: [{ type: "web_search_preview" }],
   };
-  let caughtError = null;
-  try {
-    openaiResponsesToOpenAIRequest(null, body, null, null);
-  } catch (err) {
-    caughtError = err;
-  }
-  assert.ok(caughtError, "should throw");
-  assert.equal(caughtError.statusCode, 400);
-  assert.equal(caughtError.errorType, "unsupported_feature");
+  const result = openaiResponsesToOpenAIRequest(null, body, null, null);
+  assert.equal(result.tools, undefined);
+});
+
+test("Responses→Chat: Codex namespace tools are stripped, function tools remain", () => {
+  const result = openaiResponsesToOpenAIRequest(
+    null,
+    {
+      model: "agents-coding",
+      input: [
+        { type: "message", role: "user", content: [{ type: "input_text", text: "$ak-help" }] },
+      ],
+      tools: [
+        {
+          type: "namespace",
+          name: "collaboration",
+          description: "Tools for spawning and managing sub-agents.",
+        },
+        {
+          type: "function",
+          name: "shell",
+          description: "Run a shell command",
+          parameters: { type: "object", properties: { command: { type: "string" } } },
+        },
+      ],
+    },
+    null,
+    null
+  );
+  assert.equal(result.tools.length, 1);
+  assert.equal(result.tools[0].type, "function");
+  assert.equal(result.tools[0].function.name, "shell");
+  assert.equal(result.messages[0].content[0].text, "$ak-help");
+});
+
+test("Responses→Chat: namespace-only tools do not 400", () => {
+  const result = openaiResponsesToOpenAIRequest(
+    null,
+    {
+      model: "agents-coding",
+      input: "hello",
+      tools: [{ type: "namespace", name: "collaboration" }],
+    },
+    null,
+    null
+  );
+  assert.equal(result.tools, undefined);
+  assert.ok(Array.isArray(result.messages));
+});
+
+test("Responses→Chat: developer role maps to system for OpenAI-compatible upstreams", () => {
+  const result = openaiResponsesToOpenAIRequest(
+    null,
+    {
+      model: "deepseek-v4-flash-vision-exp",
+      instructions: "You are Codex.",
+      input: [
+        {
+          type: "message",
+          role: "developer",
+          content: [{ type: "input_text", text: "Follow AGENTS.md." }],
+        },
+        {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "$ak-help" }],
+        },
+      ],
+    },
+    null,
+    null
+  );
+  assert.equal(result.messages[0].role, "system");
+  assert.equal(result.messages[0].content, "You are Codex.");
+  assert.equal(result.messages[1].role, "system");
+  assert.equal(result.messages[1].content[0].text, "Follow AGENTS.md.");
+  assert.equal(result.messages[2].role, "user");
+});
+
+test("Responses→Chat: custom tools translate to Chat function tools", () => {
+  const result = openaiResponsesToOpenAIRequest(
+    null,
+    {
+      model: "gpt-5",
+      input: "pwd",
+      tools: [{ type: "custom", name: "exec", description: "Run a command" }],
+    },
+    null,
+    null
+  );
+  assert.equal(result.tools.length, 1);
+  assert.equal(result.tools[0].type, "function");
+  assert.equal(result.tools[0].function.name, "exec");
 });
 
 // ---------------------------------------------------------------------------

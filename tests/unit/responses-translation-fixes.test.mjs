@@ -197,52 +197,48 @@ test("Chat→Responses: string tool_choice passes through unchanged", () => {
   assert.equal(result.tool_choice, "required");
 });
 
-test("Responses→Chat: built-in tool_choice type throws unsupported error", () => {
+test("Responses→Chat: built-in tool_choice type degrades to auto", () => {
   const body = {
     model: "gpt-4",
     input: "hello",
     tool_choice: { type: "web_search_preview" },
   };
-  assert.throws(
-    () => openaiResponsesToOpenAIRequest(null, body, null, null),
-    (err) => err.message.includes("web_search_preview")
-  );
+  const result = openaiResponsesToOpenAIRequest(null, body, null, null);
+  assert.equal(result.tool_choice, "auto");
 });
 
-test("Responses→Chat: web_search tool type throws unsupported error", () => {
+test("Responses→Chat: web_search tool type is stripped on Chat translation", () => {
   const body = {
     model: "gpt-4",
     input: "search for cats",
-    tools: [{ type: "web_search", search_context_size: "medium" }],
+    tools: [
+      { type: "web_search", search_context_size: "medium" },
+      { type: "function", name: "shell", parameters: { type: "object" } },
+    ],
   };
-  assert.throws(
-    () => openaiResponsesToOpenAIRequest(null, body, null, null),
-    (err) => err.message.includes("web_search")
-  );
+  const result = openaiResponsesToOpenAIRequest(null, body, null, null);
+  assert.equal(result.tools.length, 1);
+  assert.equal(result.tools[0].function.name, "shell");
 });
 
-test("Responses→Chat: computer tool type throws unsupported error", () => {
+test("Responses→Chat: computer tool type is stripped on Chat translation", () => {
   const body = {
     model: "gpt-4",
     input: "click button",
     tools: [{ type: "computer" }],
   };
-  assert.throws(
-    () => openaiResponsesToOpenAIRequest(null, body, null, null),
-    (err) => err.message.includes("computer")
-  );
+  const result = openaiResponsesToOpenAIRequest(null, body, null, null);
+  assert.equal(result.tools, undefined);
 });
 
-test("Responses→Chat: mcp tool type throws unsupported error", () => {
+test("Responses→Chat: mcp tool type is stripped on Chat translation", () => {
   const body = {
     model: "gpt-4",
     input: "hello",
     tools: [{ type: "mcp", server_label: "test", server_url: "https://example.com" }],
   };
-  assert.throws(
-    () => openaiResponsesToOpenAIRequest(null, body, null, null),
-    (err) => err.message.includes("mcp")
-  );
+  const result = openaiResponsesToOpenAIRequest(null, body, null, null);
+  assert.equal(result.tools, undefined);
 });
 
 test("Responses→Chat: non-string arguments are JSON-stringified", () => {
@@ -434,6 +430,36 @@ test("Chat→Responses streaming: usage-only chunk is captured (not dropped)", (
   assert.equal(completedEvent.data.response.usage.input_tokens, 10);
   assert.equal(completedEvent.data.response.usage.output_tokens, 5);
   assert.equal(completedEvent.data.response.usage.total_tokens, 15);
+});
+
+test("Chat→Responses streaming: copies DeepSeek reasoning_tokens onto output_tokens_details", () => {
+  const state = initState(FORMATS.OPENAI_RESPONSES);
+  openaiToOpenAIResponsesResponse(
+    { choices: [{ index: 0, delta: { content: "ok" }, finish_reason: null }], id: "c1" },
+    state
+  );
+  openaiToOpenAIResponsesResponse(
+    {
+      choices: [],
+      usage: {
+        prompt_tokens: 32028,
+        completion_tokens: 155,
+        total_tokens: 32183,
+        prompt_tokens_details: { cached_tokens: 31232 },
+        completion_tokens_details: { reasoning_tokens: 81 },
+      },
+    },
+    state
+  );
+  const finishEvents = openaiToOpenAIResponsesResponse(
+    { choices: [{ index: 0, delta: {}, finish_reason: "stop" }] },
+    state
+  );
+  const completedEvent = finishEvents.find((e) => e.event === "response.completed");
+  assert.ok(completedEvent);
+  assert.equal(completedEvent.data.response.usage.input_tokens, 32028);
+  assert.equal(completedEvent.data.response.usage.input_tokens_details.cached_tokens, 31232);
+  assert.equal(completedEvent.data.response.usage.output_tokens_details.reasoning_tokens, 81);
 });
 
 test("Chat→Responses streaming: completed event includes accumulated output", () => {

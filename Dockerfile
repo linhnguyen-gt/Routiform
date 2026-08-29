@@ -22,6 +22,10 @@ RUN npm pkg delete scripts.prepare \
 
 COPY . ./
 
+# Dashboard GET /api/openapi/spec fs.reads this at runtime. Next standalone does
+# not trace that path, and docs/ is otherwise dockerignored.
+RUN mkdir -p public/docs && cp docs/openapi.yaml public/docs/openapi.yaml
+
 # The chat is a separate SvelteKit build (open-webui/ -> public/owui). It MUST run before the
 # Next build, because `output: standalone` copies public/ as it finds it — and public/owui is a
 # gitignored artifact, so without this the image ships with no chat at all: /owui 404s and
@@ -65,6 +69,7 @@ RUN apt-get update \
 RUN mkdir -p /app/data
 
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/docs/openapi.yaml ./docs/openapi.yaml
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/.next/standalone ./
 # Explicitly copy @swc/helpers — not always traced by standalone output but needed at runtime

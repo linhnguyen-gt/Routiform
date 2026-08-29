@@ -26,6 +26,15 @@ function truncateText(value, max = 180) {
   return normalized.length > max ? `${normalized.slice(0, max)}...` : normalized;
 }
 
+function pickNullableToken(...values) {
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") continue;
+    const numeric = typeof value === "bigint" ? Number(value) : Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+  }
+  return null;
+}
+
 function formatSummaryValue(value) {
   if (value === null || value === undefined || value === "") return "—";
   if (typeof value === "boolean") return value ? "Yes" : "No";
@@ -257,9 +266,30 @@ export default function RequestLoggerDetail({ log, detail, loading, onClose, onC
   const responseJson = detail?.responseBody ? toPrettyJson(detail.responseBody) : null;
   const tokenIn = detail?.tokens?.in ?? log.tokens?.in ?? 0;
   const tokenOut = detail?.tokens?.out ?? log.tokens?.out ?? 0;
-  const tokenCacheRead = detail?.tokens?.cacheRead ?? log.tokens?.cacheRead ?? null;
-  const tokenCacheCreation = detail?.tokens?.cacheCreation ?? log.tokens?.cacheCreation ?? null;
-  const tokenReasoning = detail?.tokens?.reasoning ?? log.tokens?.reasoning ?? null;
+  const tokenCacheRead = pickNullableToken(
+    detail?.tokens?.cacheRead,
+    detail?.tokens?.cache_read,
+    detail?.tokens?.cached_tokens,
+    log.tokens?.cacheRead,
+    log.tokens?.cache_read,
+    detail?.tokens?.promptDetails?.cached_tokens
+  );
+  const tokenCacheCreation = pickNullableToken(
+    detail?.tokens?.cacheCreation,
+    detail?.tokens?.cache_creation,
+    log.tokens?.cacheCreation,
+    log.tokens?.cache_creation,
+    detail?.tokens?.promptDetails?.cache_creation_tokens
+  );
+  const tokenReasoning = pickNullableToken(
+    detail?.tokens?.reasoning,
+    detail?.tokens?.reasoning_tokens,
+    log.tokens?.reasoning,
+    log.tokens?.reasoning_tokens,
+    detail?.tokens?.completionDetails?.reasoning_tokens,
+    detail?.tokens?.output_tokens_details?.reasoning_tokens,
+    detail?.tokens?.outputDetails?.reasoning_tokens
+  );
   const durationMs = detail?.duration ?? log.duration ?? 0;
   const tokensPerSecond = computeTokensPerSecond(tokenOut, durationMs);
 
@@ -271,8 +301,7 @@ export default function RequestLoggerDetail({ log, detail, loading, onClose, onC
   const providerRequestWrapper = payloads?.providerRequest as Record<string, unknown> | undefined;
   const providerRequestBody = providerRequestWrapper?.body as Record<string, unknown> | undefined;
   const clientRequestBody = (payloads?.clientRequest ?? detail?.requestBody) as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
 
   const reasoningEffort =
     (providerRequestBody?.reasoning as Record<string, unknown>)?.effort ??

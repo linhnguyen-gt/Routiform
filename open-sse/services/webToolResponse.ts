@@ -1,3 +1,5 @@
+import { claudeUsageFromSnapshot, type PromptUsageSnapshot } from "./promptUsageMemory.ts";
+
 export type SearchHit = {
   title: string;
   url: string;
@@ -21,10 +23,16 @@ export function toWebSearchResults(hits: SearchHit[]) {
     }));
 }
 
-export function claudeSearchMessage(model: string, query: string, hits: SearchHit[]) {
+export function claudeSearchMessage(
+  model: string,
+  query: string,
+  hits: SearchHit[],
+  promptUsage?: PromptUsageSnapshot | null
+) {
   const toolId = srvtooluId();
   const results = toWebSearchResults(hits);
   const summary = formatSearchText(query, "web_search", hits);
+  const outputTokens = Math.max(1, Math.ceil(summary.length / 4));
   return {
     id: `msg_web_${Date.now()}`,
     type: "message",
@@ -38,16 +46,21 @@ export function claudeSearchMessage(model: string, query: string, hits: SearchHi
     stop_reason: "end_turn",
     stop_sequence: null,
     usage: {
-      input_tokens: 0,
-      output_tokens: Math.max(1, Math.ceil(summary.length / 4)),
+      ...claudeUsageFromSnapshot(promptUsage, outputTokens),
       server_tool_use: { web_search_requests: 1 },
     },
   };
 }
 
-export function claudeFetchMessage(model: string, url: string, text: string) {
+export function claudeFetchMessage(
+  model: string,
+  url: string,
+  text: string,
+  promptUsage?: PromptUsageSnapshot | null
+) {
   const toolId = srvtooluId();
   const retrievedAt = new Date().toISOString();
+  const outputTokens = Math.max(1, Math.ceil(text.length / 4));
   return {
     id: `msg_web_${Date.now()}`,
     type: "message",
@@ -73,19 +86,24 @@ export function claudeFetchMessage(model: string, url: string, text: string) {
     stop_reason: "end_turn",
     stop_sequence: null,
     usage: {
-      input_tokens: 0,
-      output_tokens: Math.max(1, Math.ceil(text.length / 4)),
+      ...claudeUsageFromSnapshot(promptUsage, outputTokens),
       server_tool_use: { web_fetch_requests: 1 },
     },
   };
 }
 
-export function claudeFetchSse(model: string, url: string, text: string): string {
-  const msg = claudeFetchMessage(model, url, text);
+export function claudeFetchSse(
+  model: string,
+  url: string,
+  text: string,
+  promptUsage?: PromptUsageSnapshot | null
+): string {
+  const msg = claudeFetchMessage(model, url, text, promptUsage);
   const id = msg.id;
+  const startUsage = claudeUsageFromSnapshot(promptUsage, 0);
   const blocks = msg.content as Array<Record<string, unknown>>;
   const parts = [
-    `event: message_start\ndata: ${JSON.stringify({ type: "message_start", message: { id, type: "message", role: "assistant", model, content: [], stop_reason: null, usage: { input_tokens: 0, output_tokens: 0 } } })}\n\n`,
+    `event: message_start\ndata: ${JSON.stringify({ type: "message_start", message: { id, type: "message", role: "assistant", model, content: [], stop_reason: null, usage: startUsage } })}\n\n`,
   ];
   blocks.forEach((block, index) => {
     parts.push(
@@ -96,18 +114,24 @@ export function claudeFetchSse(model: string, url: string, text: string): string
     );
   });
   parts.push(
-    `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 1, server_tool_use: { web_fetch_requests: 1 } } })}\n\n`
+    `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { ...claudeUsageFromSnapshot(promptUsage, 1), server_tool_use: { web_fetch_requests: 1 } } })}\n\n`
   );
   parts.push(`event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`);
   return parts.join("");
 }
 
-export function claudeSearchSse(model: string, query: string, hits: SearchHit[]): string {
-  const msg = claudeSearchMessage(model, query, hits);
+export function claudeSearchSse(
+  model: string,
+  query: string,
+  hits: SearchHit[],
+  promptUsage?: PromptUsageSnapshot | null
+): string {
+  const msg = claudeSearchMessage(model, query, hits, promptUsage);
   const id = msg.id;
+  const startUsage = claudeUsageFromSnapshot(promptUsage, 0);
   const blocks = msg.content as Array<Record<string, unknown>>;
   const parts = [
-    `event: message_start\ndata: ${JSON.stringify({ type: "message_start", message: { id, type: "message", role: "assistant", model, content: [], stop_reason: null, usage: { input_tokens: 0, output_tokens: 0 } } })}\n\n`,
+    `event: message_start\ndata: ${JSON.stringify({ type: "message_start", message: { id, type: "message", role: "assistant", model, content: [], stop_reason: null, usage: startUsage } })}\n\n`,
   ];
   blocks.forEach((block, index) => {
     parts.push(
@@ -123,7 +147,7 @@ export function claudeSearchSse(model: string, query: string, hits: SearchHit[])
     );
   });
   parts.push(
-    `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 1, server_tool_use: { web_search_requests: 1 } } })}\n\n`
+    `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { ...claudeUsageFromSnapshot(promptUsage, 1), server_tool_use: { web_search_requests: 1 } } })}\n\n`
   );
   parts.push(`event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`);
   return parts.join("");
@@ -144,7 +168,11 @@ export function formatSearchText(
   return `Web search results for "${query}" via ${provider}:\n\n${lines.join("\n\n")}`;
 }
 
-export function claudeMessage(model: string, text: string) {
+export function claudeMessage(
+  model: string,
+  text: string,
+  promptUsage?: PromptUsageSnapshot | null
+) {
   return {
     id: `msg_web_${Date.now()}`,
     type: "message",
@@ -153,7 +181,7 @@ export function claudeMessage(model: string, text: string) {
     content: [{ type: "text", text }],
     stop_reason: "end_turn",
     stop_sequence: null,
-    usage: { input_tokens: 0, output_tokens: Math.max(1, Math.ceil(text.length / 4)) },
+    usage: claudeUsageFromSnapshot(promptUsage, Math.max(1, Math.ceil(text.length / 4))),
   };
 }
 
@@ -178,7 +206,11 @@ export function openaiMessage(model: string, text: string) {
   };
 }
 
-export function claudeSse(model: string, text: string): string {
+export function claudeSse(
+  model: string,
+  text: string,
+  promptUsage?: PromptUsageSnapshot | null
+): string {
   const id = `msg_web_${Date.now()}`;
   const start = {
     type: "message_start",
@@ -189,7 +221,7 @@ export function claudeSse(model: string, text: string): string {
       model,
       content: [],
       stop_reason: null,
-      usage: { input_tokens: 0, output_tokens: 0 },
+      usage: claudeUsageFromSnapshot(promptUsage, 0),
     },
   };
   return [
@@ -197,7 +229,7 @@ export function claudeSse(model: string, text: string): string {
     `event: content_block_start\ndata: ${JSON.stringify({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } })}\n\n`,
     `event: content_block_delta\ndata: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text } })}\n\n`,
     `event: content_block_stop\ndata: ${JSON.stringify({ type: "content_block_stop", index: 0 })}\n\n`,
-    `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 1 } })}\n\n`,
+    `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: claudeUsageFromSnapshot(promptUsage, 1) })}\n\n`,
     `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`,
   ].join("");
 }

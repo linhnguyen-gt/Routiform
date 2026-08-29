@@ -22,11 +22,17 @@ function toString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
-function unsupportedFeature(message: string): Error & { statusCode: number; errorType: string } {
-  const error = new Error(message) as Error & { statusCode: number; errorType: string };
-  error.statusCode = 400;
-  error.errorType = "unsupported_feature";
-  return error;
+function isChatTranslatableTool(tool: JsonRecord): boolean {
+  const toolType = toString(tool.type);
+  if (!toolType || tool.function) return true;
+  return toolType === "function" || toolType === "custom";
+}
+
+/** Codex/Responses `developer` is OpenAI-only. DeepSeek/GLM/etc. 400 on it. */
+function toChatMessageRole(role: unknown): string {
+  const value = toString(role);
+  if (value.toLowerCase() === "developer") return "system";
+  return value;
 }
 
 /**
@@ -45,21 +51,28 @@ export function openaiResponsesToOpenAIRequest(
   const root = toRecord(body);
   if (root.input === undefined) return body;
 
-  // Validate tool types — only function tools can be translated to Chat Completions.
-  // Built-in tool types (web_search, web_search_preview, code_interpreter, computer, mcp, etc.)
-  // have no direct Chat Completions equivalent and are rejected explicitly so that callers
-  // receive a deterministic 400 error rather than silent data loss.
+  // Chat Completions can only express function/custom tools. Codex (and other
+  // Responses clients) also send hosted types — namespace, web_search, mcp,
+  // computer, file_search, … Native OpenAI still runs those on the passthrough
+  // path. On this translation path a 400 made Codex unusable against a combo;
+  // drop them and keep function tools (openai/codex#31875).
   const tools = toArray(root.tools);
+  const translatableTools: unknown[] = [];
+  const strippedToolTypes: string[] = [];
   if (tools.length > 0) {
     for (const toolValue of tools) {
       const tool = toRecord(toolValue);
-      const toolType = toString(tool.type);
-      // Allow: function tools, and tools already in Chat format (have .function property)
-      if (toolType && toolType !== "function" && !tool.function) {
-        throw unsupportedFeature(
-          `Unsupported Responses API feature: ${toolType} tool type is not supported by routiform`
-        );
+      if (isChatTranslatableTool(tool)) {
+        translatableTools.push(toolValue);
+        continue;
       }
+      const toolType = toString(tool.type) || "unknown";
+      if (!strippedToolTypes.includes(toolType)) strippedToolTypes.push(toolType);
+    }
+    if (strippedToolTypes.length > 0) {
+      console.warn(
+        `[responses] stripping Responses-only tool types on Chat translation: ${strippedToolTypes.join(", ")}`
+      );
     }
   }
 
@@ -142,7 +155,7 @@ export function openaiResponsesToOpenAIRequest(
           })
         : item.content;
 
-      messages.push({ role: toString(item.role), content });
+      messages.push({ role: toChatMessageRole(item.role), content });
       continue;
     }
 
@@ -220,9 +233,9 @@ export function openaiResponsesToOpenAIRequest(
     }
   }
 
-  // Convert tools format
-  if (Array.isArray(root.tools)) {
-    result.tools = root.tools.map((toolValue) => {
+  // Convert tools format (namespace entries already dropped).
+  if (translatableTools.length > 0) {
+    result.tools = translatableTools.map((toolValue) => {
       const tool = toRecord(toolValue);
       if (tool.function) return toolValue;
       return {
@@ -235,6 +248,8 @@ export function openaiResponsesToOpenAIRequest(
         },
       };
     });
+  } else {
+    delete result.tools;
   }
 
   // Filter orphaned tool results (no matching tool_call in assistant messages)
@@ -266,10 +281,10 @@ export function openaiResponsesToOpenAIRequest(
     if (tcType === "function" && tc.name !== undefined && !tc.function) {
       result.tool_choice = { type: "function", function: { name: tc.name } };
     } else if (tcType && tcType !== "function" && tcType !== "allowed_tools") {
-      // Built-in tool types (web_search_preview, file_search, etc.) have no Chat equivalent
-      throw unsupportedFeature(
-        `Unsupported Responses API feature: tool_choice type '${tcType}' is not supported by routiform`
+      console.warn(
+        `[responses] stripping Responses-only tool_choice type '${tcType}' — degrading to auto`
       );
+      result.tool_choice = "auto";
     }
   }
 
@@ -360,8 +375,7 @@ export function openaiToOpenAIResponsesRequest(
                 }
                 if (contentItem.type === "image_url") {
                   const imgUrl = contentItem.image_url as
-                    | string
-                    | { url?: string; detail?: string };
+                    string | { url?: string; detail?: string };
                   const imgResult: JsonRecord = {
                     type: "input_image",
                     image_url: typeof imgUrl === "string" ? imgUrl : imgUrl?.url || "",

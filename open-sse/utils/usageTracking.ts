@@ -114,35 +114,64 @@ export function addBufferToUsage(usage) {
 
   const result = { ...usage };
 
-  // Claude format
+  // Claude Code sums exclusive input_tokens + cache_*. Padding exclusive input
+  // when cache is present makes the meter tick 17% → 18% every turn.
+  const cacheTokens = getPromptCacheReadTokens(result) + getPromptCacheCreationTokens(result);
+  if (cacheTokens > 0) return result;
+
   if (result.input_tokens !== undefined) {
     result.input_tokens += buffer;
   }
 
-  // OpenAI format
   if (result.prompt_tokens !== undefined) {
     result.prompt_tokens += buffer;
   }
 
-  // Calculate or update total_tokens
   if (result.total_tokens !== undefined) {
     result.total_tokens += buffer;
   } else if (result.prompt_tokens !== undefined && result.completion_tokens !== undefined) {
-    // Calculate total_tokens if not exists
     result.total_tokens = result.prompt_tokens + result.completion_tokens;
   }
 
   return result;
 }
 
+function finiteTokenCount(value: unknown): number {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
 export function filterUsageForFormat(usage, targetFormat) {
   if (!usage || typeof usage !== "object") return usage;
 
   // Cross-map between Claude-style and OpenAI-style field names before filtering.
-  // Some providers return input_tokens/output_tokens even when using OpenAI format.
+  // Anthropic `input_tokens` is cache-EXCLUSIVE; OpenAI `prompt_tokens` (and
+  // OpenAI Responses `input_tokens`) are cache-INCLUSIVE. Copying one onto
+  // the other without peeling/adding cache makes Claude Code double-count
+  // cache_read and OpenAI clients drop it.
   const convertedUsage = { ...usage };
-  if (targetFormat === FORMATS.CLAUDE || targetFormat === FORMATS.OPENAI_RESPONSES) {
-    // OpenAI → Claude: prompt_tokens → input_tokens
+  if (targetFormat === FORMATS.CLAUDE) {
+    const cacheRead = getPromptCacheReadTokens(convertedUsage);
+    const cacheCreate = getPromptCacheCreationTokens(convertedUsage);
+    if (convertedUsage.cache_read_input_tokens === undefined && cacheRead > 0) {
+      convertedUsage.cache_read_input_tokens = cacheRead;
+    }
+    if (convertedUsage.cache_creation_input_tokens === undefined && cacheCreate > 0) {
+      convertedUsage.cache_creation_input_tokens = cacheCreate;
+    }
+    if (convertedUsage.prompt_tokens !== undefined && convertedUsage.input_tokens === undefined) {
+      convertedUsage.input_tokens = Math.max(
+        0,
+        finiteTokenCount(convertedUsage.prompt_tokens) - cacheRead - cacheCreate
+      );
+    }
+    if (
+      convertedUsage.completion_tokens !== undefined &&
+      convertedUsage.output_tokens === undefined
+    ) {
+      convertedUsage.output_tokens = convertedUsage.completion_tokens;
+    }
+  } else if (targetFormat === FORMATS.OPENAI_RESPONSES) {
     if (convertedUsage.prompt_tokens !== undefined && convertedUsage.input_tokens === undefined) {
       convertedUsage.input_tokens = convertedUsage.prompt_tokens;
     }
@@ -152,10 +181,38 @@ export function filterUsageForFormat(usage, targetFormat) {
     ) {
       convertedUsage.output_tokens = convertedUsage.completion_tokens;
     }
+    if (
+      convertedUsage.input_tokens_details === undefined &&
+      convertedUsage.prompt_tokens_details !== undefined
+    ) {
+      convertedUsage.input_tokens_details = convertedUsage.prompt_tokens_details;
+    }
+    const reasoning =
+      convertedUsage.output_tokens_details?.reasoning_tokens ??
+      convertedUsage.completion_tokens_details?.reasoning_tokens ??
+      convertedUsage.reasoning_tokens;
+    if (convertedUsage.output_tokens_details === undefined) {
+      if (convertedUsage.completion_tokens_details !== undefined) {
+        convertedUsage.output_tokens_details = convertedUsage.completion_tokens_details;
+      } else if (typeof reasoning === "number" && reasoning > 0) {
+        convertedUsage.output_tokens_details = { reasoning_tokens: reasoning };
+      }
+    } else if (
+      convertedUsage.output_tokens_details.reasoning_tokens === undefined &&
+      typeof reasoning === "number" &&
+      reasoning > 0
+    ) {
+      convertedUsage.output_tokens_details = {
+        ...convertedUsage.output_tokens_details,
+        reasoning_tokens: reasoning,
+      };
+    }
   } else {
-    // Claude → OpenAI: input_tokens → prompt_tokens
     if (convertedUsage.input_tokens !== undefined && convertedUsage.prompt_tokens === undefined) {
-      convertedUsage.prompt_tokens = convertedUsage.input_tokens;
+      convertedUsage.prompt_tokens =
+        finiteTokenCount(convertedUsage.input_tokens) +
+        getPromptCacheReadTokens(convertedUsage) +
+        getPromptCacheCreationTokens(convertedUsage);
     }
     if (
       convertedUsage.output_tokens !== undefined &&
@@ -163,7 +220,6 @@ export function filterUsageForFormat(usage, targetFormat) {
     ) {
       convertedUsage.completion_tokens = convertedUsage.output_tokens;
     }
-    // Ensure total_tokens is set
     if (
       convertedUsage.total_tokens === undefined &&
       convertedUsage.prompt_tokens !== undefined &&
@@ -451,6 +507,9 @@ export function extractUsage(chunk) {
 
 // Heuristic token estimation constants
 const CHARS_PER_TOKEN_SCHEMA = 6; // ~6 chars/token for JSON schemas (more verbose per token)
+/** Anthropic-style flat cost for one image block. Base64 is not text. */
+export const ESTIMATED_IMAGE_TOKENS = 2000;
+const BASE64_MIN_CHARS = 8000;
 
 /**
  * Improved token estimation heuristic (no dependency).
@@ -485,33 +544,107 @@ function estimateTokenCount(text) {
   return cjkCount + estimatedNonCJK;
 }
 
+function isBase64Blob(text: string): boolean {
+  if (/^data:[^;,\s]+;base64,/i.test(text)) return true;
+  if (text.length < BASE64_MIN_CHARS) return false;
+  const head = text.slice(0, 120).replace(/\s+/g, "");
+  return /^[A-Za-z0-9+/=]+$/.test(head);
+}
+
+function estimateTextTokens(text: unknown): number {
+  if (typeof text !== "string" || !text) return 0;
+  if (isBase64Blob(text)) return ESTIMATED_IMAGE_TOKENS;
+  return estimateTokenCount(text);
+}
+
+function estimateContentTokens(content: unknown): number {
+  if (!content) return 0;
+  if (typeof content === "string") return estimateTextTokens(content);
+  if (!Array.isArray(content)) return 0;
+  let total = 0;
+  for (const part of content) {
+    if (!part || typeof part !== "object") {
+      total += estimateTextTokens(String(part));
+      continue;
+    }
+    const block = part as Record<string, unknown>;
+    const type = block.type;
+    if (type === "image" || type === "image_url" || type === "input_image") {
+      total += ESTIMATED_IMAGE_TOKENS;
+      continue;
+    }
+    if (typeof block.text === "string") total += estimateTextTokens(block.text);
+    if (typeof block.thinking === "string") total += estimateTokenCount(block.thinking);
+    if (typeof block.image_url === "string") total += ESTIMATED_IMAGE_TOKENS;
+    else if (block.image_url && typeof block.image_url === "object") {
+      const url = (block.image_url as Record<string, unknown>).url;
+      total += typeof url === "string" && url.startsWith("data:") ? ESTIMATED_IMAGE_TOKENS : 0;
+    }
+    if (block.input) {
+      total +=
+        typeof block.input === "string"
+          ? estimateTextTokens(block.input)
+          : estimateTokenCount(JSON.stringify(block.input));
+    }
+    if (block.content) total += estimateContentTokens(block.content);
+  }
+  return total;
+}
+
+function estimateSystemTokens(system: unknown): number {
+  if (!system) return 0;
+  if (typeof system === "string") return estimateTextTokens(system);
+  if (!Array.isArray(system)) return 0;
+  let total = 0;
+  for (const block of system) {
+    if (typeof block === "string") total += estimateTextTokens(block);
+    else if (
+      block &&
+      typeof block === "object" &&
+      typeof (block as { text?: unknown }).text === "string"
+    ) {
+      total += estimateTextTokens((block as { text: string }).text);
+    }
+  }
+  return total;
+}
+
+function estimateToolSchemaTokens(tools: unknown): number {
+  if (!Array.isArray(tools) || tools.length === 0) return 0;
+  try {
+    return Math.ceil(JSON.stringify(tools).length / CHARS_PER_TOKEN_SCHEMA);
+  } catch {
+    return 0;
+  }
+}
+
+export type EstimateInputTokenOptions = {
+  /** Skip messages — used for Claude Code compact so the meter drops to the surviving floor. */
+  excludeMessages?: boolean;
+};
+
 /**
  * Estimate input tokens from request body.
- * Separates tool definitions (JSON schemas) from message content
- * for more accurate estimation since JSON schemas are more verbose but
- * compress into fewer tokens than plain text.
+ * Counts system text, message text, and tool schemas. Image / base64 blocks
+ * use a flat image cost instead of treating PNG bytes as language tokens.
  */
-export function estimateInputTokens(body) {
+export function estimateInputTokens(body, options: EstimateInputTokenOptions = {}) {
   if (!body || typeof body !== "object") return 0;
 
   try {
-    let toolTokens = 0;
-    let messageTokens = 0;
+    let total = estimateToolSchemaTokens(body.tools);
+    total += estimateSystemTokens(body.system);
+    if (options.excludeMessages) return total;
 
-    // Separate tool definitions from the rest of the body
-    if (body.tools && Array.isArray(body.tools)) {
-      const toolStr = JSON.stringify(body.tools);
-      toolTokens = Math.ceil(toolStr.length / CHARS_PER_TOKEN_SCHEMA);
-      // Estimate messages without tools
-      const { tools: _tools, ...bodyWithoutTools } = body;
-      messageTokens = estimateTokenCount(JSON.stringify(bodyWithoutTools));
-    } else {
-      messageTokens = estimateTokenCount(JSON.stringify(body));
+    if (Array.isArray(body.messages)) {
+      for (const message of body.messages) {
+        if (!message || typeof message !== "object") continue;
+        total += estimateContentTokens(message.content);
+        total += 4;
+      }
     }
-
-    return messageTokens + toolTokens;
-  } catch (_err) {
-    // Fallback if stringify fails
+    return total;
+  } catch {
     return 0;
   }
 }

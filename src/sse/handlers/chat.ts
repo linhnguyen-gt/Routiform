@@ -12,6 +12,7 @@ import {
 } from "@routiform/open-sse/services/provider.ts";
 import { handleChatCore } from "@routiform/open-sse/handlers/chatCore.ts";
 import { interceptWebTools } from "@routiform/open-sse/services/webToolIntercept.ts";
+import { recallPromptUsage } from "@routiform/open-sse/services/promptUsageMemory.ts";
 import {
   hasUsableClaudeCredentials,
   helperNeedsComboFallback,
@@ -226,6 +227,7 @@ export async function handleChat(
     format: detectFormatFromEndpoint(body, url.pathname),
     stream: body.stream === true,
     log,
+    promptUsage: recallPromptUsage([sessionId, apiKeyInfo?.id ? String(apiKeyInfo.id) : null]),
   });
   if (webToolResponse) {
     log.info("WEB_TOOLS", `Intercepted web_search/web_fetch for ${modelStr}`);
