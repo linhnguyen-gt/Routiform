@@ -371,6 +371,10 @@ export function initState(sourceFormat) {
     return {
       ...base,
       seq: 0,
+      nextOutputIndex: 0,
+      outputIndexMap: {},
+      msgOutputIndices: {},
+      funcOutputIndices: {},
       responseId: `resp_${Date.now()}`,
       created: Math.floor(Date.now() / 1000),
       started: false,

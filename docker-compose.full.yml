@@ -26,6 +26,10 @@ services:
     volumes:
       - routiform-data:/app/data
       - ./scripts/bootstrap-env.mjs:/app/bootstrap-env.mjs:ro
+      - ./open-sse:/app/open-sse:ro
+      - ./.next/server:/app/.next/server:ro
+      - ./.next/standalone:/app/.next/standalone:ro
+      - ./.next/static:/app/.next/static:ro
       - ${HOME}/.claude:/host-home/.claude
       - ${HOME}/.claude:/root/.claude
       - ${HOME}/.codex:/host-home/.codex

@@ -45,6 +45,7 @@ x-common: &common
     - API_HOST=${API_HOST:-0.0.0.0}
   volumes:
     - routiform-data:/app/data
+    - ./scripts/bootstrap-env.mjs:/app/bootstrap-env.mjs:ro
   healthcheck:
     test: ["CMD", "node", "healthcheck.mjs"]
     interval: 30s

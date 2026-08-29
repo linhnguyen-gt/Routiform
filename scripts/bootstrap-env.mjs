@@ -153,8 +153,7 @@ export function bootstrapEnv({ dataDirOverride, quiet = false } = {}) {
 
   // ── Layer 2: Load the same preferred .env that the CLI wrapper uses ───────
   // This keeps run-next / run-standalone consistent with `bin/routiform.mjs`.
-  const merged = { ...persisted, ...preferredEnv, ...process.env };
-
+  const merged = { ...persisted, ...preferredEnv, ...omitEmptyEnvValues(process.env) };
   // ── Auto-generate required secrets ────────────────────────────────────────
   let needsPersist = false;
 
