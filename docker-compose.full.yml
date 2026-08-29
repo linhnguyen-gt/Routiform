@@ -2,7 +2,7 @@
 services:
   routiform:
     container_name: routiform
-    image: ${ROUTIFORM_IMAGE:-linhnguyen0944/routiform:cli}
+    image: ${ROUTIFORM_IMAGE:-routiform:cli}
     pull_policy: missing
     restart: unless-stopped
     stop_grace_period: 40s
@@ -27,9 +27,6 @@ services:
       - routiform-data:/app/data
       - ./scripts/bootstrap-env.mjs:/app/bootstrap-env.mjs:ro
       - ./open-sse:/app/open-sse:ro
-      - ./.next/server:/app/.next/server:ro
-      - ./.next/standalone:/app/.next/standalone:ro
-      - ./.next/static:/app/.next/static:ro
       - ${HOME}/.claude:/host-home/.claude
       - ${HOME}/.claude:/root/.claude
       - ${HOME}/.codex:/host-home/.codex

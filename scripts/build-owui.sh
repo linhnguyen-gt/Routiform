@@ -28,7 +28,7 @@ cd "$SRC"
 if [ ! -d node_modules ]; then
   # Upstream pins node <=22 via engine-strict; the build itself is fine on newer runtimes.
   echo "==> installing open-webui frontend deps"
-  npm install --engine-strict=false --no-audit --no-fund
+  npm install --engine-strict=false --no-audit --no-fund || npm install --engine-strict=false --no-audit --no-fund --ignore-scripts
 fi
 
 echo "==> building static SPA"
