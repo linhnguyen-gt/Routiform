@@ -367,10 +367,34 @@ export function createResponsesApiTransformStream(
         output,
       };
 
-      if (state.usage) {
-        response.usage = state.usage;
+      if (state.model) {
+        response.model = state.model;
       }
 
+      if (state.usage) {
+        const u = state.usage;
+        const inTok = u.input_tokens ?? u.prompt_tokens ?? 0;
+        const outTok = u.output_tokens ?? u.completion_tokens ?? 0;
+        response.usage = {
+          input_tokens: inTok,
+          output_tokens: outTok,
+          total_tokens: u.total_tokens ?? inTok + outTok,
+          input_token_details: u.input_token_details ??
+            u.prompt_tokens_details ?? { cached_tokens: 0 },
+          output_token_details: u.output_token_details ??
+            u.completion_tokens_details ?? { reasoning_tokens: 0 },
+        };
+      } else {
+        const estimatedIn = 1000;
+        const estimatedOut = Math.max(1, Math.ceil((state.accumulatedOutputLength || 0) / 3.5));
+        response.usage = {
+          input_tokens: estimatedIn,
+          output_tokens: estimatedOut,
+          total_tokens: estimatedIn + estimatedOut,
+          input_token_details: { cached_tokens: 0 },
+          output_token_details: { reasoning_tokens: 0 },
+        };
+      }
       emit(controller, "response.completed", {
         type: "response.completed",
         response,

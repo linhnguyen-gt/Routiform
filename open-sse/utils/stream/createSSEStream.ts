@@ -157,6 +157,8 @@ export function createSSEStream(options: StreamOptions = {}) {
       ? {
           ...(initState(sourceFormat) as TranslateState),
           provider,
+          model,
+          inputTokens: estimateInputTokens(body),
           toolNameMap,
           accumulatedContent: "",
           promptUsageSeed,

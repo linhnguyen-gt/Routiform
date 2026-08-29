@@ -108,7 +108,6 @@ export function resolveTokenLimits(opts: {
       }
     }
   }
-
   return {
     ...(contextLength ? { context_length: contextLength } : {}),
     ...(maxOutputTokens ? { max_output_tokens: maxOutputTokens } : {}),
@@ -701,11 +700,45 @@ export async function getUnifiedModelsResponse(
       }
       finalModels = filtered;
     }
+    const enrichedModels = finalModels.map((m) => {
+      const entry = m as Record<string, unknown>;
+      const ctx = entry.context_window ?? entry.context_length ?? CONTEXT_CONFIG.defaultLimit;
+      const outLimit =
+        entry.max_output_tokens ?? positiveLimit(CONTEXT_CONFIG.defaultOutputLimit) ?? 16384;
+      return {
+        ...entry,
+        slug: (entry.slug as string) || (entry.id as string) || (entry.root as string) || "unknown",
+        display_name:
+          (entry.display_name as string) || (entry.name as string) || (entry.id as string),
+        description: (entry.description as string) || "",
+        visibility: "list",
+        context_window: ctx,
+        max_context_tokens: ctx,
+        max_output_tokens: outLimit,
+        default_reasoning_level: "medium",
+        supported_reasoning_levels: [
+          { effort: "low", description: "Low reasoning effort" },
+          { effort: "medium", description: "Medium reasoning effort" },
+          { effort: "high", description: "High reasoning effort" },
+        ],
+        shell_type: "default",
+        supported_in_api: true,
+        support_verbosity: false,
+        truncation_policy: { mode: "tokens", limit: ctx },
+        experimental_supported_tools: [],
+        base_instructions: "",
+        input_modalities: ["text", "image"],
+        output_modalities: ["text"],
+        is_default: false,
+        priority: 0,
+      };
+    });
 
     return Response.json(
       {
         object: "list",
-        data: finalModels,
+        data: enrichedModels,
+        models: enrichedModels,
       },
       {
         headers: corsHeaders,

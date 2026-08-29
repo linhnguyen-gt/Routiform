@@ -32,6 +32,12 @@ export function openaiToOpenAIResponsesResponse(chunk, state) {
     for (const e of flushEvents(state)) events.push(e);
     return events;
   }
+  if (chunk.model && !state.model) {
+    state.model = chunk.model;
+  }
+  if (chunk.created && !state.created) {
+    state.created = chunk.created;
+  }
 
   // Capture usage from all chunks that carry it (usage-only chunks OR final chunks with finish_reason)
   // Normalize Chat Completions format (prompt_tokens/completion_tokens) to Responses API format
@@ -49,17 +55,16 @@ export function openaiToOpenAIResponsesResponse(chunk, state) {
     };
     const cached = u.prompt_tokens_details?.cached_tokens ?? u.input_tokens_details?.cached_tokens;
     if (cached) {
-      state.usage.input_tokens_details = { cached_tokens: cached };
+      state.usage.input_token_details = { cached_tokens: cached };
     }
     const reasoning =
       u.completion_tokens_details?.reasoning_tokens ??
       u.output_tokens_details?.reasoning_tokens ??
       u.reasoning_tokens;
     if (typeof reasoning === "number" && reasoning > 0) {
-      state.usage.output_tokens_details = { reasoning_tokens: reasoning };
+      state.usage.output_token_details = { reasoning_tokens: reasoning };
     }
   }
-
   if (!chunk.choices?.length) {
     return [];
   }
@@ -465,22 +470,54 @@ function sendCompleted(state, emit) {
     const response: Record<string, unknown> = {
       id: state.responseId,
       object: "response",
-      created_at: state.created,
+      created_at: state.created || Math.floor(Date.now() / 1000),
       status: "completed",
       background: false,
       error: null,
       output,
     };
 
-    if (state.usage) {
-      response.usage = state.usage;
-    }
-
-    // Forward any model metadata captured on the state.
     if (state.model) {
       response.model = state.model;
     }
 
+    if (state.usage) {
+      const u = state.usage;
+      const inTok = u.input_tokens ?? u.prompt_tokens ?? 0;
+      const outTok = u.output_tokens ?? u.completion_tokens ?? 0;
+      const cached =
+        u.input_tokens_details?.cached_tokens ??
+        u.input_token_details?.cached_tokens ??
+        u.prompt_tokens_details?.cached_tokens ??
+        0;
+      const reasoning =
+        u.output_tokens_details?.reasoning_tokens ??
+        u.output_token_details?.reasoning_tokens ??
+        u.completion_tokens_details?.reasoning_tokens ??
+        0;
+      response.usage = {
+        input_tokens: inTok,
+        output_tokens: outTok,
+        total_tokens: u.total_tokens ?? inTok + outTok,
+        input_token_details: { cached_tokens: cached },
+        input_tokens_details: { cached_tokens: cached },
+        output_token_details: { reasoning_tokens: reasoning },
+        output_tokens_details: { reasoning_tokens: reasoning },
+      };
+    } else {
+      const estimatedIn =
+        typeof state.inputTokens === "number" && state.inputTokens > 0 ? state.inputTokens : 1000;
+      const estimatedOut = Math.max(1, Math.ceil((state.accumulatedOutputLength || 0) / 3.5));
+      response.usage = {
+        input_tokens: estimatedIn,
+        output_tokens: estimatedOut,
+        total_tokens: estimatedIn + estimatedOut,
+        input_token_details: { cached_tokens: 0 },
+        input_tokens_details: { cached_tokens: 0 },
+        output_token_details: { reasoning_tokens: 0 },
+        output_tokens_details: { reasoning_tokens: 0 },
+      };
+    }
     emit("response.completed", {
       type: "response.completed",
       response,

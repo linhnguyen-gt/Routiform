@@ -262,3 +262,66 @@ test("createSSEStream cancel after terminal event calculates and passes finalUsa
     "completion tokens must be > 0"
   );
 });
+test("openaiToOpenAIResponsesResponse always includes usage and model in response.completed", async () => {
+  const { openaiToOpenAIResponsesResponse } =
+    await import("../../open-sse/translator/response/openai-responses.ts");
+  const { initState } = await import("../../open-sse/translator/index.ts");
+  const { FORMATS } = await import("../../open-sse/translator/formats.ts");
+
+  const state = initState(FORMATS.OPENAI_RESPONSES);
+  state.model = "ollamacloud/glm-5.3-flash";
+  state.inputTokens = 1250;
+
+  const chunk1 = {
+    id: "chatcmpl-test",
+    created: 1788014500,
+    model: "glm-5.3-flash",
+    choices: [
+      {
+        index: 0,
+        delta: { content: "Hello world!" },
+      },
+    ],
+  };
+  openaiToOpenAIResponsesResponse(chunk1, state);
+
+  const finishChunk = {
+    id: "chatcmpl-test",
+    choices: [
+      {
+        index: 0,
+        delta: {},
+        finish_reason: "stop",
+      },
+    ],
+  };
+  const finishEvents = openaiToOpenAIResponsesResponse(finishChunk, state);
+  const completed = finishEvents.find((e) => e.event === "response.completed");
+  assert.ok(completed, "response.completed event must be emitted");
+  assert.ok(completed.data.response.usage, "response.usage must be present");
+  assert.equal(completed.data.response.usage.input_tokens, 1250);
+  assert.ok(completed.data.response.usage.output_tokens > 0);
+  assert.equal(
+    completed.data.response.usage.total_tokens,
+    completed.data.response.usage.input_tokens + completed.data.response.usage.output_tokens
+  );
+  assert.ok(completed.data.response.model, "response.model must be present");
+});
+
+test("getUnifiedModelsResponse returns models alias and token limits for ollamacloud models", async () => {
+  const v1ModelsCatalog = await import("../../src/app/api/v1/models/catalog.ts");
+  const response = await v1ModelsCatalog.getUnifiedModelsResponse(
+    new Request("http://localhost/api/v1/models", { method: "GET" })
+  );
+  assert.equal(response.status, 200);
+  const json = await response.json();
+  assert.ok(Array.isArray(json.data), "json.data must be array");
+  assert.ok(Array.isArray(json.models), "json.models alias must be array for Codex CLI");
+  assert.equal(json.models.length, json.data.length);
+
+  const glm = json.data.find((m) => m.id.includes("glm") || m.id.includes("ollama"));
+  if (glm) {
+    assert.ok(glm.context_length > 0, "model must carry positive context_length");
+    assert.ok(glm.max_output_tokens > 0, "model must carry positive max_output_tokens");
+  }
+});
