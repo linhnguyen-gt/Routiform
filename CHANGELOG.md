@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [6.6.0](https://github.com/linhnguyen-gt/Routiform/compare/v6.5.0...v6.6.0) (2026-08-30)
+
+
+### Features
+
+* **ollama:** implement full ollama api endpoints and fix cloud models url ([120bda0](https://github.com/linhnguyen-gt/Routiform/commit/120bda0d1cba98fb7560fcc85e1809125bec42a0))
+* **translator:** add pdf document support and filter server tool use in claude translation ([64d4692](https://github.com/linhnguyen-gt/Routiform/commit/64d4692558c1633679893cc5ec82f8fc8f7b2fdd))
+* **translator:** implement fenced thinking scanner and leaked reasoning stream healer ([a052356](https://github.com/linhnguyen-gt/Routiform/commit/a052356990a4ebcf6f5b29641671a45f80e2f9e4))
+
+
+### Bug Fixes
+
+* **ci:** disable provenance and limit concurrency in docker publish workflow ([fc130bf](https://github.com/linhnguyen-gt/Routiform/commit/fc130bf41060edb467d0cb80a70925d42daab754))
+* **codex:** align model catalog schema and responses usage for codex context tracking ([03b140e](https://github.com/linhnguyen-gt/Routiform/commit/03b140e5e2cd47d45d7b926f5a3448517a30f1fd))
+* **docker:** remove split-brain .next volume mounts and fix owui build resilience ([ed00cea](https://github.com/linhnguyen-gt/Routiform/commit/ed00cea012396018c0772d43cde245c019245b54))
+* **machine-id:** replace process.platform guards with runtime env probes ([3b1ca25](https://github.com/linhnguyen-gt/Routiform/commit/3b1ca2566a18da8317de9a15136797af0eba4625))
+* **responses:** ensure reasoning item completes before message/tool output starts ([caf0ef3](https://github.com/linhnguyen-gt/Routiform/commit/caf0ef3a3cf1c232bf5142747a54226ae2efbc0b))
+* **responses:** fix output_index collision in responses stream translation ([29e0313](https://github.com/linhnguyen-gt/Routiform/commit/29e031306e6189ca9842d4795264b2962f191bbf))
+* **sse:** classify post-completion client disconnects as 200 success ([d7ca75b](https://github.com/linhnguyen-gt/Routiform/commit/d7ca75b18ec8b565a91e07fa3d59f0e79556d791))
+* **usage:** accurately track tokens for responses API and tool streams ([4641810](https://github.com/linhnguyen-gt/Routiform/commit/4641810b747283d8066e4fdc17bd2ba5d249683f))
+
 ## [6.5.0](https://github.com/linhnguyen-gt/Routiform/compare/v6.4.0...v6.5.0) (2026-08-29)
 
 
