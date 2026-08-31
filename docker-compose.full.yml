@@ -2,7 +2,7 @@
 services:
   routiform:
     container_name: routiform
-    image: ${ROUTIFORM_IMAGE:-routiform:cli}
+    image: ${ROUTIFORM_IMAGE:-linhnguyen0944/routiform:cli}
     pull_policy: missing
     restart: unless-stopped
     stop_grace_period: 40s
