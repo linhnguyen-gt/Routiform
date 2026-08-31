@@ -25,8 +25,6 @@ services:
       - "${ROUTIFORM_API_PORT:-20129}:20129"
     volumes:
       - routiform-data:/app/data
-      - ./scripts/bootstrap-env.mjs:/app/bootstrap-env.mjs:ro
-      - ./open-sse:/app/open-sse:ro
       - ${HOME}/.claude:/host-home/.claude
       - ${HOME}/.claude:/root/.claude
       - ${HOME}/.codex:/host-home/.codex
