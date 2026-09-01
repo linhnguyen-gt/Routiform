@@ -6,6 +6,7 @@ import { getGlmUsage } from "./glm-usage.ts";
 import { getQoderUsage } from "./qwen-qoder-usage.ts";
 import { getKimiUsage } from "./kimi-usage.ts";
 import { getKiroUsage } from "./kiro-usage.ts";
+import { getOllamaCloudUsage } from "./ollama-cloud-usage.ts";
 import { getXaiUsage } from "./xai-usage.ts";
 
 /**
@@ -35,6 +36,9 @@ export async function getUsageForProvider(connection) {
       return await getGlmUsage(apiKey, providerSpecificData);
     case "xai":
       return await getXaiUsage(accessToken);
+    case "ollama-cloud":
+    case "ollamacloud":
+      return await getOllamaCloudUsage(providerSpecificData);
     default:
       return { message: `Usage API not implemented for ${provider}` };
   }

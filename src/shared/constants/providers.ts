@@ -92,6 +92,7 @@ export const USAGE_SUPPORTED_PROVIDERS = [
   "kimi-coding",
   "glm",
   "xai",
+  "ollama-cloud",
 ];
 
 validateProviders(FREE_PROVIDERS, "FREE_PROVIDERS");

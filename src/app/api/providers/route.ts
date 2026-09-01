@@ -139,13 +139,18 @@ export async function GET() {
     const safeConnections = backfilled.map((c) => {
       const connection = c as Record<string, unknown>;
       const health = usageHealth[String(connection.id ?? "")];
-
+      const psd = connection.providerSpecificData as Record<string, unknown> | undefined;
       return {
         ...connection,
         apiKey: undefined,
         accessToken: undefined,
         refreshToken: undefined,
         idToken: undefined,
+        // Account-scoped secret (Ollama session cookie): never echo to the
+        // dashboard. PUT merge preserves keys a client did not send.
+        providerSpecificData: psd
+          ? { ...psd, ...(psd.settingsCookie !== undefined ? { settingsCookie: undefined } : {}) }
+          : psd,
         credentialsConfigured: Boolean(
           connection.apiKey || connection.accessToken || connection.refreshToken
         ),

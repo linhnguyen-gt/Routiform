@@ -2,14 +2,28 @@ import { register } from "../registry.ts";
 import { FORMATS } from "../formats.ts";
 import { CLAUDE_SYSTEM_PROMPT } from "../../config/constants.ts";
 import { adjustMaxTokens } from "../helpers/maxTokensHelper.ts";
+import { capMaxOutputTokens } from "@/shared/constants/modelSpecs";
 import { sanitizeToolId } from "../helpers/schemaCoercion.ts";
-import { parseDataImageUrl } from "../helpers/imageDataUrl.ts";
 import { DEFAULT_THINKING_CLAUDE_SIGNATURE } from "../../config/defaultThinkingSignature.ts";
+import { parseDataImageUrl } from "../helpers/imageDataUrl.ts";
 
 // Prefix for Claude OAuth tool names to avoid conflicts
 // Can be disabled per-request via body._disableToolPrefix = true
 export const CLAUDE_OAUTH_TOOL_PREFIX = "proxy_";
 const CLAUDE_TOOL_CHOICE_REQUIRED = "an" + "y";
+
+/**
+ * adjustMaxTokens plus a model-aware ceiling. An explicit client max_tokens
+ * must still win over the model spec (a client asking 16k on a 64k model
+ * gets 16k), so this is min(adjustMaxTokens(body), specCeiling) — never the
+ * reverse order of "clamped default when absent" alone. The spec ceiling
+ * only bites when adjustMaxTokens wants more than the model accepts, which
+ * is exactly the injection case (default now 131072 > most Claude models'
+ * 32k–128k output limits).
+ */
+export function adjustMaxTokensClamped(body: Record<string, unknown>, model: string): number {
+  return Math.min(adjustMaxTokens(body), capMaxOutputTokens(model));
+}
 
 type ClaudeContentBlock = Record<string, unknown>;
 type ClaudeMessage = {
@@ -182,7 +196,14 @@ export function openaiToClaudeRequest(model, body, stream) {
     _toolNameMap?: Map<string, string>;
   } = {
     model: model,
-    max_tokens: adjustMaxTokens(body),
+    // When the client omits max_tokens, adjustMaxTokens injects the global
+    // default (now 131072). Sending a value above the model's real output
+    // ceiling makes Anthropic reject the request with 400, so the injected
+    // default is clamped to the model spec (SAFE_DEFAULT_MAX_OUTPUT_TOKENS
+    // and spec.maxOutputTokens). An explicit client max_tokens is passed
+    // as-is — the tool-calls bump inside adjustMaxTokens is preserved and
+    // the chatCore provider cap still applies later.
+    max_tokens: adjustMaxTokensClamped(body, model),
     stream: stream,
     messages: [],
   };

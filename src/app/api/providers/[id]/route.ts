@@ -55,6 +55,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     delete result.accessToken;
     delete result.refreshToken;
     delete result.idToken;
+    // Account-scoped secret (Ollama session cookie): never echo to the
+    // dashboard. PUT merge preserves keys a client did not send.
+    if (result.providerSpecificData && typeof result.providerSpecificData === "object") {
+      const psd = { ...(result.providerSpecificData as Record<string, unknown>) };
+      delete psd.settingsCookie;
+      result.providerSpecificData = psd;
+    }
 
     return NextResponse.json({ connection: result });
   } catch (error) {

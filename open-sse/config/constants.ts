@@ -63,19 +63,19 @@ export const CACHE_TTL = {
 };
 
 // Default max tokens
-export const DEFAULT_MAX_TOKENS = 65536;
+export const DEFAULT_MAX_TOKENS = 131072;
 
 // Minimum max tokens for tool calling (to prevent truncated arguments)
 export const DEFAULT_MIN_TOKENS = 32000;
 
 export const PROVIDER_MAX_TOKENS: Record<string, number> = {
   groq: 16384, // Groq strict per-model enforcement
-  openai: 65536, // GPT-4/4o standard
-  anthropic: 65536, // Claude models
-  gemini: 65536, // Gemini Studio
-  "ollama-cloud": 65536, // Ollama Cloud API (supports large context models like Kimi K2.5)
+  openai: 131072, // GPT-4/4o standard
+  anthropic: 131072, // Claude models
+  gemini: 131072, // Gemini Studio
+  "ollama-cloud": 131072, // Ollama Cloud API (supports large context models like Kimi K2.5)
   // OpenCode / many clients default max_tokens≈32k; Sonnet/Opus/GPT Copilot models generally accept it.
-  // (#711) Only cap in chatCore when above this — avoids cutting completions so short the model feels “dumb”.
+  // (#711) Only cap in chatCore when above this — avoids cutting completions so short the model feels "dumb".
   github: DEFAULT_MIN_TOKENS,
 };
 

@@ -49,6 +49,7 @@ export function ProviderDetailEditConnectionModal({
     validationModelId: "",
     tag: "",
     customUserAgent: "",
+    settingsCookie: "",
     codexFastServiceTier: false,
   });
   const [testing, setTesting] = useState(false);
@@ -64,12 +65,16 @@ export function ProviderDetailEditConnectionModal({
   const [extraApiKeys, setExtraApiKeys] = useState<string[]>([]);
   const [newExtraKey, setNewExtraKey] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  // settingsCookie is write-only: the API never returns it, so the input starts
+  // empty on every edit and an untouched save preserves the stored value.
+  const [settingsCookieConfigured, setSettingsCookieConfigured] = useState(false);
 
   const isBailian = connection?.provider === "bailian-coding-plan";
   const isVertex = connection?.provider === "vertex";
   const isGlm = connection?.provider === "glm";
   const isCodex = connection?.provider === "codex";
   const isXiaomiTokenPlan = connection?.provider === "xiaomi-mimo-token-plan";
+  const isOllamaCloud = connection?.provider === "ollama-cloud";
   const defaultBailianUrl = "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic/v1";
   const defaultRegion = "us-central1";
 
@@ -90,6 +95,9 @@ export function ProviderDetailEditConnectionModal({
       typeof connection.providerSpecificData?.customUserAgent === "string"
         ? connection.providerSpecificData.customUserAgent
         : "";
+    const settingsCookieConfigured =
+      typeof connection.providerSpecificData?.settingsCookie === "string" &&
+      connection.providerSpecificData.settingsCookie.length > 0;
     const codexRequestDefaults = getCodexRequestDefaults(connection.providerSpecificData);
     setFormData({
       name: connection.name || "",
@@ -102,6 +110,7 @@ export function ProviderDetailEditConnectionModal({
       validationModelId: (connection.providerSpecificData?.validationModelId as string) || "",
       tag: (connection.providerSpecificData?.tag as string) || "",
       customUserAgent,
+      settingsCookie: "",
       codexFastServiceTier: codexRequestDefaults.serviceTier === "priority",
     });
     const existing = connection.providerSpecificData?.extraApiKeys;
@@ -110,8 +119,9 @@ export function ProviderDetailEditConnectionModal({
     setShowAdvanced(!!customUserAgent);
     setTestResult(null);
     setValidationResult(null);
+    setSettingsCookieConfigured(settingsCookieConfigured);
     setSaveError(null);
-  }, [connection, isBailian, isVertex, isXiaomiTokenPlan]);
+  }, [connection, isBailian, isVertex, isXiaomiTokenPlan, isOllamaCloud]);
 
   const validateApiKey = async () => {
     if (!connection?.provider || !formData.apiKey) return false;
@@ -185,24 +195,37 @@ export function ProviderDetailEditConnectionModal({
             rateLimitedUntil: null,
           });
       }
-      updates.providerSpecificData = isOAuth
-        ? { ...(connection.providerSpecificData || {}), tag: formData.tag.trim() || undefined }
-        : {
-            ...(connection.providerSpecificData || {}),
-            extraApiKeys: extraApiKeys.filter((k) => k.trim().length > 0),
-            tag: formData.tag.trim() || undefined,
-            customUserAgent: formData.customUserAgent.trim(),
-            validationModelId: formData.validationModelId || undefined,
-            ...(isBailian
-              ? { baseUrl: validatedBailianBaseUrl }
-              : isXiaomiTokenPlan && validatedXiaomiTokenPlanBaseUrl
-                ? { baseUrl: validatedXiaomiTokenPlanBaseUrl }
-                : isVertex
-                  ? { region: formData.region }
-                  : isGlm
-                    ? { apiRegion: formData.apiRegion }
-                    : {}),
-          };
+      if (isOAuth) {
+        updates.providerSpecificData = {
+          ...(connection.providerSpecificData || {}),
+          tag: formData.tag.trim() || undefined,
+        };
+      } else {
+        const psd: Record<string, unknown> = {
+          ...(connection.providerSpecificData || {}),
+          extraApiKeys: extraApiKeys.filter((k) => k.trim().length > 0),
+          tag: formData.tag.trim() || undefined,
+          customUserAgent: formData.customUserAgent.trim(),
+          validationModelId: formData.validationModelId || undefined,
+        };
+        if (isBailian) {
+          psd.baseUrl = validatedBailianBaseUrl;
+        } else if (isXiaomiTokenPlan && validatedXiaomiTokenPlanBaseUrl) {
+          psd.baseUrl = validatedXiaomiTokenPlanBaseUrl;
+        } else if (isVertex) {
+          psd.region = formData.region;
+        } else if (isGlm) {
+          psd.apiRegion = formData.apiRegion;
+        } else if (isOllamaCloud) {
+          // Write-only field: an empty input means "keep the stored cookie" — omit
+          // the key so the PUT merge preserves it. Clearing the cookie is done by
+          // re-saving empty after removing it server-side (delete/re-add connection).
+          if (formData.settingsCookie.trim()) {
+            psd.settingsCookie = formData.settingsCookie.trim();
+          }
+        }
+        updates.providerSpecificData = psd;
+      }
       if (isCodex) {
         const providerSpecificData =
           (updates.providerSpecificData as Record<string, unknown> | undefined) || {};
@@ -226,7 +249,9 @@ export function ProviderDetailEditConnectionModal({
       const res = await fetch(`/api/providers/${connection.id}/test`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ validationModelId: formData.validationModelId || undefined }),
+        body: JSON.stringify({
+          validationModelId: formData.validationModelId || undefined,
+        }),
       });
       const data = await res.json();
       setTestResult({
@@ -306,7 +331,10 @@ export function ProviderDetailEditConnectionModal({
           type="number"
           value={formData.priority}
           onChange={(e) =>
-            setFormData({ ...formData, priority: Number.parseInt(e.target.value) || 1 })
+            setFormData({
+              ...formData,
+              priority: Number.parseInt(e.target.value) || 1,
+            })
           }
         />
         {isXiaomiTokenPlan && (
@@ -392,7 +420,12 @@ export function ProviderDetailEditConnectionModal({
                 <Input
                   label="Custom User-Agent"
                   value={formData.customUserAgent}
-                  onChange={(e) => setFormData({ ...formData, customUserAgent: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      customUserAgent: e.target.value,
+                    })
+                  }
                   placeholder="my-app/1.0"
                   hint="Optional override sent upstream as the User-Agent header for this connection"
                 />
@@ -439,6 +472,21 @@ export function ProviderDetailEditConnectionModal({
             <p className="text-xs text-text-muted mt-1">
               Select the endpoint region for API access and quota tracking.
             </p>
+          </div>
+        )}
+        {isOllamaCloud && (
+          <div>
+            <Input
+              label="Ollama session cookie"
+              value={formData.settingsCookie}
+              onChange={(e) => setFormData({ ...formData, settingsCookie: e.target.value })}
+              placeholder={
+                settingsCookieConfigured
+                  ? "Configured (stored securely — leave blank to keep)"
+                  : "session=eyJhbGciOi..."
+              }
+              hint="Optional — enables the Limits page to show Ollama Cloud usage. Open ollama.com/settings in a signed-in browser tab, DevTools → Network → any request → Copy the Cookie header, then paste it here. Stored encrypted; never shown back. Leave blank to keep the current value."
+            />
           </div>
         )}
         {!isOAuth && (

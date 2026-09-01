@@ -40,6 +40,19 @@ export function validateProviderSpecificData(
     });
   }
 
+  const settingsCookie = data.settingsCookie;
+  if (
+    settingsCookie !== undefined &&
+    settingsCookie !== null &&
+    (typeof settingsCookie !== "string" || settingsCookie.length > 4000)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "providerSpecificData.settingsCookie must be a string up to 4000 chars",
+      path: ["settingsCookie"],
+    });
+  }
+
   const requestDefaults = data.requestDefaults;
   if (requestDefaults === undefined) return;
   if (!requestDefaults || typeof requestDefaults !== "object" || Array.isArray(requestDefaults)) {

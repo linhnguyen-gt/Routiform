@@ -32,7 +32,38 @@ export interface ConnectionFields {
   accessToken?: string | null;
   refreshToken?: string | null;
   idToken?: string | null;
+  providerSpecificData?: Record<string, unknown> | null;
   [key: string]: unknown;
+}
+
+/**
+ * providerSpecificData keys holding account-scoped secrets. Encrypted as a
+ * unit because they never belong in an API response or a log line: an Ollama
+ * session cookie outranks an API key (full account access, long TTL).
+ */
+const PSD_SECRET_FIELDS = ["settingsCookie"] as const;
+
+/**
+ * Copy providerSpecificData, mapping the given secret fields through `transform`.
+ * Returns the input untouched unless at least one field was rewritten, so callers
+ * can treat the result as "already as intended" without a second shape check.
+ */
+function mapPsdSecretFields(
+  psd: Record<string, unknown> | null | undefined,
+  shouldTouch: (value: string) => boolean,
+  transform: (value: string) => unknown
+): Record<string, unknown> | null {
+  if (!(psd && typeof psd === "object" && !Array.isArray(psd))) return null;
+  let touched = false;
+  const next = { ...psd };
+  for (const field of PSD_SECRET_FIELDS) {
+    const value = next[field];
+    if (typeof value === "string" && shouldTouch(value)) {
+      next[field] = transform(value);
+      touched = true;
+    }
+  }
+  return touched ? next : null;
 }
 
 function deriveKey(secret: string): Buffer {
@@ -175,6 +206,13 @@ export function encryptConnectionFields<T extends ConnectionFields | null | unde
   if (conn.accessToken) conn.accessToken = encrypt(conn.accessToken);
   if (conn.refreshToken) conn.refreshToken = encrypt(conn.refreshToken);
   if (conn.idToken) conn.idToken = encrypt(conn.idToken);
+
+  const next = mapPsdSecretFields(
+    conn.providerSpecificData,
+    (v) => !!v,
+    (v) => encrypt(v)
+  );
+  if (next) conn.providerSpecificData = next;
   return conn;
 }
 
@@ -201,8 +239,14 @@ export function decryptConnectionFields<T extends ConnectionFields | null | unde
     return v;
   };
 
+  const next = mapPsdSecretFields(
+    row.providerSpecificData,
+    (v) => v.startsWith(FIELD_ENCRYPTED_VALUE_PREFIX),
+    (v) => unwrap(v) ?? null
+  );
   return {
     ...row,
+    ...(next ? { providerSpecificData: next } : {}),
     apiKey: unwrap(row.apiKey),
     accessToken: unwrap(row.accessToken),
     refreshToken: unwrap(row.refreshToken),
