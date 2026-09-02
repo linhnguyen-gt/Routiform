@@ -200,6 +200,10 @@ models:
     modelAliases: [
       "claude-opus-4-6-thinking",
       "claude-sonnet-4-6",
+      "gemini-3.8-flash-high",
+      "gemini-3.8-flash-medium",
+      "gemini-3.8-flash-low",
+      "gemini-3.8-flash",
       "gemini-3.5-flash",
       "gemini-3-flash",
       "gpt-oss-120b",
@@ -210,6 +214,26 @@ models:
     defaultModels: [
       { id: "gemini-3.1-pro-high", name: "Gemini 3.1 Pro High", alias: "gemini-3.1-pro-high" },
       { id: "gemini-3.1-pro-low", name: "Gemini 3.1 Pro Low", alias: "gemini-3.1-pro-low" },
+      {
+        id: "gemini-3.8-flash-high",
+        name: "Gemini 3.8 Flash (High)",
+        alias: "gemini-3.8-flash-high",
+      },
+      {
+        id: "gemini-3.8-flash-medium",
+        name: "Gemini 3.8 Flash (Medium)",
+        alias: "gemini-3.8-flash-medium",
+      },
+      {
+        id: "gemini-3.8-flash-low",
+        name: "Gemini 3.8 Flash (Low)",
+        alias: "gemini-3.8-flash-low",
+      },
+      {
+        id: "gemini-3.8-flash",
+        name: "Gemini 3.8 Flash",
+        alias: "gemini-3.8-flash",
+      },
       {
         id: "gemini-3.5-flash",
         name: "Gemini 3.5 Flash",

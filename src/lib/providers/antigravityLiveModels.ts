@@ -15,6 +15,24 @@ export type AntigravityLiveModel = {
   };
 };
 
+export const DEFAULT_ANTIGRAVITY_MODELS: AntigravityLiveModel[] = [
+  { id: "gemini-3.8-flash-high", name: "Gemini 3.8 Flash (High)" },
+  { id: "gemini-3.8-flash-medium", name: "Gemini 3.8 Flash (Medium)" },
+  { id: "gemini-3.8-flash-low", name: "Gemini 3.8 Flash (Low)" },
+  { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash" },
+  { id: "gemini-3.7-flash-high", name: "Gemini 3.7 Flash (High)" },
+  { id: "gemini-3.7-flash-medium", name: "Gemini 3.7 Flash (Medium)" },
+  { id: "gemini-3.7-flash-low", name: "Gemini 3.7 Flash (Low)" },
+  { id: "gemini-3.6-flash-high", name: "Gemini 3.6 Flash (High)" },
+  { id: "gemini-3.6-flash-medium", name: "Gemini 3.6 Flash (Medium)" },
+  { id: "gemini-3.6-flash-low", name: "Gemini 3.6 Flash (Low)" },
+  { id: "gemini-3.5-flash-low", name: "Gemini 3.5 Flash (Medium)" },
+  { id: "gemini-3.1-pro-high", name: "Gemini 3.1 Pro (High)" },
+  { id: "gemini-3.1-pro-low", name: "Gemini 3.1 Pro (Low)" },
+  { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6 (Thinking)" },
+  { id: "claude-opus-4-6-thinking", name: "Claude Opus 4.6 (Thinking)" },
+  { id: "gpt-oss-120b-medium", name: "GPT-OSS 120B (Medium)" },
+];
 type AntigravityConnectionLike = {
   id?: string;
   provider?: string;
@@ -215,7 +233,19 @@ export async function loadAntigravityModelsForConnection(
     throw createStatusError(`Failed to fetch Antigravity models: ${status}${details}`, status);
   }
 
-  return mapAntigravityAvailableModels(await response.json());
+  const models = mapAntigravityAvailableModels(await response.json());
+  const flash38 = [
+    { id: "gemini-3.8-flash-high", name: "Gemini 3.8 Flash (High)" },
+    { id: "gemini-3.8-flash-medium", name: "Gemini 3.8 Flash (Medium)" },
+    { id: "gemini-3.8-flash-low", name: "Gemini 3.8 Flash (Low)" },
+    { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash" },
+  ];
+  for (const item of flash38) {
+    if (!models.some((m) => m.id === item.id)) {
+      models.push(item);
+    }
+  }
+  return models;
 }
 
 export function sortAntigravityConnections<T extends AntigravityConnectionLike>(
@@ -244,6 +274,10 @@ export async function loadAntigravityModelsFromConnections(
     } catch (error) {
       lastError = error;
     }
+  }
+
+  if (activeConnections.length > 0) {
+    return DEFAULT_ANTIGRAVITY_MODELS;
   }
 
   if (lastError) throw lastError;

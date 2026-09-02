@@ -72,24 +72,31 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
   "gpt-5.6-luna": GPT_5_6_TEXT_VISION_SPEC,
   "gpt-5.6-sol": GPT_5_6_TEXT_VISION_SPEC,
 
-  // ── Gemini 3.7 / 3.6 Flash ──────────────────────────────────────
-  // Both are advertised at 1M input / 64K output and both support tunable
-  // thinking (low/medium/high, default medium) — 3.7 is built on the 3.6
-  // architecture and ships the same tool suite:
+  // ── Gemini 3.8 / 3.7 / 3.6 Flash ──────────────────────────────────
+  // Advertised at 1M input / 64K output and support tunable
+  // thinking (low/medium/high, default medium) — 3.8/3.7 are built on the
+  // architecture of the 3.x Flash line and ship the same tool suite:
   //   https://ai.google.dev/gemini-api/docs/latest-model
   //   https://deepmind.google/models/model-cards/gemini-3-7-flash/
   //
   // No `aliases` list is needed for the Antigravity tier suffixes
   // (`-low`, `-medium`, `-high`, `-tiered`, `-extra-low`): lookupSpec's
-  // longest-prefix pass already resolves "gemini-3.7-flash-high" here.
-  // The older "gemini-3-flash" key could NOT cover them — "gemini-3.6-flash-low"
-  // does not start with "gemini-3-flash" — so every 3.6/3.7 tier id fell through
+  // longest-prefix pass already resolves "gemini-3.8-flash-high" here.
+  // The older "gemini-3-flash" key could NOT cover them — "gemini-3.8-flash-low"
+  // does not start with "gemini-3-flash" — so every 3.8/3.7/3.6 tier id fell through
   // to `__default__` and was capped at 8192 output instead of 65536.
   //
   // No thinkingBudgetCap is set: the 3.x family is driven by `thinking_level`
   // rather than a numeric budget, and Antigravity strips thinkingConfig outright
   // (see open-sse/services/antigravityThinkingConfig.ts), so any number here
   // would be invented rather than published.
+  "gemini-3.8-flash": {
+    maxOutputTokens: 65536,
+    contextWindow: 1048576,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsVision: true,
+  },
   "gemini-3.7-flash": {
     maxOutputTokens: 65536,
     contextWindow: 1048576,

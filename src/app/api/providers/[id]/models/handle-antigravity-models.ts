@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { loadAntigravityModelsForConnection } from "@/lib/providers/antigravityLiveModels";
+import {
+  loadAntigravityModelsForConnection,
+  DEFAULT_ANTIGRAVITY_MODELS,
+} from "@/lib/providers/antigravityLiveModels";
 import { toModelsRouteError } from "./models-route-error";
 import type { GetModelsHandlerContext } from "./get-models-handler-context";
 
@@ -17,6 +20,12 @@ export async function handleAntigravityModels(
     const mapped = toModelsRouteError(err);
     const msg = err instanceof Error ? err.message : String(err);
     console.log("[models] Antigravity model fetch error:", msg);
-    return NextResponse.json({ error: mapped.message }, { status: mapped.status });
+    return ctx.buildResponse({
+      provider: ctx.provider,
+      connectionId: ctx.connectionId,
+      models: DEFAULT_ANTIGRAVITY_MODELS,
+      source: "local_catalog",
+      warning: `Antigravity live catalog unavailable (${mapped.message}) — using default models`,
+    });
   }
 }

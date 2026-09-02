@@ -28,9 +28,16 @@ import type {
  * `src/lib/providers/antigravityLiveModels.ts`. If a bare ID reaches the upstream
  * and it rejects with 400, surface that to the caller instead of remapping it.
  */
+const BARE_FLASH_DEFAULTS: Record<string, string> = {
+  "gemini-3.8-flash": "gemini-3.8-flash-high",
+  "gemini-3.7-flash": "gemini-3.7-flash-high",
+  "gemini-3.6-flash": "gemini-3.6-flash-high",
+};
+
 export function cleanModelName(model: string): string {
   if (!model) return model;
-  return model.includes("/") ? model.split("/").pop()! : model;
+  const bare = model.includes("/") ? model.split("/").pop()! : model;
+  return BARE_FLASH_DEFAULTS[bare] || bare;
 }
 
 export function generateAntigravitySessionId(): string {

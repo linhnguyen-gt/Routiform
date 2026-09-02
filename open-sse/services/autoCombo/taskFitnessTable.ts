@@ -58,6 +58,7 @@ export const FITNESS_TABLE: Record<string, Record<string, number>> = {
     o3: 0.9,
     "o4-mini": 0.85,
     // Google
+    "gemini-3.8-flash": 0.88,
     "gemini-3.6-flash": 0.88,
     "gemini-3.5-flash": 0.87,
     "gemini-3.1-pro": 0.94,
@@ -169,6 +170,7 @@ export const FITNESS_TABLE: Record<string, Record<string, number>> = {
     "gemini-3.1-pro": 0.96,
     "gemini-3-pro": 0.95,
     "gemini-2.5-pro": 0.92,
+    "gemini-3.8-flash": 0.84,
     "gemini-3.6-flash": 0.84,
     "gemini-3.5-flash": 0.83,
     "deepseek-v4-pro": 0.88,
@@ -220,6 +222,7 @@ export const FITNESS_TABLE: Record<string, Record<string, number>> = {
     "gpt-4o": 0.88,
     "gemini-3.1-pro": 0.9,
     "gemini-3-pro": 0.89,
+    "gemini-3.8-flash": 0.84,
     "gemini-3.6-flash": 0.84,
     "gemini-3.5-flash": 0.84,
     "gemini-2.5-pro": 0.86,
@@ -269,6 +272,7 @@ export const FITNESS_TABLE: Record<string, Record<string, number>> = {
     o1: 0.84,
     o3: 0.86,
     // ── Google ──
+    "gemini-3.8-flash": 0.86,
     "gemini-3.6-flash": 0.86,
     "gemini-3.5-flash": 0.85,
     "gemini-3.1-pro": 0.94,

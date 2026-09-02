@@ -52,7 +52,10 @@ const URL_PATTERNS: Record<string, string[]> = {
 };
 
 const MODEL_SYNONYMS: Record<string, Record<string, string>> = {
-  antigravity: { "gemini-default": "gemini-3-flash" },
+  antigravity: {
+    "gemini-default": "gemini-3-flash",
+    "gemini-3.8-flash": "gemini-3.8-flash-high",
+  },
 };
 
 const LOG_BLACKLIST_URL_PARTS = [
@@ -207,8 +210,7 @@ function createResponseDumper(req: http.IncomingMessage, tag = "raw"): Dumper | 
       try {
         const raw = Buffer.concat(chunks);
         const enc = (headers["content-encoding"] || headers["Content-Encoding"]) as
-          | string
-          | undefined;
+          string | undefined;
         const decoded = decodeBody(raw, enc);
         const text = decoded.toString("utf8");
         if (EMPTY_BODY_RE.test(text)) return;

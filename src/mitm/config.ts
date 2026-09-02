@@ -16,7 +16,10 @@ export const URL_PATTERNS: Record<string, string[]> = {
 };
 
 export const MODEL_SYNONYMS: Record<string, Record<string, string>> = {
-  antigravity: { "gemini-default": "gemini-3-flash" },
+  antigravity: {
+    "gemini-default": "gemini-3-flash",
+    "gemini-3.8-flash": "gemini-3.8-flash-high",
+  },
 };
 
 export const LOG_BLACKLIST_URL_PARTS = [

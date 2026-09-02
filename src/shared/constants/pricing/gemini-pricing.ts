@@ -71,6 +71,7 @@ const GEMINI_3_FLASH_PRICING: PricingRate = {
 };
 
 export const geminiPricing: Record<string, PricingRate> = {
+  "gemini-3.8-flash": GEMINI_3_FLASH_PRICING,
   "gemini-3.7-flash": GEMINI_3_FLASH_PRICING,
   "gemini-3.6-flash": GEMINI_3_FLASH_PRICING,
   "gemini-3.1-pro": {
